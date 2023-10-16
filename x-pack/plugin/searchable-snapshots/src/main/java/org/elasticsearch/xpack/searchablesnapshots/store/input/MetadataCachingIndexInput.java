@@ -29,6 +29,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
@@ -105,6 +106,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     // the following are only mutable so they can be adjusted after cloning/slicing
     private volatile boolean isClone;
     private AtomicBoolean closed;
+    private final LongCounter cacheMissCounter;
 
     protected MetadataCachingIndexInput(
         Logger logger,
@@ -120,7 +122,8 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         int defaultRangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        ByteRange footerBlobCacheByteRange,
+        LongCounter cacheMissCounter
     ) {
         super(name, context);
         this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
@@ -144,6 +147,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
         this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         assert offset >= compoundFileOffset;
+        this.cacheMissCounter = cacheMissCounter;
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
     }
 
@@ -165,7 +169,8 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             input.defaultRangeSize,
             input.recoveryRangeSize,
             input.headerBlobCacheByteRange,
-            input.footerBlobCacheByteRange
+            input.footerBlobCacheByteRange,
+            input.cacheMissCounter
         );
         this.isClone = true;
         try {
@@ -282,6 +287,9 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         final CachedBlob cachedBlob = directory.getCachedBlob(fileInfo.physicalName(), blobCacheByteRange);
         if (cachedBlob == CachedBlob.CACHE_MISS || cachedBlob == CachedBlob.CACHE_NOT_READY) {
             fillBlobCacheIndex(b, blobCacheByteRange, position, cacheFile);
+            if (cachedBlob == CachedBlob.CACHE_MISS) {
+                cacheMissCounter.increment();
+            }
         } else {
             readAndCopyFromBlobCacheIndex(b, position, cacheFile, cachedBlob);
         }
@@ -648,6 +656,10 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     @Override
     public final long length() {
         return length;
+    }
+
+    public final LongCounter getCacheMissCounter() {
+        return cacheMissCounter;
     }
 
     @Override

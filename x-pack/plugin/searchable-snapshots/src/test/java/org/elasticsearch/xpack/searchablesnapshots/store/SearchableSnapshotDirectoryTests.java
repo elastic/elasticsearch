@@ -88,6 +88,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -671,7 +672,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         cacheDir,
                         shardPath,
                         threadPool,
-                        sharedBlobCacheService
+                        sharedBlobCacheService,
+                        Meter.NOOP
                     )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
@@ -775,7 +777,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     cacheDir,
                     shardPath,
                     threadPool,
-                    sharedBlobCacheService
+                    sharedBlobCacheService,
+                    Meter.NOOP
                 )
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
@@ -834,7 +837,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null, null, Meter.NOOP)
             );
         }
     }

@@ -47,6 +47,8 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
@@ -137,6 +139,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private volatile BlobContainer blobContainer;
     private volatile boolean loaded;
     private volatile SearchableSnapshotRecoveryState recoveryState;
+    private final LongCounter cacheMissCounter;
 
     public SearchableSnapshotDirectory(
         Supplier<BlobContainer> blobContainer,
@@ -152,7 +155,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        SharedBlobCacheService<CacheKey> sharedBlobCacheService
+        SharedBlobCacheService<CacheKey> sharedBlobCacheService,
+        Meter meter
     ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -177,6 +181,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.threadPool = threadPool;
         this.loaded = false;
         this.sharedBlobCacheService = sharedBlobCacheService;
+        this.cacheMissCounter = meter.registerLongCounter(
+            "elasticsearch.blob_cache.miss_that_triggered_read_from_blob_store",
+            "The number of times there was a cache miss that triggered a read from the blob store",
+            "count"
+        );
         assert invariant();
     }
 
@@ -407,7 +416,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     context,
                     inputStats,
                     sharedBlobCacheService.getRangeSize(),
-                    sharedBlobCacheService.getRecoveryRangeSize()
+                    sharedBlobCacheService.getRecoveryRangeSize(),
+                    cacheMissCounter
                 );
             } else {
                 return new CachedBlobContainerIndexInput(
@@ -563,7 +573,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
         BlobStoreCacheService blobStoreCacheService,
-        SharedBlobCacheService<CacheKey> sharedBlobCacheService
+        SharedBlobCacheService<CacheKey> sharedBlobCacheService,
+        Meter meter
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -647,7 +658,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cacheDir,
                 shardPath,
                 threadPool,
-                sharedBlobCacheService
+                sharedBlobCacheService,
+                meter
             )
         );
     }

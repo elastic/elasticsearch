@@ -16,6 +16,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
@@ -38,7 +39,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
         IOContext context,
         IndexInputStats stats,
         int rangeSize,
-        int recoveryRangeSize
+        int recoveryRangeSize,
+        LongCounter cacheMissCounter
     ) {
         this(
             name,
@@ -54,7 +56,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             rangeSize,
             recoveryRangeSize,
             directory.getBlobCacheByteRange(name, fileInfo.length()),
-            ByteRange.EMPTY
+            ByteRange.EMPTY,
+            cacheMissCounter
         );
         stats.incrementOpenCount();
     }
@@ -73,7 +76,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
         int defaultRangeSize,
         int recoveryRangeSize,
         ByteRange headerBlobCacheByteRange,
-        ByteRange footerBlobCacheByteRange
+        ByteRange footerBlobCacheByteRange,
+        LongCounter cacheMissCounter
     ) {
         super(
             logger,
@@ -89,7 +93,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             defaultRangeSize,
             recoveryRangeSize,
             headerBlobCacheByteRange,
-            footerBlobCacheByteRange
+            footerBlobCacheByteRange,
+            cacheMissCounter
         );
         this.cacheFile = cacheFile.copy();
     }
@@ -200,7 +205,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             defaultRangeSize,
             recoveryRangeSize,
             sliceHeaderByteRange,
-            sliceFooterByteRange
+            sliceFooterByteRange,
+            getCacheMissCounter()
         );
     }
 

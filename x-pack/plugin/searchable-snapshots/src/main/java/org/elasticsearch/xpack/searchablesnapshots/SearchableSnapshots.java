@@ -71,6 +71,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -262,6 +263,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
     private final Settings settings;
     private final FrozenCacheInfoService frozenCacheInfoService = new FrozenCacheInfoService();
+    private Meter meter = Meter.NOOP;
 
     public SearchableSnapshots(final Settings settings) {
         this.settings = settings;
@@ -380,6 +382,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
             clusterService.addListener(new RepositoryUuidWatcher(clusterService.getRerouteService()));
         }
+        this.meter = telemetryProvider.getMeter();
         return Collections.unmodifiableList(components);
     }
 
@@ -451,7 +454,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 System::nanoTime,
                 threadPool,
                 blobCache,
-                frozenCacheService.get()
+                frozenCacheService.get(),
+                meter
             );
         });
     }

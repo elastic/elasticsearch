@@ -15,6 +15,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -152,6 +153,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         primaryTerm = in.readVLong();
         source = in.readReleasableBytesReference();
         if (source.length() == 0) {
+            source.decRef();
             source = null;
         }
         if (in.readBoolean()) {
@@ -372,7 +374,16 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      * Returns bytes reference, also uncompress the source if needed.
      */
     public BytesReference getSourceRef() {
-        return this.source;
+        if (this.source == null) {
+            return null;
+        }
+
+        try {
+            // TODO: how do we handle this with pooling?
+            return CompressorFactory.uncompressIfNeeded(this.source);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("failed to decompress source", e);
+        }
     }
 
     /**
@@ -385,9 +396,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     public SearchHit sourceRef(BytesReference source) {
-        this.source = ReleasableBytesReference.wrap(source);
-        this.sourceAsMap = null;
-        return this;
+        return sourceRef(ReleasableBytesReference.wrap(source));
     }
 
     /**
@@ -637,22 +646,24 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
 
     @Override
     public void incRef() {
-        source.incRef();
+        if (source != null) {
+            source.incRef();
+        }
     }
 
     @Override
     public boolean tryIncRef() {
-        return source.tryIncRef();
+        return source != null && source.tryIncRef();
     }
 
     @Override
     public boolean decRef() {
-        return source.decRef();
+        return source != null && source.decRef();
     }
 
     @Override
     public boolean hasReferences() {
-        return source.hasReferences();
+        return source != null && source.hasReferences();
     }
 
     public static class Fields {
@@ -963,7 +974,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         searchHit.setPrimaryTerm(get(Fields._PRIMARY_TERM, values, SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
         searchHit.sortValues(get(Fields.SORT, values, SearchSortValues.EMPTY));
         searchHit.highlightFields(get(Fields.HIGHLIGHT, values, null));
-        searchHit.sourceRef(get(SourceFieldMapper.NAME, values, null));
+        var source = get(SourceFieldMapper.NAME, values, (BytesReference) null);
+        if (source != null) {
+            searchHit.sourceRef(source);
+        }
         searchHit.explanation(get(Fields._EXPLANATION, values, null));
         searchHit.setInnerHits(get(Fields.INNER_HITS, values, null));
         searchHit.matchedQueries(get(Fields.MATCHED_QUERIES, values, null));
@@ -1082,7 +1096,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             && Objects.equals(version, other.version)
             && Objects.equals(seqNo, other.seqNo)
             && Objects.equals(primaryTerm, other.primaryTerm)
-            && Objects.equals(source, other.source)
+            && Objects.equals(getSourceRef(), other.getSourceRef())
             && Objects.equals(documentFields, other.documentFields)
             && Objects.equals(metaFields, other.metaFields)
             && Objects.equals(getHighlightFields(), other.getHighlightFields())
@@ -1102,7 +1116,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
             version,
             seqNo,
             primaryTerm,
-            source,
+            getSourceRef(),
             documentFields,
             metaFields,
             getHighlightFields(),

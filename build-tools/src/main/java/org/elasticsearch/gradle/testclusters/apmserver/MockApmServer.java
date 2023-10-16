@@ -33,6 +33,11 @@ import java.net.InetSocketAddress;
  */
 public class MockApmServer {
     private static final Logger logger = Logging.getLogger(MockApmServer.class);
+    private int port;
+
+    public MockApmServer(int port) {
+        this.port = port;
+    }
 
     /**
      * Simple main that starts a mock APM server, prints the port it is
@@ -41,7 +46,7 @@ public class MockApmServer {
      * if you want play around.
      */
     public static void main(String[] args) throws IOException, InterruptedException {
-        MockApmServer server = new MockApmServer();
+        MockApmServer server = new MockApmServer(9999);
         server.start();
     }
 
@@ -56,7 +61,7 @@ public class MockApmServer {
         if (instance != null) {
             throw new IOException("MockApmServer: Ooops, you can't start this instance more than once");
         }
-        InetSocketAddress addr = new InetSocketAddress("0.0.0.0", 9999);
+        InetSocketAddress addr = new InetSocketAddress("0.0.0.0", port);
         HttpServer server = HttpServer.create(addr, 10);
         server.createContext("/exit", new ExitHandler());
         server.createContext("/", new RootHandler());
@@ -68,7 +73,7 @@ public class MockApmServer {
     }
 
     public int getPort() {
-        return instance.getAddress().getPort();
+        return port;
     }
 
     /**

@@ -28,7 +28,7 @@ public abstract class ApmServerBuildService
 
     public ApmServerBuildService() {
         logger.info("starting up apm server");
-        mockServer = new MockApmServer();
+        mockServer = new MockApmServer(9999);
         try {
             mockServer.start();
         } catch (IOException e) {

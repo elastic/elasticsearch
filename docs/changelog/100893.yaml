@@ -1,0 +1,6 @@
+pr: 100893
+summary: Added metric for number of times there was a blob cache miss that triggered
+  read from blob store
+area: Search
+type: enhancement
+issues: []

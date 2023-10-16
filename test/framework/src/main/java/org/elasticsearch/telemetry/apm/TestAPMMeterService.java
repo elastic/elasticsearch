@@ -6,12 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics.internal;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.telemetry.apm.internal.metrics.internal.metrics.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterRegistry;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
@@ -28,8 +28,6 @@ import org.elasticsearch.telemetry.metric.MeterService;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.telemetry.apm.internal.metrics.internal.MeterRecorder.INSTRUMENT;
 
 public class TestAPMMeterService implements MeterService {
     private final APMMeterRegistry meterRegistry;
@@ -80,25 +78,25 @@ public class TestAPMMeterService implements MeterService {
     public List<Metric> getMetrics(Instrument instrument, String name) {
         Objects.requireNonNull(instrument);
         if (instrument instanceof DoubleCounter) {
-            return recordingMeter.getRecorder().getDouble(INSTRUMENT.COUNTER, name);
+            return recordingMeter.getRecorder().getDouble(MeterRecorder.INSTRUMENT.COUNTER, name);
         } else if (instrument instanceof LongCounter) {
-            return recordingMeter.getRecorder().getLong(INSTRUMENT.COUNTER, name);
+            return recordingMeter.getRecorder().getLong(MeterRecorder.INSTRUMENT.COUNTER, name);
         } else if (instrument instanceof DoubleUpDownCounter) {
-            return recordingMeter.getRecorder().getDouble(INSTRUMENT.UP_DOWN_COUNTER, name);
+            return recordingMeter.getRecorder().getDouble(MeterRecorder.INSTRUMENT.UP_DOWN_COUNTER, name);
         } else if (instrument instanceof LongUpDownCounter) {
-            return recordingMeter.getRecorder().getLong(INSTRUMENT.UP_DOWN_COUNTER, name);
+            return recordingMeter.getRecorder().getLong(MeterRecorder.INSTRUMENT.UP_DOWN_COUNTER, name);
         } else if (instrument instanceof DoubleHistogram) {
-            return recordingMeter.getRecorder().getDouble(INSTRUMENT.HISTOGRAM, name);
+            return recordingMeter.getRecorder().getDouble(MeterRecorder.INSTRUMENT.HISTOGRAM, name);
         } else if (instrument instanceof LongHistogram) {
-            return recordingMeter.getRecorder().getLong(INSTRUMENT.HISTOGRAM, name);
+            return recordingMeter.getRecorder().getLong(MeterRecorder.INSTRUMENT.HISTOGRAM, name);
         } else if (instrument instanceof DoubleGauge) {
-            return recordingMeter.getRecorder().getDouble(INSTRUMENT.GAUGE_OBSERVER, name);
+            return recordingMeter.getRecorder().getDouble(MeterRecorder.INSTRUMENT.GAUGE_OBSERVER, name);
         } else if (instrument instanceof LongGauge) {
-            return recordingMeter.getRecorder().getLong(INSTRUMENT.GAUGE_OBSERVER, name);
+            return recordingMeter.getRecorder().getLong(MeterRecorder.INSTRUMENT.GAUGE_OBSERVER, name);
         } else if (instrument instanceof DoubleGaugeObserver) {
-            return recordingMeter.getRecorder().getDouble(INSTRUMENT.GAUGE_OBSERVER, name);
+            return recordingMeter.getRecorder().getDouble(MeterRecorder.INSTRUMENT.GAUGE_OBSERVER, name);
         } else if (instrument instanceof LongGaugeObserver) {
-            return recordingMeter.getRecorder().getLong(INSTRUMENT.GAUGE_OBSERVER, name);
+            return recordingMeter.getRecorder().getLong(MeterRecorder.INSTRUMENT.GAUGE_OBSERVER, name);
         } else {
             throw new IllegalArgumentException("unknown instrument [" + instrument.getClass().getName() + "]");
         }

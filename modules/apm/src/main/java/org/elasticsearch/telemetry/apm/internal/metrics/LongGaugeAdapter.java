@@ -6,12 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics.internal.metrics;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.util.Collections;
 import java.util.Map;
@@ -19,48 +16,41 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
+ * LongGaugeAdapter wraps an otel ObservableLongMeasurement
  */
-public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableDoubleGauge>
+public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableLongGauge>
     implements
-        org.elasticsearch.telemetry.metric.DoubleGauge {
-
-    private static final Logger LOGGER = LogManager.getLogger(DoubleGaugeAdapter.class);
-
+        org.elasticsearch.telemetry.metric.LongGauge {
     private final AtomicReference<ValueWithAttributes> valueWithAttributes;
 
-    public DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
+    public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
-        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0.0, Collections.emptyMap()));
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0L, Collections.emptyMap()));
     }
 
     @Override
-    io.opentelemetry.api.metrics.ObservableDoubleGauge buildInstrument(Meter meter) {
+    io.opentelemetry.api.metrics.ObservableLongGauge buildInstrument(Meter meter) {
+
         return Objects.requireNonNull(meter)
             .gaugeBuilder(getName())
+            .ofLongs()
             .setDescription(getDescription())
             .setUnit(getUnit())
             .buildWithCallback(measurement -> {
                 var localValueWithAttributed = valueWithAttributes.get();
-                LOGGER.warn(
-                    "STU: callback for {}:{} [{}]",
-                    getName(),
-                    localValueWithAttributed.value,
-                    localValueWithAttributed.attributes()
-                );
                 measurement.record(localValueWithAttributed.value(), OtelHelper.fromMap(localValueWithAttributed.attributes()));
             });
     }
 
     @Override
-    public void record(double value) {
+    public void record(long value) {
         record(value, Collections.emptyMap());
     }
 
     @Override
-    public void record(double value, Map<String, Object> attributes) {
+    public void record(long value, Map<String, Object> attributes) {
         this.valueWithAttributes.set(new ValueWithAttributes(value, attributes));
     }
 
-    private record ValueWithAttributes(double value, Map<String, Object> attributes) {}
+    private record ValueWithAttributes(long value, Map<String, Object> attributes) {}
 }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics.internal.metrics;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -15,8 +15,8 @@ import io.opentelemetry.api.metrics.Meter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.telemetry.apm.internal.metrics.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.metrics.internal.APMTelemetryProvider;
+import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterService;
 
 import java.security.AccessController;

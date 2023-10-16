@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.sameInstance;
 
-public class APMMeterServiceTestsRegistry extends ESTestCase {
+public class APMMeterServiceRegistryTests extends ESTestCase {
     Meter testOtel = OpenTelemetry.noop().getMeter("test");
 
     Meter noopOtel = OpenTelemetry.noop().getMeter("noop");

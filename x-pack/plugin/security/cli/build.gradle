@@ -36,15 +36,6 @@ tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false' // the main code under test runs without the SecurityManager
 }
 
-tasks.named("thirdPartyAudit").configure {
-  enabled = false //TODO: fix this !
-  ignoreMissingClasses(
-    // Used in org.bouncycastle.pqc.crypto.qtesla.QTeslaKeyEncodingTests
-    'junit.framework.Assert',
-    'junit.framework.TestCase'
-  )
-}
-
 if (BuildParams.inFipsJvm) {
   tasks.named("test").configure {
     enabled = false

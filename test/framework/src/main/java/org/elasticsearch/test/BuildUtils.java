@@ -53,11 +53,9 @@ public class BuildUtils {
             int i = 0;
             for (var argComponent : argsComponents) {
                 Object value = argsOverrides.remove(argComponent.getName());
-                boolean containedValue = value != null;
                 if (value == null) {
                     value = argComponent.getAccessor().invoke(existing);
                 }
-                System.out.println(argComponent.getName() + " = " + value + (containedValue ? "" : " (original)"));
                 args[i++] = value;
             }
 

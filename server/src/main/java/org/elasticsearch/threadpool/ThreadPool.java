@@ -621,13 +621,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                this.observers.get(executor.info.getName()).forEach((k, v) -> {
-                    try {
-                        v.close();
-                    } catch (Exception e) {
-                        logger.warn(format("Failed to close LongGaugeObserver for %s. %s", executor.info.getName(), e.getMessage()));
-                    }
-                });
+                if (this.observers.containsKey(executor.info.getName())) {
+                    this.observers.get(executor.info.getName()).forEach((k, v) -> {
+                        try {
+                            v.close();
+                        } catch (Exception e) {
+                            logger.warn(format("Failed to close LongGaugeObserver for %s. %s", executor.info.getName(), e.getMessage()));
+                        }
+                    });
+                }
                 this.observers.remove(executor.info.getName());
                 executor.executor().shutdown();
             }
@@ -639,13 +641,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                this.observers.get(executor.info.getName()).forEach((k, v) -> {
-                    try {
-                        v.close();
-                    } catch (Exception e) {
-                        logger.warn(format("Failed to close LongGaugeObserver for %s. %s", executor.info.getName(), e.getMessage()));
-                    }
-                });
+                if (this.observers.containsKey(executor.info.getName())) {
+                    this.observers.get(executor.info.getName()).forEach((k, v) -> {
+                        try {
+                            v.close();
+                        } catch (Exception e) {
+                            logger.warn(format("Failed to close LongGaugeObserver for %s. %s", executor.info.getName(), e.getMessage()));
+                        }
+                    });
+                }
                 executor.executor().shutdownNow();
             }
         }
@@ -655,13 +659,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                this.observers.get(executor.info.getName()).forEach((k, v) -> {
-                    try {
-                        v.close();
-                    } catch (Exception e) {
-                        logger.warn(format("Failed to close LongGaugeObserver for %s. %s", executor.info.getName(), e.getMessage()));
-                    }
-                });
+                if (this.observers.containsKey(executor.info.getName())) {
+                    this.observers.get(executor.info.getName()).forEach((k, v) -> {
+                        try {
+                            v.close();
+                        } catch (Exception e) {
+                            logger.warn(format("Failed to close LongGaugeObserver for %s. %s", executor.info.getName(), e.getMessage()));
+                        }
+                    });
+                }
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }

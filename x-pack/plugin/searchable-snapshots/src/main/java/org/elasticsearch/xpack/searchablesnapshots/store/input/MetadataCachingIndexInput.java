@@ -146,8 +146,8 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         this.lastSeekPosition = offset;
         this.headerBlobCacheByteRange = Objects.requireNonNull(headerBlobCacheByteRange);
         this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
-        assert offset >= compoundFileOffset;
         this.cacheMissCounter = cacheMissCounter;
+        assert offset >= compoundFileOffset;
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
     }
 

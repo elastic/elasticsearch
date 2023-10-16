@@ -103,12 +103,7 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
             length += v.length;
         }
         if (length > MAX_CONCAT_LENGTH) {
-            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported") {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.BAD_REQUEST; // return a 400 response
-                }
-            };
+            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
         }
         return length;
     }

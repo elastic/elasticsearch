@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.sample.SampleIterator;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
@@ -177,7 +178,7 @@ public class ExecutionManager {
      */
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit) {
         if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
-            throw new EqlIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
+            throw new EqlClientException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
         }
 
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();

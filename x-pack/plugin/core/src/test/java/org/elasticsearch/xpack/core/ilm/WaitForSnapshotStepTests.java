@@ -150,9 +150,9 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     public void testSlmPolicyExecutedAfterStep() {
+        String repoName = randomAlphaOfLength(10);
         String snapshotName = randomAlphaOfLength(10);
         String indexName = randomAlphaOfLength(10);
-        String repoName = randomAlphaOfLength(10);
         // The snapshot was started and finished after the phase time, so we do expect the step to finish:
         GetSnapshotsResponse response = new GetSnapshotsResponse(
             List.of(
@@ -171,10 +171,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         );
         Mockito.doAnswer(invocationOnMock -> {
             GetSnapshotsRequest request = (GetSnapshotsRequest) invocationOnMock.getArguments()[0];
-            assertThat(request.snapshots().length, is(1));
-            assertThat(request.snapshots()[0], equalTo(snapshotName));
-            assertThat(request.repositories().length, is(1));
-            assertThat(request.repositories()[0], equalTo(repoName));
+            assertGetSnapshotRequest(repoName, snapshotName, request);
             @SuppressWarnings("unchecked")
             ActionListener<GetSnapshotsResponse> listener = (ActionListener<GetSnapshotsResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(response);
@@ -190,9 +187,9 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
     }
 
     public void testIndexNotBackedUpYet() {
+        String repoName = randomAlphaOfLength(10);
         String snapshotName = randomAlphaOfLength(10);
         String indexName = randomAlphaOfLength(10);
-        String repoName = randomAlphaOfLength(10);
 
         // The latest snapshot does not contain the index we are interested in
         GetSnapshotsResponse response = new GetSnapshotsResponse(
@@ -212,10 +209,7 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
         );
         Mockito.doAnswer(invocationOnMock -> {
             GetSnapshotsRequest request = (GetSnapshotsRequest) invocationOnMock.getArguments()[0];
-            assertThat(request.snapshots().length, is(1));
-            assertThat(request.snapshots()[0], equalTo(snapshotName));
-            assertThat(request.repositories().length, is(1));
-            assertThat(request.repositories()[0], equalTo(repoName));
+            assertGetSnapshotRequest(repoName, snapshotName, request);
             @SuppressWarnings("unchecked")
             ActionListener<GetSnapshotsResponse> listener = (ActionListener<GetSnapshotsResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(response);
@@ -331,6 +325,15 @@ public class WaitForSnapshotStepTests extends AbstractStepTestCase<WaitForSnapsh
             assertThat(isConditionMet.get(), is(false));
             assertThat(toString(informationContext.get()), containsString("to be executed"));
         }
+    }
+
+    private void assertGetSnapshotRequest(String repoName, String snapshotName, GetSnapshotsRequest request) {
+        assertThat(request.repositories().length, is(1));
+        assertThat(request.repositories()[0], equalTo(repoName));
+        assertThat(request.snapshots().length, is(1));
+        assertThat(request.snapshots()[0], equalTo(snapshotName));
+        assertThat(request.includeIndexNames(), is(true));
+        assertThat(request.verbose(), is(false));
     }
 
     public void testNullStartTime() {

@@ -40,6 +40,9 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
     private static final String POLICY_NOT_FOUND_MESSAGE = "configured policy '%s' not found";
     private static final String INDEX_NOT_INCLUDED_IN_SNAPSHOT_MESSAGE =
         "the last successful snapshot of policy '%s' does not include index '%s'";
+
+    private static final String UNEXPECTED_SNAPSHOT_STATE_MESSAGE =
+        "unexpected number of snapshots retrieved for repository '%s' and snapshot '%s' (expected 1, found %d)";
     private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
     private static final String NO_ACTION_TIME_MESSAGE = "no information about ILM action start in index metadata for index '%s'";
 
@@ -101,17 +104,13 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
         );
         String snapshotName = snapPolicyMeta.getLastSuccess().getSnapshotName();
         String repositoryName = snapPolicyMeta.getPolicy().getRepository();
-        GetSnapshotsRequest request = new GetSnapshotsRequest().snapshots(new String[] { snapshotName })
-            .repositories(repositoryName)
+        GetSnapshotsRequest request = new GetSnapshotsRequest().repositories(repositoryName)
+            .snapshots(new String[] { snapshotName })
             .includeIndexNames(true)
             .verbose(false);
         getClient().admin().cluster().getSnapshots(request, ActionListener.wrap(response -> {
             if (response.getSnapshots().size() != 1) {
-                listener.onFailure(
-                    new IllegalStateException(
-                        "unexpected number of snapshots (" + response.getSnapshots().size() + ") found with name " + snapshotName
-                    )
-                );
+                listener.onFailure(error(UNEXPECTED_SNAPSHOT_STATE_MESSAGE, repositoryName, snapshotName, response.getSnapshots().size()));
             } else {
                 if (response.getSnapshots().get(0).indices().contains(index.getName())) {
                     listener.onResponse(true, EmptyInfo.INSTANCE);

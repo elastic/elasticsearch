@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -171,16 +172,17 @@ public class EnrichLookupService {
     }
 
     private void hasEnrichPrivilege(ActionListener<User> outListener) {
+        final Settings settings = clusterService.getSettings();
+        if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            outListener.onResponse(null);
+            return;
+        }
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final User user = securityContext.getUser();
         if (user == null) {
-            final Settings settings = clusterService.getSettings();
-            if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) && XPackSettings.SECURITY_ENABLED.get(settings)) {
-                outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
-            } else {
-                outListener.onResponse(null);
-            }
+            assert false : "missing or unable to read authentication info on request";
+            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
         }
         HasPrivilegesRequest request = new HasPrivilegesRequest();

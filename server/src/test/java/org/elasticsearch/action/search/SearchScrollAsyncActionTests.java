@@ -8,6 +8,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -461,16 +462,6 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
     }
 
     private ActionListener<SearchResponse> dummyListener() {
-        return new ActionListener<SearchResponse>() {
-            @Override
-            public void onResponse(SearchResponse response) {
-                fail("dummy");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        return ActionTestUtils.assertNoFailureListener(response -> fail("dummy"));
     }
 }

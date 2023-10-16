@@ -4172,11 +4172,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return "IndexShard(shardRouting=" + shardRouting + ")";
     }
 
+    /**
+     * @deprecated use {@link #waitForPrimaryTermAndGeneration(long, long, ActionListener)} instead.
+     */
     @Deprecated
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
         waitForPrimaryTermAndGeneration(Engine.UNKNOWN_PRIMARY_TERM, segmentGeneration, listener);
     }
 
+    /**
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
         getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, listener);
     }

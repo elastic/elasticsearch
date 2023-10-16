@@ -6,21 +6,27 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.metrics;
+package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.metrics.DoubleGaugeBuilder;
+import io.opentelemetry.api.metrics.LongGaugeBuilder;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
+import io.opentelemetry.api.metrics.ObservableLongMeasurement;
 
-import org.elasticsearch.telemetry.apm.TestAPMMeterService;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
-import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class GaugeAdapterTests extends ESTestCase {
     TestAPMMeterService meterService;

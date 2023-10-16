@@ -899,7 +899,8 @@ public class Node implements Closeable {
                 clusterService,
                 bigArrays,
                 xContentRegistry,
-                recoverySettings
+                recoverySettings,
+                telemetryProvider
             );
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);

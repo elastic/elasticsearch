@@ -50,8 +50,9 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAct
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
-import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -62,13 +63,17 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
     private final Settings settings;
-    private final SetOnce<HttpClient> httpClient = new SetOnce<>();
+    private final SetOnce<HttpRequestSenderFactory> httpRequestSenderFactory = new SetOnce<>();
+    // We'll keep a reference to the http manager just in case the inference services don't get closed individually
+    private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -119,9 +124,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        var httpSettings = new HttpSettings(settings, clusterService);
-        httpClient.set(HttpClient.create(httpSettings, threadPool));
-
+        httpManager.set(HttpClientManager.create(settings, threadPool, clusterService));
+        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpManager.get()));
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
     }
@@ -154,22 +158,22 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
-        ScalingExecutorBuilder utility = new ScalingExecutorBuilder(
-            UTILITY_THREAD_POOL_NAME,
-            0,
-            1,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.utility_thread_pool"
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
+        return List.of(
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                0,
+                1,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            )
         );
-
-        return List.of(utility);
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return HttpSettings.getSettings();
+        return Stream.concat(HttpSettings.getSettings().stream(), HttpClientManager.getSettings().stream()).collect(Collectors.toList());
     }
 
     @Override
@@ -194,8 +198,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public void close() {
-        if (httpClient.get() != null) {
-            IOUtils.closeWhileHandlingException(httpClient.get());
+        if (httpManager.get() != null) {
+            IOUtils.closeWhileHandlingException(httpManager.get());
         }
     }
 }

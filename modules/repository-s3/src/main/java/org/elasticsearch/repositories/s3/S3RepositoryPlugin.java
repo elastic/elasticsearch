@@ -167,4 +167,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     public void close() throws IOException {
         getService().close();
     }
+
+    protected Meter getMeter() {
+        return meter.get();
+    }
 }

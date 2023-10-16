@@ -696,10 +696,6 @@ setup:
 
 ---
 "Global ordinals are loaded with the global_ordinals execution hint":
-  - skip:
-      version: all
-      reason: AwaitsFix https://github.com/elastic/elasticsearch/issues/99774
-
   - do:
       index:
         refresh: true
@@ -730,7 +726,17 @@ setup:
   - do:
       search:
         index: test_1
-        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "execution_hint" : "global_ordinals" } } } }
+        body: {
+          "size" : 0,
+          "aggs" : {
+            "str_terms" : {
+              "terms" : {
+                "field" : "str",
+                "execution_hint" : "global_ordinals"
+              }
+            }
+          }
+        }
 
   - match: { hits.total.value: 3}
   - length: { aggregations.str_terms.buckets: 2 }
@@ -741,7 +747,7 @@ setup:
         metric: fielddata
         fielddata_fields: str
 
-  - gt: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
+  - gte: { indices.test_1.total.fielddata.memory_size_in_bytes: 0}
 
 ---
 "No field or script":

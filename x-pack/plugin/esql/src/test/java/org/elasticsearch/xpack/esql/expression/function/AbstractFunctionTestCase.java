@@ -420,7 +420,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assertTrue("argument " + nullBlock + " is null", value.isNull(0));
     }
 
-    public void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
+    public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         int count = 10_000;

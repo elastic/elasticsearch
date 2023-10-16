@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -156,14 +157,6 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
                 }
             }
         };
-        action.doExecute(null, bulkRequest, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse bulkItemResponses) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+        action.doExecute(null, bulkRequest, ActionTestUtils.assertNoFailureListener(bulkItemResponse -> {}));
     }
 }

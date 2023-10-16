@@ -360,7 +360,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
             long repositoryDataGeneration,
-            IndexVersion repositoryFormatIndexVersion,
+            IndexVersion minimumNodeVersion,
             SnapshotDeleteListener listener
         ) {
             listener.onFailure(new UnsupportedOperationException());

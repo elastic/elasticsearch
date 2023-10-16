@@ -4172,7 +4172,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return "IndexShard(shardRouting=" + shardRouting + ")";
     }
 
+    @Deprecated
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
-        getEngine().addSegmentGenerationListener(segmentGeneration, listener);
+        waitForPrimaryTermAndGeneration(-1, segmentGeneration, listener);
+    }
+
+    public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
+        getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, listener);
     }
 }

@@ -1,5 +1,5 @@
 [[esql-source-commands]]
-== {esql} source commands
+=== {esql} source commands
 
 ++++
 <titleabbrev>Source commands</titleabbrev>
@@ -11,10 +11,12 @@ image::images/esql/source-command.svg[A source command producing a table from {e
 
 {esql} supports these source commands:
 
+// tag::list[]
 * <<esql-from>>
 * <<esql-row>>
 * <<esql-show>>
+// end::list[]
 
-include::source-commands/from.asciidoc[]
-include::source-commands/row.asciidoc[]
-include::source-commands/show.asciidoc[]
+include::from.asciidoc[]
+include::row.asciidoc[]
+include::show.asciidoc[]

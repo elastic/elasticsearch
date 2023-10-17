@@ -1,3 +1,4 @@
+[discrete]
 [[esql-asin]]
 === `ASIN`
 [.text-center]

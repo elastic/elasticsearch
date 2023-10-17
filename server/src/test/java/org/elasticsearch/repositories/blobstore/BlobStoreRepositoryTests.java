@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -33,11 +32,8 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -50,7 +46,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 
 import java.io.IOException;
@@ -82,37 +77,10 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
-    static final String REPO_TYPE = "fsLike";
+    static final String REPO_TYPE = "fs";
     private static final String TEST_REPO_NAME = "test-repo";
 
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(FsLikeRepoPlugin.class);
-    }
-
-    // the reason for this plug-in is to drop any assertSnapshotOrGenericThread as mostly all access in this test goes from test threads
-    public static class FsLikeRepoPlugin extends Plugin implements RepositoryPlugin {
-
-        @Override
-        public Map<String, Repository.Factory> getRepositories(
-            Environment env,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings
-        ) {
-            return Collections.singletonMap(
-                REPO_TYPE,
-                (metadata) -> new FsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings) {
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        // eliminate thread name check as we access blobStore on test/main threads
-                    }
-                }
-            );
-        }
-    }
-
-    public void testRetrieveSnapshots() throws Exception {
+    public void testRetrieveSnapshots() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
 
@@ -261,7 +229,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         expectThrows(RepositoryException.class, () -> writeIndexGen(repository, fresherRepositoryData, repositoryData.getGenId()));
     }
 
-    public void testBadChunksize() throws Exception {
+    public void testBadChunksize() {
         final Client client = client();
         final Path location = ESIntegTestCase.randomRepoPath(node().settings());
 
@@ -284,7 +252,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     public void testRepositoryDataDetails() throws Exception {
         final BlobStoreRepository repository = setupRepo();
         final String repositoryName = repository.getMetadata().name();
-        final Settings repositorySettings = repository.getMetadata().settings();
 
         createIndex("green-index");
         ensureGreen("green-index");
@@ -428,11 +395,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ) {
             @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
-            }
-
-            @Override
             protected void snapshotFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
                 // Randomly fail some file snapshot tasks
                 if (randomBoolean()) {
@@ -454,7 +416,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             files.add(ShardSnapshotTaskRunnerTests.dummyFileInfo());
         }
         repository.snapshotFiles(context, files, allFilesUploadListener);
-        listenerCalled.get();
+        listenerCalled.get(10, TimeUnit.SECONDS);
     }
 
     public void testGetRepositoryDataThreadContext() {

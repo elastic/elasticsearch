@@ -298,7 +298,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 "version",
                 "1.0",
                 "elasticsearch.version",
-                InstallPluginAction.getSemanticVersion(Build.current().version()),
+                Build.current().version(),
                 "java.version",
                 System.getProperty("java.specification.version")
 
@@ -1110,8 +1110,8 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
-            InstallPluginAction.getSemanticVersion(Build.current().version()),
-            Build.current().version()
+            Build.current().version(),
+            Build.current().qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
@@ -1120,8 +1120,8 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
-            InstallPluginAction.getSemanticVersion(Build.current().version()),
-            Build.current().version()
+            Build.current().version(),
+            Build.current().qualifiedVersion()
         );
         // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
         final UserException e = expectThrows(
@@ -1137,9 +1137,9 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
-            + InstallPluginAction.getSemanticVersion(Build.current().version())
-            + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Build.current().version()
+            + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
+            + Build.current().qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", false);
     }
@@ -1148,7 +1148,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
-            + Build.current().version()
+            + Build.current().qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, null, false);
     }
@@ -1157,16 +1157,16 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = String.format(
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s-%s.zip",
-            InstallPluginAction.getSemanticVersion(Build.current().version()),
+            Build.current().version(),
             Platforms.PLATFORM_NAME,
-            Build.current().version()
+            Build.current().qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
 
     public void testOfficialPlatformPluginStaging() throws Exception {
         String url = "https://staging.elastic.co/"
-            + InstallPluginAction.getSemanticVersion(Build.current().version())
+            + Build.current().version()
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"

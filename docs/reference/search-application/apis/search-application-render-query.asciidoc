@@ -44,6 +44,11 @@ See the `dictionary` parameter in the <<put-search-application, put search appli
 
 `400`::
 Invalid parameter passed to search template.
+Examples include:
+
+- Missing required parameter
+- Invalid parameter data type
+- Invalid parameter value
 
 `404`::
 Search Application `<name>` does not exist.

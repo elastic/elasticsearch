@@ -95,6 +95,10 @@ public final class PercentileDoubleAggregatorFunction implements AggregatorFunct
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     assert quart.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();

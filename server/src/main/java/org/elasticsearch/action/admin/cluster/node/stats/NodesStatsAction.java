@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class NodesStatsAction extends ActionType<NodesStatsResponse> {
 
@@ -16,6 +17,6 @@ public class NodesStatsAction extends ActionType<NodesStatsResponse> {
     public static final String NAME = "cluster:monitor/nodes/stats";
 
     private NodesStatsAction() {
-        super(NAME, NodesStatsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

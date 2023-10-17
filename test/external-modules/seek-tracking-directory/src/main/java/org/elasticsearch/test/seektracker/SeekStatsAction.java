@@ -9,6 +9,7 @@
 package org.elasticsearch.test.seektracker;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class SeekStatsAction extends ActionType<SeekStatsResponse> {
 
@@ -16,6 +17,6 @@ public class SeekStatsAction extends ActionType<SeekStatsResponse> {
     public static final String NAME = "cluster:monitor/seek_stats";
 
     public SeekStatsAction() {
-        super(NAME, SeekStatsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

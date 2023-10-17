@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -41,7 +42,7 @@ public class PluginDescriptorTests extends ESTestCase {
         "version",
         "1.0",
         "elasticsearch.version",
-        Version.CURRENT.toString(),
+        Build.current().version(),
         "java.version",
         System.getProperty("java.specification.version"),
         "classname",
@@ -58,7 +59,7 @@ public class PluginDescriptorTests extends ESTestCase {
         "version",
         "1.0",
         "elasticsearch.version",
-        Version.CURRENT.toString(),
+        Build.current().version(),
         "java.version",
         System.getProperty("java.specification.version"),
         "modular",
@@ -176,13 +177,6 @@ public class PluginDescriptorTests extends ESTestCase {
         });
     }
 
-    public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
-        assertBothDescriptors(writer -> {
-            var e = expectThrows(IllegalArgumentException.class, () -> writer.write("elasticsearch.version", "bogus"));
-            assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
-        });
-    }
-
     public void testReadFromPropertiesJvmMissingClassname() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockInternalDescriptor("classname", null));
         assertThat(e.getMessage(), containsString("property [classname] is missing"));
@@ -227,7 +221,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "c",
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             null,
@@ -250,7 +244,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "c",
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             "some.module",
@@ -283,7 +277,7 @@ public class PluginDescriptorTests extends ESTestCase {
             name,
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             "dummyclass",
             null,
@@ -327,7 +321,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "c",
             "foo",
             "dummy",
-            Version.CURRENT,
+            Build.current().version(),
             "1.8",
             classname,
             null,
@@ -342,7 +336,7 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getName(),
             randomValueOtherThan(descriptor1.getDescription(), () -> randomAlphaOfLengthBetween(4, 12)),
             randomValueOtherThan(descriptor1.getVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
-            Version.fromString(descriptor1.getElasticsearchVersion()).previousMajor(),
+            "8.0.0",
             randomValueOtherThan(descriptor1.getJavaVersion(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.isStable() ? randomAlphaOfLengthBetween(4, 12) : null,
             descriptor1.isStable() ? randomAlphaOfLength(6) : null,
@@ -359,7 +353,7 @@ public class PluginDescriptorTests extends ESTestCase {
             randomValueOtherThan(descriptor1.getName(), () -> randomAlphaOfLengthBetween(4, 12)),
             descriptor1.getDescription(),
             descriptor1.getVersion(),
-            Version.fromString(descriptor1.getElasticsearchVersion()),
+            descriptor1.getElasticsearchVersion(),
             descriptor1.getJavaVersion(),
             classname,
             descriptor1.getModuleName().orElse(null),

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-sort]]
 === `SORT`
 Use the `SORT` command to sort rows on one or more fields:

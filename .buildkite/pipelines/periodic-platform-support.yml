@@ -56,7 +56,7 @@ steps:
   - group: platform-support-arm
     steps:
       - label: "{{matrix.image}} / platform-support-arm"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true platformSupportTests
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:

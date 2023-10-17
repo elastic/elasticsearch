@@ -97,13 +97,6 @@ public class LimitOperatorTests extends OperatorTestCase {
         }
     }
 
-    // TODO: remove this once possible
-    // https://github.com/elastic/elasticsearch/issues/99826
-    @Override
-    protected boolean canLeak() {
-        return true;
-    }
-
     public void testBlockBiggerThanRemaining() {
         BlockFactory blockFactory = driverContext().blockFactory();
         for (int i = 0; i < 100; i++) {

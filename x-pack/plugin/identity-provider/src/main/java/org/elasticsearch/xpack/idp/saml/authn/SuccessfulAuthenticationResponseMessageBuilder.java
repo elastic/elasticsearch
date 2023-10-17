@@ -98,7 +98,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
 
     private Response sign(Response response) {
         final SamlObjectSigner signer = new SamlObjectSigner(samlFactory, idp);
-        return samlFactory.buildXmlObject(signer.sign(response), Response.class);
+        return SamlFactory.buildXmlObject(signer.sign(response), Response.class);
     }
 
     private Conditions buildConditions(Instant now, SamlServiceProvider serviceProvider) {
@@ -157,7 +157,7 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return statement;
     }
 
-    private String resolveAuthnClass(Set<AuthenticationMethod> authenticationMethods, Set<NetworkControl> networkControls) {
+    private static String resolveAuthnClass(Set<AuthenticationMethod> authenticationMethods, Set<NetworkControl> networkControls) {
         if (authenticationMethods.contains(AuthenticationMethod.PASSWORD)) {
             if (networkControls.contains(NetworkControl.IP_FILTER)) {
                 return AuthnContext.IP_PASSWORD_AUTHN_CTX;

@@ -141,7 +141,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         }
     }
 
-    protected void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
+    protected static void assertEmptyRepo(Map<String, BytesReference> blobsMap) {
         List<String> blobs = blobsMap.keySet().stream().filter(blob -> blob.contains("index") == false).collect(Collectors.toList());
         assertThat("Only index blobs should remain in repository but found " + blobs, blobs, hasSize(0));
     }

@@ -206,12 +206,7 @@ public class SearchApplicationIndexService {
     }
 
     private String[] getAliasIndices(String searchApplicationName) {
-        return clusterService.state()
-            .metadata()
-            .aliasedIndices(searchApplicationName)
-            .stream()
-            .map(index -> index.getName())
-            .toArray(String[]::new);
+        return clusterService.state().metadata().aliasedIndices(searchApplicationName).stream().map(Index::getName).toArray(String[]::new);
     }
 
     private static String getSearchAliasName(SearchApplication app) {

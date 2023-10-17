@@ -1,3 +1,4 @@
+[discrete]
 [[esql-agg-median-absolute-deviation]]
 === `MEDIAN_ABSOLUTE_DEVIATION`
 The median absolute deviation, a measure of variability. It is a robust

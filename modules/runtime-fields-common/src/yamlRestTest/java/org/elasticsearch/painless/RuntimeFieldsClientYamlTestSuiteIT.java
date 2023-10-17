@@ -20,9 +20,7 @@ import org.junit.ClassRule;
 public class RuntimeFieldsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("runtime-fields-common")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("runtime-fields-common").build();
 
     public RuntimeFieldsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

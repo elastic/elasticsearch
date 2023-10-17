@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIf
 
 public class ElserMlNodeService implements InferenceService {
 
-    public static final String NAME = "elser_mlnode";
+    public static final String NAME = "elser";
 
     static final String ELSER_V1_MODEL = ".elser_model_1";
     // Default non platform specific v2 model
@@ -192,4 +193,7 @@ public class ElserMlNodeService implements InferenceService {
     public String name() {
         return NAME;
     }
+
+    @Override
+    public void close() throws IOException {}
 }

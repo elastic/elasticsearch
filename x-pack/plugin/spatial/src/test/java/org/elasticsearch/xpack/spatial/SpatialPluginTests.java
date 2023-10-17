@@ -142,7 +142,7 @@ public class SpatialPluginTests extends ESTestCase {
             .map(e -> e.name)
             .collect(Collectors.toSet());
         assertThat(
-            "Expect both Geo and Cartesian BoundingBox",
+            "Expect both Geo and Cartesian BoundingBox and ShapeValue",
             names,
             equalTo(Set.of("GeoBoundingBox", "CartesianBoundingBox", "GeoShapeValue", "CartesianShapeValue"))
         );

@@ -98,6 +98,7 @@ public class RestNodesAction extends AbstractCatAction {
             );
 
         final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+        nodesStatsRequest.setIncludeShardsStats(false);
         nodesStatsRequest.clear()
             .indices(true)
             .addMetrics(

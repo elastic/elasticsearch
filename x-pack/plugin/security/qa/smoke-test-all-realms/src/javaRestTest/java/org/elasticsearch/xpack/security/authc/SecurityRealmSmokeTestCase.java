@@ -87,7 +87,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
         .setting("xpack.security.authc.realms.saml.saml5.idp.metadata.path", "saml-metadata.xml")
         .setting("xpack.security.authc.realms.saml.saml5.idp.entity_id", "http://idp.example.com/")
         .setting("xpack.security.authc.realms.saml.saml5.sp.entity_id", "http://kibana.example.net/")
-        .setting("xpack.security.authc.realms.saml.saml5.sp.acs", "http://kibana.example.net/api/security/v1/saml")
+        .setting("xpack.security.authc.realms.saml.saml5.sp.acs", "http://kibana.example.net/api/security/saml/callback")
         .setting("xpack.security.authc.realms.saml.saml5.attributes.principal", "uid")
         // - Kerberos (configured but won't work because we don't want external fixtures in this test suite)
         .setting("xpack.security.authc.realms.kerberos.kerb6.order", "6")

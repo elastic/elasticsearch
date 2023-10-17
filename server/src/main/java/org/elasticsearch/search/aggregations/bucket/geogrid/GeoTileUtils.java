@@ -232,7 +232,6 @@ public final class GeoTileUtils {
      */
     public static Rectangle toBoundingBox(String hash) {
         final int[] hashAsInts = parseHash(hash);
-        validateZXY(hashAsInts[0], hashAsInts[1], hashAsInts[2]);
         return toBoundingBox(hashAsInts[1], hashAsInts[2], hashAsInts[0]);
     }
 

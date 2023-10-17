@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +33,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -53,13 +53,13 @@ public class GetAllShardSizesAction extends ActionType<GetAllShardSizesAction.Re
 
         @Inject
         public TransportGetAllShardSizes(
-            ThreadPool threadPool,
+            ClusterService clusterService,
             IndicesService indicesService,
             ActionFilters actionFilters,
             TransportService transportService
         ) {
             super(NAME, actionFilters, transportService.getTaskManager());
-            this.reader = new ShardSizeStatsReader(threadPool, indicesService);
+            this.reader = new ShardSizeStatsReader(clusterService, indicesService);
         }
 
         @Override

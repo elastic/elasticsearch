@@ -24,6 +24,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -48,16 +50,18 @@ public class ShardSizeStatsReader {
 
     private static final Logger logger = LogManager.getLogger(ShardSizeStatsReader.class);
 
+    private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final LongSupplier currentTimeMillsSupplier;
+    private final LongSupplier currentTimeMillisSupplier;
 
-    public ShardSizeStatsReader(LongSupplier currentTimeMillsSupplier, IndicesService indicesService) {
+    public ShardSizeStatsReader(ClusterService clusterService, IndicesService indicesService, LongSupplier currentTimeMillisSupplier) {
+        this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.currentTimeMillsSupplier = currentTimeMillsSupplier;
+        this.currentTimeMillisSupplier = currentTimeMillisSupplier;
     }
 
-    public ShardSizeStatsReader(ThreadPool threadPool, IndicesService indicesService) {
-        this(threadPool::absoluteTimeInMillis, indicesService);
+    public ShardSizeStatsReader(ClusterService clusterService, IndicesService indicesService) {
+        this(clusterService, indicesService, () -> clusterService.threadPool().absoluteTimeInMillis());
     }
 
     public Map<ShardId, ShardSize> getAllShardSizes(TimeValue boostWindowInterval) {
@@ -101,15 +105,31 @@ public class ShardSizeStatsReader {
                 var interactiveSize = 0L;
                 var nonInteractiveSize = 0L;
 
-                final MappedFieldType fieldType = indexShard.mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
-                final long currentTimeMillis = currentTimeMillsSupplier.getAsLong();
-                for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-                    var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
-                    if (isInteractive(ctx.reader(), fieldType, currentTimeMillis, boostWindowInterval)) {
-                        interactiveSize += segmentSize;
-                    } else {
-                        nonInteractiveSize += segmentSize;
+                var indexMetadata = clusterService.state().metadata().index(indexShard.shardId().getIndex());
+                if (indexMetadata == null) {
+                    return null;
+                }
+
+                final MappedFieldType fieldType;
+                if (indexShard.mapperService() != null) {
+                    fieldType = indexShard.mapperService().fieldType(DataStream.TIMESTAMP_FIELD_NAME);
+                } else {
+                    fieldType = null;
+                }
+                if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
+                    final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
+                    for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                        var segmentSize = Lucene.segmentReader(ctx.reader()).getSegmentInfo().sizeInBytes();
+                        if (isInteractive(ctx.reader(), fieldType, currentTimeMillis, boostWindowInterval)) {
+                            interactiveSize += segmentSize;
+                        } else {
+                            nonInteractiveSize += segmentSize;
+                        }
                     }
+                } else {
+                    // Closed indices are considered as non-interactive. We can use
+                    // doc stats here because it computes accurate segment sizes.
+                    nonInteractiveSize += indexShard.docStats().getTotalSizeInBytes();
                 }
                 long primaryTerm = indexShard.getOperationPrimaryTerm();
                 final var engine = indexShard.getEngineOrNull();

@@ -176,5 +176,5 @@ A sample response:
 ----
 // TEST[continued]
 
-In this case, the `from` and `size` parameters are not specified in the request, so default values are pulled from the
-search template.
+In this case, the `from` and `size` parameters are not specified in the request, so the default values specified in the
+search template are used.

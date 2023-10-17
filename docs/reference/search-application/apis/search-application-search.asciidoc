@@ -9,8 +9,8 @@ beta::[]
 ++++
 
 Given specified query parameters, generates and executes an Elasticsearch query using the search template associated
-with the search application.
-Any unspecified template parameters will be assigned their default values (if applicable).
+with the search application or a default template if none is specified.
+Unspecified template parameters will be assigned their default values (if applicable).
 
 [[search-application-search-request]]
 ==== {api-request-title}
@@ -177,8 +177,8 @@ The generated Elasticsearch query would look like:
 ----
 // TESTRESPONSE[skip:result of request not run in this document]
 
-In this case, the `from` and `size` parameters are not specified in the request, so default values are pulled from the
-search template.
+In this case, the `from` and `size` parameters are not specified in the request, so the default values specified in the
+search template are used.
 
 The expected response is the search results from the Elasticsearch query that was generated & executed.
 The response format is the same as that used by the <<search-api-response-body,Elasticsearch Search API>>:

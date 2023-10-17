@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 
 public interface MachineLearningExtension {
 
@@ -26,4 +28,6 @@ public interface MachineLearningExtension {
     default String[] getAnalyticsDestIndexAllowedSettings() {
         return DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
     }
+
+    AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings);
 }

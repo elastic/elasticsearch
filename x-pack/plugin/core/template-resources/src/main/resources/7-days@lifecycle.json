@@ -28,7 +28,6 @@
   },
   "_meta": {
     "description": "built-in ILM policy using the hot and warm phases with a retention of 7 days",
-    ${xpack.stack.template.deprecated}
     "managed": true
   }
 }

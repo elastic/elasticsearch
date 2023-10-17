@@ -188,7 +188,6 @@
   },
   "_meta": {
     "description": "dynamic mappings based on ECS, installed by x-pack",
-    ${xpack.stack.template.deprecated}
     "managed": true
   },
   "version": ${xpack.stack.template.version}

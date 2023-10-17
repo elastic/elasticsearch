@@ -28,8 +28,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -52,8 +50,6 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -126,7 +122,6 @@ public class MetadataIndexTemplateService {
     }
 
     private static final Logger logger = LogManager.getLogger(MetadataIndexTemplateService.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MetadataIndexTemplateService.class);
 
     private final ClusterService clusterService;
     private final MasterServiceTaskQueue<TemplateClusterStateUpdateTask> taskQueue;
@@ -728,12 +723,6 @@ public class MetadataIndexTemplateService {
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
         validateLifecycleIsOnlyAppliedOnDataStreams(currentState.metadata(), name, templateToValidate);
 
-        // if the composable index template is deprecated itself, we won't complain about it also using deprecated components
-        if (templateToValidate.metadata() == null || templateToValidate.metadata().containsKey("deprecated") == false) {
-            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
-            validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
-        }
-
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
@@ -748,58 +737,6 @@ public class MetadataIndexTemplateService {
                 e
             );
         }
-    }
-
-    private void validateUseOfDeprecatedComponentTemplates(
-        String name,
-        ComposableIndexTemplate template,
-        Map<String, ComponentTemplate> componentTemplates
-    ) {
-        template.composedOf()
-            .stream()
-            .map(ct -> Tuple.tuple(ct, componentTemplates.get(ct)))
-            .filter(ct -> Objects.nonNull(ct.v2()))
-            .filter(ct -> ct.v2().metadata() != null && ct.v2().metadata().containsKey("deprecated"))
-            .forEach(
-                ct -> deprecationLogger.warn(
-                    DeprecationCategory.TEMPLATES,
-                    "use_of_deprecated_component_template",
-                    "Index template {} uses deprecated component template {}",
-                    name,
-                    ct.v1()
-                )
-            );
-    }
-
-    private void validateUseOfDeprecatedIngestPipelines(String name, IngestMetadata ingestMetadata, Settings combinedSettings) {
-        Map<String, PipelineConfiguration> pipelines = Optional.ofNullable(ingestMetadata)
-            .map(IngestMetadata::getPipelines)
-            .orElse(Map.of());
-        emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.default_pipeline"));
-        emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.final_pipeline"));
-    }
-
-    private void emitWarningIfPipelineIsDeprecated(String name, Map<String, PipelineConfiguration> pipelines, String pipelineName) {
-        Optional.ofNullable(pipelineName)
-            .map(pipelines::get)
-            .filter(this::isDeprecated)
-            .ifPresent(
-                p -> deprecationLogger.warn(
-                    DeprecationCategory.TEMPLATES,
-                    "use_of_deprecated_ingest_pipeline",
-                    "Index template {} uses deprecated component template {}",
-                    name,
-                    p.getId()
-                )
-            );
-    }
-
-    private boolean isDeprecated(PipelineConfiguration pipeline) {
-        Object meta = pipeline.getConfigAsMap().get("_meta");
-        if (meta instanceof Map<?, ?> metaMap) {
-            return metaMap.containsKey("deprecated");
-        }
-        return false;
     }
 
     private static void validateLifecycleIsOnlyAppliedOnDataStreams(

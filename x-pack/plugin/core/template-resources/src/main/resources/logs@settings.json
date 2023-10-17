@@ -18,7 +18,6 @@
   },
   "_meta": {
     "description": "default settings for the logs index template installed by x-pack",
-    ${xpack.stack.template.deprecated}
     "managed": true
   },
   "version": ${xpack.stack.template.version}

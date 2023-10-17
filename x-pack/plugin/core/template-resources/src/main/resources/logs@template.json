@@ -12,8 +12,7 @@
   "allow_auto_create": true,
   "_meta": {
     "description": "default logs template installed by x-pack",
-    "managed": true,
-    "deprecated": true
+    "managed": true
   },
   "version": ${xpack.stack.template.version}
 }

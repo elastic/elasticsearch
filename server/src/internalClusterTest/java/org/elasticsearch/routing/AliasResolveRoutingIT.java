@@ -46,8 +46,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             client().prepareSearch()
                 .setIndices("alias-*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(queryStringQuery("quick"))
-                .get(),
+                .setQuery(queryStringQuery("quick")),
             3L
         );
     }

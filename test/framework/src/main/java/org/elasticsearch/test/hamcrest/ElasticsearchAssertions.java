@@ -253,6 +253,15 @@ public class ElasticsearchAssertions {
         );
     }
 
+    public static void assertHitCount(SearchRequestBuilder searchRequestBuilder, long expectedHitCount) {
+        var res = searchRequestBuilder.get();
+        try {
+            assertHitCount(res, expectedHitCount);
+        } finally {
+            res.decRef();
+        }
+    }
+
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {

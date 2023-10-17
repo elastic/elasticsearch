@@ -142,7 +142,35 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider
     ) {
-        super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this(
+            BulkAction.NAME,
+            threadPool,
+            transportService,
+            clusterService,
+            ingestService,
+            client,
+            actionFilters,
+            indexNameExpressionResolver,
+            indexingPressure,
+            systemIndices,
+            relativeTimeProvider
+        );
+    }
+
+    TransportBulkAction(
+        String actionName,
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        IngestService ingestService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexingPressure indexingPressure,
+        SystemIndices systemIndices,
+        LongSupplier relativeTimeProvider
+    ) {
+        super(actionName, transportService, actionFilters, BulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -336,6 +364,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
+        indexData(task, bulkRequest, executorName, listener, responses, autoCreateIndices, indicesThatCannotBeCreated, startTime);
+    }
+
+    protected void indexData(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        ActionListener<BulkResponse> listener,
+        AtomicArray<BulkItemResponse> responses,
+        Set<String> autoCreateIndices,
+        Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
+        long startTime
+    ) {
         if (autoCreateIndices.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
         } else {
@@ -384,6 +425,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 });
             }
         }
+    }
+
+    protected IngestService getIngestService(BulkRequest request) {
+        return ingestService;
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
@@ -491,7 +536,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return false;
     }
 
-    private long buildTookInMillis(long startTimeNanos) {
+    protected long buildTookInMillis(long startTimeNanos) {
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
@@ -809,7 +854,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executeBulkRequest(
+        getIngestService(original).executeBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,

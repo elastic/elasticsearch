@@ -113,8 +113,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
     private final ThreadPool threadPool;
-    private final IngestMetric totalMetrics = new IngestMetric();
-    private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
+    private final IngestMetric totalMetrics;
+    private final List<Consumer<ClusterState>> ingestClusterStateListeners;
     private volatile ClusterState state;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
@@ -184,6 +184,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
+        this.totalMetrics = new IngestMetric();
+        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.documentParsingObserverSupplier = documentParsingObserverSupplier;
@@ -204,6 +206,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         );
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+    }
+
+    /**
+     * This copy constructor returns a copy of the given ingestService, using all of the same internal state. The returned copy is not
+     * registered to listen to any cluster state changes
+     * @param ingestService
+     */
+    IngestService(IngestService ingestService) {
+        this.totalMetrics = new IngestMetric();
+        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
+        this.clusterService = ingestService.clusterService;
+        this.scriptService = ingestService.scriptService;
+        this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;
+        this.processorFactories = ingestService.processorFactories;
+        this.threadPool = ingestService.threadPool;
+        this.taskQueue = ingestService.taskQueue;
+        this.pipelines = ingestService.pipelines;
+        this.state = ingestService.state;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {

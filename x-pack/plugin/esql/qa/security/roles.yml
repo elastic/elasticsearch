@@ -23,10 +23,9 @@ user1:
         - indices:admin/refresh
 
 user2:
-  cluster:
-    - monitor_enrich
+  cluster: []
   indices:
-    - names: [ 'index-user2', 'index', "test-enrich", ".enrich-*"]
+    - names: [ 'index-user2', 'index' ]
       privileges:
         - read
         - write

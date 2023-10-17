@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -49,21 +50,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
-    // @Override
-    // protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-    // return Settings.builder()
-    // .put(super.nodeSettings(nodeOrdinal, otherSettings))
-    // .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-    // .build();
-    // }
-
     public void testSimple() {
-        assertAcked(
+        ElasticsearchAssertions.assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("users")

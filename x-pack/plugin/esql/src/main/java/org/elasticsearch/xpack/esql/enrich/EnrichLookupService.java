@@ -140,7 +140,7 @@ public class EnrichLookupService {
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
-        hasEnrichPrivilege(ActionListener.wrap(user -> {
+        hasEnrichPrivilege(ActionListener.wrap(ignored -> {
             ClusterState clusterState = clusterService.state();
             GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
                 .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
@@ -170,17 +170,17 @@ public class EnrichLookupService {
         }, listener::onFailure));
     }
 
-    private void hasEnrichPrivilege(ActionListener<User> outListener) {
+    private void hasEnrichPrivilege(ActionListener<Void> outListener) {
+        final Settings settings = clusterService.getSettings();
+        if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            outListener.onResponse(null);
+            return;
+        }
         final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
         final User user = securityContext.getUser();
         if (user == null) {
-            final Settings settings = clusterService.getSettings();
-            if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) && XPackSettings.SECURITY_ENABLED.get(settings)) {
-                outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
-            } else {
-                outListener.onResponse(null);
-            }
+            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
         }
         HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -190,7 +190,7 @@ public class EnrichLookupService {
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
             if (resp.isCompleteMatch()) {
-                l.onResponse(user);
+                l.onResponse(null);
                 return;
             }
             String detailed = resp.getClusterPrivileges()
@@ -283,19 +283,14 @@ public class EnrichLookupService {
                 driver.cancel(reason);
             });
 
-            Driver.start(
-                transportService.getThreadPool().getThreadContext(),
-                executor,
-                driver,
-                Driver.DEFAULT_MAX_ITERATIONS,
-                listener.map(ignored -> {
-                    Page out = result.get();
-                    if (out == null) {
-                        out = createNullResponse(inputPage.getPositionCount(), extractFields);
-                    }
-                    return out;
-                })
-            );
+            var threadContext = transportService.getThreadPool().getThreadContext();
+            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
+                Page out = result.get();
+                if (out == null) {
+                    out = createNullResponse(inputPage.getPositionCount(), extractFields);
+                }
+                return out;
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }

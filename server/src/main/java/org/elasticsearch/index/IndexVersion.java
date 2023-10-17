@@ -186,12 +186,13 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     public static final IndexVersion V_8_10_2 = registerIndexVersion(8_10_02_99, Version.LUCENE_9_7_0, "afcbbc72-deae-4bb8-82ff-48a5c7eea074");
     public static final IndexVersion V_8_10_3 = registerIndexVersion(8_10_03_99, Version.LUCENE_9_7_0, "8b688969-619f-4941-bd69-8d97905374b1");
     public static final IndexVersion V_8_10_4 = registerIndexVersion(8_10_04_99, Version.LUCENE_9_7_0, "ba2619f3-e303-47ee-b30c-31de233e5294");
+    public static final IndexVersion V_8_10_5 = registerIndexVersion(8_10_05_99, Version.LUCENE_9_7_0, "5d52ce64-a07d-46e2-bb59-155d87564add");
     /*
      * READ THE JAVADOC ABOVE BEFORE ADDING NEW INDEX VERSIONS
      * Detached index versions added below here.
      */
     private static class CurrentHolder {
-        private static final IndexVersion CURRENT = findCurrent(V_8_10_4);
+        private static final IndexVersion CURRENT = findCurrent(V_8_10_5);
 
         // finds the pluggable current version, or uses the given fallback
         private static IndexVersion findCurrent(IndexVersion fallback) {

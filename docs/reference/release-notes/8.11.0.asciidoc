@@ -26,6 +26,10 @@ Allocation::
 Application::
 * [Profiling] Tighten resource creation check {es-pull}99873[#99873]
 
+Authorization::
+* Allow `enrich_user` to read/view enrich indices {es-pull}100707[#100707]
+* Grant editor and viewer access to profiling {es-pull}100594[#100594]
+
 CCR::
 * CCR: Use local cluster state request {es-pull}100323[#100323]
 
@@ -37,6 +41,7 @@ Cluster Coordination::
 * Reset `GatewayService` flags before reroute {es-pull}98653[#98653] (issue: {es-issue}98606[#98606])
 
 Data streams::
+* DSL waits for the tsdb time boundaries to lapse {es-pull}100470[#100470] (issue: {es-issue}99696[#99696])
 * Propagate cancellation in `DataTiersUsageTransportAction` {es-pull}100253[#100253]
 
 Downsampling::
@@ -51,9 +56,14 @@ ES|QL::
 * Create a Vector when needed for IN {es-pull}99382[#99382] (issue: {es-issue}99347[#99347])
 * ESQL: Add identity check in Block equality {es-pull}100377[#100377] (issue: {es-issue}100374[#100374])
 * ESQL: Fix NPE when aggregating literals {es-pull}99827[#99827]
+* ESQL: Graceful handling of non-bool condition in the filter {es-pull}100645[#100645] (issues: {es-issue}100049[#100049], {es-issue}100409[#100409])
+* ESQL: Handle queries with non-existing enrich policies and no field {es-pull}100647[#100647] (issue: {es-issue}100593[#100593])
+* ESQL: Improve verifier error for incorrect agg declaration {es-pull}100650[#100650] (issue: {es-issue}100641[#100641])
 * ESQL: Limit how many bytes `concat()` can process {es-pull}100360[#100360]
 * ESQL: Page shouldn't close a block twice {es-pull}100370[#100370] (issues: {es-issue}100356[#100356], {es-issue}100365[#100365])
+* ESQL: Properly handle multi-values in fold() and date math {es-pull}100766[#100766] (issue: {es-issue}100497[#100497])
 * ESQL: Remove aliasing inside Eval {es-pull}100238[#100238] (issue: {es-issue}100174[#100174])
+* ESQL: fix non-null value being returned for unsupported data types in `ValueSources` {es-pull}100656[#100656] (issue: {es-issue}100048[#100048])
 * ESQL: support metric tsdb fields while querying index patterns {es-pull}100351[#100351] (issue: {es-issue}100144[#100144])
 * Implement serialization of `InvalidMappedField` {es-pull}98972[#98972] (issue: {es-issue}98851[#98851])
 * Resilience to non-indexed fields {es-pull}99588[#99588] (issue: {es-issue}99506[#99506])
@@ -87,7 +97,10 @@ Machine Learning::
 * Avoid risk of OOM in datafeeds when memory is constrained {es-pull}98915[#98915] (issue: {es-issue}89769[#89769])
 * Fix for inference requests being sent to every node with a model allocation. If there are more nodes than items in the original request then empty requests were sent. {es-pull}100388[#100388] (issue: {es-issue}100180[#100180])
 * Preserve order of inference results when calling the _infer API with multiple inputs on a model deployment with more than one allocation the output results order was not guaranteed to match the input order. The fix ensures the output order matches the input order. {es-pull}100143[#100143]
+* Remove noisy 'Could not find trained model' message {es-pull}100760[#100760]
 * Safely drain deployment request queues before allowing node to shutdown {es-pull}98406[#98406]
+* Use the correct writable name for model assignment metadata in mixed version clusters. Prevents a node failure due to IllegalArgumentException Unknown NamedWriteable [trained_model_assignment] {es-pull}100886[#100886]
+* Wait to gracefully stop deployments until alternative allocation exists {es-pull}99107[#99107]
 
 Mapping::
 * Automatically disable `ignore_malformed` on datastream `@timestamp` fields {es-pull}99346[#99346]
@@ -100,13 +113,20 @@ Network::
 Percolator::
 * Fix percolator query for stored queries that expand on wildcard field names {es-pull}98878[#98878]
 
+Recovery::
+* Fix interruption of `markAllocationIdAsInSync` {es-pull}100610[#100610] (issues: {es-issue}96578[#96578], {es-issue}100589[#100589])
+
 Search::
+* Consistent scores for multi-term `SourceConfirmedTestQuery` {es-pull}100846[#100846] (issue: {es-issue}98712[#98712])
 * Fix UnsignedLong field range query gt "0" can get the result equal to 0 {es-pull}98843[#98843]
 * Fix `advanceExact` for doc values from sources {es-pull}99685[#99685]
 * Fork response-sending in `OpenPointInTimeAction` {es-pull}99222[#99222]
 * Search of remote clusters with no shards results in successful status {es-pull}100354[#100354]
 * [CI] `SearchResponseTests#testSerialization` failing resolved {es-pull}100020[#100020] (issue: {es-issue}100005[#100005])
 * fix fuzzy query rewrite parameter not work {es-pull}97642[#97642]
+
+Security::
+* Fix NullPointerException in RotableSecret {es-pull}100779[#100779] (issue: {es-issue}99759[#99759])
 
 Snapshot/Restore::
 * Fix thread context in `getRepositoryData` {es-pull}99627[#99627]
@@ -120,6 +140,7 @@ TSDB::
 
 Transform::
 * Fix possible NPE when getting transform stats for failed transforms {es-pull}98061[#98061] (issue: {es-issue}98052[#98052])
+* Make Transform Feature Reset really wait for all the tasks {es-pull}100624[#100624]
 * Shutdown the task immediately when `force` == `true` {es-pull}100203[#100203]
 
 Watcher::

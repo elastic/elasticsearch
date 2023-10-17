@@ -356,7 +356,7 @@ public class LocalExecutionPlanner {
             var output = exchangeSink.output();
             var localOutput = localExec.output();
             if (output.equals(localOutput) == false) {
-                // the outputs are going to be similar except for the bool "seen" flags which are added in
+                // the outputs are going to be similar except for the bool "seen" flags which are added in below
                 List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
                 if (blocks.size() > 0) {
                     Block boolBlock = BooleanBlock.newConstantBlockWith(true, 1);

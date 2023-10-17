@@ -509,8 +509,8 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
+                    // look for count(literal) with literal != null
                     Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L : null;
-                    //
                     var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(aggFunc.dataType()), 1);
                     wrapper.accept(value);
                     blocks[i++] = wrapper.builder().build();

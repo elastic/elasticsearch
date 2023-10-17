@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -1916,7 +1915,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         });
 
         // handle local reduction alignment
-        l = l.transformUp(ExchangeExec.class, exg -> {
+        l = localRelationshipAlignment(l);
+        // System.out.println("* Localized DataNode Plan\n" + l);
+        return l;
+    }
+
+    static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {
+        // handle local reduction alignment
+        return l.transformUp(ExchangeExec.class, exg -> {
             PhysicalPlan pl = exg;
             if (exg.isInBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
                 var output = exg.output();
@@ -1926,8 +1932,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             }
             return pl;
         });
-        // System.out.println("* Localized DataNode Plan\n" + l);
-        return l;
+
     }
 
     private PhysicalPlan physicalPlan(String query) {

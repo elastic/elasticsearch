@@ -500,8 +500,7 @@ public class RelocationIT extends ESIntegTestCase {
             docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
-        SearchResponse countResponse = client().prepareSearch("test").get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(client().prepareSearch("test"), numDocs);
 
         logger.info(" --> moving index to new nodes");
         updateIndexSettings(

@@ -1842,15 +1842,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(
-                new HighlightBuilder().field("text").field("byte").field("short").field("int").field("long").field("float").field("double")
-            )
-            .get();
         // Highlighting of numeric fields is not supported, but it should not raise errors
         // (this behavior is consistent with version 0.20)
-        assertHitCount(response, 1L);
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "test"))
+                .highlighter(
+                    new HighlightBuilder().field("text")
+                        .field("byte")
+                        .field("short")
+                        .field("int")
+                        .field("long")
+                        .field("float")
+                        .field("double")
+                ),
+            1L
+        );
     }
 
     // Issue #3200
@@ -1864,12 +1871,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("text", "elasticsearch test").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(new HighlightBuilder().field("text"))
-            .get();
         // Mock tokenizer will throw an exception if it is resetted twice
-        assertHitCount(response, 1L);
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "test"))
+                .highlighter(new HighlightBuilder().field("text")),
+            1L
+        );
     }
 
     public void testHighlightUsesHighlightQuery() throws IOException {

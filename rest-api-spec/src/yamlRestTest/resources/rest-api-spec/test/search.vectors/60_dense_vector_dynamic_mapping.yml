@@ -9,7 +9,9 @@ setup:
         body: >
           {
             "persistent": {
-              "logger.org.elasticsearch.index": "TRACE"
+              "logger.org.elasticsearch.index": "TRACE",
+              "logger.org.elasticsearch.action.admin.indices.mapping.get": "TRACE",
+              "logger.org.elasticsearch.cluster.service.ClusterApplierService": "TRACE"
             }
           }
 
@@ -24,7 +26,9 @@ teardown:
           body: >
             {
               "persistent": {
-                "logger.org.elasticsearch.index": null
+                "logger.org.elasticsearch.index": null,
+                "logger.org.elasticsearch.action.admin.indices.mapping.get": null,
+                "logger.org.elasticsearch.cluster.service.ClusterApplierService": null
               }
             }
 ---

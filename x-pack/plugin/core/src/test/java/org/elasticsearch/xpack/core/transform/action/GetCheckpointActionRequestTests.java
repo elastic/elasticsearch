@@ -29,7 +29,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
 
     @Override
     protected Request createTestInstance() {
-        return randomRequest(10);
+        return randomRequest(randomBoolean() ? 10 : null);
     }
 
     @Override
@@ -74,9 +74,9 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
 
-    private static GetCheckpointAction.Request randomRequest(int numIndices) {
+    private static GetCheckpointAction.Request randomRequest(Integer numIndices) {
         return new Request(
-            randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(numIndices).toArray(String[]::new),
+            numIndices != null ? Stream.generate(() -> randomAlphaOfLength(10)).limit(numIndices).toArray(String[]::new) : null,
             IndicesOptions.fromParameters(
                 randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
                 Boolean.toString(randomBoolean()),

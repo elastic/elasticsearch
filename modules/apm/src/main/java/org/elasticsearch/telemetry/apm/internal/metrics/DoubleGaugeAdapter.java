@@ -13,20 +13,16 @@ import io.opentelemetry.api.metrics.Meter;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
  */
-public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableDoubleGauge>
+public class DoubleGaugeAdapter extends AbstractGaugeAdapter<io.opentelemetry.api.metrics.ObservableDoubleGauge, Double>
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
-    private final AtomicReference<ValueWithAttributes> valueWithAttributes;
-
     public DoubleGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
-        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0.0, Collections.emptyMap()));
     }
 
     @Override
@@ -35,10 +31,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
             .gaugeBuilder(getName())
             .setDescription(getDescription())
             .setUnit(getUnit())
-            .buildWithCallback(measurement -> {
-                var localValueWithAttributed = valueWithAttributes.get();
-                measurement.record(localValueWithAttributed.value(), OtelHelper.fromMap(localValueWithAttributed.attributes()));
-            });
+            .buildWithCallback(measurement -> popRecords().forEach((attributes, value) -> measurement.record(value, attributes)));
     }
 
     @Override
@@ -48,8 +41,6 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
 
     @Override
     public void record(double value, Map<String, Object> attributes) {
-        this.valueWithAttributes.set(new ValueWithAttributes(value, attributes));
+        record(value, OtelHelper.fromMap(attributes));
     }
-
-    private record ValueWithAttributes(double value, Map<String, Object> attributes) {}
 }

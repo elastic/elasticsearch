@@ -8,116 +8,130 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.common.Attributes;
-import io.opentelemetry.api.metrics.DoubleGaugeBuilder;
-import io.opentelemetry.api.metrics.LongGaugeBuilder;
-import io.opentelemetry.api.metrics.Meter;
-import io.opentelemetry.api.metrics.ObservableDoubleMeasurement;
-import io.opentelemetry.api.metrics.ObservableLongMeasurement;
-
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 
+import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 
 public class GaugeAdapterTests extends ESTestCase {
-    Meter testMeter = Mockito.mock(Meter.class);
-    LongGaugeBuilder longGaugeBuilder = Mockito.mock(LongGaugeBuilder.class);
-    DoubleGaugeBuilder mockDoubleGaugeBuilder = Mockito.mock(DoubleGaugeBuilder.class);
+    RecordingMeterProvider meter;
 
     @Before
     public void init() {
-        when(longGaugeBuilder.setDescription(Mockito.anyString())).thenReturn(longGaugeBuilder);
-        when(longGaugeBuilder.setUnit(Mockito.anyString())).thenReturn(longGaugeBuilder);
-
-
-        when(mockDoubleGaugeBuilder.ofLongs()).thenReturn(longGaugeBuilder);
-        when(mockDoubleGaugeBuilder.setUnit(Mockito.anyString())).thenReturn(mockDoubleGaugeBuilder);
-        when(mockDoubleGaugeBuilder.setDescription(Mockito.anyString())).thenReturn(mockDoubleGaugeBuilder);
-        when(testMeter.gaugeBuilder(anyString())).thenReturn(mockDoubleGaugeBuilder);
+        meter = new RecordingMeterProvider();
     }
 
     // testing that a value reported is then used in a callback
     @SuppressWarnings("unchecked")
     public void testLongGaugeRecord() {
-        LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(testMeter, "name", "desc", "unit");
+        LongGaugeAdapter gauge = new LongGaugeAdapter(meter, "name", "desc", "unit");
 
-        // recording a value
-        longGaugeAdapter.record(1L, Map.of("k", 1L));
+        // recording values;
+        Map<String, Object> m1 = Map.of("k", 1L);
+        Map<String, Object> m3 = Map.of("k", 2L);
+        Map<String, Object> m4 = Map.of("k", 1L, "j", 3L);
+        gauge.record(1L, m1);
+        gauge.record(2L, m1);
+        gauge.record(3L, m3);
+        gauge.record(4L, m4);
 
-        // upon metric export, the consumer will be called
-        ArgumentCaptor<Consumer<ObservableLongMeasurement>> captor = ArgumentCaptor.forClass(Consumer.class);
-        verify(longGaugeBuilder).buildWithCallback(captor.capture());
+        meter.collectMetrics();
 
-        Consumer<ObservableLongMeasurement> value = captor.getValue();
-        // making sure that a consumer will fetch the value passed down upon recording of a value
-        TestLongMeasurement testLongMeasurement = new TestLongMeasurement();
-        value.accept(testLongMeasurement);
+        List<TestMetric> metrics = meter.getRecorder().get(gauge);
 
-        assertThat(testLongMeasurement.value, Matchers.equalTo(1L));
-        assertThat(testLongMeasurement.attributes, Matchers.equalTo(Attributes.builder().put("k", 1).build()));
+        assertThat(metrics, hasSize(3));
+
+        assertThat(metrics, containsInAnyOrder(new TestMetric(2L, m1), new TestMetric(3L, m3), new TestMetric(4L, m4)));
+
+        meter.clearCalls();
+
+        meter.collectMetrics();
+        metrics = meter.getRecorder().get(gauge);
+        assertThat(metrics, empty());
+
+        gauge.record(1L, m1);
+        gauge.record(3L, m3);
+
+        meter.collectMetrics();
+        metrics = meter.getRecorder().get(gauge);
+        assertThat(metrics, hasSize(2));
+
+        assertThat(metrics, containsInAnyOrder(new TestMetric(1L, m1), new TestMetric(3L, m3)));
     }
 
-    // testing that a value reported is then used in a callback
     @SuppressWarnings("unchecked")
     public void testDoubleGaugeRecord() {
-        DoubleGaugeAdapter doubleGaugeAdapter = new DoubleGaugeAdapter(testMeter, "name", "desc", "unit");
+        DoubleGaugeAdapter gauge = new DoubleGaugeAdapter(meter, "name", "desc", "unit");
 
-        // recording a value
-        doubleGaugeAdapter.record(1.0, Map.of("k", 1.0));
+        // recording values;
+        Map<String, Object> m1 = Map.of("k", 1L);
+        Map<String, Object> m3 = Map.of("k", 2L);
+        Map<String, Object> m4 = Map.of("k", 1L, "j", 3L);
+        gauge.record(1.0, m1);
+        gauge.record(2.0, m1);
+        gauge.record(3.0, m3);
+        gauge.record(4.0, m4);
 
-        // upon metric export, the consumer will be called
-        ArgumentCaptor<Consumer<ObservableDoubleMeasurement>> captor = ArgumentCaptor.forClass(Consumer.class);
-        verify(mockDoubleGaugeBuilder).buildWithCallback(captor.capture());
+        meter.collectMetrics();
 
-        Consumer<ObservableDoubleMeasurement> value = captor.getValue();
-        // making sure that a consumer will fetch the value passed down upon recording of a value
-        TestDoubleMeasurement testLongMeasurement = new TestDoubleMeasurement();
-        value.accept(testLongMeasurement);
+        List<TestMetric> metrics = meter.getRecorder().get(gauge);
 
-        assertThat(testLongMeasurement.value, Matchers.equalTo(1.0));
-        assertThat(testLongMeasurement.attributes, Matchers.equalTo(Attributes.builder().put("k", 1.0).build()));
+        assertThat(metrics, hasSize(3));
+
+        assertThat(metrics, containsInAnyOrder(new TestMetric(2.0, m1), new TestMetric(3.0, m3), new TestMetric(4.0, m4)));
+
+        meter.clearCalls();
+        meter.collectMetrics();
+        metrics = meter.getRecorder().get(gauge);
+        assertThat(metrics, empty());
+
+        gauge.record(1.0, m1);
+        gauge.record(3.0, m3);
+
+        meter.collectMetrics();
+        metrics = meter.getRecorder().get(gauge);
+        assertThat(metrics, hasSize(2));
+
+        assertThat(metrics, containsInAnyOrder(new TestMetric(1.0, m1), new TestMetric(3.0, m3)));
     }
 
-    private static class TestDoubleMeasurement implements ObservableDoubleMeasurement {
-        double value;
-        Attributes attributes;
+    public void testDifferentLongGaugesSameValues() {
+        LongGaugeAdapter gauge1 = new LongGaugeAdapter(meter, "name1", "desc", "unit");
+        LongGaugeAdapter gauge2 = new LongGaugeAdapter(meter, "name2", "desc", "unit");
+        Map<String, Object> map = Map.of("k", 1L);
+        gauge1.record(1L, map);
+        gauge2.record(2L, map);
 
-        @Override
-        public void record(double value) {
-            this.value = value;
-        }
+        meter.collectMetrics();
+        List<TestMetric> metrics = meter.getRecorder().get(gauge1);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics, contains(new TestMetric(1L, map)));
 
-        @Override
-        public void record(double value, Attributes attributes) {
-            this.value = value;
-            this.attributes = attributes;
-
-        }
+        metrics = meter.getRecorder().get(gauge2);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics, contains(new TestMetric(2L, map)));
     }
 
-    private static class TestLongMeasurement implements ObservableLongMeasurement {
-        long value;
-        Attributes attributes;
+    public void testDifferentDoubleGaugesSameValues() {
+        DoubleGaugeAdapter gauge1 = new DoubleGaugeAdapter(meter, "name1", "desc", "unit");
+        DoubleGaugeAdapter gauge2 = new DoubleGaugeAdapter(meter, "name2", "desc", "unit");
+        Map<String, Object> map = Map.of("k", 1L);
+        gauge1.record(1.0, map);
+        gauge2.record(2.0, map);
 
-        @Override
-        public void record(long value) {
-            this.value = value;
-        }
+        meter.collectMetrics();
+        List<TestMetric> metrics = meter.getRecorder().get(gauge1);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics, contains(new TestMetric(1.0, map)));
 
-        @Override
-        public void record(long value, Attributes attributes) {
-            this.value = value;
-            this.attributes = attributes;
-
-        }
+        metrics = meter.getRecorder().get(gauge2);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics, contains(new TestMetric(2.0, map)));
     }
 }

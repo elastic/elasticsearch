@@ -45,6 +45,12 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'logger.org.elasticsearch.cluster.service.MasterService', 'TRACE'
     setting 'logger.org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator', 'TRACE'
     setting 'logger.org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders', 'TRACE'
+    // start: "https://github.com/elastic/elasticsearch/issues/99778"
+    setting 'logger.org.elasticsearch.cluster.action.shard.ShardStateAction', 'TRACE'
+    setting 'logger.org.elasticsearch.index.IndexService', 'TRACE'
+    setting 'logger.org.elasticsearch.index.mapper.MapperService', 'TRACE'
+    setting 'logger.org.elasticsearch.indices.SystemIndexMappingUpdateService', 'TRACE'
+    // end: logging for "https://github.com/elastic/elasticsearch/issues/99778"
     requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   }
 

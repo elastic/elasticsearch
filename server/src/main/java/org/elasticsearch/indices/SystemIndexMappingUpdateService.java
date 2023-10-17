@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -94,6 +95,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         // if we're in a mixed-version cluster, exit
         if (state.hasMixedSystemIndexVersions()) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
+            logger.trace(() -> "Min versions: " + state.getMinSystemIndexMappingVersions() + ", compatibility versions: " + state.compatibilityVersions().values().stream().map(CompatibilityVersions::systemIndexMappingsVersion).toList());
             return;
         }
 
@@ -101,7 +103,12 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.
             // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.
             try (var refs = new RefCountingRunnable(() -> isUpgradeInProgress.set(false))) {
-                for (SystemIndexDescriptor systemIndexDescriptor : getEligibleDescriptors(state.getMetadata())) {
+                List<SystemIndexDescriptor> eligibleDescriptors = getEligibleDescriptors(state.getMetadata());
+                if (eligibleDescriptors.isEmpty()) {
+                    logger.trace("No system indices to update");
+                }
+                for (SystemIndexDescriptor systemIndexDescriptor : eligibleDescriptors) {
+                    logger.trace(() -> "Checking whether to update mappings for [" + systemIndexDescriptor.getPrimaryIndex() + "]");
                     UpgradeStatus upgradeStatus;
                     try {
                         upgradeStatus = getUpgradeStatus(state, systemIndexDescriptor);

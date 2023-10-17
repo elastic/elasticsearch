@@ -538,6 +538,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 try {
                     reason = "metadata update failed";
                     try {
+                        logger.trace(() -> "Updating metadata for index [" + newIndexMetadata.getIndex() + "]");
                         indexService.updateMetadata(currentIndexMetadata, newIndexMetadata);
                     } catch (Exception e) {
                         assert false : e;
@@ -545,6 +546,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }
 
                     reason = "mapping update failed";
+                    logger.trace(() -> "Updating mappings for index [" + newIndexMetadata.getIndex() + "]");
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
                     indicesService.removeIndex(index, FAILURE, "removing index (" + reason + ")");

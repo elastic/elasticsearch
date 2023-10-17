@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +50,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
      *                  for execution when the queue is full a 429 error is thrown.
      * @param queueSupplier BlockingQueue constructor
      */
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     public AbstractProcessWorkerExecutorService(
         ThreadContext contextHolder,
         String processName,
@@ -106,6 +107,9 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
             while (running.get()) {
                 Runnable runnable = queue.poll(500, TimeUnit.MILLISECONDS);
                 if (runnable != null) {
+                    assert runnable instanceof RunnableFuture<?> == false
+                        : "Rethrowing errors for RunnableFuture instances is not supported";
+
                     try {
                         runnable.run();
                     } catch (Exception e) {

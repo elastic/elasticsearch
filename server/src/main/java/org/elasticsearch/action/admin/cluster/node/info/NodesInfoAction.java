@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class NodesInfoAction extends ActionType<NodesInfoResponse> {
 
@@ -16,6 +17,6 @@ public class NodesInfoAction extends ActionType<NodesInfoResponse> {
     public static final String NAME = "cluster:monitor/nodes/info";
 
     private NodesInfoAction() {
-        super(NAME, NodesInfoResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

@@ -1894,7 +1894,7 @@ public class DataStreamIT extends ESIntegTestCase {
             }
         } else {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
-                assertHitCount(searchRequestBuilder.get(), expectedCount);
+                assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));

@@ -183,7 +183,7 @@ public class CoordinationState {
             final String reason;
             if (electionWon == false) {
                 reason = "failed election";
-            } else if (startJoinRequest.getSourceNode().equals(localNode)) {
+            } else if (startJoinRequest.getMasterCandidateNode().equals(localNode)) {
                 reason = "bumping term";
             } else {
                 reason = "standing down as leader";
@@ -200,7 +200,13 @@ public class CoordinationState {
         joinVotes = new VoteCollection();
         publishVotes = new VoteCollection();
 
-        return new Join(localNode, startJoinRequest.getSourceNode(), getCurrentTerm(), getLastAcceptedTerm(), getLastAcceptedVersion());
+        return new Join(
+            localNode,
+            startJoinRequest.getMasterCandidateNode(),
+            getCurrentTerm(),
+            getLastAcceptedTerm(),
+            getLastAcceptedVersion()
+        );
     }
 
     /**
@@ -274,7 +280,7 @@ public class CoordinationState {
         logger.debug(
             "handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}",
             join,
-            join.getSourceNode(),
+            join.getVotingNode(),
             electionWon,
             lastAcceptedTerm,
             getLastAcceptedVersion()
@@ -592,7 +598,7 @@ public class CoordinationState {
         }
 
         public boolean addJoinVote(Join join) {
-            final boolean added = addVote(join.getSourceNode());
+            final boolean added = addVote(join.getVotingNode());
             if (added) {
                 joins.add(join);
             }

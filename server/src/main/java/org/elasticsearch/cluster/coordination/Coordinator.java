@@ -594,7 +594,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private Join joinLeaderInTerm(StartJoinRequest startJoinRequest) {
         synchronized (mutex) {
-            logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getSourceNode(), startJoinRequest.getTerm());
+            logger.debug("joinLeaderInTerm: for [{}] with term {}", startJoinRequest.getMasterCandidateNode(), startJoinRequest.getTerm());
             final Join join = coordinationState.get().handleStartJoin(startJoinRequest);
             lastJoin = Optional.of(join);
             peerFinder.setCurrentTerm(getCurrentTerm());
@@ -2070,7 +2070,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         }
 
         private void handleAssociatedJoin(Join join) {
-            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getSourceNode())) {
+            if (join.getTerm() == getCurrentTerm() && missingJoinVoteFrom(join.getVotingNode())) {
                 logger.trace("handling {}", join);
                 handleJoin(join);
             }

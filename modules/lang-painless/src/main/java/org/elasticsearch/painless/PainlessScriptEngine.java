@@ -495,7 +495,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 break;
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
+        Throwable cause = ErrorCauseWrapper.maybeWrap(t);
+        throw new ScriptException("compile error", cause, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.

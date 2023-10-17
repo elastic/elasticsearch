@@ -8,9 +8,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
+
+import static org.elasticsearch.common.geo.GeoUtils.quantizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.quantizeLon;
 
 /**
  * Filters out tiles using the provided bounds at the provided precision. In order to be efficient it works on the X/Y coordinates of the
@@ -51,14 +53,6 @@ public class GeoTileBoundedPredicate {
                 this.maxTiles = (long) (this.rightX - this.leftX) * (this.maxY - this.minY);
             }
         }
-    }
-
-    private static double quantizeLon(double lon) {
-        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
-    }
-
-    private static double quantizeLat(double lat) {
-        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }
 
     /** Does the provided bounds crosses the dateline */

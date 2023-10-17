@@ -22,6 +22,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLat;
 import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
+import static org.elasticsearch.common.geo.GeoUtils.quantizeLat;
 
 /**
  * Implements geotile key hashing, same as used by many map tile implementations.
@@ -270,7 +271,7 @@ public final class GeoTileUtils {
             return lat; // precise case, don't need to do more work
         }
         // Maybe adjust latitude due to numerical errors
-        final double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
+        final double qLat = quantizeLat(lat);
         final int computedYTile = getYTile(qLat, tiles);
         // the idea here is that the latitude returned belongs to the tile and the next latitude up belongs to the next tile
         // therefore we can be in the current tile and we need to find the point up just before the next tile,

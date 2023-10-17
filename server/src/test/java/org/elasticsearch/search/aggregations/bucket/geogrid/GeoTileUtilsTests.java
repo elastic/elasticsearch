@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -250,11 +251,14 @@ public class GeoTileUtilsTests extends ESTestCase {
             final int x = GeoTileUtils.getXTile(qLon, tiles);
             final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, randomIntBetween(0, tiles - 1), zoom);
             // max longitude belongs to the next tile except the last one
-            assertThat(GeoTileUtils.getXTile(quantizeLon(rectangle.getMaxX()), tiles), Matchers.anyOf(equalTo(x + 1), equalTo(tiles - 1)));
+            assertThat(
+                GeoTileUtils.getXTile(GeoUtils.quantizeLon(rectangle.getMaxX()), tiles),
+                Matchers.anyOf(equalTo(x + 1), equalTo(tiles - 1))
+            );
             // next encoded value down belongs to the tile
             assertThat(GeoTileUtils.getXTile(quantizeLonDown(rectangle.getMaxX()), tiles), equalTo(x));
             // min longitude belongs to the tile
-            assertThat(GeoTileUtils.getXTile(quantizeLon(rectangle.getMinX()), tiles), equalTo(x));
+            assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLon(rectangle.getMinX()), tiles), equalTo(x));
             if (x != 0) {
                 // next encoded value down belongs to the previous tile
                 assertThat(GeoTileUtils.getXTile(quantizeLonDown(rectangle.getMinX()), tiles), equalTo(x - 1));
@@ -269,14 +273,14 @@ public class GeoTileUtilsTests extends ESTestCase {
             final int y = GeoTileUtils.getYTile(qLat, tiles);
             final Rectangle rectangle = GeoTileUtils.toBoundingBox(randomIntBetween(0, tiles - 1), y, zoom);
             // max latitude belongs to the tile
-            assertThat(GeoTileUtils.getYTile(quantizeLat(rectangle.getMaxLat()), tiles), equalTo(y));
+            assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLat(rectangle.getMaxLat()), tiles), equalTo(y));
             if (y != 0) {
                 // next encoded value up belongs to the previous tile
                 assertThat(GeoTileUtils.getYTile(quantizeLatUp(rectangle.getMaxLat()), tiles), equalTo(y - 1));
             }
             // min latitude belongs to the next tile except the last one
             assertThat(
-                GeoTileUtils.getYTile(quantizeLat(rectangle.getMinLat()), tiles),
+                GeoTileUtils.getYTile(GeoUtils.quantizeLat(rectangle.getMinLat()), tiles),
                 Matchers.anyOf(equalTo(y + 1), equalTo(tiles - 1))
             );
             // next encoded value up belongs to the tile
@@ -284,16 +288,8 @@ public class GeoTileUtilsTests extends ESTestCase {
         }
     }
 
-    private static double quantizeLon(double lon) {
-        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
-    }
-
     private static double quantizeLonDown(double lon) {
         return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon) - 1);
-    }
-
-    private static double quantizeLat(double lat) {
-        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }
 
     private static double quantizeLatUp(double lat) {

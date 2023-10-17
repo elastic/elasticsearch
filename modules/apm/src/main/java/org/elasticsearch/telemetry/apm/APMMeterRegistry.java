@@ -6,12 +6,21 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.telemetry.apm.internal.metrics.AbstractInstrument;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleUpDownCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;

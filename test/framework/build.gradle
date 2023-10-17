@@ -15,6 +15,7 @@ dependencies {
   api project(':modules:transport-netty4')
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
+  api project(':modules:apm')
   api project(":libs:elasticsearch-cli")
   api project(':libs:elasticsearch-preallocate')
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
@@ -30,6 +31,10 @@ dependencies {
   api 'org.mockito:mockito-subclass:5.4.0'
   api 'net.bytebuddy:byte-buddy:1.14.5'
   api 'org.objenesis:objenesis:3.3'
+
+  // otel
+  implementation "io.opentelemetry:opentelemetry-api:1.17.0"
+  implementation "io.opentelemetry:opentelemetry-context:1.17.0"
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }

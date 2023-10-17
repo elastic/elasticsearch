@@ -58,7 +58,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
         return description;
     }
 
-    void setProvider(@Nullable Meter meter) {
+    public void setProvider(@Nullable Meter meter) {
         delegate.set(doBuildInstrument(Objects.requireNonNull(meter)));
     }
 

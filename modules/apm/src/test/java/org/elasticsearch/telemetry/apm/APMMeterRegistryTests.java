@@ -6,13 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterService;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.test.ESTestCase;
 

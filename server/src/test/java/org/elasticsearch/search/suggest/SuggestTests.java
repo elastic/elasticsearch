@@ -239,7 +239,6 @@ public class SuggestTests extends ESTestCase {
         assertTrue(option1.collateMatch());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95607")
     public void testSerialization() throws IOException {
         TransportVersion bwcVersion = TransportVersionUtils.randomVersionBetween(
             random(),
@@ -248,6 +247,22 @@ public class SuggestTests extends ESTestCase {
         );
 
         final Suggest suggest = createTestItem();
+        // if bwc version is below V_8_8_0 we need to make sure potential
+        // search hits in CompletionSuggestion$Entry$Option don't have "rank" set
+        // TODO remove this once MINIMUM_COMPATIBLE > V_8_8_0
+        if (bwcVersion.before(TransportVersions.V_8_8_0)) {
+            for (CompletionSuggestion s : suggest.filter(CompletionSuggestion.class)) {
+                for (CompletionSuggestion.Entry entry : s.entries) {
+                    List<CompletionSuggestion.Entry.Option> options = entry.getOptions();
+                    for (CompletionSuggestion.Entry.Option o : entry.getOptions()) {
+                        if (o.getHit() != null) {
+                            o.getHit().setRank(-1);
+                        }
+                    }
+                }
+            }
+        }
+
         final Suggest bwcSuggest;
 
         NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());

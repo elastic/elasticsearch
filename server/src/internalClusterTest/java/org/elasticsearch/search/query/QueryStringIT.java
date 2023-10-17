@@ -180,12 +180,11 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test_1").setId("1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test_1")
-            .setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.AND))
-            .get();
-        assertHitCount(resp, 0L);
+        assertHitCount(client().prepareSearch("test_1").setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.AND)), 0L);
 
-        resp = client().prepareSearch("test_1").setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
+        SearchResponse resp = client().prepareSearch("test_1")
+            .setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.OR))
+            .get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
     }
@@ -196,8 +195,7 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)), 0L);
 
         Exception exc = expectThrows(
             Exception.class,

@@ -681,11 +681,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         ).prepareSearch("search_index").setQuery(lookup).get();
         assertHitCount(response, 3);
         assertSearchHits(response, "1", "2", "3");
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 0);
+
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            0
+        );
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
             .prepareSearch("search_index")
@@ -695,11 +697,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertSearchHits(response, "1", "2", "3", "4", "5");
         // Lookup doc#2 is: hidden from user1, visible to user2 and user3
         lookup = QueryBuilders.termsLookupQuery("search_field", new TermsLookup("lookup_index", "2", "lookup_field"));
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 0);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup)
+                .get(),
+            0
+        );
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("search_index")
@@ -1031,29 +1035,33 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("c3"));
 
         // Both user1 and user2 can't see field1 and field2, no parent/child query should yield results:
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None)),
+            0L
+        );
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None)),
+            0L
+        );
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasParentQuery("parent", matchAllQuery(), false))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false)),
+            0L
+        );
 
-        searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(hasParentQuery("parent", matchAllQuery(), false))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(hasParentQuery("parent", matchAllQuery(), false)),
+            0L
+        );
 
         // user 3 can see them but not c3
         searchResponse = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))

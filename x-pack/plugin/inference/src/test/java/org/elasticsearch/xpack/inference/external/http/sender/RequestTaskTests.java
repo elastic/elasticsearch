@@ -5,43 +5,41 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.http;
+package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createConnectionManager;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.emptyHttpSettings;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
-public class HttpClientManagerTests extends ESTestCase {
+public class RequestTaskTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
 
@@ -57,7 +55,7 @@ public class HttpClientManagerTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testSend_MockServerReceivesRequest() throws Exception {
+    public void testDoRun_SendsRequestAndReceivesResponse() throws Exception {
         int responseCode = randomIntBetween(200, 203);
         String body = randomAlphaOfLengthBetween(2, 8096);
         webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
@@ -66,13 +64,12 @@ public class HttpClientManagerTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty());
-        try (var httpClient = manager.getHttpClient()) {
+        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager())) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            httpClient.send(httpPost, HttpClientContext.create(), listener);
-
+            var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), listener);
+            requestTask.doRun();
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.response().getStatusLine().getStatusCode(), equalTo(responseCode));
@@ -84,42 +81,19 @@ public class HttpClientManagerTests extends ESTestCase {
         }
     }
 
-    public void testStartsANewEvictor_WithNewEvictionInterval() {
-        var threadPool = mock(ThreadPool.class);
-        var manager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty());
+    public void testDoRun_SendThrowsIOException() throws Exception {
+        var httpClient = mock(HttpClient.class);
+        doThrow(new IOException("exception")).when(httpClient).send(any(), any(), any());
 
-        var evictionInterval = TimeValue.timeValueSeconds(1);
-        manager.setEvictionInterval(evictionInterval);
-        verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(evictionInterval), any());
-    }
+        String paramKey = randomAlphaOfLength(3);
+        String paramValue = randomAlphaOfLength(3);
+        var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-    public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() throws InterruptedException {
-        var mockConnectionManager = mock(PoolingNHttpClientConnectionManager.class);
+        PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+        var requestTask = new RequestTask(httpPost, httpClient, HttpClientContext.create(), listener);
+        requestTask.doRun();
 
-        Settings settings = Settings.builder()
-            .put(HttpClientManager.CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.getKey(), TimeValue.timeValueNanos(1))
-            .build();
-        var manager = new HttpClientManager(settings, mockConnectionManager, threadPool, mockClusterService(settings));
-
-        var evictionMaxIdle = TimeValue.timeValueSeconds(1);
-        manager.setEvictionMaxIdle(evictionMaxIdle);
-
-        assertFalse(manager.isEvictionThreadRunning());
-    }
-
-    public static ClusterService mockClusterServiceEmpty() {
-        return mockClusterService(Settings.EMPTY);
-    }
-
-    public static ClusterService mockClusterService(Settings settings) {
-        var clusterService = mock(ClusterService.class);
-
-        var registeredSettings = Stream.concat(HttpClientManager.getSettings().stream(), HttpSettings.getSettings().stream())
-            .collect(Collectors.toSet());
-
-        var cSettings = new ClusterSettings(settings, registeredSettings);
-        when(clusterService.getClusterSettings()).thenReturn(cSettings);
-
-        return clusterService;
+        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is(format("Failed to send request [%s]", httpPost.getRequestLine())));
     }
 }

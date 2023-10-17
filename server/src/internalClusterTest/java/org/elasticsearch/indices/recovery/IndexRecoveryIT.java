@@ -169,8 +169,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     private static final int MIN_DOC_COUNT = 500;
     private static final int MAX_DOC_COUNT = 1000;
-    private static final int SHARD_COUNT = 1;
-    private static final int REPLICA_COUNT = 0;
+    private static final int SHARD_COUNT_1 = 1;
+    private static final int REPLICA_COUNT_0 = 0;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -249,18 +249,20 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSizeBytes, ByteSizeUnit.BYTES);
     }
 
-    private void slowDownRecovery(ByteSizeValue shardSize) {
-        long chunkSize = Math.max(1, shardSize.getBytes() / 10);
-        updateClusterSettings(
-            Settings.builder()
-                // one chunk per sec..
-                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
-                // small chunks
-                .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSize, ByteSizeUnit.BYTES))
-        );
+    /**
+     * Updates the cluster state settings to throttle recovery data transmission to 'dataSize' every 10 seconds.
+     *
+     * @param dataSize size in bytes to recover in 10 seconds
+     */
+    private void throttleRecovery10Seconds(ByteSizeValue dataSize) {
+        long chunkSize = Math.max(1, dataSize.getBytes() / 10);
+        updateClusterSettings(createRecoverySettingsChunkPerSecond(chunkSize));
     }
 
-    private void restoreRecoverySpeed() {
+    /**
+     * Sets high MB per second throttling for recovery on all nodes in the cluster.
+     */
+    private void unthrottleRecovery() {
         updateClusterSettings(
             Settings.builder()
                 // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
@@ -343,7 +345,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> start nodes");
         String node = internalCluster().startNode();
 
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
 
         logger.info("--> restarting cluster");
         internalCluster().fullRestart();
@@ -351,7 +353,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         logger.info("--> request recoveries");
         RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
-        assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT));
+        assertThat(response.shardRecoveryStates().size(), equalTo(SHARD_COUNT_1));
         assertThat(response.shardRecoveryStates().get(INDEX_NAME).size(), equalTo(1));
 
         List<RecoveryState> recoveryStates = response.shardRecoveryStates().get(INDEX_NAME);
@@ -368,7 +370,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> start nodes");
         internalCluster().startNode();
 
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
 
         logger.info("--> restarting cluster");
         internalCluster().fullRestart();
@@ -383,7 +385,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     public void testReplicaRecovery() throws Exception {
         final String nodeA = internalCluster().startNode();
-        createIndex(INDEX_NAME, SHARD_COUNT, REPLICA_COUNT);
+        createIndex(INDEX_NAME, SHARD_COUNT_1, REPLICA_COUNT_0);
         ensureGreen(INDEX_NAME);
 
         final int numOfDocs = scaledRandomIntBetween(0, 200);
@@ -535,7 +537,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> create index on node: {}", nodeA);
-        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -545,7 +547,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen();
 
         logger.info("--> slowing down recoveries");
-        slowDownRecovery(shardSize);
+        throttleRecovery10Seconds(shardSize);
 
         logger.info("--> move shard from: {} to: {}", nodeA, nodeB);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeB)).execute().actionGet().getState();
@@ -592,7 +594,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         logger.info("--> speeding up recoveries");
-        restoreRecoverySpeed();
+        unthrottleRecovery();
 
         // wait for it to be finished
         ensureGreen();
@@ -631,7 +633,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertFalse(clusterAdmin().prepareHealth().setWaitForNodes("3").get().isTimedOut());
 
         logger.info("--> slowing down recoveries");
-        slowDownRecovery(shardSize);
+        throttleRecovery10Seconds(shardSize);
 
         logger.info("--> move replica shard from: {} to: {}", nodeA, nodeC);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(INDEX_NAME, 0, nodeA, nodeC)).execute().actionGet().getState();
@@ -679,7 +681,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         logger.info("--> speeding up recoveries");
-        restoreRecoverySpeed();
+        unthrottleRecovery();
         ensureGreen();
 
         response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -711,7 +713,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> creating index on node A");
-        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -759,7 +761,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         });
 
         logger.info("--> increasing the recovery throttle limit so that the shard recovery completes quickly");
-        restoreRecoverySpeed();
+        unthrottleRecovery();
 
         logger.info("--> waiting for the shard recovery to complete");
         ensureGreen();
@@ -782,7 +784,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final String nodeA = internalCluster().startNode();
 
         logger.info("--> creating index on node A");
-        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats()
+        ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0).getShards()[0].getStats()
             .getStore()
             .size();
 
@@ -821,7 +823,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         });
 
         logger.info("--> increasing the recovery throttle limit so that the shard recovery completes quickly");
-        restoreRecoverySpeed();
+        unthrottleRecovery();
 
         logger.info("--> waiting for the shard recovery to complete");
         ensureGreen();
@@ -845,7 +847,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         ensureGreen();
 
         logger.info("--> create index on node: {}", nodeA);
-        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT);
+        createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT_1, REPLICA_COUNT_0);
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = createSnapshot(INDEX_NAME);

@@ -46,11 +46,9 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     ) {
         super(
             NodesInfoAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesInfoRequest::new,
             NodeInfoRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -97,7 +95,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     public static class NodeInfoRequest extends TransportRequest {
 
-        private NodesInfoMetrics nodesInfoMetrics;
+        private final NodesInfoMetrics nodesInfoMetrics;
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);

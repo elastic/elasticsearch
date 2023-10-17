@@ -466,7 +466,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
-    private Tuple<String, Object> execute(PreparedStatement statement) throws SQLException {
+    private static Tuple<String, Object> execute(PreparedStatement statement) throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
             ResultSetMetaData resultSetMetaData = results.getMetaData();
             assertTrue(results.next());

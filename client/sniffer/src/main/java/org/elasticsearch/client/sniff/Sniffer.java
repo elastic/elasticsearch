@@ -298,12 +298,7 @@ public class Sniffer implements Closeable {
 
         private SnifferThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
-            this.originalThreadFactory = AccessController.doPrivileged(new PrivilegedAction<ThreadFactory>() {
-                @Override
-                public ThreadFactory run() {
-                    return Executors.defaultThreadFactory();
-                }
-            });
+            this.originalThreadFactory = AccessController.doPrivileged((PrivilegedAction<ThreadFactory>) Executors::defaultThreadFactory);
         }
 
         @Override

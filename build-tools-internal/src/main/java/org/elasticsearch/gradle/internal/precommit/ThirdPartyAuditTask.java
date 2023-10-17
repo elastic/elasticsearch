@@ -261,7 +261,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void throwNotConfiguredCorrectlyException() {
+    private static void throwNotConfiguredCorrectlyException() {
         throw new IllegalArgumentException("Audit of third party dependencies is not configured correctly");
     }
 
@@ -327,7 +327,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         }
     }
 
-    private String formatClassList(Set<String> classList) {
+    private static String formatClassList(Set<String> classList) {
         return classList.stream().map(name -> "  * " + name).sorted().collect(Collectors.joining("\n"));
     }
 
@@ -365,7 +365,7 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     }
 
     /** Returns true iff the build Java version is the same as the given version. */
-    private boolean isJavaVersion(JavaVersion version) {
+    private static boolean isJavaVersion(JavaVersion version) {
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             if (version.equals(BuildParams.getRuntimeJavaVersion())) {
                 return true;

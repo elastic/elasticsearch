@@ -291,7 +291,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
+    private static void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             distribution.setType(ElasticsearchDistributionTypes.INTEG_TEST_ZIP);
             // we change the underlying distribution when changing the test distribution of the cluster.
@@ -1109,7 +1109,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private void logProcessInfo(String prefix, ProcessHandle.Info info) {
+    private static void logProcessInfo(String prefix, ProcessHandle.Info info) {
         LOGGER.info(
             prefix + " commandLine:`{}` command:`{}` args:`{}`",
             info.commandLine().orElse("-"),
@@ -1199,7 +1199,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private String normalizeLogLine(String line) {
+    private static String normalizeLogLine(String line) {
         if (line.contains("ERROR")) {
             return line.substring(line.indexOf("ERROR"));
         }
@@ -1323,7 +1323,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
      * @param sourceRoot      where to copy from
      * @param destinationRoot destination to link to
      */
-    private void syncWithLinks(Path sourceRoot, Path destinationRoot) {
+    private static void syncWithLinks(Path sourceRoot, Path destinationRoot) {
         sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
             try {
                 Files.createLink(d, s);
@@ -1334,7 +1334,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         });
     }
 
-    private void syncWithCopy(Path sourceRoot, Path destinationRoot) {
+    private static void syncWithCopy(Path sourceRoot, Path destinationRoot) {
         sync(sourceRoot, destinationRoot, (Path d, Path s) -> {
             try {
                 Files.copy(s, d);
@@ -1344,7 +1344,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         });
     }
 
-    private void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
+    private static void sync(Path sourceRoot, Path destinationRoot, BiConsumer<Path, Path> syncMethod) {
         assert Files.exists(destinationRoot) == false;
         try (Stream<Path> stream = Files.walk(sourceRoot)) {
             stream.forEach(source -> {
@@ -1541,7 +1541,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private List<String> readPortsFile(Path file) throws IOException {
+    private static List<String> readPortsFile(Path file) throws IOException {
         try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return lines.map(String::trim).collect(Collectors.toList());
         }

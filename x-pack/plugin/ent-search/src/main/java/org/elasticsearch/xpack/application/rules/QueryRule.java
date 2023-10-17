@@ -132,7 +132,7 @@ public class QueryRule implements Writeable, ToXContentObject {
         }
     }
 
-    private void validatePinnedAction(Object action) {
+    private static void validatePinnedAction(Object action) {
         if (action != null) {
             if (action instanceof List == false) {
                 throw new ElasticsearchParseException("pinned query rule actions must be a list");

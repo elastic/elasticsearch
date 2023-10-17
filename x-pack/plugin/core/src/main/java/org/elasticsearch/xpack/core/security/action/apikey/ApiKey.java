@@ -274,7 +274,8 @@ public final class ApiKey implements ToXContentObject, Writeable {
         return builder;
     }
 
-    private void buildXContentForCrossClusterApiKeyAccess(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {
+    private static void buildXContentForCrossClusterApiKeyAccess(XContentBuilder builder, RoleDescriptor roleDescriptor)
+        throws IOException {
         if (Assertions.ENABLED) {
             CrossClusterApiKeyRoleDescriptorBuilder.validate(roleDescriptor);
         }

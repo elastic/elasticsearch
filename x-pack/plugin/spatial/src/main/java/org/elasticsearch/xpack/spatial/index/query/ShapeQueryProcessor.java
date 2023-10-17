@@ -55,7 +55,7 @@ public class ShapeQueryProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context, hasDocValues);
     }
 
-    private void validateIsShapeFieldType(String fieldName, SearchExecutionContext context) {
+    private static void validateIsShapeFieldType(String fieldName, SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof ShapeFieldMapper.ShapeFieldType == false) {
             throw new QueryShardException(
@@ -65,7 +65,7 @@ public class ShapeQueryProcessor {
         }
     }
 
-    private Query getVectorQueryFromShape(
+    private static Query getVectorQueryFromShape(
         Geometry queryShape,
         String fieldName,
         ShapeRelation relation,

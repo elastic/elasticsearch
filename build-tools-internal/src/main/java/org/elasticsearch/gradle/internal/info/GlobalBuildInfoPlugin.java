@@ -161,7 +161,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         });
     }
 
-    private String formatJavaVendorDetails(JvmInstallationMetadata runtimeJdkMetaData) {
+    private static String formatJavaVendorDetails(JvmInstallationMetadata runtimeJdkMetaData) {
         JvmVendor vendor = runtimeJdkMetaData.getVendor();
         return runtimeJdkMetaData.getVendor().getKnownVendor().name() + "/" + vendor.getRawVendor();
     }
@@ -235,7 +235,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             .orElseThrow(() -> new GradleException("Could not locate available Java installation in Gradle registry at: " + javaHome));
     }
 
-    private boolean isSameFile(File javaHome, InstallationLocation installationLocation) {
+    private static boolean isSameFile(File javaHome, InstallationLocation installationLocation) {
         try {
             return Files.isSameFile(javaHome.toPath(), installationLocation.getLocation().toPath());
         } catch (IOException ioException) {

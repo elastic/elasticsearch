@@ -296,7 +296,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @param clusterState The current cluster state.
      * @return {@code true} indicates that all resources are available and the exporter can be used. {@code false} to stop and wait.
      */
-    private boolean setupIfNotElectedMaster(final ClusterState clusterState) {
+    private static boolean setupIfNotElectedMaster(final ClusterState clusterState) {
         // any required template is not yet installed in the given cluster state, we'll wait.
         for (final String template : MonitoringTemplateRegistry.TEMPLATE_NAMES) {
             if (hasTemplate(clusterState, template) == false) {

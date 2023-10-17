@@ -304,7 +304,7 @@ public class AutoscalingCapacity implements ToXContentObject, Writeable {
             return new AutoscalingCapacity(total, node);
         }
 
-        private ByteSizeValue byteSizeValue(Long memory) {
+        private static ByteSizeValue byteSizeValue(Long memory) {
             return memory == null ? null : ByteSizeValue.ofBytes(memory);
         }
     }

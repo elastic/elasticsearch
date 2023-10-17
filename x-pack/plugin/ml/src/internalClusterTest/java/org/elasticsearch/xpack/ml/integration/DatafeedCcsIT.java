@@ -186,7 +186,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         return weekAgo;
     }
 
-    private boolean doesLocalAuditMessageExist(String message) {
+    private static boolean doesLocalAuditMessageExist(String message) {
         try {
             SearchResponse response = client(LOCAL_CLUSTER).prepareSearch(".ml-notifications*")
                 .setQuery(new MatchPhraseQueryBuilder("message", message))
@@ -198,7 +198,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    private JobStats getJobStats(String jobId) {
+    private static JobStats getJobStats(String jobId) {
         return client(LOCAL_CLUSTER).execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId))
             .actionGet()
             .getResponse()
@@ -209,7 +209,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
     /**
      * Create and start a job and datafeed on the local cluster but searching for data in the remote cluster.
      */
-    private void setupJobAndDatafeed(String jobId, String datafeedId, Long endTimeMs) throws Exception {
+    private static void setupJobAndDatafeed(String jobId, String datafeedId, Long endTimeMs) throws Exception {
         Job.Builder job = BaseMlIntegTestCase.createScheduledJob(jobId, ByteSizeValue.ofMb(20));
         client(LOCAL_CLUSTER).execute(PutJobAction.INSTANCE, new PutJobAction.Request(job)).actionGet();
 
@@ -238,7 +238,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         client(LOCAL_CLUSTER).execute(StartDatafeedAction.INSTANCE, new StartDatafeedAction.Request(datafeedParams)).actionGet();
     }
 
-    private void setSkipUnavailable(boolean skip) {
+    private static void setSkipUnavailable(boolean skip) {
         client(LOCAL_CLUSTER).admin()
             .cluster()
             .prepareUpdateSettings()
@@ -246,7 +246,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             .get();
     }
 
-    private void clearSkipUnavailable() {
+    private static void clearSkipUnavailable() {
         client(LOCAL_CLUSTER).admin()
             .cluster()
             .prepareUpdateSettings()

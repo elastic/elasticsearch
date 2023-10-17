@@ -1325,7 +1325,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Get the list of hosts in the cluster.
      */
-    protected final List<HttpHost> getClusterHosts() {
+    protected static List<HttpHost> getClusterHosts() {
         return clusterHosts;
     }
 

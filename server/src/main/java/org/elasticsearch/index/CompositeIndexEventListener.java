@@ -278,7 +278,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
         outerListener.onResponse(null);
     }
 
-    private void iterateBeforeIndexShardRecovery(
+    private static void iterateBeforeIndexShardRecovery(
         final IndexShard indexShard,
         final IndexSettings indexSettings,
         final List<IndexEventListener> listeners,
@@ -293,7 +293,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
         );
     }
 
-    private void iterateAfterIndexShardRecovery(
+    private static void iterateAfterIndexShardRecovery(
         final IndexShard indexShard,
         final List<IndexEventListener> listeners,
         final ActionListener<Void> outerListener

@@ -112,7 +112,7 @@ public class RestTestTransformer {
      * @param objectKeyFinders        A Map of object keys to find and their associated transformation by parent Object
      * @param arrayByObjectKeyFinders A Map of object keys to find and their associated transformation by parent Array
      */
-    private void traverseTest(
+    private static void traverseTest(
         RestTestContext testContext,
         JsonNode currentNode,
         String parentKeyName,

@@ -126,11 +126,11 @@ public class SymbolicLinkPreservingTar extends Tar {
                 return false;
             }
 
-            private boolean isChildOf(final File directory, final File file) {
+            private static boolean isChildOf(final File directory, final File file) {
                 return file.toPath().startsWith(directory.toPath());
             }
 
-            private boolean isSymbolicLink(final FileCopyDetailsInternal details) {
+            private static boolean isSymbolicLink(final FileCopyDetailsInternal details) {
                 final File file;
                 try {
                     file = details.getFile();

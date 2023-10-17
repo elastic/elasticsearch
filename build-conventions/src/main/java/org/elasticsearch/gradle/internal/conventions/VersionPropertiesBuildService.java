@@ -38,15 +38,15 @@ abstract class VersionPropertiesBuildService implements BuildService<VersionProp
         }
     }
 
-    private JavaVersion resolveMinimumRuntimeJavaVersion(File infoPath) {
+    private static JavaVersion resolveMinimumRuntimeJavaVersion(File infoPath) {
         return resolveJavaVersion(infoPath, "src/main/resources/minimumRuntimeVersion");
     }
 
-    private JavaVersion resolveMinimumCompilerJavaVersion(File infoPath) {
+    private static JavaVersion resolveMinimumCompilerJavaVersion(File infoPath) {
         return resolveJavaVersion(infoPath, "src/main/resources/minimumCompilerVersion");
     }
 
-    private JavaVersion resolveJavaVersion(File infoPath, String path) {
+    private static JavaVersion resolveJavaVersion(File infoPath, String path) {
         final JavaVersion minimumJavaVersion;
         File minimumJavaInfoSource = new File(infoPath, path);
         try {

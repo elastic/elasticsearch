@@ -216,7 +216,7 @@ public class DependenciesInfoTask extends ConventionTask {
         return licenseType;
     }
 
-    private IllegalStateException missingInfo(String group, String name, String infoFileSuffix, String reason) {
+    private static IllegalStateException missingInfo(String group, String name, String infoFileSuffix, String reason) {
         return new IllegalStateException("Unable to find " + infoFileSuffix + " file for dependency " + group + ":" + name + " " + reason);
     }
 

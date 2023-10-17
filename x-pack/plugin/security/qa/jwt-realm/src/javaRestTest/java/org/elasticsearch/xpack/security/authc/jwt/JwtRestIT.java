@@ -570,7 +570,7 @@ public class JwtRestIT extends ESRestTestCase {
                     .put(CLIENT_KEY_PATH, pkiKey)
                     .put(CLIENT_KEY_PASSWORD, "pki-password")
                     .build(),
-                super.getClusterHosts().toArray(new HttpHost[0])
+                getClusterHosts().toArray(new HttpHost[0])
             )
         ) {
             final Map<String, Object> pkiUser = new TestSecurityClient(pkiClient).authenticate();

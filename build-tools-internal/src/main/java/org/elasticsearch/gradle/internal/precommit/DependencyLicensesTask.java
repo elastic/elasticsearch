@@ -237,7 +237,7 @@ public class DependencyLicensesTask extends DefaultTask {
         return projectLayout.getBuildDirectory().dir("dependencyLicense");
     }
 
-    private void failIfAnyMissing(String item, Boolean exists, String type) {
+    private static void failIfAnyMissing(String item, Boolean exists, String type) {
         if (exists == false) {
             throw new GradleException("Unused " + type + " " + item);
         }
@@ -275,7 +275,7 @@ public class DependencyLicensesTask extends DefaultTask {
         return dependencyName;
     }
 
-    private void checkFile(String name, String jarName, Map<String, Boolean> counters, String type) {
+    private static void checkFile(String name, String jarName, Map<String, Boolean> counters, String type) {
         String fileName = getFileName(name, counters, type);
 
         if (counters.containsKey(fileName) == false) {
@@ -285,7 +285,7 @@ public class DependencyLicensesTask extends DefaultTask {
         counters.put(fileName, true);
     }
 
-    private String getFileName(String name, Map<String, ?> counters, String type) {
+    private static String getFileName(String name, Map<String, ?> counters, String type) {
         String fileName = name + "-" + type;
 
         if (counters.containsKey(fileName) == false) {

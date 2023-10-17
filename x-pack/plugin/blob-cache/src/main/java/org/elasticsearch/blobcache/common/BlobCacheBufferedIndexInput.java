@@ -69,7 +69,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
         return bufferSize;
     }
 
-    private void checkBufferSize(int bufferSize) {
+    private static void checkBufferSize(int bufferSize) {
         if (bufferSize < MIN_BUFFER_SIZE) throw new IllegalArgumentException(
             "bufferSize must be at least MIN_BUFFER_SIZE (got " + bufferSize + ")"
         );

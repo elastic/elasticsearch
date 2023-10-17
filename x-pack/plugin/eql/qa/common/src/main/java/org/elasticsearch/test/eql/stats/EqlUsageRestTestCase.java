@@ -298,11 +298,11 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
     }
 
-    private void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) {
+    private static void assertAllQueryMetrics(int allTotalQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allTotalQueries, responseAsMap, "total");
     }
 
-    private void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) {
+    private static void assertAllFailedQueryMetrics(int allFailedQueries, Map<String, Object> responseAsMap) {
         assertAllQueryMetric(allFailedQueries, responseAsMap, "failed");
     }
 

@@ -1392,7 +1392,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final DocWriteResponse index(String index, XContentBuilder source) {
+    protected static DocWriteResponse index(String index, XContentBuilder source) {
         return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
@@ -1402,11 +1402,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
+    protected static DocWriteResponse index(String index, String id, Map<String, Object> source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
-    protected final ActionFuture<DocWriteResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
+    protected static ActionFuture<DocWriteResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
         return client().prepareIndex(index).setId(id).setSource(source, type).execute();
     }
 
@@ -1416,7 +1416,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
+    protected static DocWriteResponse index(String index, String id, XContentBuilder source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1426,7 +1426,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
+    protected static DocWriteResponse indexDoc(String index, String id, Object... source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1438,7 +1438,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * <p>
      * where source is a JSON String.
      */
-    protected final DocWriteResponse index(String index, String id, String source) {
+    protected static DocWriteResponse index(String index, String id, String source) {
         return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
@@ -1511,7 +1511,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for enabling allocation for <code>indices</code>
      */
-    protected final void enableAllocation(String... indices) {
+    protected static void enableAllocation(String... indices) {
         updateIndexSettings(
             Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all"),
             indices
@@ -1521,7 +1521,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for disabling allocation for <code>indices</code>
      */
-    protected final void disableAllocation(String... indices) {
+    protected static void disableAllocation(String... indices) {
         updateIndexSettings(
             Settings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none"),
             indices

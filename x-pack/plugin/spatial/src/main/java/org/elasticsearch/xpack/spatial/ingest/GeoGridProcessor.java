@@ -336,7 +336,7 @@ public final class GeoGridProcessor extends AbstractProcessor {
             return new GeoGridProcessor(processorTag, description, fields, ignoreMissing, targetFormat, tileFieldType);
         }
 
-        private GeometryParserFormat getTargetFormat(String processorTag, Map<String, Object> config) {
+        private static GeometryParserFormat getTargetFormat(String processorTag, Map<String, Object> config) {
             String propertyName = "target_format";
             String targetFormat = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, propertyName, GEOJSON.name());
             return switch (targetFormat.toLowerCase(Locale.ROOT).trim()) {

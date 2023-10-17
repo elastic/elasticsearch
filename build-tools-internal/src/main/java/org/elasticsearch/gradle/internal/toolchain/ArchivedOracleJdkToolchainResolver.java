@@ -65,7 +65,7 @@ public abstract class ArchivedOracleJdkToolchainResolver extends AbstractCustomJ
      * 2. vendor must be any or oracle
      * 3. Aarch64 windows images are not supported
      */
-    private boolean requestIsSupported(JavaToolchainRequest request) {
+    private static boolean requestIsSupported(JavaToolchainRequest request) {
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
         JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
         if (javaToolchainSpec.getLanguageVersion().get().equals(bundledJdkMajorVersion)) {

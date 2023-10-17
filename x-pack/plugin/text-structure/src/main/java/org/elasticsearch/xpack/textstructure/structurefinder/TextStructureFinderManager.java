@@ -620,8 +620,13 @@ public final class TextStructureFinderManager {
         );
     }
 
-    private Tuple<String, Boolean> sampleText(Reader reader, String charsetName, int minLines, int maxLines, TimeoutChecker timeoutChecker)
-        throws IOException {
+    private static Tuple<String, Boolean> sampleText(
+        Reader reader,
+        String charsetName,
+        int minLines,
+        int maxLines,
+        TimeoutChecker timeoutChecker
+    ) throws IOException {
 
         int lineCount = 0;
         BufferedReader bufferedReader = new BufferedReader(reader);

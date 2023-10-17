@@ -258,17 +258,17 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     public abstract Class<? extends Plugin<Project>> getBasePlugin();
 
-    private void onlyIfBwcEnabled(Task task, ExtraPropertiesExtension extraProperties) {
+    private static void onlyIfBwcEnabled(Task task, ExtraPropertiesExtension extraProperties) {
         task.onlyIf("BWC tests disabled", t -> isEnabled(extraProperties));
     }
 
-    private boolean isEnabled(ExtraPropertiesExtension extraProperties) {
+    private static boolean isEnabled(ExtraPropertiesExtension extraProperties) {
         Object bwcEnabled = extraProperties.getProperties().get("bwc_tests_enabled");
         return bwcEnabled == null || (Boolean) bwcEnabled;
     }
 
     // TODO: implement custom extension that allows us move around of the projects between major versions and still find them
-    private Path getCompatProjectPath(String projectPath, Path checkoutDir) {
+    private static Path getCompatProjectPath(String projectPath, Path checkoutDir) {
         return checkoutDir.resolve(projectPath.replaceFirst(":", "").replace(":", File.separator));
     }
 }

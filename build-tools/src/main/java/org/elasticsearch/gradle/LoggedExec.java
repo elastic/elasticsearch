@@ -175,7 +175,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     }
 
-    private String byteStreamToString(OutputStream out) {
+    private static String byteStreamToString(OutputStream out) {
         return ((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8);
     }
 

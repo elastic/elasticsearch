@@ -194,7 +194,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         }
     }
 
-    private IHeaderMatcher subStringMatcher(String licenseFamilyCategory, String licenseFamilyName, String substringPattern) {
+    private static IHeaderMatcher subStringMatcher(String licenseFamilyCategory, String licenseFamilyName, String substringPattern) {
         SubstringLicenseMatcher substringLicenseMatcher = new SubstringLicenseMatcher();
         substringLicenseMatcher.setLicenseFamilyCategory(licenseFamilyCategory);
         substringLicenseMatcher.setLicenseFamilyName(licenseFamilyName);

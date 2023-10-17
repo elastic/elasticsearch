@@ -137,7 +137,7 @@ public final class InternalItemSetMapReduceAggregation<
 
     @Override
     protected boolean mustReduceOnSingleInternalAgg() {
-        return mapReducer.mustReduceOnSingleInternalAgg();
+        return AbstractItemSetMapReducer.mustReduceOnSingleInternalAgg();
     }
 
     @Override

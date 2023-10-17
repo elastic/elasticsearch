@@ -235,7 +235,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private void addJobsUsage(GetJobsStatsAction.Response response, List<Job> jobs, Map<String, Object> jobsUsage) {
+    private static void addJobsUsage(GetJobsStatsAction.Response response, List<Job> jobs, Map<String, Object> jobsUsage) {
         StatsAccumulator allJobsDetectorsStats = new StatsAccumulator();
         StatsAccumulator allJobsModelSizeStats = new StatsAccumulator();
         ForecastStats allJobsForecastStats = new ForecastStats();

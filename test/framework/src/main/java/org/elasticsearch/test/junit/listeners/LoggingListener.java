@@ -90,7 +90,7 @@ public class LoggingListener extends RunListener {
      * @param testLogging the test logging annotation to apply
      * @return the existing logging levels
      */
-    private Map<String, String> processTestLogging(final TestLogging testLogging, final TestIssueLogging testIssueLogging) {
+    private static Map<String, String> processTestLogging(final TestLogging testLogging, final TestIssueLogging testIssueLogging) {
         final Map<String, String> testLoggingMap = getLoggersAndLevelsFromAnnotation(testLogging);
         final Map<String, String> testIssueLoggingMap = getLoggersAndLevelsFromAnnotation(testIssueLogging);
 
@@ -170,7 +170,7 @@ public class LoggingListener extends RunListener {
      * @param map the logging levels to apply
      * @return an empty map
      */
-    private Map<String, String> reset(final Map<String, String> map) {
+    private static Map<String, String> reset(final Map<String, String> map) {
         for (final Map.Entry<String, String> previousLogger : map.entrySet()) {
             final Logger logger = resolveLogger(previousLogger.getKey());
             Loggers.setLevel(logger, previousLogger.getValue());

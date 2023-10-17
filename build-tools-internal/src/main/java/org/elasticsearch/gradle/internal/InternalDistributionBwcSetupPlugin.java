@@ -149,7 +149,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
+    private static void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
         String projectName = distributionProject.name;
         String buildBwcTask = buildBwcTaskName(projectName);
 
@@ -166,7 +166,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
+    private static void registerDistributionArchiveArtifact(
+        Project bwcProject,
+        DistributionProject distributionProject,
+        String buildBwcTask
+    ) {
         File distFile = distributionProject.expectedBuildArtifact.distFile;
         String artifactFileName = distFile.getName();
         String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";

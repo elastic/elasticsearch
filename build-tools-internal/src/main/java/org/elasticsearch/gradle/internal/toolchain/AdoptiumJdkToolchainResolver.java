@@ -47,14 +47,14 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
         return versionInfo.map(v -> fromUri(resolveDownloadURI(versionRequestKey, v)));
     }
 
-    private AdoptiumVersionRequest toVersionRequest(JavaToolchainRequest request) {
+    private static AdoptiumVersionRequest toVersionRequest(JavaToolchainRequest request) {
         String platform = toOsString(request.getBuildPlatform().getOperatingSystem(), JvmVendorSpec.ADOPTIUM);
         String arch = toArchString(request.getBuildPlatform().getArchitecture());
         JavaLanguageVersion javaLanguageVersion = request.getJavaToolchainSpec().getLanguageVersion().get();
         return new AdoptiumVersionRequest(platform, arch, javaLanguageVersion);
     }
 
-    private Optional<AdoptiumVersionInfo> resolveAvailableVersion(AdoptiumVersionRequest requestKey) {
+    private static Optional<AdoptiumVersionInfo> resolveAvailableVersion(AdoptiumVersionRequest requestKey) {
         ObjectMapper mapper = new ObjectMapper();
         try {
             int languageVersion = requestKey.languageVersion.asInt();
@@ -75,7 +75,7 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
             return Optional.of(
                 Lists.newArrayList(versionsNode.iterator())
                     .stream()
-                    .map(this::toVersionInfo)
+                    .map(AdoptiumJdkToolchainResolver::toVersionInfo)
                     .max(Comparator.comparing(AdoptiumVersionInfo::semver))
                     .get()
             );
@@ -87,7 +87,7 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
         }
     }
 
-    private AdoptiumVersionInfo toVersionInfo(JsonNode node) {
+    private static AdoptiumVersionInfo toVersionInfo(JsonNode node) {
         return new AdoptiumVersionInfo(
             node.get("build").asInt(),
             node.get("major").asInt(),
@@ -98,7 +98,7 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
         );
     }
 
-    private URI resolveDownloadURI(AdoptiumVersionRequest request, AdoptiumVersionInfo versionInfo) {
+    private static URI resolveDownloadURI(AdoptiumVersionRequest request, AdoptiumVersionInfo versionInfo) {
         return URI.create(
             "https://api.adoptium.net/v3/binary/version/jdk-"
                 + versionInfo.openjdkVersion
@@ -114,7 +114,7 @@ public abstract class AdoptiumJdkToolchainResolver extends AbstractCustomJavaToo
      * Check if request can be full-filled by this resolver:
      * 1. vendor must be "any" or adoptium
      */
-    private boolean requestIsSupported(JavaToolchainRequest request) {
+    private static boolean requestIsSupported(JavaToolchainRequest request) {
         return anyVendorOr(request.getJavaToolchainSpec().getVendor().get(), JvmVendorSpec.ADOPTIUM);
     }
 

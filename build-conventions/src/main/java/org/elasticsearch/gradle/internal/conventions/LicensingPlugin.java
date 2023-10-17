@@ -51,7 +51,7 @@ public class LicensingPlugin implements Plugin<Project> {
         project.getExtensions().getExtraProperties().set("projectLicenses", licensesProperty);
     }
 
-    private boolean isSnapshotVersion(Project project) {
+    private static boolean isSnapshotVersion(Project project) {
         return project.getVersion().toString().endsWith("-SNAPSHOT");
     }
 

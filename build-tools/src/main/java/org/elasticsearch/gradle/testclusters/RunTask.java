@@ -248,7 +248,7 @@ public class RunTask extends DefaultTestClustersTask {
     /**
      * Disallow overlap between helper options and explicit configuration
      */
-    private void validateHelperOption(String option, String prefix, ElasticsearchNode node) {
+    private static void validateHelperOption(String option, String prefix, ElasticsearchNode node) {
         Set<String> preConfigured = findConfiguredSettingsByPrefix(prefix, node);
         if (preConfigured.isEmpty() == false) {
             throw new IllegalArgumentException("Can not use " + option + " with " + String.join(",", preConfigured));
@@ -258,7 +258,7 @@ public class RunTask extends DefaultTestClustersTask {
     /**
      * Find any settings configured with a given prefix
      */
-    private Set<String> findConfiguredSettingsByPrefix(String prefix, ElasticsearchNode node) {
+    private static Set<String> findConfiguredSettingsByPrefix(String prefix, ElasticsearchNode node) {
         Set<String> preConfigured = new HashSet<>();
         node.getSettingKeys().stream().filter(key -> key.startsWith(prefix)).forEach(k -> preConfigured.add(prefix));
         return preConfigured;

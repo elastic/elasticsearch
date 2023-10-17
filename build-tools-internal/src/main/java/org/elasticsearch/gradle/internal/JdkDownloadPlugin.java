@@ -85,7 +85,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         project.getExtensions().add(EXTENSION_NAME, jdksContainer);
     }
 
-    private void setupRepository(Project project, Jdk jdk) {
+    private static void setupRepository(Project project, Jdk jdk) {
         RepositoryHandler repositories = project.getRepositories();
 
         /*

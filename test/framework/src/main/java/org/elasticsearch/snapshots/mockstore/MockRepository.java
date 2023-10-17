@@ -448,7 +448,7 @@ public class MockRepository extends FsRepository {
                 return false;
             }
 
-            private int hashCode(String path) {
+            private static int hashCode(String path) {
                 try {
                     MessageDigest digest = MessageDigest.getInstance("MD5");
                     byte[] bytes = digest.digest(path.getBytes(StandardCharsets.UTF_8));

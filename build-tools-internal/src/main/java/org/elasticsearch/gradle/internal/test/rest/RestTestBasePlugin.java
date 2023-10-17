@@ -190,11 +190,16 @@ public class RestTestBasePlugin implements Plugin<Project> {
         });
     }
 
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version) {
+    private static ElasticsearchDistribution createDistribution(Project project, String name, String version) {
         return createDistribution(project, name, version, null);
     }
 
-    private ElasticsearchDistribution createDistribution(Project project, String name, String version, ElasticsearchDistributionType type) {
+    private static ElasticsearchDistribution createDistribution(
+        Project project,
+        String name,
+        String version,
+        ElasticsearchDistributionType type
+    ) {
         NamedDomainObjectContainer<ElasticsearchDistribution> distributions = DistributionDownloadPlugin.getContainer(project);
         ElasticsearchDistribution maybeDistro = distributions.findByName(name);
         if (maybeDistro == null) {
@@ -210,7 +215,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         }
     }
 
-    private FileTree getDistributionFiles(ElasticsearchDistribution distribution, Action<PatternFilterable> patternFilter) {
+    private static FileTree getDistributionFiles(ElasticsearchDistribution distribution, Action<PatternFilterable> patternFilter) {
         return distribution.getExtracted().getAsFileTree().matching(patternFilter);
     }
 
@@ -238,7 +243,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .withNormalizer(ClasspathNormalizer.class);
     }
 
-    private Optional<String> findModulePath(Project project, String pluginName) {
+    private static Optional<String> findModulePath(Project project, String pluginName) {
         return project.getRootProject()
             .getAllprojects()
             .stream()
@@ -249,7 +254,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             .map(Project::getPath);
     }
 
-    private Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
+    private static Configuration createPluginConfiguration(Project project, String name, boolean useExploded, boolean isExtended) {
         return project.getConfigurations().create(name, c -> {
             c.attributes(a -> a.attribute(CONFIGURATION_ATTRIBUTE, name));
             if (useExploded) {
@@ -297,18 +302,18 @@ public class RestTestBasePlugin implements Plugin<Project> {
         });
     }
 
-    private Dependency getExplodedBundleDependency(Project project, String projectPath) {
+    private static Dependency getExplodedBundleDependency(Project project, String projectPath) {
         return project.getDependencies()
             .project(Map.of("path", projectPath, "configuration", BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG));
     }
 
-    private Dependency getBundleZipTaskDependency(Project project, String projectPath) {
+    private static Dependency getBundleZipTaskDependency(Project project, String projectPath) {
         Project dependencyProject = project.findProject(projectPath);
         return project.getDependencies()
             .create(project.files(dependencyProject.getTasks().named(BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME)));
     }
 
-    private void configureArtifactTransforms(Project project) {
+    private static void configureArtifactTransforms(Project project) {
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
             transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);

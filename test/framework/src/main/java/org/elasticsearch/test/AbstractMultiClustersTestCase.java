@@ -71,19 +71,19 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    protected final Client client() {
+    protected static Client client() {
         return client(LOCAL_CLUSTER);
     }
 
-    protected final Client client(String clusterAlias) {
+    protected static Client client(String clusterAlias) {
         return cluster(clusterAlias).client();
     }
 
-    protected final InternalTestCluster cluster(String clusterAlias) {
+    protected static InternalTestCluster cluster(String clusterAlias) {
         return clusterGroup.getCluster(clusterAlias);
     }
 
-    protected final Map<String, InternalTestCluster> clusters() {
+    protected static Map<String, InternalTestCluster> clusters() {
         return Collections.unmodifiableMap(clusterGroup.clusters);
     }
 

@@ -180,7 +180,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         return deciders;
     }
 
-    private boolean defaultForPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
+    private static boolean defaultForPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
         if (deciderService.defaultOn()) {
             return appliesToPolicy(deciderService, roles);
         } else {
@@ -188,7 +188,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
     }
 
-    private boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
+    private static boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
         if (roles.isEmpty()) {
             return deciderService.appliesToEmptyRoles();
         } else {

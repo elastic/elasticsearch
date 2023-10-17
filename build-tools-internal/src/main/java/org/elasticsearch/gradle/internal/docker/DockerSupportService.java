@@ -146,7 +146,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return this.dockerAvailability;
     }
 
-    private boolean dockerDaemonIsRunning(String lastResultOutput) {
+    private static boolean dockerDaemonIsRunning(String lastResultOutput) {
         return lastResultOutput.contains("Cannot connect to the Docker daemon") == false;
     }
 
@@ -292,7 +292,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      *
      * @return the path to a CLI, if available.
      */
-    private Optional<String> getDockerPath() {
+    private static Optional<String> getDockerPath() {
         // Check if the Docker binary exists
         return Stream.of(DOCKER_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
@@ -303,16 +303,16 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      *
      * @return the path to a CLI, if available.
      */
-    private Optional<String> getDockerComposePath() {
+    private static Optional<String> getDockerComposePath() {
         // Check if the Docker binary exists
         return Stream.of(DOCKER_COMPOSE_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
-    private void throwDockerRequiredException(final String message) {
+    private static void throwDockerRequiredException(final String message) {
         throwDockerRequiredException(message, null);
     }
 
-    private void throwDockerRequiredException(final String message, Exception e) {
+    private static void throwDockerRequiredException(final String message, Exception e) {
         throw new GradleException(
             message + "\nyou can address this by attending to the reported issue, or removing the offending tasks from being executed.",
             e

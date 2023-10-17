@@ -125,7 +125,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             assertNoMissmatchingTest(testClassCandidates);
         }
 
-        private void assertNoMissmatchingTest(List<? extends Class<?>> testClassesCandidate) {
+        private static void assertNoMissmatchingTest(List<? extends Class<?>> testClassesCandidate) {
             var mismatchingBaseClasses = testClassesCandidate.stream()
                 .filter(testClassDefaultPredicate)
                 .filter(TestingConventionsCheckWorkAction::seemsLikeATest)
@@ -138,7 +138,7 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             }
         }
 
-        private void assertMatchesSuffix(List<String> suffixes, List<Class> matchingBaseClass) {
+        private static void assertMatchesSuffix(List<String> suffixes, List<Class> matchingBaseClass) {
             // ensure base class matching do match suffix
             var matchingBaseClassNotMatchingSuffix = matchingBaseClass.stream()
                 .filter(c -> suffixes.stream().allMatch(s -> c.getName().endsWith(s) == false))
@@ -153,7 +153,10 @@ public abstract class TestingConventionsCheckTask extends PrecommitTask {
             }
         }
 
-        private List<Class> getBaseClassMatching(List<? extends Class<?>> testClassCandidates, List<? extends Class<?>> baseClasses) {
+        private static List<Class> getBaseClassMatching(
+            List<? extends Class<?>> testClassCandidates,
+            List<? extends Class<?>> baseClasses
+        ) {
             Predicate<Class<?>> extendsBaseClass = clazz -> baseClasses.stream().anyMatch(baseClass -> baseClass.isAssignableFrom(clazz));
             return testClassCandidates.stream()
                 .filter(testClassDefaultPredicate)

@@ -243,7 +243,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private void mergeIndexResponses(
+    private static void mergeIndexResponses(
         FieldCapabilitiesRequest request,
         CancellableTask task,
         Map<String, FieldCapabilitiesIndexResponse> indexResponses,

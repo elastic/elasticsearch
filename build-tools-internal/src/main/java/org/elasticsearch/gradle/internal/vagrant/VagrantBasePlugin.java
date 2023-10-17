@@ -122,7 +122,7 @@ public class VagrantBasePlugin implements Plugin<Project> {
             project.getGradle().addListener(this);
         }
 
-        private void callIfVagrantTask(Task task, Consumer<VagrantMachine> method) {
+        private static void callIfVagrantTask(Task task, Consumer<VagrantMachine> method) {
             if (task instanceof VagrantShellTask) {
                 VagrantMachine service = task.getProject().getExtensions().getByType(VagrantMachine.class);
                 method.accept(service);

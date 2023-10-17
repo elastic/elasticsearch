@@ -202,7 +202,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /** Helper method to create list of plugins without specifying generic types. */
     @SafeVarargs
     @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which causes this warning
-    protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
+    protected static Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
         return Arrays.asList(plugins);
     }
 

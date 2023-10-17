@@ -85,7 +85,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         }
     }
 
-    private File calculateArchiveExtractionDir(Project project) {
+    private static File calculateArchiveExtractionDir(Project project) {
         if (project.getName().contains("tar")) {
             return new File(project.getBuildDir(), "tar-extracted");
         }
@@ -129,7 +129,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return checkMlCppNoticeTask;
     }
 
-    private TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
+    private static TaskProvider<Task> registerCheckNoticeTask(Project project, TaskProvider<Copy> checkExtraction) {
         return project.getTasks().register("checkNotice", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
@@ -146,7 +146,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         });
     }
 
-    private TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
+    private static TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
         TaskProvider<Task> checkLicense = project.getTasks().register("checkLicense", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
@@ -230,7 +230,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         return new File("/bin/tar").exists() || new File("/usr/bin/tar").exists() || new File("/usr/local/bin/tar").exists();
     }
 
-    private Object distTaskOutput(TaskProvider<Task> buildDistTask) {
+    private static Object distTaskOutput(TaskProvider<Task> buildDistTask) {
         return new Callable<File>() {
             @Override
             public File call() {
@@ -244,7 +244,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         };
     }
 
-    private String calculateBuildTask(String projectName) {
+    private static String calculateBuildTask(String projectName) {
         return "build" + Arrays.stream(projectName.split("-")).map(f -> GUtils.capitalize(f)).collect(Collectors.joining());
     }
 

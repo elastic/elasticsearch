@@ -928,7 +928,7 @@ class CertificateTool extends MultiCommand {
             writeCertificateAuthority(output, caInfo, writeZipFile, terminal);
         }
 
-        private void writeCertificateAuthority(Path output, CAInfo caInfo, boolean writePemZip, Terminal terminal) throws Exception {
+        private static void writeCertificateAuthority(Path output, CAInfo caInfo, boolean writePemZip, Terminal terminal) throws Exception {
             checkDirectory(output, terminal);
             if (writePemZip) {
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> writeCAInfo(outputStream, pemWriter, caInfo, true));

@@ -113,20 +113,20 @@ class SslTrustResolver {
         }
     }
 
-    private SSLContext createSslContext(TrustManager[] trustManagers) throws GeneralSecurityException {
+    private static SSLContext createSslContext(TrustManager[] trustManagers) throws GeneralSecurityException {
         SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
         sslContext.init(new KeyManager[0], trustManagers, new SecureRandom());
         return sslContext;
     }
 
-    private TrustManager[] getTrustManagers(KeyStore trustStore) throws GeneralSecurityException {
+    private static TrustManager[] getTrustManagers(KeyStore trustStore) throws GeneralSecurityException {
         checkForTrustEntry(trustStore);
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         tmf.init(trustStore);
         return tmf.getTrustManagers();
     }
 
-    private void checkForTrustEntry(KeyStore trustStore) throws KeyStoreException {
+    private static void checkForTrustEntry(KeyStore trustStore) throws KeyStoreException {
         Enumeration<String> enumeration = trustStore.aliases();
         while (enumeration.hasMoreElements()) {
             if (trustStore.isCertificateEntry(enumeration.nextElement())) {
@@ -209,7 +209,7 @@ class SslTrustResolver {
         }
     }
 
-    private Collection<? extends Certificate> head(Collection<? extends Certificate> certificates) {
+    private static Collection<? extends Certificate> head(Collection<? extends Certificate> certificates) {
         if (certificates.isEmpty()) {
             return certificates;
         } else {

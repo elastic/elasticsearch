@@ -178,21 +178,21 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
                 SEARCH_BLOCK_SCRIPT_NAME,
                 this::searchBlockScript,
                 INIT_SCRIPT_NAME,
-                this::nullScript,
+                ScriptedBlockPlugin::nullScript,
                 MAP_SCRIPT_NAME,
-                this::nullScript,
+                ScriptedBlockPlugin::nullScript,
                 MAP_BLOCK_SCRIPT_NAME,
                 this::mapBlockScript,
                 COMBINE_SCRIPT_NAME,
-                this::nullScript,
+                ScriptedBlockPlugin::nullScript,
                 REDUCE_BLOCK_SCRIPT_NAME,
                 this::blockScript,
                 REDUCE_SCRIPT_NAME,
-                this::termScript,
+                ScriptedBlockPlugin::termScript,
                 REDUCE_FAIL_SCRIPT_NAME,
-                this::reduceFailScript,
+                ScriptedBlockPlugin::reduceFailScript,
                 TERM_SCRIPT_NAME,
-                this::termScript
+                ScriptedBlockPlugin::termScript
             );
         }
 
@@ -212,12 +212,12 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             return true;
         }
 
-        private Object reduceFailScript(Map<String, Object> params) {
+        private static Object reduceFailScript(Map<String, Object> params) {
             fail("Shouldn't reach reduce");
             return true;
         }
 
-        private Object nullScript(Map<String, Object> params) {
+        private static Object nullScript(Map<String, Object> params) {
             return null;
         }
 
@@ -255,7 +255,7 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             return 1;
         }
 
-        private Object termScript(Map<String, Object> params) {
+        private static Object termScript(Map<String, Object> params) {
             return 1;
         }
     }

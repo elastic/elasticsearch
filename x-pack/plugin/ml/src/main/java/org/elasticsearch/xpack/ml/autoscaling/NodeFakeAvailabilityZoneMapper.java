@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -46,19 +45,16 @@ public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
      *         cluster.
      */
     public NodesByAvailabilityZone buildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes) {
-        return doBuildNodesByAvailabilityZone(discoveryNodes);
-    }
-
-    private static NodesByAvailabilityZone doBuildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes) {
         Collection<DiscoveryNode> nodes = discoveryNodes.getNodes().values();
 
         Map<List<String>, Collection<DiscoveryNode>> allNodesByAvailabilityZone = new HashMap<>();
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByAvailabilityZone = new HashMap<>();
         for (DiscoveryNode node : nodes) {
             List<String> nodeIdValues = List.of(node.getId());
-            allNodesByAvailabilityZone.computeIfAbsent(nodeIdValues, k -> new ArrayList<>()).add(node);
+            List<DiscoveryNode> nodeList = List.of(node);
+            allNodesByAvailabilityZone.put(nodeIdValues, nodeList);
             if (node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)) {
-                mlNodesByAvailabilityZone.computeIfAbsent(nodeIdValues, k -> new ArrayList<>()).add(node);
+                mlNodesByAvailabilityZone.put(nodeIdValues, nodeList);
             }
         }
         return new NodesByAvailabilityZone(Map.copyOf(allNodesByAvailabilityZone), Map.copyOf(mlNodesByAvailabilityZone));

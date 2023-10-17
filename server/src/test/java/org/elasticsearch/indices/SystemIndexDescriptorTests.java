@@ -273,6 +273,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setMappings(getVersionedMappings(TEST_MAPPINGS_PRIOR_VERSION))
             .setVersionMetaKey("version")
             .setOrigin("system")
+            .setMinimumNodeVersion(Version.V_7_0_0)
             .build();
         final SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")

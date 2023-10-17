@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.DateUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -57,6 +57,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
+import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -75,7 +76,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
-abstract class ExpressionBuilder extends IdentifierBuilder {
+public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private final Map<Token, TypedParamValue> params;
 
@@ -224,25 +225,30 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         try {
-            Object quantity = switch (qualifier) {
-                case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
-                case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
-                case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
-                case "hour", "hours" -> Duration.ofHours(safeToLong(value));
-
-                case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
-                case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
-                case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
-                case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
-
-                default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
-            };
+            TemporalAmount quantity = parseTemporalAmout(value, qualifier, source);
             return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
         } catch (QlIllegalArgumentException | ArithmeticException e) {
             // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
             // and same for Period#ofWeeks()
             throw new ParsingException(source, "Number [{}] outside of [{}] range", ctx.integerValue().getText(), qualifier);
         }
+    }
+
+    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws QlIllegalArgumentException,
+        ArithmeticException {
+        return switch (qualifier) {
+            case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
+            case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
+            case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
+            case "hour", "hours" -> Duration.ofHours(safeToLong(value));
+
+            case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
+            case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
+            case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
+            case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
+
+            default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
+        };
     }
 
     @Override
@@ -440,7 +446,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
 
-            if (DataTypeConverter.canConvert(sourceType, dataType) == false) {
+            if (EsqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
                 throw new ParsingException(
                     source,
                     "Cannot cast value [{}] of type [{}] to parameter type [{}]",
@@ -449,7 +455,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     dataType
                 );
             }
-            return new Literal(source, DataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
+            return new Literal(source, EsqlDataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
         } catch (QlIllegalArgumentException ex) {
             throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }

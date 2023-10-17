@@ -22,7 +22,7 @@ source-command
 
 The result of a query is the table produced by the final processing command.
 
-For an overview of all supported commands, functions, and operators, refer to <<esql-commands-functions-operators>>.
+For an overview of all supported commands, functions, and operators, refer to <<esql-commands>> and <<esql-functions-operators>>.
 
 [NOTE]
 ====

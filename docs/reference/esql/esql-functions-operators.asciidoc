@@ -1,17 +1,11 @@
-[[esql-commands-functions-operators]]
-== {esql} commands, functions, and operators
+[[esql-functions-operators]]
+== {esql} functions and operators
 
 ++++
-<titleabbrev>Commands, functions, and operators</titleabbrev>
+<titleabbrev>Functions and operators</titleabbrev>
 ++++
 
-{esql} provides a comprehensive set of commands, functions, and operators:
-
-<<esql-source-commands>>::
-include::source-commands/esql-source-commands.asciidoc[tag=list]
-
-<<esql-processing-commands>>::
-include::processing-commands/esql-processing-commands.asciidoc[tag=list]
+{esql} provides a comprehensive set of functions and operators:
 
 [[esql-functions]]
 <<esql-agg-functions>>::
@@ -38,8 +32,6 @@ include::functions/mv-functions.asciidoc[tag=list]
 <<esql-operators>>::
 include::functions/operators.asciidoc[tag=list]
 
-include::source-commands/esql-source-commands.asciidoc[]
-include::processing-commands/esql-processing-commands.asciidoc[]
 include::functions/aggregation-functions.asciidoc[]
 include::functions/math-functions.asciidoc[]
 include::functions/string-functions.asciidoc[]

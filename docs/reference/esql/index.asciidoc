@@ -100,7 +100,9 @@ include::esql-get-started.asciidoc[]
 
 include::esql-language.asciidoc[]
 
-include::esql-commands-functions-operators.asciidoc[]
+include::esql-commands.asciidoc[]
+
+include::esql-functions-operators.asciidoc[]
 
 include::esql-rest.asciidoc[]
 

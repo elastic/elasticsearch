@@ -140,7 +140,7 @@ To apply synonyms, you will need to include a synonym token filters into an anal
 Order is important for your token filters.
 Text will be processed first through filters preceding the synonym filter before being processed by the synonym filter.
 
-{es} will also use the token filters preceding the synonym filter in a tokenizer chain to parse the entries in a synonym file.
+{es} will also use the token filters preceding the synonym filter in a tokenizer chain to parse the entries in a synonym file or synonym set.
 In the above example, the synonyms graph token filter is placed after a stemmer. The stemmer will also be applied to the synonym entries.
 
 The synonym rules should not contain words that are removed by a filter that appears later in the chain (like a `stop` filter).

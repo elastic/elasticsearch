@@ -115,6 +115,8 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
     }
 
     public static class NodeRequest extends TransportRequest implements Releasable {
+
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesReloadSecureSettingsRequest request;
 
         NodeRequest(StreamInput in) throws IOException {

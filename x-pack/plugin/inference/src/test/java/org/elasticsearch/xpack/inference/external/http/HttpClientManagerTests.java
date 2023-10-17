@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,7 +24,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,11 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,7 +71,7 @@ public class HttpClientManagerTests extends ESTestCase {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            httpClient.send(httpPost, listener);
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -96,7 +93,7 @@ public class HttpClientManagerTests extends ESTestCase {
         verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(evictionInterval), any());
     }
 
-    public void testStartsANewEvictor_WithNewEvictionMaxIdle() throws InterruptedException {
+    public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() throws InterruptedException {
         var mockConnectionManager = mock(PoolingNHttpClientConnectionManager.class);
 
         Settings settings = Settings.builder()
@@ -104,25 +101,17 @@ public class HttpClientManagerTests extends ESTestCase {
             .build();
         var manager = new HttpClientManager(settings, mockConnectionManager, threadPool, mockClusterService(settings));
 
-        CountDownLatch runLatch = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            manager.close();
-            runLatch.countDown();
-            return Void.TYPE;
-        }).when(mockConnectionManager).closeIdleConnections(anyLong(), any());
-
         var evictionMaxIdle = TimeValue.timeValueSeconds(1);
         manager.setEvictionMaxIdle(evictionMaxIdle);
-        runLatch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
-        verify(mockConnectionManager, times(1)).closeIdleConnections(eq(evictionMaxIdle.millis()), eq(TimeUnit.MILLISECONDS));
+        assertFalse(manager.isEvictionThreadRunning());
     }
 
-    private static ClusterService mockClusterServiceEmpty() {
+    public static ClusterService mockClusterServiceEmpty() {
         return mockClusterService(Settings.EMPTY);
     }
 
-    private static ClusterService mockClusterService(Settings settings) {
+    public static ClusterService mockClusterService(Settings settings) {
         var clusterService = mock(ClusterService.class);
 
         var registeredSettings = Stream.concat(HttpClientManager.getSettings().stream(), HttpSettings.getSettings().stream())

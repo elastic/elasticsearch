@@ -77,7 +77,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersion.V_7_5_0;
-    public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.V_8_500_000;
+    public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersion.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION = IndexVersion.V_8_9_0;
 
     public static final String CONTENT_TYPE = "dense_vector";

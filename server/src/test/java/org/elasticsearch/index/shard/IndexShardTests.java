@@ -610,18 +610,10 @@ public class IndexShardTests extends IndexShardTestCase {
          * gaps are filled.
          */
         final CountDownLatch latch = new CountDownLatch(1);
-        indexShard.acquirePrimaryOperationPermit(new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                releasable.close();
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, threadPool.generic());
+        indexShard.acquirePrimaryOperationPermit(ActionTestUtils.assertNoFailureListener(releasable -> {
+            releasable.close();
+            latch.countDown();
+        }), threadPool.generic());
 
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) maxSeqNo));
@@ -3903,17 +3895,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
         }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());

@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
@@ -35,7 +36,8 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
 
         final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePrefix + "*" },
-            IndicesOptions.LENIENT_EXPAND_OPEN
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            TimeValue.timeValueSeconds(5)
         );
 
         final GetCheckpointAction.Response response = client().execute(GetCheckpointAction.INSTANCE, request).get();

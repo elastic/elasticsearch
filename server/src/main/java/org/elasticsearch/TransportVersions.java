@@ -142,6 +142,7 @@ public class TransportVersions {
     public static final TransportVersion INCLUDE_SHARDS_STATS_ADDED = def(8_517_00_0);
     public static final TransportVersion BUILD_QUALIFIER_SEPARATED = def(8_518_00_0);
     public static final TransportVersion PIPELINES_IN_BULK_RESPONSE_ADDED = def(8_519_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED = def(8_520_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -95,7 +95,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
         // for time based synchronization
         final long timeUpperBound = alignTimestamp.apply(timestamp - timeSyncConfig.getDelay().millis());
 
-        getIndexCheckpoints(ActionListener.wrap(checkpointsByIndex -> {
+        getIndexCheckpoints(null, ActionListener.wrap(checkpointsByIndex -> {
             listener.onResponse(
                 new TransformCheckpoint(transformConfig.getId(), timestamp, checkpoint, checkpointsByIndex, timeUpperBound)
             );

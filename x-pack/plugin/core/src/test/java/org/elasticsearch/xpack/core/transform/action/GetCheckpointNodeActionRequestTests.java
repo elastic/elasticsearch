@@ -32,7 +32,7 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomShards(randomInt(10)), randomOriginalIndices(randomIntBetween(0, 20)));
+        return new Request(randomShards(randomInt(10)), randomOriginalIndices(randomIntBetween(0, 20)), null);  // TODO: Fix);
     }
 
     @Override
@@ -50,36 +50,36 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
                 } else {
                     shards.add(new ShardId(randomAlphaOfLength(8), randomAlphaOfLength(4), randomInt(5)));
                 }
-                return new Request(shards, instance.getOriginalIndices());
+                return new Request(shards, instance.getOriginalIndices(), null);  // TODO: Fix
             }
             case 1 -> {
                 OriginalIndices originalIndices = randomOriginalIndices(instance.indices().length + 1);
-                return new Request(instance.getShards(), originalIndices);
+                return new Request(instance.getShards(), originalIndices, null);  // TODO: Fix
             }
             default -> throw new IllegalStateException("The test should only allow 1 parameters mutated");
         }
     }
 
     public void testCreateTask() {
-        Request request = new Request(randomShards(7), randomOriginalIndices(19));
+        Request request = new Request(randomShards(7), randomOriginalIndices(19), null);  // TODO: Fix);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[19;7]")));
     }
 
     public void testCreateTaskWithNullShardsAndIndices() {
-        Request request = new Request(null, OriginalIndices.NONE);
+        Request request = new Request(null, OriginalIndices.NONE, null);  // TODO: Fix);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[0;0]")));
     }
 
     public void testCreateTaskWithNullShards() {
-        Request request = new Request(null, randomOriginalIndices(13));
+        Request request = new Request(null, randomOriginalIndices(13), null);  // TODO: Fix
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[13;0]")));
     }
 
     public void testCreateTaskWithNullIndices() {
-        Request request = new Request(randomShards(11), OriginalIndices.NONE);
+        Request request = new Request(randomShards(11), OriginalIndices.NONE, null);  // TODO: Fix
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[0;11]")));
     }

@@ -59,7 +59,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
                 throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(indices.toArray(new String[0]), indicesOptions);
+        return new Request(indices.toArray(new String[0]), indicesOptions, null);  // TODO: Fix
     }
 
     public void testCreateTask() {
@@ -69,7 +69,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
     }
 
     public void testCreateTaskWithNullIndices() {
-        GetCheckpointAction.Request request = new Request(null, null);
+        GetCheckpointAction.Request request = new Request(null, null, null);  // TODO: Fix
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
@@ -83,7 +83,8 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),
                 SearchRequest.DEFAULT_INDICES_OPTIONS
-            )
+            ),
+            null  // TODO: Fix
         );
     }
 }

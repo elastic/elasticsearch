@@ -197,11 +197,11 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             )
         );
 
-        // TODO: pass `timeout` to the lower layers
         ClientTransformIndexer transformIndexer = getIndexer();
         if (transformIndexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
                 parentTaskClient,
+                timeout,
                 transform.getId(),
                 context.getCheckpoint(),
                 initialPosition,
@@ -216,6 +216,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
                 transformIndexer.getNextCheckpoint(),
                 transformIndexer.getPosition(),
                 transformIndexer.getProgress(),
+                timeout,
                 checkPointInfoListener
             );
     }

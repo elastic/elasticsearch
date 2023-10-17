@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -149,7 +150,11 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     }
 
     public void testEmptyCheckpoint() throws InterruptedException {
-        GetCheckpointAction.Request request = new GetCheckpointAction.Request(Strings.EMPTY_ARRAY, IndicesOptions.LENIENT_EXPAND_OPEN);
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            Strings.EMPTY_ARRAY,
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            TimeValue.ZERO
+        );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
             Map<String, long[]> checkpoints = response.getCheckpoints();
@@ -161,7 +166,8 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     public void testSingleIndexRequest() throws InterruptedException {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePattern + "0" },
-            IndicesOptions.LENIENT_EXPAND_OPEN
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            TimeValue.ZERO
         );
 
         assertCheckpointAction(request, response -> {
@@ -178,7 +184,11 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiIndexRequest() throws InterruptedException {
-        GetCheckpointAction.Request request = new GetCheckpointAction.Request(testIndices, IndicesOptions.LENIENT_EXPAND_OPEN);
+        GetCheckpointAction.Request request = new GetCheckpointAction.Request(
+            testIndices,
+            IndicesOptions.LENIENT_EXPAND_OPEN,
+            TimeValue.ZERO
+        );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
             Map<String, long[]> checkpoints = response.getCheckpoints();

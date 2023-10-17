@@ -68,7 +68,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.node.ResponseCollectorService;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -946,19 +945,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
-                    throw new ElasticsearchException(
-                        "Trying to create too many scroll contexts. Must be less than or equal to: ["
-                            + maxOpenScrollContext
-                            + "]. "
-                            + "This limit can be set by changing the ["
-                            + MAX_OPEN_SCROLL_CONTEXT.getKey()
-                            + "] setting."
-                    ) {
-                        @Override
-                        public RestStatus status() {
-                            return RestStatus.BAD_REQUEST;
-                        }
-                    };
+                    throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
                 }
             }
             final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());

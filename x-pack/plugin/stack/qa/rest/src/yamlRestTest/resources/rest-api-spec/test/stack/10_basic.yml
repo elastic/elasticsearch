@@ -64,19 +64,19 @@ setup:
 
   - do:
       indices.get_index_template:
-        name: logs@template
+        name: logs
 
   - do:
       indices.get_index_template:
-        name: metrics@template
+        name: metrics
 
   - do:
       indices.get_index_template:
-        name: synthetics@template
+        name: synthetics
 
   - do:
       indices.get_index_template:
-        name: .kibana-reporting@template
+        name: .kibana-reporting
 
 ---
 "Test logs index auto creation":

@@ -50,9 +50,9 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat(dataStreams.get("data_streams"), anyOf(equalTo(null), equalTo(0)));
 
         assertBusy(() -> {
-            Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs@template").get("index_templates")).get(0);
+            Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
             assertThat(logsTemplate, notNullValue());
-            assertThat(logsTemplate.get("name"), equalTo("logs@template"));
+            assertThat(logsTemplate.get("name"), equalTo("logs"));
             assertThat(((Map<?, ?>) logsTemplate.get("index_template")).get("data_stream"), notNullValue());
         });
 

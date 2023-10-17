@@ -43,7 +43,7 @@ public class ClusterIndexHealthTests extends AbstractXContentSerializingTestCase
         RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
 
-        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable);
+        ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetadata, indexRoutingTable, true);
         assertIndexHealth(indexHealth, counter, indexMetadata);
     }
 

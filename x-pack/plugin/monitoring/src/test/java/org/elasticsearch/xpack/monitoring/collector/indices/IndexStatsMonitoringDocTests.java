@@ -81,7 +81,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
         indexStats = mock(IndexStats.class);
         metadata = mockIndexMetadata(index, primaries, replicas);
         routingTable = mockIndexRoutingTable(index, primaries, replicas, activePrimaries, activeReplicas, initializing, relocating);
-        indexHealth = new ClusterIndexHealth(metadata, routingTable);
+        indexHealth = new ClusterIndexHealth(metadata, routingTable, false);
     }
 
     @Override

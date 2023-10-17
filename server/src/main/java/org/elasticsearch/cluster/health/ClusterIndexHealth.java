@@ -115,7 +115,7 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
     private final ClusterHealthStatus status;
     private final Map<Integer, ClusterShardHealth> shards;
 
-    public ClusterIndexHealth(final IndexMetadata indexMetadata, final IndexRoutingTable indexRoutingTable) {
+    public ClusterIndexHealth(final IndexMetadata indexMetadata, final IndexRoutingTable indexRoutingTable, boolean includeShardsStats) {
         this.index = indexMetadata.getIndex().getName();
         this.numberOfShards = indexMetadata.getNumberOfShards();
         this.numberOfReplicas = indexMetadata.getNumberOfReplicas();
@@ -152,6 +152,10 @@ public final class ClusterIndexHealth implements Writeable, ToXContentFragment {
         }
         if (shards.isEmpty()) { // might be since none has been created yet (two phase index creation)
             computeStatus = ClusterHealthStatus.RED;
+        }
+
+        if (includeShardsStats == false) {
+            shards.clear();
         }
 
         this.status = computeStatus;

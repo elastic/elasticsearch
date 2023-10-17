@@ -84,7 +84,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
             if (indexMetadata != null) {
                 indexHealthModifiableMap.computeIfAbsent(
                     index.getName(),
-                    ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index)).getStatus()
+                    ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index), false).getStatus()
                 );
                 indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
             }

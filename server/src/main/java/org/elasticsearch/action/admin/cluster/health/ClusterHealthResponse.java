@@ -169,7 +169,7 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
 
     /** needed for plugins BWC */
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
-        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0));
+        this(clusterName, concreteIndices, clusterState, -1, -1, -1, TimeValue.timeValueHours(0), false, false);
     }
 
     public ClusterHealthResponse(
@@ -179,14 +179,16 @@ public class ClusterHealthResponse extends ActionResponse implements ToXContentO
         int numberOfPendingTasks,
         int numberOfInFlightFetch,
         int delayedUnassignedShards,
-        TimeValue taskMaxWaitingTime
+        TimeValue taskMaxWaitingTime,
+        boolean includeIndicesStats,
+        boolean includeShardsStats
     ) {
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         this.numberOfInFlightFetch = numberOfInFlightFetch;
         this.delayedUnassignedShards = delayedUnassignedShards;
         this.taskMaxWaitingTime = taskMaxWaitingTime;
-        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
+        this.clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, includeIndicesStats, includeShardsStats);
         this.clusterHealthStatus = clusterStateHealth.getStatus();
     }
 

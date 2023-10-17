@@ -1,0 +1,5 @@
+pr: 101018
+summary: "Metrics: Synchronous gauges respect attributes"
+area: Infra/Core
+type: bug
+issues: []

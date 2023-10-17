@@ -31,12 +31,16 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESTAMP_FIELD_NAME;
@@ -163,6 +167,44 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
         });
     }
 
+    public void testShardSizesWithClosedIndices() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+        startSearchNode();
+
+        final var now = System.currentTimeMillis();
+        final String[] indices = new String[randomIntBetween(2, 6)];
+        for (int i = 0; i < indices.length; i++) {
+            indices[i] = "index-" + i;
+            createIndex(indices[i], indexSettings(1, 1).build());
+            indexRandom(
+                indices[i],
+                builder -> builder.setSource(TIMESTAMP_FIELD_NAME, randomLongBetween(now - DEFAULT_BOOST_WINDOW.millis() + 1, now))
+            );
+        }
+        refresh(indices);
+
+        Map<Index, Long> shardSizes = Maps.newMapWithExpectedSize(indices.length);
+        for (int j = 0; j < indices.length; j++) {
+            final var index = resolveIndex(indices[j]);
+            var searchShard = findSearchShard(index, 0);
+            shardSizes.put(index, getShardSizeFromObjectStore(searchShard));
+        }
+
+        assertAcked(client().admin().indices().prepareClose(indices));
+        ensureGreen(indices);
+
+        for (var entry : shardSizes.entrySet()) {
+            final var index = entry.getKey();
+            final var expectedShardSize = entry.getValue();
+            assertBusy(() -> {
+                var shardSize = getShardSize(findSearchShard(index, 0), now);
+                assertThat(shardSize.interactiveSizeInBytes(), equalTo(0L));
+                assertThat(shardSize.nonInteractiveSizeInBytes(), equalTo(expectedShardSize));
+            });
+        }
+    }
+
     private static Object getRandomTimestamp(long min, long max) {
         var instant = Instant.ofEpochMilli(randomLongBetween(min, max));
         return switch (randomIntBetween(0, 2)) {
@@ -206,7 +248,10 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
     }
 
     private static ShardSize getShardSize(IndexShard shard, long currentTimeMillis) {
-        return new ShardSizeStatsReader(() -> currentTimeMillis, null).getShardSize(shard, DEFAULT_BOOST_WINDOW);
+        var discoveryNode = internalCluster().clusterService().state().nodes().get(shard.routingEntry().currentNodeId()).getName();
+        var clusterService = internalCluster().getInstance(ClusterService.class, discoveryNode);
+        var indicesService = internalCluster().getInstance(IndicesService.class, discoveryNode);
+        return new ShardSizeStatsReader(clusterService, indicesService, () -> currentTimeMillis).getShardSize(shard, DEFAULT_BOOST_WINDOW);
     }
 
     private long getShardSizeFromObjectStore(IndexShard shard) throws IOException {

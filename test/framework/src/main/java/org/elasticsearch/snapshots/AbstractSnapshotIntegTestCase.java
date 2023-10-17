@@ -385,7 +385,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         repositoryData.snapshotsToXContent(jsonBuilder, version);
         final var currentVersionString = Strings.toString(jsonBuilder);
         final String oldVersionString;
-        if (version.onOrAfter(IndexVersion.V_8_500_000)) {
+        if (version.onOrAfter(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
             oldVersionString = currentVersionString.replace(
                 ",\"index_version\":" + IndexVersion.current(),
                 ",\"index_version\":" + version

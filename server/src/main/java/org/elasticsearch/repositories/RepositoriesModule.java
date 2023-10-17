@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -33,6 +34,7 @@ import java.util.function.BiConsumer;
  */
 public final class RepositoriesModule {
 
+    public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(
@@ -42,8 +44,10 @@ public final class RepositoriesModule {
         ClusterService clusterService,
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        TelemetryProvider telemetryProvider
     ) {
+        telemetryProvider.getMeter().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,

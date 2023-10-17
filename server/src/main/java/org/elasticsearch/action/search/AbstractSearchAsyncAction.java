@@ -78,7 +78,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     protected final SearchPhaseResults<Result> results;
-    private final ClusterState clusterState;
+    private final long clusterStateVersion;
+    private final TransportVersion minTransportVersion;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
@@ -161,8 +162,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.task = task;
         this.listener = ActionListener.runAfter(listener, this::releaseContext);
         this.nodeIdToConnection = nodeIdToConnection;
-        this.clusterState = clusterState;
         this.concreteIndexBoosts = concreteIndexBoosts;
+        this.clusterStateVersion = clusterState.version();
+        this.minTransportVersion = clusterState.getMinTransportVersion();
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         this.clusters = clusters;
@@ -459,7 +461,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     currentPhase.getName(),
                     nextPhase.getName(),
                     resultsFrom,
-                    clusterState.version()
+                    clusterStateVersion
                 );
             }
             executePhase(nextPhase);
@@ -709,7 +711,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (allowPartialResults == false && failures.length > 0) {
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         } else {
-            final TransportVersion minTransportVersion = clusterState.getMinTransportVersion();
             final String scrollId = request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null;
             final String searchContextId;
             if (buildPointInTimeFromSearchResults()) {

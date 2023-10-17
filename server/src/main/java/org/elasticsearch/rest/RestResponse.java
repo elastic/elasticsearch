@@ -120,7 +120,7 @@ public class RestResponse {
             // log exception only if it is not returned in the response
             Supplier<?> messageSupplier = () -> String.format(
                 Locale.ROOT,
-                "path: %s, params: %s, status: %s",
+                "path: %s, params: %s, status: %d",
                 channel.request().rawPath(),
                 channel.request().params(),
                 status.getStatus()

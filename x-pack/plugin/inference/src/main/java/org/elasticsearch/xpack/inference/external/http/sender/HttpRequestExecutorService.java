@@ -55,12 +55,12 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     private final HttpClient httpClient;
     private final ThreadPool threadPool;
 
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool) {
         this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>());
     }
 
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, int capacity) {
         this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity));
     }
@@ -68,7 +68,7 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     /**
      * This constructor should only be used directly for testing.
      */
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
     HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, BlockingQueue<HttpTask> queue) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);

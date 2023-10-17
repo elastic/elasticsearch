@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 
-import static org.elasticsearch.common.geo.GeoUtils.quantizeLat;
-import static org.elasticsearch.common.geo.GeoUtils.quantizeLon;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 
 /**
  * Filters out tiles using the provided bounds at the provided precision. In order to be efficient it works on the X/Y coordinates of the
@@ -38,15 +38,15 @@ public class GeoTileBoundedPredicate {
             final int minY = GeoTileUtils.getYTile(bbox.top(), tiles);
             final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
             // touching tiles are excluded, they need to share at least one interior point
-            this.leftX = quantizeLon(minTile.getMaxX()) == quantizeLon(bbox.left()) ? minX + 1 : minX;
-            this.minY = quantizeLat(minTile.getMinY()) == quantizeLat(bbox.top()) ? minY + 1 : minY;
+            this.leftX = encodeLongitude(minTile.getMaxX()) == encodeLongitude(bbox.left()) ? minX + 1 : minX;
+            this.minY = encodeLatitude(minTile.getMinY()) == encodeLatitude(bbox.top()) ? minY + 1 : minY;
             // compute maxX, maxY
             final int maxX = GeoTileUtils.getXTile(bbox.right(), tiles);
             final int maxY = GeoTileUtils.getYTile(bbox.bottom(), tiles);
             final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
             // touching tiles are excluded, they need to share at least one interior point
-            this.rightX = quantizeLon(maxTile.getMinX()) == quantizeLon(bbox.right()) ? maxX : maxX + 1;
-            this.maxY = quantizeLat(maxTile.getMaxY()) == quantizeLat(bbox.bottom()) ? maxY : maxY + 1;
+            this.rightX = encodeLongitude(maxTile.getMinX()) == encodeLongitude(bbox.right()) ? maxX : maxX + 1;
+            this.maxY = encodeLatitude(maxTile.getMaxY()) == encodeLatitude(bbox.bottom()) ? maxY : maxY + 1;
             if (crossesDateline) {
                 this.maxTiles = ((long) tiles + this.rightX - this.leftX) * (this.maxY - this.minY);
             } else {

@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIf
 
 public class ElserMlNodeService implements InferenceService {
 
-    public static final String NAME = "elser_mlnode";
+    public static final String NAME = "elser";
 
     static final String ELSER_V1_MODEL = ".elser_model_1";
     // Default non platform specific v2 model

@@ -223,7 +223,7 @@ GET /my-index-000001,my-index-000002
 Use the *Enrich Policies* view to add data from your existing indices to incoming documents during ingest.
 An enrich policy contains:
 
-* The policy type that determines how the processor matches the enrich data to incoming documents
+* The policy type that determines how the policy matches the enrich data to incoming documents
 * The source indices that store enrich data as documents
 * The fields from the source indices used to match incoming documents
 * The enrich fields containing enrich data from the source indices that you want to add to incoming documents

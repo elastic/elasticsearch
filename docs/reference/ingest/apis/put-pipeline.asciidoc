@@ -46,7 +46,7 @@ PUT _ingest/pipeline/my-pipeline-id
 +
 [IMPORTANT]
 ====
-To avoid naming collisions with built-in and Fleet-managed ingest pipelines, avoid using `@` as part of your ingest own pipelines names.
+To avoid naming collisions with built-in and Fleet-managed ingest pipelines, avoid using `@` as part of your own ingest pipelines names.
 The exception of that rule are the `@custom` ingest pipelines that let you safely add a custom pipeline to managed pipelines.
 See also <<pipelines-for-fleet-elastic-agent>>.
 ====

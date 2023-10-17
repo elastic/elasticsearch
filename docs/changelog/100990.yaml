@@ -1,5 +1,5 @@
 pr: 100990
 summary: Add status code to `rest.suppressed` log output
-area: "Search, Infra/Logging"
+area: "Infra/Logging"
 type: enhancement
 issues: []

@@ -6,11 +6,6 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 dockerCompose {
   composeAdditionalArgs = ['--compatibility']
-
-  if (System.getenv('BUILDKITE') == 'true') {
-    // This flag is only available on newer versions of docker-compose, and many Jenkins agents have older versions
-    upAdditionalArgs = ["--wait"]
-  }
 }
 
 tasks.named("preProcessFixture").configure {

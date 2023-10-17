@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_concat]]
 === `MV_CONCAT`
 Converts a multivalued string field into a single valued field containing the

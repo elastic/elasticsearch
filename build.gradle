@@ -186,7 +186,7 @@ if (bwc_tests_enabled == false) {
   println "See ${bwc_tests_disabled_issue}"
   println "==========================================================="
 }
-if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'platformSupportTests' }) {
+if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
   // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwc_tests_enabled = false
 }
@@ -256,7 +256,7 @@ allprojects {
       tasks.register('checkPart1') { dependsOn 'check' }
     }
 
-    tasks.register('platformSupportTests') { dependsOn 'check'}
+    tasks.register('functionalTests') { dependsOn 'check'}
   }
 
   /*

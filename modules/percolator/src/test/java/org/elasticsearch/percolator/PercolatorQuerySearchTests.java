@@ -145,32 +145,33 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh().get();
 
         for (int i = 0; i < 32; i++) {
-            SearchResponse response = client().prepareSearch()
-                .setQuery(
-                    new PercolateQueryBuilder(
-                        "query",
-                        BytesReference.bytes(
-                            XContentFactory.jsonBuilder()
-                                .startObject()
-                                .field("companyname", "stark")
-                                .startArray("employee")
-                                .startObject()
-                                .field("name", "virginia potts")
-                                .endObject()
-                                .startObject()
-                                .field("name", "tony stark")
-                                .endObject()
-                                .endArray()
-                                .endObject()
-                        ),
-                        XContentType.JSON
+            assertHitCount(
+                client().prepareSearch()
+                    .setQuery(
+                        new PercolateQueryBuilder(
+                            "query",
+                            BytesReference.bytes(
+                                XContentFactory.jsonBuilder()
+                                    .startObject()
+                                    .field("companyname", "stark")
+                                    .startArray("employee")
+                                    .startObject()
+                                    .field("name", "virginia potts")
+                                    .endObject()
+                                    .startObject()
+                                    .field("name", "tony stark")
+                                    .endObject()
+                                    .endArray()
+                                    .endObject()
+                            ),
+                            XContentType.JSON
+                        )
                     )
-                )
-                .addSort("_doc", SortOrder.ASC)
-                // size 0, because other wise load bitsets for normal document in FetchPhase#findRootDocumentIfNested(...)
-                .setSize(0)
-                .get();
-            assertHitCount(response, 1);
+                    .addSort("_doc", SortOrder.ASC)
+                    // size 0, because other wise load bitsets for normal document in FetchPhase#findRootDocumentIfNested(...)
+                    .setSize(0),
+                1
+            );
         }
 
         // We can't check via api... because BitsetCacheListener requires that it can extract shardId from index reader
@@ -243,11 +244,12 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         }
         doc.endObject();
         for (int i = 0; i < 32; i++) {
-            SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
-                .addSort("_doc", SortOrder.ASC)
-                .get();
-            assertHitCount(response, 1);
+            assertHitCount(
+                client().prepareSearch()
+                    .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
+                    .addSort("_doc", SortOrder.ASC),
+                1
+            );
         }
 
         long fieldDataSize = clusterAdmin().prepareClusterStats().get().getIndicesStats().getFieldData().getMemorySizeInBytes();

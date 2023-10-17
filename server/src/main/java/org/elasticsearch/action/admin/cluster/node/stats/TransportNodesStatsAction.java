@@ -48,11 +48,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     ) {
         super(
             NodesStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesStatsRequest::new,
             NodeStatsRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -83,6 +81,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         Set<String> metrics = request.requestedMetrics();
         return nodeService.stats(
             request.indices(),
+            request.includeShardsStats(),
             NodesStatsRequest.Metric.OS.containedIn(metrics),
             NodesStatsRequest.Metric.PROCESS.containedIn(metrics),
             NodesStatsRequest.Metric.JVM.containedIn(metrics),
@@ -103,6 +102,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     public static class NodeStatsRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesStatsRequest request;
 
         public NodeStatsRequest(StreamInput in) throws IOException {

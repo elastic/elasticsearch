@@ -150,13 +150,34 @@ final class ElasticServiceAccounts {
             null
         )
     );
+    private static final ServiceAccount FLEET_REMOTE_ACCOUNT = new ElasticServiceAccount(
+        "fleet-server-remote",
+        new RoleDescriptor(
+            NAMESPACE + "/fleet-server-remote",
+            new String[] { "manage_own_api_key" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-*", "metrics-*")
+                    .privileges("write", "create_index", "auto_configure")
+                    .build(), },
+            null,
+            null,
+            null,
+            null,
+            null
+        )
+    );
     private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT = new ElasticServiceAccount(
         "kibana",
         ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana")
     );
 
-    static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(ENTERPRISE_SEARCH_ACCOUNT, FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
-        .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
+    static final Map<String, ServiceAccount> ACCOUNTS = Stream.of(
+        ENTERPRISE_SEARCH_ACCOUNT,
+        FLEET_ACCOUNT,
+        FLEET_REMOTE_ACCOUNT,
+        KIBANA_SYSTEM_ACCOUNT
+    ).collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
     private ElasticServiceAccounts() {}
 

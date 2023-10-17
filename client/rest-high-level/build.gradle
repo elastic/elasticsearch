@@ -135,7 +135,7 @@ testClusters.configureEach {
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: clusterUserNameProvider.get(),
     password: clusterPasswordProvider.get(),
-    role: providers.systemProperty('tests.rest.cluster.role').orElse('admin').forUseAtConfigurationTime().get()
+    role: providers.systemProperty('tests.rest.cluster.role').orElse('admin').get()
   user username: 'admin_user', password: 'admin-password'
 
   extraConfigFile nodeCert.name, nodeCert

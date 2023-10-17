@@ -1,3 +1,4 @@
+[discrete]
 [[esql-starts_with]]
 === `STARTS_WITH`
 Returns a boolean that indicates whether a keyword string starts with another

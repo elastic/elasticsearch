@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_min]]
 === `MV_MIN`
 Converts a multivalued field into a single valued field containing the minimum value. For example:

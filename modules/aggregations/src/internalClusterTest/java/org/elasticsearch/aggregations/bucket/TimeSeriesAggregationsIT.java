@@ -57,6 +57,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
@@ -513,16 +514,15 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
             .get();
 
         QueryBuilder queryBuilder = QueryBuilders.rangeQuery("@timestamp").lte("2021-01-01T00:10:00Z");
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(queryBuilder)
-            .setSize(10)
-            .addSort("key", SortOrder.ASC)
-            .addSort("@timestamp", SortOrder.ASC)
-            .get();
-        assertSearchResponse(response);
 
-        response = client().prepareSearch("test").setQuery(queryBuilder).setSize(10).addAggregation(timeSeries("by_ts")).get();
-        assertSearchResponse(response);
+        assertNoFailures(
+            client().prepareSearch("test")
+                .setQuery(queryBuilder)
+                .setSize(10)
+                .addSort("key", SortOrder.ASC)
+                .addSort("@timestamp", SortOrder.ASC)
+        );
+        assertNoFailures(client().prepareSearch("test").setQuery(queryBuilder).setSize(10).addAggregation(timeSeries("by_ts")));
 
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest("test")).actionGet());
     }

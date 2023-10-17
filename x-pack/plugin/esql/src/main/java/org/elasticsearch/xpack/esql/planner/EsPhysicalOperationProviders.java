@@ -138,8 +138,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.dataPartitioning(),
-                context.taskConcurrency(),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
                 fieldSorts
@@ -148,8 +148,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.dataPartitioning(),
-                context.taskConcurrency(),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit
             );

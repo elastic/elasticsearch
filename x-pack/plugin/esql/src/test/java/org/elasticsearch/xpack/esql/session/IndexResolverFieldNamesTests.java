@@ -1108,6 +1108,13 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             """, Set.of("*"));
     }
 
+    public void testWhereClauseNoProjection() {
+        assertFieldNames("""
+            from test
+            | where first_name is not null
+            """, Set.of("*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query));
         assertThat(fieldNames, equalTo(expected));

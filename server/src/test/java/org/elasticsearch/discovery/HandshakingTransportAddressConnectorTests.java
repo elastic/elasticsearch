@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -128,18 +129,13 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         remoteClusterName = "local-cluster";
         discoveryAddress = getDiscoveryAddress();
 
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<ProbeConnectionResult>() {
-            @Override
-            public void onResponse(ProbeConnectionResult connectResult) {
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(
+            discoveryAddress,
+            ActionTestUtils.assertNoFailureListener(connectResult -> {
                 receivedNode.set(connectResult.getDiscoveryNode());
                 completionLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+            })
+        );
 
         assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
         assertEquals(remoteNode, receivedNode.get());

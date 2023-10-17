@@ -19,7 +19,7 @@ tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
 }
 
-spotlessJava.dependsOn stringTemplates
+tasks.named("spotlessJava") { dependsOn stringTemplates }
 
 spotless {
   java {

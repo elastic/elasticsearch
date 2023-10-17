@@ -257,6 +257,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
             );
             if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
                 indexMetadata.putAlias(new AliasMetadata.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));

@@ -64,6 +64,12 @@ The following example executes a search against a search application called `my-
 ----
 PUT /index1
 
+PUT /index1/_doc/1?refresh=true
+{
+  "title": "Sample document",
+  "description": "A sample document that matches my first query"
+}
+
 PUT _application/search_application/my-app
 {
   "indices": ["index1"],
@@ -196,14 +202,13 @@ The response format is the same as that used by the <<search-api-response-body,E
   },
   "hits": {
     "total": {
-      "value": 20,
+      "value": 1,
       "relation": "eq"
     },
-    "max_score": 1.3862942,
-    "hits": [
-      ...
-    ]
+    "max_score": 0.8630463,
+    "hits": ...
   }
 }
 ----
-// TESTRESPONSE[skip:index not populated with documents]
+// TESTRESPONSE[s/"took": 5/"took": $body.$_path/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.$_path/]

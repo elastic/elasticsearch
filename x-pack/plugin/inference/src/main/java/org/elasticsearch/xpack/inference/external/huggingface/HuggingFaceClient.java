@@ -7,23 +7,22 @@
 
 package org.elasticsearch.xpack.inference.external.huggingface;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
+import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequest;
+import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class HuggingFaceClient {
-    /**
-     * It is expensive to construct the ObjectMapper so we'll do it once
-     * <a href="https://github.com/FasterXML/jackson-docs/wiki/Presentation:-Jackson-Performance">See here for more details</a>
-     */
-    // TODO move this to the plugin
-    private static final ObjectMapper mapper = new ObjectMapper();
+    private static final Logger logger = LogManager.getLogger(HuggingFaceClient.class);
 
     private final Sender sender;
 
@@ -32,14 +31,16 @@ public class HuggingFaceClient {
     }
 
     public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) throws IOException {
+        HttpRequestBase httpRequest = request.createRequest();
         ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
             try {
-                listener.onResponse(OpenAiEmbeddingsResponseEntity.fromResponse(mapper, response));
+                listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
             } catch (Exception e) {
+                logger.warn(format("Failed to parse the Hugging Face ELSER response for request [%s]", httpRequest.getRequestLine()), e);
                 listener.onFailure(e);
             }
         }, listener::onFailure);
 
-        sender.send(request.createRequest(), responseListener);
+        sender.send(httpRequest, responseListener);
     }
 }

@@ -164,7 +164,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
             new ScalingExecutorBuilder(
                 UTILITY_THREAD_POOL_NAME,
                 0,
-                1,
+                10,
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
@@ -190,7 +190,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     @Override
     public List<Factory> getInferenceServiceFactories() {
         // TODO add http client here
-        return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpRequestSenderFactory.get()));
+        return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpRequestSenderFactory));
     }
 
     @Override

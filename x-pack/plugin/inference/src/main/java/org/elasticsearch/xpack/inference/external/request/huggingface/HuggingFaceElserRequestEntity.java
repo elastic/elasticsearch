@@ -13,22 +13,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public record HuggingFaceElserRequestEntity(String input, String model) implements ToXContentObject {
+public record HuggingFaceElserRequestEntity(String inputs) implements ToXContentObject {
 
-    private static final String INPUT_FIELD = "input";
-    private static final String MODEL_FIELD = "model";
+    private static final String INPUTS_FIELD = "inputs";
 
     public HuggingFaceElserRequestEntity {
-        Objects.requireNonNull(input);
-        Objects.requireNonNull(model);
+        Objects.requireNonNull(inputs);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(INPUT_FIELD, input);
-        builder.field(MODEL_FIELD, model);
+        builder.field(INPUTS_FIELD, inputs);
 
         builder.endObject();
         return builder;

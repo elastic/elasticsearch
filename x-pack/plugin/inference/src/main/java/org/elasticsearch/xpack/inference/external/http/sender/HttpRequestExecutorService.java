@@ -138,6 +138,13 @@ class HttpRequestExecutorService extends AbstractExecutorService {
      * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
     public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
+        // var a = request.getConfig();
+        // var b = RequestConfig.copy(a);
+        // b.setSocketTimeout(30000);
+        // b.setConnectTimeout(30000);
+        // b.setConnectionRequestTimeout(30000);
+        // request.setConfig(b.build());
+
         RequestTask task = new RequestTask(request, httpClient, httpContext, listener);
 
         if (isShutdown()) {

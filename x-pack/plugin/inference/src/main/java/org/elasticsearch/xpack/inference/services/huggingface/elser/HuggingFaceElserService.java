@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.inference.InferenceResults;
@@ -15,12 +17,15 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceElserAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
@@ -28,10 +33,12 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIf
 public class HuggingFaceElserService implements InferenceService {
     public static final String NAME = "hugging_face_elser";
 
-    private final Sender sender;
+    private final SetOnce<HttpRequestSenderFactory> factory;
+    private AtomicReference<Sender> sender = new AtomicReference<>();
 
-    public HuggingFaceElserService(HttpRequestSenderFactory factory) {
-        sender = factory.createSender(name());
+    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory) {
+        // sender = factory.get().createSender(name());
+        this.factory = factory;
     }
 
     @Override
@@ -75,16 +82,49 @@ public class HuggingFaceElserService implements InferenceService {
 
     @Override
     public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
+        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+            return;
+        }
 
+        if (model instanceof HuggingFaceElserModel == false) {
+            listener.onFailure(new ElasticsearchStatusException("The internal model was invalid", RestStatus.INTERNAL_SERVER_ERROR));
+            return;
+        }
+
+        createSender();
+
+        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
+        HuggingFaceElserAction action = new HuggingFaceElserAction(
+            input,
+            sender.get(),
+            huggingFaceElserModel.getServiceSettings(),
+            huggingFaceElserModel.getSecretSettings()
+        );
+
+        action.execute(listener);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        sender.start();
+        createSender();
+        sender.get().start();
+        listener.onResponse(true);
     }
 
     @Override
     public void close() throws IOException {
-        IOUtils.closeWhileHandlingException(sender);
+        IOUtils.closeWhileHandlingException(sender.get());
+    }
+
+    private void createSender() {
+        if (sender.get() == null) {
+            sender.set(factory.get().createSender(name()));
+        }
     }
 }

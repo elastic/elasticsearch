@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -346,10 +348,36 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkHandler, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
+        // see https://github.com/elastic/elasticsearch/issues/100807 - handle case where the plan has been fully minimized
+        // to a local relation and the aggregate intermediate data erased. For this scenario, match the output the exchange output
+        // with that of the local relation
+
+        if (child instanceof LocalSourceExec localExec) {
+            var output = exchangeSink.output();
+            var localOutput = localExec.output();
+            if (output.equals(localOutput) == false) {
+                // the outputs are going to be similar except for the bool "seen" flags which are added in below
+                List<Block> blocks = new ArrayList<>(asList(localExec.supplier().get()));
+                if (blocks.size() > 0) {
+                    Block boolBlock = BooleanBlock.newConstantBlockWith(true, 1);
+                    for (int i = 0, s = output.size(); i < s; i++) {
+                        var out = output.get(i);
+                        if (out.dataType() == DataTypes.BOOLEAN) {
+                            blocks.add(i, boolBlock);
+                        }
+                    }
+                }
+                var newSupplier = LocalSupplier.of(blocks.toArray(Block[]::new));
+
+                child = new LocalSourceExec(localExec.source(), output, newSupplier);
+            }
+        }
+
         PhysicalOperation source = plan(child, context);
 
-        boolean isAgg = child instanceof AggregateExec || child instanceof EsStatsQueryExec;
-        Function<Page, Page> transformer = isAgg ? Function.identity() : alignPageToAttributes(exchangeSink.output(), source.layout);
+        Function<Page, Page> transformer = exchangeSink.isIntermediateAgg()
+            ? Function.identity()
+            : alignPageToAttributes(exchangeSink.output(), source.layout);
 
         return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkHandler::createExchangeSink, transformer), source.layout);
     }

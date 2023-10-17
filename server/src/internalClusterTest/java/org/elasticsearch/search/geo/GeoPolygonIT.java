@@ -175,9 +175,10 @@ public class GeoPolygonIT extends ESIntegTestCase {
         points.add(new GeoPoint(40.8, -74.1));
         points.add(new GeoPoint(40.8, -74.0));
         points.add(new GeoPoint(40.7, -74.0));
-        SearchResponse searchResponse = client().prepareSearch("test") // from NY
-            .setQuery(boolQuery().must(geoPolygonQuery("alias", points)))
-            .get();
-        assertHitCount(searchResponse, 4);
+        assertHitCount(
+            client().prepareSearch("test") // from NY
+                .setQuery(boolQuery().must(geoPolygonQuery("alias", points))),
+            4
+        );
     }
 }

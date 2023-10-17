@@ -957,12 +957,17 @@ public final class PlanNamedTypes {
     }
 
     static InvalidMappedField readInvalidMappedField(PlanStreamInput in) throws IOException {
-        return new InvalidMappedField(in.readString(), in.readString());
+        return new InvalidMappedField(
+            in.readString(),
+            in.readString(),
+            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed))
+        );
     }
 
     static void writeInvalidMappedField(PlanStreamOutput out, InvalidMappedField field) throws IOException {
         out.writeString(field.getName());
         out.writeString(field.errorMessage());
+        out.writeMap(field.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
     }
 
     static KeywordEsField readKeywordEsField(PlanStreamInput in) throws IOException {

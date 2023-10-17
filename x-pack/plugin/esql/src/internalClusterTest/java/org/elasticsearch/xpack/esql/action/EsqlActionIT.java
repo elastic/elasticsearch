@@ -1219,6 +1219,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFilterNestedFields() {
+        assertAcked(client().admin().indices().prepareCreate("index-1").setMapping("file.name", "type=keyword"));
+        assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("file", "type=keyword"));
+        try (var resp = run("from index-1,index-2 | where file.name is not null")) {
+            var valuesList = getValuesList(resp);
+            assertEquals(2, resp.columns().size());
+            assertEquals(0, valuesList.size());
+        }
+    }
+
     public void testStatsNestFields() {
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();

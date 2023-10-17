@@ -155,7 +155,8 @@ public class Version implements VersionId<Version>, ToXContentFragment {
     public static final Version V_8_10_2 = new Version(8_10_02_99, IndexVersion.V_8_10_2);
     public static final Version V_8_10_3 = new Version(8_10_03_99, IndexVersion.V_8_10_3);
     public static final Version V_8_10_4 = new Version(8_10_04_99, IndexVersion.V_8_10_4);
-    public static final Version CURRENT = V_8_10_4;
+    public static final Version V_8_10_5 = new Version(8_10_05_99, IndexVersion.V_8_10_5);
+    public static final Version CURRENT = V_8_10_5;
 
     private static final NavigableMap<Integer, Version> VERSION_IDS;
     private static final Map<String, Version> VERSION_STRINGS;

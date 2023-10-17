@@ -365,16 +365,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public int[] docIdsToLoad() {
-        return in.docIdsToLoad();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad) {
-        return in.docIdsToLoad(docIdsToLoad);
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return in.dfsResult();
     }

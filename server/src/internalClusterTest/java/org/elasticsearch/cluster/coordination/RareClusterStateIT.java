@@ -213,7 +213,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
             assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
         });
-        assertHitCount(client().prepareSearch("test").get(), 0);
+        assertHitCount(client().prepareSearch("test"), 0);
     }
 
     public void testDelayedMappingPropagationOnPrimary() throws Exception {

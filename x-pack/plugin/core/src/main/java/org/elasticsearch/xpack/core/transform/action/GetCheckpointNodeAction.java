@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -152,12 +151,12 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(
                 id,
                 type,
                 action,
-                format("get_checkpoint_node[%s]", String.join(",", indices())),
+                format("get_checkpoint_node[%d;%d]", indices() != null ? indices().length : 0, shards != null ? shards.size() : 0),
                 parentTaskId,
                 headers
             );

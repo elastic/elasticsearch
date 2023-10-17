@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -261,7 +262,7 @@ public class Driver implements Releasable, Describable {
         ActionListener<Void> listener
     ) {
         driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, new StoredThreadContext(threadContext), executor, driver, listener);
+        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, listener);
     }
 
     // Drains all active operators and closes them.
@@ -284,7 +285,7 @@ public class Driver implements Releasable, Describable {
     private static void schedule(
         TimeValue maxTime,
         int maxIterations,
-        StoredThreadContext threadContext,
+        ThreadContext threadContext,
         Executor executor,
         Driver driver,
         ActionListener<Void> listener
@@ -293,13 +294,11 @@ public class Driver implements Releasable, Describable {
 
             @Override
             protected void doRun() {
-                threadContext.restoreContext();
                 if (driver.isFinished()) {
                     listener.onResponse(null);
                     return;
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
-                threadContext.saveContext();
                 if (fut.isDone()) {
                     schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
@@ -308,18 +307,16 @@ public class Driver implements Releasable, Describable {
                             driver.blocked.set(fut);
                         }
                     }
-                    fut.addListener(
-                        ActionListener.wrap(
-                            ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
-                            this::onFailure
-                        )
+                    ActionListener<Void> readyListener = ActionListener.wrap(
+                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
+                        this::onFailure
                     );
+                    fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                threadContext.restoreContext();
                 driver.drainAndCloseOperators(e);
                 listener.onFailure(e);
             }
@@ -374,23 +371,5 @@ public class Driver implements Releasable, Describable {
             status,
             activeOperators.stream().map(o -> new DriverStatus.OperatorStatus(o.toString(), o.status())).toList()
         );
-    }
-
-    private static class StoredThreadContext {
-        private final ThreadContext threadContext;
-        private ThreadContext.StoredContext storedContext;
-
-        StoredThreadContext(ThreadContext threadContext) {
-            this.threadContext = threadContext;
-            saveContext();
-        }
-
-        void restoreContext() {
-            storedContext.restore();
-        }
-
-        void saveContext() {
-            storedContext = threadContext.newStoredContext();
-        }
     }
 }

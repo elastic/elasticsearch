@@ -56,6 +56,7 @@ public class GeoTileBoundedPredicate {
     private static double quantizeLon(double lon) {
         return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
     }
+
     private static double quantizeLat(double lat) {
         return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }

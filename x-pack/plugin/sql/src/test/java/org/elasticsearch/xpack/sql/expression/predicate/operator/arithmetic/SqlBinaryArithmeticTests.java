@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -252,13 +253,13 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
 
     public void testMulLongIntervalYearMonthOverflow() {
         Literal l = interval(Period.ofYears(1), INTERVAL_YEAR);
-        QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> mul(l, L(Long.MAX_VALUE)));
+        Exception expect = expectThrows(QlClientIllegalArgumentException.class, () -> mul(l, L(Long.MAX_VALUE)));
         assertEquals("[9223372036854775807] out of [integer] range", expect.getMessage());
     }
 
     public void testMulUnsignedLongIntervalYearMonthOverflow() {
         Literal l = interval(Period.ofYears(1), INTERVAL_YEAR);
-        QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> mul(l, L(UNSIGNED_LONG_MAX)));
+        Exception expect = expectThrows(QlClientIllegalArgumentException.class, () -> mul(l, L(UNSIGNED_LONG_MAX)));
         assertEquals("[18446744073709551615] out of [long] range", expect.getMessage());
     }
 
@@ -270,7 +271,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
 
     public void testMulUnsignedLongIntervalDayTimeOverflow() {
         Literal l = interval(Duration.ofDays(1), INTERVAL_DAY);
-        QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> mul(l, L(UNSIGNED_LONG_MAX)));
+        Exception expect = expectThrows(QlClientIllegalArgumentException.class, () -> mul(l, L(UNSIGNED_LONG_MAX)));
         assertEquals("[18446744073709551615] out of [long] range", expect.getMessage());
     }
 

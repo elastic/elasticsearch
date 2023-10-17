@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
@@ -27,7 +28,7 @@ public class MathOperationTests extends ESTestCase {
     }
 
     public void testAbsShortMax() {
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> MathOperation.ABS.apply(Short.MIN_VALUE));
+        Exception ex = expectThrows(QlClientIllegalArgumentException.class, () -> MathOperation.ABS.apply(Short.MIN_VALUE));
         assertTrue(ex.getMessage().contains("out of"));
     }
 

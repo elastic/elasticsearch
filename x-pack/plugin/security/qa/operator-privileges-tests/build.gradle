@@ -11,8 +11,6 @@ esplugin {
 dependencies {
   compileOnly project(':x-pack:plugin:core')
   clusterPlugins project(':x-pack:plugin:security:qa:operator-privileges-tests')
-  javaRestTestImplementation project(':x-pack:plugin:core')
-  javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 

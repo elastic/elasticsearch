@@ -147,7 +147,6 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98712")
     public void testMultiPhrase() throws Exception {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
 

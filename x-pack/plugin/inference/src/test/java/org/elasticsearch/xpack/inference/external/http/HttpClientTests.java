@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.ByteArrayEntity;
@@ -45,7 +47,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.HTTP_CLIENT_SENDER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -87,7 +88,7 @@ public class HttpClientTests extends ESTestCase {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            httpClient.send(httpPost, listener);
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -100,15 +101,27 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testSend_ThrowsErrorIfCalledBeforeStart() throws Exception {
+        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager())) {
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                AssertionError.class,
+                () -> httpClient.send(mock(HttpUriRequest.class), HttpClientContext.create(), listener)
+            );
+
+            assertThat(thrownException.getMessage(), is("call start() before attempting to send a request"));
+        }
+    }
+
     public void testSend_FailedCallsOnFailure() throws Exception {
         var asyncClient = mock(CloseableHttpAsyncClient.class);
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            FutureCallback<HttpResponse> listener = (FutureCallback<HttpResponse>) invocation.getArguments()[1];
+            FutureCallback<HttpResponse> listener = (FutureCallback<HttpResponse>) invocation.getArguments()[2];
             listener.failed(new ElasticsearchException("failure"));
             return mock(Future.class);
-        }).when(asyncClient).execute(any(), any());
+        }).when(asyncClient).execute(any(HttpUriRequest.class), any(), any());
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -116,7 +129,7 @@ public class HttpClientTests extends ESTestCase {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            client.send(httpPost, listener);
+            client.send(httpPost, HttpClientContext.create(), listener);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), is("failure"));
@@ -128,10 +141,10 @@ public class HttpClientTests extends ESTestCase {
 
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            FutureCallback<HttpResponse> listener = (FutureCallback<HttpResponse>) invocation.getArguments()[1];
+            FutureCallback<HttpResponse> listener = (FutureCallback<HttpResponse>) invocation.getArguments()[2];
             listener.cancelled();
             return mock(Future.class);
-        }).when(asyncClient).execute(any(), any());
+        }).when(asyncClient).execute(any(HttpUriRequest.class), any(), any());
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -139,7 +152,7 @@ public class HttpClientTests extends ESTestCase {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            client.send(httpPost, listener);
+            client.send(httpPost, HttpClientContext.create(), listener);
 
             var thrownException = expectThrows(CancellationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), is(format("Request [%s] was cancelled", httpPost.getRequestLine())));
@@ -149,7 +162,7 @@ public class HttpClientTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testStart_MultipleCallsOnlyStartTheClientOnce() throws Exception {
         var asyncClient = mock(CloseableHttpAsyncClient.class);
-        when(asyncClient.execute(any(), any())).thenReturn(mock(Future.class));
+        when(asyncClient.execute(any(HttpUriRequest.class), any(), any())).thenReturn(mock(Future.class));
 
         var httpPost = createHttpPost(webServer.getPort(), "a", "b");
 
@@ -157,8 +170,8 @@ public class HttpClientTests extends ESTestCase {
             client.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            client.send(httpPost, listener);
-            client.send(httpPost, listener);
+            client.send(httpPost, HttpClientContext.create(), listener);
+            client.send(httpPost, HttpClientContext.create(), listener);
 
             verify(asyncClient, times(1)).start();
         }
@@ -180,7 +193,7 @@ public class HttpClientTests extends ESTestCase {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            httpClient.send(httpPost, listener);
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
 
             var throwException = expectThrows(UncategorizedExecutionException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(throwException.getCause().getCause().getMessage(), is("Maximum limit of [1] bytes reached"));
@@ -217,19 +230,11 @@ public class HttpClientTests extends ESTestCase {
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
-            ),
-            new ScalingExecutorBuilder(
-                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
-                1,
-                4,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
             )
         );
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
+    public static PoolingNHttpClientConnectionManager createConnectionManager() throws IOReactorException {
         return new PoolingNHttpClientConnectionManager(new DefaultConnectingIOReactor());
     }
 

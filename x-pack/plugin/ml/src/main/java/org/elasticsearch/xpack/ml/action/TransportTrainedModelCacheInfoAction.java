@@ -47,11 +47,9 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     ) {
         super(
             TrainedModelCacheInfoAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            TrainedModelCacheInfoAction.Request::new,
             NodeModelCacheInfoRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

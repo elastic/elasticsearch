@@ -1257,7 +1257,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(3, resp.columns().size());
             assertEquals(1, valuesList.size());
 
-            assertThat(valuesList.get(0), contains(0L, 0L, nullValue()));
+            assertThat(valuesList.get(0), contains(0L, 0L, 0L));
         }
     }
 

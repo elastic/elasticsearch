@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -173,6 +174,39 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         );
         List<Page> results = drive(operators, List.<Page>of().iterator(), driverContext);
 
+        assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    // Returns an intermediate state that is equivalent to what the local execution planner will emit
+    // if it determines that the initial agg is not needed on the local data node.
+    final List<Page> nullIntermediateState(BlockFactory blockFactory) {
+        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
+            var method = agg.getClass().getMethod("intermediateStateDesc");
+            @SuppressWarnings("unchecked")
+            List<IntermediateStateDesc> intermediateStateDescs = (List<IntermediateStateDesc>) method.invoke(null);
+            List<Block> blocks = new ArrayList<>();
+            for (var interSate : intermediateStateDescs) {
+                try (var wrapper = BlockUtils.wrapperFor(blockFactory, interSate.type(), 1)) {
+                    wrapper.accept(null);
+                    blocks.add(wrapper.builder().build());
+                }
+            }
+            return List.of(new Page(blocks.toArray(Block[]::new)));
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public final void testNullIntermediateFinal() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<Page> input = nullIntermediateState(blockFactory);
+        var operators = List.of(
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+        );
+        List<Page> results = drive(operators, input.iterator(), driverContext);
         assertThat(results, hasSize(1));
         assertOutputFromEmpty(results.get(0).getBlock(0));
     }

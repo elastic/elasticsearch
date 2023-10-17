@@ -1247,10 +1247,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setMapping("field_2", "type=integer")
         );
         try (
-
-            // this query fails:
-            // from index-1,index-2 | where field_1 is not null | stats c = count(*), c1 = count(field_1), m = min(field_1)"
-            // TODO: https://github.com/elastic/elasticsearch/issues/100928
             var resp = run("from index-1,index-2 | where field_1 is not null | stats c = count(*), c1 = count(field_1), m = count()")
         ) {
             var valuesList = getValuesList(resp);
@@ -1258,6 +1254,16 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, valuesList.size());
 
             assertThat(valuesList.get(0), contains(0L, 0L, 0L));
+        }
+
+        try (
+            var resp = run("from index-1,index-2 | where field_1 is not null | stats min = min(field_1), max = max(field_1)")
+        ) {
+            var valuesList = getValuesList(resp);
+            assertEquals(2, resp.columns().size());
+            assertEquals(1, valuesList.size());
+
+            assertThat(valuesList.get(0), contains(null, null));
         }
     }
 

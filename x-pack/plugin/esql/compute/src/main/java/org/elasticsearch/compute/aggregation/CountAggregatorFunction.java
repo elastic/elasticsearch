@@ -12,6 +12,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -85,6 +87,10 @@ public class CountAggregatorFunction implements AggregatorFunction {
         assert channels.size() == intermediateBlockCount();
         var blockIndex = blockIndex();
         assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
+        Block uncastBlock = page.getBlock(channels.get(0));
+        if (uncastBlock.areAllValuesNull()) {
+            return;
+        }
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == 1;

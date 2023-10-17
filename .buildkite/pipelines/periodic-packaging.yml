@@ -1680,6 +1680,22 @@ steps:
         env:
           BWC_VERSION: 8.10.4
 
+      - label: "{{matrix.image}} / 8.10.5 / packaging-tests-upgrade"
+        command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.10.5
+        timeout_in_minutes: 300
+        matrix:
+          setup:
+            image:
+              - rocky-8
+              - ubuntu-2004
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          machineType: custom-16-32768
+          buildDirectory: /dev/shm/bk
+        env:
+          BWC_VERSION: 8.10.5
+
       - label: "{{matrix.image}} / 8.11.0 / packaging-tests-upgrade"
         command: ./.ci/scripts/packaging-test.sh -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v8.11.0
         timeout_in_minutes: 300

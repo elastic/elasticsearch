@@ -218,6 +218,10 @@ import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
  * Class uses to perform all the operations needed to construct a {@link Node} instance.
+ * <p>
+ * Constructing a {@link Node} is a complex operation, involving many interdependent services.
+ * Separating out this logic into a dedicated class is a lot clearer & more flexible than
+ * doing all this logic inside a constructor in {@link Node}.
  */
 class NodeConstructor {
 
@@ -236,6 +240,9 @@ class NodeConstructor {
     ) {
         List<Closeable> closeables = new ArrayList<>();
         try {
+            /*
+             * NOTE: This is a work in progress. Order is important here.
+             */
             var constructor = new NodeConstructor(closeables);
             constructor.checkEnvironment(initialEnvironment);
             constructor.createEnvironment(initialEnvironment, serviceProvider.pluginsServiceCtor(initialEnvironment));

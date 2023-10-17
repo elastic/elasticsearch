@@ -113,7 +113,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("get_checkpoint[%d]", id), parentTaskId, headers);
+            return new CancellableTask(id, type, action, format("get_checkpoint[%s]", String.join(",", indices)), parentTaskId, headers);
         }
     }
 

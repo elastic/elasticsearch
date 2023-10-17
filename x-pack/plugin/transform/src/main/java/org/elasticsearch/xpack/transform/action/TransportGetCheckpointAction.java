@@ -154,9 +154,10 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             for (Entry<String, Set<ShardId>> oneNodeAndItsShards : nodesAndShards.entrySet()) {
                 if (task instanceof CancellableTask) {
                     // There is no point continuing this work if the task has been cancelled.
-                    ((CancellableTask) task).ensureNotCancelled();
+                    if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                        return;
+                    }
                 }
-
                 if (localNodeId.equals(oneNodeAndItsShards.getKey())) {
                     TransportGetCheckpointNodeAction.getGlobalCheckpoints(
                         indicesService,

@@ -153,7 +153,14 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, format("get_checkpoint_node[%d]", id), parentTaskId, headers);
+            return new CancellableTask(
+                id,
+                type,
+                action,
+                format("get_checkpoint_node[%s]", String.join(",", indices())),
+                parentTaskId,
+                headers
+            );
         }
     }
 }

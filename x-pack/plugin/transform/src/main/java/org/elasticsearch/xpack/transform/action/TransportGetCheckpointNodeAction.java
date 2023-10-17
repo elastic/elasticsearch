@@ -57,7 +57,9 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
         for (ShardId shardId : shards) {
             if (task instanceof CancellableTask) {
                 // There is no point continuing this work if the task has been cancelled.
-                ((CancellableTask) task).ensureNotCancelled();
+                if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                    return;
+                }
             }
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());

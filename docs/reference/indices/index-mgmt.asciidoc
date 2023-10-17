@@ -61,7 +61,7 @@ Investigate your data streams and address lifecycle management needs in the *Dat
 
 The value in the *Indices* column indicates the number of backing indices. Click this number to drill down into details.
 
-A value in the data retention indicates that the data stream is managed by a <<data-stream-lifecycle,lifecycle policy>>.
+A value in the data retention column indicates that the data stream is managed by a <<data-stream-lifecycle,data stream lifecycle policy>>.
 This value is the time period for which your data is guaranteed to be stored. Data older than this period can be deleted by
 Elasticsearch at a later time.
 

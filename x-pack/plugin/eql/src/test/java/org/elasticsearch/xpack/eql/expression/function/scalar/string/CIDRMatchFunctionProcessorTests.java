@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.EqlClientException;
+import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
@@ -37,7 +37,7 @@ public class CIDRMatchFunctionProcessorTests extends ESTestCase {
 
         // Invalid source address
         Exception e = expectThrows(
-            EqlClientException.class,
+            QlClientIllegalArgumentException.class,
             () -> new CIDRMatch(EMPTY, l("10.6.48"), addresses).makePipe().asProcessor().process(null)
         );
 
@@ -46,7 +46,7 @@ public class CIDRMatchFunctionProcessorTests extends ESTestCase {
         // Invalid match ip address
         addresses.add(l("10.6.48"));
         e = expectThrows(
-            EqlClientException.class,
+            QlClientIllegalArgumentException.class,
             () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null)
         );
 
@@ -56,7 +56,7 @@ public class CIDRMatchFunctionProcessorTests extends ESTestCase {
         // Invalid CIDR
         addresses.add(l("10.6.12/12"));
         e = expectThrows(
-            EqlClientException.class,
+            QlClientIllegalArgumentException.class,
             () -> new CIDRMatch(EMPTY, l("10.6.48.157"), addresses).makePipe().asProcessor().process(null)
         );
 

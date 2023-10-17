@@ -348,6 +348,7 @@ public final class RepositoryData {
         Collection<SnapshotId> snapshotsContainingIndex,
         Collection<SnapshotId> snapshotsToDelete
     ) {
+        // TODO this method is pretty opaque, let's add some comments
         if (snapshotsToDelete.containsAll(snapshotsContainingIndex)) {
             return snapshotsContainingIndex.size() > snapshotsToDelete.size();
         }

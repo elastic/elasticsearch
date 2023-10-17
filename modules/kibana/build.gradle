@@ -14,5 +14,4 @@ esplugin {
 
 dependencies {
   clusterModules project(':modules:reindex')
-  clusterModules project(':modules:kibana')
 }

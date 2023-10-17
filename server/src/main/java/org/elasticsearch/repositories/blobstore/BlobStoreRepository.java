@@ -72,6 +72,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -1140,11 +1141,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Updating the shard-level metadata and accumulating results
 
         private void writeUpdatedShardMetadataAndComputeDeletes(ActionListener<Void> listener) {
-            try (var listeners = new RefCountingListener(listener)) {
-                for (IndexId indexId : originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds)) {
-                    new IndexSnapshotsDeletion(indexId).run(listeners.acquire());
-                }
-            }
+            // noinspection resource -- closed safely at the end of the iteration
+            final var listeners = new RefCountingListener(listener);
+
+            // Each per-index process takes some nonzero amount of working memory to hold the relevant snapshot IDs and metadata generations
+            // etc. which we can keep under tighter limits and release sooner if we limit the number of concurrently processing indices.
+            // Each one needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax() of them at once is enough to
+            // keep the threadpool fully utilized.
+            ThrottledIterator.run(
+                originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds),
+                (ref, indexId) -> ActionListener.run(
+                    ActionListener.releaseAfter(listeners.acquire(), ref),
+                    l -> new IndexSnapshotsDeletion(indexId).run(l)
+                ),
+                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                () -> {},
+                listeners::close
+            );
         }
 
         private class IndexSnapshotsDeletion {

@@ -10,10 +10,11 @@ package org.elasticsearch.inference;
 
 import org.elasticsearch.action.ActionListener;
 
+import java.io.Closeable;
 import java.util.Map;
 import java.util.Set;
 
-public interface InferenceService {
+public interface InferenceService extends Closeable {
 
     String name();
 

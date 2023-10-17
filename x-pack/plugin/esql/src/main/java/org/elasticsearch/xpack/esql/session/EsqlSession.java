@@ -176,7 +176,15 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed);
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener, EsqlSession::specificValidity);
+            indexResolver.resolveAsMergedMapping(
+                table.index(),
+                fieldNames,
+                false,
+                Map.of(),
+                listener,
+                EsqlSession::specificValidity,
+                IndexResolver.PRESERVE_PROPERTIES
+            );
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)

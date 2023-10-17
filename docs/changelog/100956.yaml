@@ -1,0 +1,5 @@
+pr: 100956
+summary: Add "fake" availability zone mapper
+area: Machine Learning
+type: bug
+issues: []

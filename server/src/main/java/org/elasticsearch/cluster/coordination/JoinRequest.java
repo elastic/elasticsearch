@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 public class JoinRequest extends TransportRequest {
 
@@ -31,6 +32,11 @@ public class JoinRequest extends TransportRequest {
      * The compatibility versions used by the sending node.
      */
     private final CompatibilityVersions compatibilityVersions;
+
+    /**
+     * The features that are exposed by the joining node.
+     */
+    private final Set<String> features;
 
     /**
      * The minimum term for which the joining node will accept any cluster state publications. If the joining node is in a strictly greater
@@ -50,12 +56,14 @@ public class JoinRequest extends TransportRequest {
     public JoinRequest(
         DiscoveryNode sourceNode,
         CompatibilityVersions compatibilityVersions,
+        Set<String> features,
         long minimumTerm,
         Optional<Join> optionalJoin
     ) {
         assert optionalJoin.isPresent() == false || optionalJoin.get().getSourceNode().equals(sourceNode);
         this.sourceNode = sourceNode;
         this.compatibilityVersions = compatibilityVersions;
+        this.features = features;
         this.minimumTerm = minimumTerm;
         this.optionalJoin = optionalJoin;
     }
@@ -70,6 +78,11 @@ public class JoinRequest extends TransportRequest {
             // no known mapping versions here
             compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id), Map.of());
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+            features = in.readCollectionAsSet(StreamInput::readString);
+        } else {
+            features = Set.of();
+        }
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));
     }
@@ -81,6 +94,9 @@ public class JoinRequest extends TransportRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             compatibilityVersions.writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.CLUSTER_FEATURES_ADDED)) {
+            out.writeCollection(features, StreamOutput::writeString);
+        }
         out.writeLong(minimumTerm);
         out.writeOptionalWriteable(optionalJoin.orElse(null));
     }
@@ -91,6 +107,10 @@ public class JoinRequest extends TransportRequest {
 
     public CompatibilityVersions getCompatibilityVersions() {
         return compatibilityVersions;
+    }
+
+    public Set<String> getFeatures() {
+        return features;
     }
 
     public long getMinimumTerm() {

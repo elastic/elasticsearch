@@ -66,7 +66,7 @@ for the `logs-*` index pattern, assign your template a priority of `500`. This
 ensures your template is applied instead of the built-in template for
 `logs-*-*`.
 
-- To avoid naming collisions with built-in and Fleet-managed index templates, avoid using `@` as part of the name of our own index templates.
+- To avoid naming collisions with built-in and Fleet-managed index templates, avoid using `@` as part of the name of your own index templates.
 ****
 
 [discrete]

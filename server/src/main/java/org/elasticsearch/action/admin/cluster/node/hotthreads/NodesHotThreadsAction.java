@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
 
@@ -16,6 +17,6 @@ public class NodesHotThreadsAction extends ActionType<NodesHotThreadsResponse> {
     public static final String NAME = "cluster:monitor/nodes/hot_threads";
 
     private NodesHotThreadsAction() {
-        super(NAME, NodesHotThreadsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

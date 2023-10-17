@@ -48,11 +48,9 @@ public class TransportNodesStatsAction extends TransportNodesAction<
     ) {
         super(
             NodesStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesStatsRequest::new,
             NodeStatsRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -104,6 +102,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
     public static class NodeStatsRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesStatsRequest request;
 
         public NodeStatsRequest(StreamInput in) throws IOException {

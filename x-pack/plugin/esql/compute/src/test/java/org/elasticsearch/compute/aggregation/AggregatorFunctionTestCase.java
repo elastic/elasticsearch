@@ -179,7 +179,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     // Returns an intermediate state that is equivalent to what the local execution planner will emit
-    // if it determines that the initial agg is not needed on the local data node.
+    // if it determines that certain shards have no relevant data.
     final List<Page> nullIntermediateState(BlockFactory blockFactory) {
         try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
             var method = agg.getClass().getMethod("intermediateStateDesc");

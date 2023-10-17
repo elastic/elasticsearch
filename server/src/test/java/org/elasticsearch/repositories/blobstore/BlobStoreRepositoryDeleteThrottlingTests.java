@@ -159,6 +159,14 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
     public void testDeleteThrottling() {
         final var repoPath = ESIntegTestCase.randomRepoPath(node().settings());
 
+        // Create enough indices that we cannot process them all at once
+
+        for (int i = 0; i < 3 * MAX_SNAPSHOT_THREADS; i++) {
+            createIndex("index-" + i, indexSettings(between(1, 3), 0).build());
+        }
+
+        // Set up the repository contents including containing a couple of snapshots, using a regular 'fs' repo
+
         assertAcked(
             client().admin()
                 .cluster()
@@ -167,14 +175,12 @@ public class BlobStoreRepositoryDeleteThrottlingTests extends ESSingleNodeTestCa
                 .setSettings(Settings.builder().put("location", repoPath))
         );
 
-        for (int i = 0; i < 3 * MAX_SNAPSHOT_THREADS; i++) {
-            createIndex("index-" + i, indexSettings(1, 0).build());
-        }
-
         client().admin().cluster().prepareCreateSnapshot(TEST_REPO_NAME, "snapshot-1").setWaitForCompletion(true).get();
         client().admin().cluster().prepareCreateSnapshot(TEST_REPO_NAME, "snapshot-2").setWaitForCompletion(true).get();
 
         assertAcked(client().admin().cluster().prepareDeleteRepository(TEST_REPO_NAME));
+
+        // Now delete one of the snapshots using the test repo implementation which verifies the throttling behaviour
 
         assertAcked(
             client().admin()

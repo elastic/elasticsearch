@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -95,12 +94,7 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         // if we're in a mixed-version cluster, exit
         if (state.hasMixedSystemIndexVersions()) {
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
-            logger.trace(
-                () -> "Min versions: "
-                    + state.getMinSystemIndexMappingVersions()
-                    + ", compatibility versions: "
-                    + state.compatibilityVersions().values().stream().map(CompatibilityVersions::systemIndexMappingsVersion).toList()
-            );
+            logger.trace(() -> "Min versions: " + state.getMinSystemIndexMappingVersions());
             return;
         }
 

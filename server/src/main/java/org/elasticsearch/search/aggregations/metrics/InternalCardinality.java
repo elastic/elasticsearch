@@ -82,7 +82,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
             final InternalCardinality cardinality = (InternalCardinality) aggregation;
             if (cardinality.counts != null) {
                 if (reduced == null) {
-                    reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), BigArrays.NON_RECYCLING_INSTANCE, 1);
+                    reduced = new HyperLogLogPlusPlus(cardinality.counts.precision(), reduceContext.bigArrays(), 1);
                 }
                 reduced.merge(0, cardinality.counts, 0);
             }

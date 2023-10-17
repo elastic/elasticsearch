@@ -72,7 +72,6 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";
-    private static final String IN_VM_SYSPROP = "tests.inVM";
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
@@ -109,8 +108,6 @@ public class DistroTestPlugin implements Plugin<Project> {
 
         List<TaskProvider<Test>> windowsTestTasks = new ArrayList<>();
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
-        Map<String, List<TaskProvider<Test>>> upgradeTestTasks = new HashMap<>();
-        Map<String, TaskProvider<?>> depsTasks = new HashMap<>();
 
         for (ElasticsearchDistribution distribution : testDistributions) {
             String taskname = destructiveDistroTestTaskName(distribution);
@@ -122,7 +119,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                 addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
-            });
+            }, distribution.getArchiveDependencies(), examplePlugin.getDependencies());
 
             if (distribution.getPlatform() == Platform.WINDOWS) {
                 windowsTestTasks.add(destructiveTask);
@@ -154,18 +151,11 @@ public class DistroTestPlugin implements Plugin<Project> {
                         addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
                         addDistributionSysprop(t, BWC_DISTRIBUTION_SYSPROP, bwcDistro::getFilepath);
                         t.include("**/PackageUpgradeTests.class");
-                    });
+                    }, distribution, bwcDistro);
                     versionTasks.get(version.toString()).configure(t -> t.dependsOn(upgradeTest));
-                    upgradeTestTasks.computeIfAbsent(version.toString(), k -> new ArrayList<>()).add(upgradeTest);
                 }
             }
         }
-
-        project.subprojects(vmProject -> {
-            lifecycleTasks(vmProject, "distroTest");
-            versionTasks(vmProject, "distroUpgradeTest");
-            vmProject.getTasks().register("distroTest");
-        });
     }
 
     private static Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks(Project project, String taskPrefix) {
@@ -227,7 +217,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         Project project,
         String taskname,
         ElasticsearchDistribution distribution,
-        Action<? super Test> configure
+        Action<? super Test> configure,
+        Object... deps
     ) {
         return project.getTasks().register(taskname, Test.class, t -> {
             // Only run tests for the current architecture
@@ -238,6 +229,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             t.setClasspath(testSourceSet.getRuntimeClasspath());
             t.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
             t.setWorkingDir(project.getProjectDir());
+            t.dependsOn(deps);
             configure.execute(t);
         });
     }

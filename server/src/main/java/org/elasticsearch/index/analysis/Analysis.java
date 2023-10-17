@@ -40,6 +40,7 @@ import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;

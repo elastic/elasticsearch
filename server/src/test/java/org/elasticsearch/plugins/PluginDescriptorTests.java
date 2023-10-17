@@ -176,20 +176,6 @@ public class PluginDescriptorTests extends ESTestCase {
         });
     }
 
-    // TODO[wrb]: remove this test once es version is all the way opaque
-    public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
-        assertBothDescriptors(writer -> {
-            var e = expectThrows(IllegalStateException.class, () -> {
-                PluginDescriptor pd = writer.write("elasticsearch.version", "bogus");
-                pd.getElasticsearchVersion();
-            });
-            assertThat(
-                e.getMessage(),
-                containsString("The plugin descriptor cannot yet return opaque Elasticsearch version identifier [bogus]")
-            );
-        });
-    }
-
     public void testReadFromPropertiesJvmMissingClassname() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockInternalDescriptor("classname", null));
         assertThat(e.getMessage(), containsString("property [classname] is missing"));

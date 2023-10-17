@@ -68,6 +68,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.node.ResponseCollectorService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -952,7 +953,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             + "This limit can be set by changing the ["
                             + MAX_OPEN_SCROLL_CONTEXT.getKey()
                             + "] setting."
-                    );
+                    ) {
+                        @Override
+                        public RestStatus status() {
+                            return RestStatus.BAD_REQUEST;
+                        }
+                    };
                 }
             }
             final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());

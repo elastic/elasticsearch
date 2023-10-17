@@ -48,11 +48,9 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     ) {
         super(
             NodesUsageAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesUsageRequest::new,
             NodeUsageRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -86,6 +84,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
 
     public static class NodeUsageRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesUsageRequest request;
 
         public NodeUsageRequest(StreamInput in) throws IOException {

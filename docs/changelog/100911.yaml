@@ -3,5 +3,4 @@ summary: '`WaitForSnapshotStep` verifies if the index belongs to the latest snap
   of that SLM policy'
 area: ILM+SLM
 type: bug
-issues: 
-  - 57809
+issues: []

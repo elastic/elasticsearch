@@ -30,13 +30,11 @@ String realm = "BUILD.ELASTIC.CO"
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
   Path peppaKeytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "peppa.keytab")
-  Path krb5Keytab = Paths.get("${project.buildDir}", "generated-resources", "keytabs", "HTTP_localhost.keytab")
   Path krb5Conf = Paths.get("${project.buildDir}", "generated-resources", "conf", "krb5.conf")
   nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
   nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
   nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
   nonInputProperties.systemProperty 'test.krb5.conf', "${krb5Conf}"
-  nonInputProperties.systemProperty 'test.krb5.keytab', "${krb5Keytab}"
   systemProperty 'test.userpwd.password', "dino_but_longer_than_14_chars"
   jvmArgs([
     "-Djava.security.krb5.conf=${krb5Conf}",

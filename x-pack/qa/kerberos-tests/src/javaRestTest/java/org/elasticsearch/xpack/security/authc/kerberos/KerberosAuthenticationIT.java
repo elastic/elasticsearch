@@ -32,7 +32,6 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.file.Paths;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
@@ -86,7 +85,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         .systemProperty("sun.security.krb5.debug", "true")
         .user("test_admin", "x-pack-test-password")
         .user("test_kibana_user", "x-pack-test-password", "kibana_system", false)
-        .configFile("es.keytab", Resource.fromFile(Paths.get(System.getProperty("test.krb5.keytab"))))
+        .configFile("es.keytab", Resource.fromClasspath("HTTP_localhost.keytab"))
         .build();
 
     @Override

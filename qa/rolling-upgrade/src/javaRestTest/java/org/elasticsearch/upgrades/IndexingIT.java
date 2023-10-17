@@ -412,7 +412,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
     private boolean nodeSupportBulkApi(Map<?, ?> nodeInfo) {
         // TODO[lor]: replace this check with a (historical) feature check ("supports bulk requests")
         var versionString = nodeInfo.get("version").toString();
-        var version = Version.fromString(versionString.replace("-SNAPSHOT", ""));
+        var version = Version.fromString(versionString);
         return version.onOrAfter(Version.V_7_5_0);
     }
 

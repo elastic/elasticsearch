@@ -272,15 +272,14 @@ public class FieldCapsIT extends ParameterizedRollingUpgradeTestCase {
     @SuppressWarnings("unchecked")
     // Returns a client connected to one of the upgraded nodes.
     private RestClient getUpgradedNodeClient() throws IOException {
-        // TODO[lor]: review this after we moved NodeInfo to qualified ids (Build.current().version())
-        var currentVersion = Build.current().version().replace("-SNAPSHOT", "");
+        var currentVersion = Build.current().version();
         for (HttpHost host : getClusterHosts()) {
             RestClient client = RestClient.builder(host).build();
             Request nodesRequest = new Request("GET", "_nodes/_local/_none");
             Map<String, ?> nodeMap = (Map<String, ?>) entityAsMap(client.performRequest(nodesRequest)).get("nodes");
             Map<String, ?> nameMap = (Map<String, ?>) nodeMap.values().iterator().next();
             String version = (String) nameMap.get("version");
-            if (version.replace("-SNAPSHOT", "").equals(currentVersion)) {
+            if (version.equals(currentVersion)) {
                 return client;
             }
             client.close();

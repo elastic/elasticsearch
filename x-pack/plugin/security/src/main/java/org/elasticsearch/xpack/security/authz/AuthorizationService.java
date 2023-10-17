@@ -202,6 +202,16 @@ public class AuthorizationService {
         );
     }
 
+    public AuthorizationEngine.PrivilegesCheckResult checkPrivileges(
+        Subject subject,
+        AuthorizationInfo authorizationInfo,
+        AuthorizationEngine.PrivilegesToCheck privilegesToCheck,
+        List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors
+    ) {
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        return authorizationEngine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors);
+    }
+
     public void retrieveUserPrivileges(
         Subject subject,
         AuthorizationInfo authorizationInfo,

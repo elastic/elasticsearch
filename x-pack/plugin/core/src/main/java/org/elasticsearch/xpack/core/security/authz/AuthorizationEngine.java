@@ -230,6 +230,14 @@ public interface AuthorizationEngine {
         ActionListener<PrivilegesCheckResult> listener
     );
 
+    default PrivilegesCheckResult checkPrivileges(
+        AuthorizationInfo authorizationInfo,
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors
+    ) {
+        throw new UnsupportedOperationException("not supported by this engine");
+    }
+
     /**
      * Retrieve the privileges, from the provided authorization information, in a standard format that can be rendered via an
      * API for a client application to understand the privileges that the Subject has.

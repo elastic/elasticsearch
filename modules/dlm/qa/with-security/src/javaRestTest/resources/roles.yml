@@ -1,0 +1,9 @@
+role_with_index:
+  indices:
+    - names: [ 'test-*' ]
+      privileges:
+        - manage
+
+role_with_cluster:
+  cluster:
+    - manage_index_templates

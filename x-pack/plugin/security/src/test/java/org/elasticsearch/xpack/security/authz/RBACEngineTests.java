@@ -1211,10 +1211,11 @@ public class RBACEngineTests extends ESTestCase {
                     .build() },
             randomBoolean()
         );
-        final RuntimeException e1 = expectThrows(
-            RuntimeException.class,
-            () -> engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, new PlainActionFuture<>())
-        );
+        final RuntimeException e1 = expectThrows(RuntimeException.class, () -> {
+            PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
+            engine.checkPrivileges(authzInfo, privilegesToCheck2, privs, future);
+            future.actionGet();
+        });
         assertThat(e1, is(stallCheckException));
     }
 

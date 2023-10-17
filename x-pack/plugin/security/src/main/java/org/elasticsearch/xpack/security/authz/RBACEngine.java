@@ -185,6 +185,9 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onResponse(AuthorizationResult.granted());
             } else if (checkSameUserPermissions(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
                 listener.onResponse(AuthorizationResult.granted());
+            } else if (isTemplateAction(requestInfo.getAction())) {
+                // Index template actions have a custom authorization flow that's enforced elsewhere
+                listener.onResponse(AuthorizationResult.granted());
             } else {
                 listener.onResponse(AuthorizationResult.deny());
             }
@@ -193,6 +196,11 @@ public class RBACEngine implements AuthorizationEngine {
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
             );
         }
+    }
+
+    private static boolean isTemplateAction(String actionName) {
+        // Other `indices:admin/index_template` actions would also go here
+        return actionName.equals("indices:admin/index_template/put");
     }
 
     // pkg private for testing
@@ -525,11 +533,21 @@ public class RBACEngine implements AuthorizationEngine {
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
         ActionListener<PrivilegesCheckResult> originalListener
     ) {
+        try {
+            originalListener.onResponse(checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivileges));
+        } catch (Exception e) {
+            originalListener.onFailure(e);
+        }
+    }
+
+    @Override
+    public PrivilegesCheckResult checkPrivileges(
+        AuthorizationInfo authorizationInfo,
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
-            originalListener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
-            );
-            return;
+            throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
         logger.trace(
@@ -540,10 +558,9 @@ public class RBACEngine implements AuthorizationEngine {
             )
         );
 
-        final ActionListener<PrivilegesCheckResult> listener;
         if (userRole instanceof SimpleRole simpleRole) {
-            final PrivilegesCheckResult result = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
-            if (result != null) {
+            final PrivilegesCheckResult cachedResult = simpleRole.checkPrivilegesWithCache(privilegesToCheck);
+            if (cachedResult != null) {
                 logger.debug(
                     () -> format(
                         "role [%s] has privileges check result in cache for check: [%s]",
@@ -551,24 +568,29 @@ public class RBACEngine implements AuthorizationEngine {
                         privilegesToCheck
                     )
                 );
-                originalListener.onResponse(result);
-                return;
+                return cachedResult;
             }
-            listener = originalListener.delegateFailure((delegateListener, privilegesCheckResult) -> {
-                try {
-                    simpleRole.cacheHasPrivileges(settings, privilegesToCheck, privilegesCheckResult);
-                } catch (Exception e) {
-                    logger.error("Failed to cache check result for [{}]", privilegesToCheck);
-                    delegateListener.onFailure(e);
-                    return;
-                }
-                delegateListener.onResponse(privilegesCheckResult);
-            });
+
+            final PrivilegesCheckResult result = checkPrivileges(simpleRole, privilegesToCheck, applicationPrivileges);
+
+            try {
+                simpleRole.cacheHasPrivileges(settings, privilegesToCheck, result);
+                return result;
+            } catch (Exception e) {
+                logger.error("Failed to cache check result for [{}]", privilegesToCheck);
+                throw new RuntimeException(e);
+            }
         } else {
             // caching of check result unsupported
-            listener = originalListener;
+            return checkPrivileges(userRole, privilegesToCheck, applicationPrivileges);
         }
+    }
 
+    private PrivilegesCheckResult checkPrivileges(
+        Role userRole,
+        PrivilegesToCheck privilegesToCheck,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges
+    ) {
         boolean allMatch = true;
 
         final Map<String, Boolean> clusterPrivilegesCheckResults = new HashMap<>();
@@ -578,8 +600,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (privilegesToCheck.runDetailedCheck()) {
                 clusterPrivilegesCheckResults.put(checkAction, privilegeGranted);
             } else if (false == allMatch) {
-                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
-                return;
+                return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
             }
         }
 
@@ -596,8 +617,7 @@ public class RBACEngine implements AuthorizationEngine {
             allMatch = allMatch && privilegesGranted;
             if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
                 assert combineIndicesResourcePrivileges == null;
-                listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
-                return;
+                return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
             }
         }
 
@@ -622,8 +642,7 @@ public class RBACEngine implements AuthorizationEngine {
                     );
                     allMatch = allMatch && privilegesGranted;
                     if (false == privilegesToCheck.runDetailedCheck() && false == allMatch) {
-                        listener.onResponse(PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS);
-                        return;
+                        return PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
                     }
                 }
             }
@@ -637,19 +656,17 @@ public class RBACEngine implements AuthorizationEngine {
 
         if (privilegesToCheck.runDetailedCheck()) {
             assert combineIndicesResourcePrivileges != null;
-            listener.onResponse(
-                new PrivilegesCheckResult(
-                    allMatch,
-                    new PrivilegesCheckResult.Details(
-                        clusterPrivilegesCheckResults,
-                        combineIndicesResourcePrivileges.build().getResourceToResourcePrivileges(),
-                        privilegesByApplication
-                    )
+            return new PrivilegesCheckResult(
+                allMatch,
+                new PrivilegesCheckResult.Details(
+                    clusterPrivilegesCheckResults,
+                    combineIndicesResourcePrivileges.build().getResourceToResourcePrivileges(),
+                    privilegesByApplication
                 )
             );
         } else {
             assert allMatch;
-            listener.onResponse(PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS);
+            return PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
         }
     }
 

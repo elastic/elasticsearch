@@ -32,6 +32,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -70,6 +71,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -131,6 +133,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final IndexTemplatesPrivilegesCheckSupplier indexTemplatesPrivilegesCheckSupplier;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -167,7 +170,6 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    @Inject
     public MetadataIndexTemplateService(
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
@@ -177,6 +179,29 @@ public class MetadataIndexTemplateService {
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders
     ) {
+        this(
+            clusterService,
+            metadataCreateIndexService,
+            indicesService,
+            indexScopedSettings,
+            xContentRegistry,
+            systemIndices,
+            indexSettingProviders,
+            new IndexTemplatesPrivilegesCheckSupplier.Noop()
+        );
+    }
+
+    @Inject
+    public MetadataIndexTemplateService(
+        ClusterService clusterService,
+        MetadataCreateIndexService metadataCreateIndexService,
+        IndicesService indicesService,
+        IndexScopedSettings indexScopedSettings,
+        NamedXContentRegistry xContentRegistry,
+        SystemIndices systemIndices,
+        IndexSettingProviders indexSettingProviders,
+        IndexTemplatesPrivilegesCheckSupplier indexTemplatesPrivilegesCheckSupplier
+    ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
         this.indicesService = indicesService;
@@ -185,6 +210,7 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+        this.indexTemplatesPrivilegesCheckSupplier = indexTemplatesPrivilegesCheckSupplier;
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -498,17 +524,21 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        // TODO this might be better placed inside the update task, to avoid dirty reads but that breaks existing tests so leaving as is for
+        // now
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
-        taskQueue.submitTask(
-            "create-index-template-v2 [" + name + "], cause [" + cause + "]",
-            new TemplateClusterStateUpdateTask(listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    return addIndexTemplateV2(currentState, create, name, template);
-                }
-            },
-            masterTimeout
-        );
+        indexTemplatesPrivilegesCheckSupplier.getPrivilegesCheckForIndexPatterns(ActionListener.wrap(privilegesCheck -> {
+            taskQueue.submitTask(
+                "create-index-template-v2 [" + name + "], cause [" + cause + "]",
+                new TemplateClusterStateUpdateTask(listener) {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        return addIndexTemplateV2(currentState, create, name, template, privilegesCheck);
+                    }
+                },
+                masterTimeout
+            );
+        }, listener::onFailure));
     }
 
     public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
@@ -559,7 +589,17 @@ public class MetadataIndexTemplateService {
         final String name,
         final ComposableIndexTemplate template
     ) throws Exception {
-        return addIndexTemplateV2(currentState, create, name, template, true);
+        return addIndexTemplateV2(currentState, create, name, template, (ignored) -> {});
+    }
+
+    public ClusterState addIndexTemplateV2(
+        final ClusterState currentState,
+        final boolean create,
+        final String name,
+        final ComposableIndexTemplate template,
+        final Consumer<List<String>> indexPatternsPrivilegesCheck
+    ) throws Exception {
+        return addIndexTemplateV2(currentState, create, name, template, true, indexPatternsPrivilegesCheck);
     }
 
     public ClusterState addIndexTemplateV2(
@@ -569,7 +609,23 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final boolean validateV2Overlaps
     ) throws Exception {
+        return addIndexTemplateV2(currentState, create, name, template, validateV2Overlaps, (ignored) -> {});
+    }
+
+    public ClusterState addIndexTemplateV2(
+        final ClusterState currentState,
+        final boolean create,
+        final String name,
+        final ComposableIndexTemplate template,
+        final boolean validateV2Overlaps,
+        final Consumer<List<String>> indexPatternsPrivilegesCheck
+    ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
+        final List<String> indexPatternsToCheck = existing == null
+            ? template.indexPatterns()
+            : CollectionUtils.concatLists(template.indexPatterns(), existing.indexPatterns());
+        indexPatternsPrivilegesCheck.accept(indexPatternsToCheck);
+
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }

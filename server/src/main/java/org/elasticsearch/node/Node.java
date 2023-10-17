@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplatesPrivilegesCheckSupplier;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -1138,18 +1139,23 @@ public class Node implements Closeable {
                         );
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-                pluginComponents.forEach(p -> {
+                // TODO this is horrible business; ignore for now
+                boolean privCheckBound = false;
+                for (Object p : pluginComponents) {
                     if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                        privCheckBound = privCheckBound || pcb.inter().isAssignableFrom(IndexTemplatesPrivilegesCheckSupplier.class);
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) pcb.inter();
                         b.bind(clazz).toInstance(pcb.impl());
-
                     } else {
                         @SuppressWarnings("unchecked")
                         Class<Object> clazz = (Class<Object>) p.getClass();
                         b.bind(clazz).toInstance(p);
                     }
-                });
+                }
+                if (false == privCheckBound) {
+                    b.bind(IndexTemplatesPrivilegesCheckSupplier.class).toInstance(new IndexTemplatesPrivilegesCheckSupplier.Noop());
+                }
                 b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                 b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                 b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);

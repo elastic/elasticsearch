@@ -36,7 +36,8 @@ If a parameter used in the search template is not specified in `params`, the par
 [NOTE]
 ====
 The search application can be configured to validate search template parameters.
-See the `dictionary` parameter in the <<put-search-application, put search application>> API for more information.
+See the `dictionary` parameter in the <<put-search-application-dictionary-param, put search application>> API for more
+information.
 ====
 
 [[search-application-render-query-response-codes]]

@@ -10,7 +10,7 @@ preview::[]
 
 Given specified query parameters, generates an Elasticsearch query using the search template associated with the search
 application or a default template if none is specified.
-Any unspecified template parameters will be assigned their default values (if applicable).
+Unspecified template parameters will be assigned their default values (if applicable).
 Returns the specific Elasticsearch query that would be generated and executed by calling
 <<search-application-search,search application search>>.
 

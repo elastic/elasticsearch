@@ -36,9 +36,10 @@ Investigate your indices and perform operations from the *Indices* view.
 [role="screenshot"]
 image::images/index-mgmt/management_index_labels.png[Index Management UI]
 
-* To show details, perform operations such as close, forcemerge, and flush, or add a lifecycle policy use the *Manage* menu. This menu
-is available when you select the checkbox of one or more
-indices. For more information on managing indices, refer to <<indices, Index APIs>>.
+* To show details and perform operations such as close, forcemerge, and flush,
+click the index name.  To perform operations
+on multiple indices, select their checkboxes and then open the *Manage* menu.
+For more information on managing indices, refer to <<indices, Index APIs>>.
 
 * To filter the list of indices, use the search bar or click a badge.
 Badges indicate if an index is a <<ccr-put-follow,follower index>>, a
@@ -227,6 +228,7 @@ An enrich policy contains:
 * The source indices that store enrich data as documents
 * The fields from the source indices used to match incoming documents
 * The enrich fields containing enrich data from the source indices that you want to add to incoming documents
+* An optional <<query-dsl-match-all-query,query>>.
 
 [role="screenshot"]
 image::images/index-mgmt/management-enrich-policies.png[Enrich policies]

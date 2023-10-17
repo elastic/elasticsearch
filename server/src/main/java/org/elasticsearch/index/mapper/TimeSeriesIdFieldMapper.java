@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -42,6 +41,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -56,17 +56,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
     public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
 
-    /**
-     * The maximum length of the tsid. The value itself comes from a range check in
-     * Lucene's writer for utf-8 doc values.
-     */
-    private static final int LIMIT = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
-    /**
-     * The maximum length of any single dimension. We picked this so that we could
-     * comfortable fit 16 dimensions inside {@link #LIMIT}. This should be quite
-     * comfortable given that dimensions are typically going to be less than a
-     * hundred bytes each, but we're being paranoid here.
-     */
+    // NOTE: used by {@link TimeSeriesIdFieldMapper#decodeTsid(StreamInput)} )}. Remove both if using _tsid hashing
     public static final int TSID_HASH_SENTINEL = 0xBAADCAFE;
 
     @Override
@@ -144,27 +134,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDimensions();
-        final BytesReference timeSeriesId = timeSeriesIdBuilder.build();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.similarityHash(timeSeriesId).toBytesRef()));
-        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId.toBytesRef());
-    }
-
-    // TODO: remove if using {@link TimeSeriesIdBuilder#similarityHash(BytesReference)}
-    public static BytesReference hash128(final BytesReference timeSeriesId) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            final byte[] buffer = new byte[16];
-            out.writeVInt(TSID_HASH_SENTINEL);
-            final BytesRef tsid = timeSeriesId.toBytesRef();
-            final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-            MurmurHash3.hash128(tsid.bytes, tsid.offset, tsid.length, 0, hash);
-            ByteUtils.writeLongLE(hash.h1, buffer, 0);
-            ByteUtils.writeLongLE(hash.h2, buffer, 8);
-            // TODO: maybe remove Base64 encoding and do it in {@link TimeSeriesIdFieldMapper#decodeTsid(StreamInput)} )}
-            final BytesRef encoded = new BytesRef(Base64.getUrlEncoder().withoutPadding().encodeToString(buffer));
-            out.writeBytesRef(encoded);
-            return out.bytes();
-        }
+        final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDocumentFields();
+        final BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.similarityHash().toBytesRef()));
+        TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
     }
 
     @Override
@@ -211,18 +184,19 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TimeSeriesIdBuilder implements DocumentDimensions {
+    public static class TimeSeriesIdBuilder implements DocumentFields {
 
         public static final int MAX_DIMENSIONS = 512;
 
-        private record DimensionDataHolder(BytesReference fieldName, int fieldNameHash, BytesReference value, int valueHash) {}
+        private record DimensionDataHolder(String name, BytesReference value) {}
 
         /**
          * A sorted set of the serialized values of dimension fields that will be used
          * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
          * to build the _tsid field for the document.
          */
-        private final SortedSet<DimensionDataHolder> dimensions = new TreeSet<>(Comparator.comparing(o -> o.fieldName));
+        private final SortedSet<DimensionDataHolder> dimensions = new TreeSet<>(Comparator.comparing(o -> o.name));
+        private final Set<String> metrics = new TreeSet<>();
         /**
          * Builds the routing. Used for building {@code _id}. If null then skipped.
          */
@@ -241,7 +215,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(dimensions.size());
                 for (DimensionDataHolder entry : dimensions) {
-                    out.writeBytesRef(entry.fieldName.toBytesRef());
+                    out.writeBytesRef(new BytesRef(entry.name));
                     entry.value.writeTo(out);
                 }
                 return out.bytes();
@@ -251,40 +225,99 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         /**
          * Here we build the hash of the tsid using a similarity function so that we have a result
          * with the following pattern:
-         * ${similarityHash(_tsid)}-${hash(_tsid)}.
+         *
+         * hash128(catenate(dimension field names)) +
+         * hash128(catenate(metric field names)) +
+         * foreach(dimension field value, limit = MAX_DIMENSIONS) { hash32(dimension field value) } +
+         * hash128(catenate(dimension field values))
+         *
          * The idea is to be able to place 'similar' time series close to each other. Two time series
-         * are considered 'similar' if they share the same values for a subset of the dimensions (sorted
-         * names/values).
+         * are considered 'similar' if they share the same dimensions (names and values).
          */
-        public BytesReference similarityHash(final BytesReference timeSeriesId) throws IOException {
-            int bufferIndex = 0;
-            // max 512 entries of (hash32(fieldName) + '=' + hash32(fieldValue) + ":") plus the has128(timeSeriesId)
-            final byte[] buffer = new byte[MAX_DIMENSIONS * 10 + 16];
-            for (final DimensionDataHolder dimensionDataHolder : dimensions) {
-                if (bufferIndex >= MAX_DIMENSIONS) break;
-                ByteUtils.writeIntLE(dimensionDataHolder.fieldNameHash, buffer, bufferIndex);
-                ByteUtils.writeIntLE('=', buffer, bufferIndex + 4);
-                ByteUtils.writeIntLE(dimensionDataHolder.valueHash, buffer, bufferIndex + 5);
-                ByteUtils.writeIntLE(':', buffer, bufferIndex + 9);
-                bufferIndex += 10;
+        public BytesReference similarityHash() throws IOException {
+            // NOTE: hash all dimension field names
+            int dimensionValuesLength = 0;
+            final StringBuilder sb = new StringBuilder();
+            for (final DimensionDataHolder dimension : dimensions) {
+                final BytesRef bytesRef = dimension.value.toBytesRef();
+                dimensionValuesLength += (bytesRef.length - bytesRef.offset);
+                sb.append(dimension.name);
             }
-            final BytesRef timeSeriesIdBytesRef = timeSeriesId.toBytesRef();
-            final MurmurHash3.Hash128 tsidFullHash = new MurmurHash3.Hash128();
-            MurmurHash3.hash128(timeSeriesIdBytesRef.bytes, timeSeriesIdBytesRef.offset, timeSeriesIdBytesRef.length, 0, tsidFullHash);
-            ByteUtils.writeLongLE(tsidFullHash.h1, buffer, bufferIndex);
-            bufferIndex += 8;
-            ByteUtils.writeLongLE(tsidFullHash.h2, buffer, bufferIndex);
-            bufferIndex += 8;
+            final BytesReference dimensionNamesHash = hash128(new BytesRef(sb.toString()));
+
+            // NOTE: hash all metric field names
+            sb.setLength(0);
+            for (final String metric : metrics) {
+                sb.append(metric);
+            }
+            final BytesReference metricFieldsHash = hash128(new BytesRef(sb.toString()));
+
+            // NOTE: catenate all dimension value hashes up to names certain number of dimensions
+            int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
+            int buf1Index = 0;
+            final byte[] buf1 = new byte[4 * numberOfDimensions];
+            for (final DimensionDataHolder dimension : dimensions) {
+                if (buf1Index >= buf1.length) break;
+                final BytesRef dimensionValueBytesRef = dimension.value().toBytesRef();
+                ByteUtils.writeIntLE(StringHelper.murmurhash3_x86_32(dimensionValueBytesRef, 0), buf1, buf1Index);
+                buf1Index += 4;
+            }
+            final BytesRef valueByValue = new BytesRef(buf1, 0, buf1.length);
+
+            // NOTE: hash all dimension field allValues
+            int buf2Index = 0;
+            final byte[] buf2 = new byte[dimensionValuesLength];
+            for (final DimensionDataHolder dimension : dimensions) {
+                final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
+                System.arraycopy(
+                    dimensionValueBytesRef.bytes,
+                    dimensionValueBytesRef.offset,
+                    buf2,
+                    buf2Index,
+                    dimensionValueBytesRef.length - dimensionValueBytesRef.offset
+                );
+                buf2Index += (dimensionValueBytesRef.length - dimensionValueBytesRef.offset);
+            }
+            final BytesReference dimensionValuesHash = hash128(new BytesRef(buf2, 0, buf2.length));
+
+            final BytesRef names = dimensionNamesHash.toBytesRef();
+            final BytesRef metrics = metricFieldsHash.toBytesRef();
+            final BytesRef allValues = dimensionValuesHash.toBytesRef();
+            int tsidLength = names.length + metrics.length + valueByValue.length + allValues.length;
+            byte[] tsid = new byte[tsidLength];
+            int tsidIndex = 0;
+            System.arraycopy(names.bytes, names.offset, tsid, tsidIndex, names.length);
+            tsidIndex += names.length;
+            System.arraycopy(metrics.bytes, metrics.offset, tsid, tsidIndex, metrics.length);
+            tsidIndex += metrics.length;
+            System.arraycopy(valueByValue.bytes, valueByValue.offset, tsid, tsidIndex, valueByValue.length);
+            tsidIndex += valueByValue.length;
+            System.arraycopy(allValues.bytes, allValues.offset, tsid, tsidIndex, allValues.length);
+            tsidIndex += allValues.length;
+            assert tsidIndex == tsidLength;
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(TSID_HASH_SENTINEL);
-                final BytesRef hash = new BytesRef(Arrays.copyOfRange(buffer, 0, bufferIndex));
-                out.writeBytesRef(hash);
+                out.writeBytesRef(new BytesRef(tsid, 0, tsidLength));
+                return out.bytes();
+            }
+        }
+
+        private BytesReference hash128(final BytesRef value) throws IOException {
+            byte[] buffer = new byte[16];
+            final MurmurHash3.Hash128 hash128 = new MurmurHash3.Hash128();
+            MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash128);
+            ByteUtils.writeLongLE(hash128.h1, buffer, 0);
+            ByteUtils.writeLongLE(hash128.h2, buffer, 8);
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.writeVInt(TSID_HASH_SENTINEL);
+                final BytesRef hashBytesRef = new BytesRef(Arrays.copyOfRange(buffer, 0, buffer.length));
+                out.writeBytesRef(hashBytesRef);
                 return out.bytes();
             }
         }
 
         @Override
-        public void addString(String fieldName, BytesRef utf8Value) {
+        public void addKeywordDimension(String fieldName, BytesRef utf8Value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 's');
                 /*
@@ -304,12 +337,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addIp(String fieldName, InetAddress value) {
-            addString(fieldName, NetworkAddress.format(value));
+        public void addIpDimension(String fieldName, InetAddress value) {
+            addKeywordDimension(fieldName, NetworkAddress.format(value));
         }
 
         @Override
-        public void addLong(String fieldName, long value) {
+        public void addLongDimension(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.write((byte) 'l');
                 out.writeLong(value);
@@ -320,7 +353,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public void addUnsignedLong(String fieldName, long value) {
+        public void addUnsignedLongDimension(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
                 if (ul instanceof Long l) {
@@ -336,14 +369,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
         }
 
+        @Override
+        public void addMetric(String fieldName) {
+            metrics.add(fieldName);
+        }
+
         private void add(String fieldName, BytesReference encoded) throws IOException {
-            final BytesArray fieldNameBytesRef = new BytesArray(fieldName);
-            final DimensionDataHolder dimension = new DimensionDataHolder(
-                fieldNameBytesRef,
-                StringHelper.murmurhash3_x86_32(fieldNameBytesRef.toBytesRef(), 0),
-                encoded,
-                StringHelper.murmurhash3_x86_32(encoded.toBytesRef(), 0)
-            );
+            final DimensionDataHolder dimension = new DimensionDataHolder(fieldName, encoded);
             if (dimensions.contains(dimension)) {
                 throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
             }

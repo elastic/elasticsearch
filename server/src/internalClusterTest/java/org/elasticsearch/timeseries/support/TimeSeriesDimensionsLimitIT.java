@@ -94,7 +94,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
     }
 
     public void testTotalNumberOfDimensionFieldsDefaultLimit() {
-        int dimensionFieldLimit = 21;
+        int dimensionFieldLimit = 9999;
         final Exception ex = expectThrows(IllegalArgumentException.class, () -> createTimeSeriesIndex(mapping -> {
             mapping.startObject("routing_field").field("type", "keyword").field("time_series_dimension", true).endObject();
             for (int i = 0; i < dimensionFieldLimit; i++) {
@@ -175,6 +175,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
 
         Settings.Builder settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 11_000)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths.get())
             .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
             .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");

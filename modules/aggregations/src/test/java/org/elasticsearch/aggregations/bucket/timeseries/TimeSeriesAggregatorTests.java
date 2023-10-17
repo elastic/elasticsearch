@@ -87,9 +87,9 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
-                builder.addLong(dimensions[i].toString(), n.longValue());
+                builder.addLongDimension(dimensions[i].toString(), n.longValue());
             } else {
-                builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                builder.addKeywordDimension(dimensions[i].toString(), dimensions[i + 1].toString());
             }
         }
         for (int i = 0; i < metrics.length; i += 2) {

@@ -184,7 +184,7 @@ fetch a tag:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{_tsid: "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}]}
+  - match: {hits.hits.0.fields._tsid: [{_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g"}]}
 
 ---
 aggregate a dimension:
@@ -281,9 +281,9 @@ aggregate a tag:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {_tsid: "q2RfQj05ihHDOlaZAWQ9--qoyDozlLccrbi5EMFdqCeotpKt"}}
+  - match: {aggregations.tsids.buckets.0.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyP6Vt9ULEHW_gNYfd2t0r5Rnf6-L1KQ"}}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {_tsid: "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}}
+  - match: {aggregations.tsids.buckets.1.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g"}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -318,7 +318,7 @@ sort by tsid:
           sort:   [ "_tsid", "@timestamp" ]
 
   - match: {hits.total.value: 8}
-  - match: {hits.hits.0.sort: [{ _tsid : "q2RfQj05ihHDOlaZAWQ9--qoyDozlLccrbi5EMFdqCeotpKt"}, 1619635803142]}
-  - match: {hits.hits.1.sort: [{ _tsid : "q2RfQj05ihHDOlaZAWQ9--qoyDozlLccrbi5EMFdqCeotpKt"}, 1619635823142]}
-  - match: {hits.hits.4.sort: [{ _tsid : "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}, 1619635804467]}
-  - match: {hits.hits.7.sort: [{ _tsid : "q2RfQj112oDhOlaZAWQ9--qoyDqDXVefHj0jyCjcoxXulD39"}, 1619635864467]}
+  - match: {hits.hits.0.sort: [{ _tsid : "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyP6Vt9ULEHW_gNYfd2t0r5Rnf6-L1KQ"}, 1619635803142]}
+  - match: {hits.hits.1.sort: [{ _tsid : "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyP6Vt9ULEHW_gNYfd2t0r5Rnf6-L1KQ"}, 1619635823142]}
+  - match: {hits.hits.4.sort: [{ _tsid : "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g"}, 1619635804467]}
+  - match: {hits.hits.7.sort: [{ _tsid : "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g"}, 1619635864467]}

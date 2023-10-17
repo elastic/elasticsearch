@@ -47,6 +47,7 @@ import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterC
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessHeartbeatStore;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessPersistedClusterStateService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.TransportConsistentClusterStateReadAction;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
@@ -282,7 +283,8 @@ public class Stateless extends Plugin
             new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
             new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
-            new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class)
+            new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
+            new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class)
         );
     }
 

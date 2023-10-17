@@ -56,7 +56,8 @@ public class EsqlDataTypeRegistryTests extends ESTestCase {
             EsqlDataTypeRegistry.INSTANCE,
             "idx-*",
             caps,
-            EsqlSession::specificValidity
+            EsqlSession::specificValidity,
+            IndexResolver.PRESERVE_PROPERTIES
         );
 
         EsField f = resolution.get().mapping().get(fieldCap.getName());

@@ -207,8 +207,13 @@ public final class BlockUtils {
         if (val == null) {
             return Block.constantNullBlock(size);
         }
-        var type = fromJava(val.getClass());
+        return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
+    }
+
+    // TODO: allow null values
+    private static Block constantBlock(BlockFactory blockFactory, ElementType type, Object val, int size) {
         return switch (type) {
+            case NULL -> Block.constantNullBlock(size);
             case LONG -> LongBlock.newConstantBlockWith((long) val, size, blockFactory);
             case INT -> IntBlock.newConstantBlockWith((int) val, size, blockFactory);
             case BYTES_REF -> BytesRefBlock.newConstantBlockWith(toBytesRef(val), size, blockFactory);

@@ -415,14 +415,14 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private void onClusterStateApplied() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         synchronized (mutex) {
-            if (getMode() != Mode.CANDIDATE) {
+            if (mode != Mode.CANDIDATE) {
                 joinHelper.onClusterStateApplied();
                 closeElectionScheduler();
                 peerFinder.closePeers();
             }
-            if (getLocalNode().isMasterNode()) {
-                joinReasonService.onClusterStateApplied(applierState.nodes());
-            }
+        }
+        if (getLocalNode().isMasterNode()) {
+            joinReasonService.onClusterStateApplied(applierState.nodes());
         }
     }
 

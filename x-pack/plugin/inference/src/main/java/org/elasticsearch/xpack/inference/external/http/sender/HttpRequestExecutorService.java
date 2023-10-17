@@ -88,6 +88,7 @@ class HttpRequestExecutorService extends AbstractExecutorService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            running.set(false);
             notifyRequestsOfShutdown();
             terminationLatch.countDown();
         }
@@ -123,7 +124,9 @@ class HttpRequestExecutorService extends AbstractExecutorService {
         }
     }
 
-    private void notifyRequestsOfShutdown() {
+    private synchronized void notifyRequestsOfShutdown() {
+        assert isShutdown() : "Requests should only be notified if the executor is shutting down";
+
         try {
             List<HttpTask> notExecuted = new ArrayList<>();
             queue.drainTo(notExecuted);
@@ -213,6 +216,11 @@ class HttpRequestExecutorService extends AbstractExecutorService {
             );
 
             task.onRejection(rejected);
+        } else if (isShutdown()) {
+            // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
+            // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
+            // we shut down and if so we'll redo the notification
+            notifyRequestsOfShutdown();
         }
     }
 

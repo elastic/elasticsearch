@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.usage;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class NodesUsageAction extends ActionType<NodesUsageResponse> {
 
@@ -16,6 +17,6 @@ public class NodesUsageAction extends ActionType<NodesUsageResponse> {
     public static final String NAME = "cluster:monitor/nodes/usage";
 
     protected NodesUsageAction() {
-        super(NAME, NodesUsageResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

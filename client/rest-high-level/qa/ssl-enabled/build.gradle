@@ -18,11 +18,9 @@ tasks.matching{ it.name == "javaRestTest" }.configureEach {
   onlyIf { BuildParams.inFipsJvm == false}
   systemProperty 'tests.rest.cluster.username', providers.systemProperty('tests.rest.cluster.username')
           .orElse('test_user')
-          .forUseAtConfigurationTime()
           .get()
   systemProperty 'tests.rest.cluster.password', providers.systemProperty('tests.rest.cluster.password')
           .orElse('test-user-password')
-          .forUseAtConfigurationTime()
           .get()
 }
 

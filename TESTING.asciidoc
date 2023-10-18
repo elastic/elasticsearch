@@ -494,6 +494,10 @@ systems because they're destructive; that is, these tests install and remove
 packages and freely modify system settings, so you will probably regret it if
 you execute them on your development machine.
 
+=== Reproducing packaging tests
+
+To reproduce or debug packaging tests failures we recommend using using our provided https://github.com/elastic/elasticsearch-infra/blob/master/buildkite-tools/README.md[*buildkite tools*]
+
 == Testing backwards compatibility
 
 Backwards compatibility tests exist to test upgrading from each supported version

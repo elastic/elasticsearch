@@ -10,6 +10,8 @@ package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.MockLogAppender;
@@ -43,10 +45,19 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
-                    "[test-snapshot]",
+                    "[deleting test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
                     "deleting snapshots [test-snapshot] from repository [test-repo]"
+                )
+            );
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "[test-snapshot deleted]",
+                    SnapshotsService.class.getName(),
+                    Level.INFO,
+                    "snapshots [test-snapshot/*] deleted"
                 )
             );
 
@@ -65,7 +76,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void testSnapshotDeletionFailureShouldBeLogged() throws InterruptedException {
+    public void testSnapshotDeletionFailureShouldBeLogged() throws Exception {
         createRepository("test-repo", "mock");
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
@@ -85,10 +96,22 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            final MockRepository mockRepository = getRepositoryOnMaster("test-repo");
-            mockRepository.setRandomControlIOExceptionRate(1.0);
-            final Exception e = expectThrows(Exception.class, () -> startDeleteSnapshot("test-repo", "test-snapshot").actionGet());
-            assertThat(e.getCause().getMessage(), containsString("Random IOException"));
+            if (randomBoolean()) {
+                // Failure when listing root blobs
+                final MockRepository mockRepository = getRepositoryOnMaster("test-repo");
+                mockRepository.setRandomControlIOExceptionRate(1.0);
+                final Exception e = expectThrows(Exception.class, () -> startDeleteSnapshot("test-repo", "test-snapshot").actionGet());
+                assertThat(e.getCause().getMessage(), containsString("Random IOException"));
+            } else {
+                // Failure when finalizing on index-N file
+                final ActionFuture<AcknowledgedResponse> deleteFuture;
+                blockMasterFromFinalizingSnapshotOnIndexFile("test-repo");
+                deleteFuture = startDeleteSnapshot("test-repo", "test-snapshot");
+                waitForBlock(internalCluster().getMasterName(), "test-repo");
+                unblockNode("test-repo", internalCluster().getMasterName());
+                final Exception e = expectThrows(Exception.class, deleteFuture::actionGet);
+                assertThat(e.getCause().getMessage(), containsString("exception after block"));
+            }
 
             mockLogAppender.assertAllExpectationsMatched();
         } finally {

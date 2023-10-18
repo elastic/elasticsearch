@@ -835,7 +835,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public DataStream(StreamInput in) throws IOException {
         this(
-            in.readString(),
+            readName(in),
             readIndices(in),
             in.readVLong(),
             in.readMap(),
@@ -849,8 +849,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         );
     }
 
+    static String readName(StreamInput in) throws IOException {
+        String name = in.readString();
+        in.readString(); // clear out the timestamp field, which is always @timestamp
+        return name;
+    }
+
     static List<Index> readIndices(StreamInput in) throws IOException {
-        in.readString(); // timestamp field, which is always @timestamp
         return in.readCollectionAsImmutableList(Index::new);
     }
 
@@ -878,7 +883,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeOptionalWriteable(lifecycle);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-            out.writeString(TIMESTAMP_FIELD_NAME);
             out.writeCollection(failureStores);
         }
     }

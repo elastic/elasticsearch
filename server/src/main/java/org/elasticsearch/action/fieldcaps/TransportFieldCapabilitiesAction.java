@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -58,6 +59,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -441,14 +443,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
 
         List<FieldCapabilitiesFailure> build(Set<String> successfulIndices) {
             Map<Tuple<String, String>, FieldCapabilitiesFailure> indexFailures = new HashMap<>();
+            Set<String> exceptionsLogged = new HashSet<>();
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
                 Exception e = failure.getValue();
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+
+                // log 500 errors that are not Node/Shard unavailable type errors (and only once per Exception type)
+                if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                    String loggingKey = e.getClass().getSimpleName() + (cause == null ? "" : cause.getClass().getSimpleName());
+                    if (exceptionsLogged.add(loggingKey)) {
+                        Supplier<String> messageSupplier = () -> String.format(Locale.ROOT, "Field caps Exception for index: [%s].", index);
+                        LOGGER.warn(messageSupplier, e);
+                    }
+                }
 
                 if (successfulIndices.contains(index) == false) {
                     // we deduplicate exceptions on the underlying causes message and classname
                     // we unwrap the cause to e.g. group RemoteTransportExceptions coming from different nodes if the cause is the same
-                    Throwable cause = ExceptionsHelper.unwrapCause(e);
                     Tuple<String, String> groupingKey = new Tuple<>(cause.getMessage(), cause.getClass().getName());
                     indexFailures.compute(
                         groupingKey,
@@ -460,7 +472,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         void collect(String index, Exception e) {
-            failuresByIndex.putIfAbsent(index, e);
+            Exception prev = failuresByIndex.putIfAbsent(index, e);
+            if (prev == null
+                && ExceptionsHelper.status(e).getStatus() >= 500
+                && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                Supplier<String> messageSupplier = () -> String.format(Locale.ROOT, "Field caps Exception for index: [%s].", index);
+                LOGGER.warn(messageSupplier, e);
+            }
         }
 
         void clear() {

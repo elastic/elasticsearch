@@ -187,8 +187,14 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
                 if (apmServerEnabled) {
                     mockServer = new MockApmServer(9999);
-                    node.setting("telemetry.metrics.enabled", "true");
-                    node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    try {
+                        mockServer.start();
+                        node.setting("telemetry.metrics.enabled", "true");
+                        node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    } catch (IOException e) {
+                        logger.warn("Unable to start APM server", e);
+                    }
+
                 }
 
             }
@@ -260,6 +266,10 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
             if (thrown != null) {
                 logger.debug("exception occurred during close of stdout file readers", thrown);
+            }
+
+            if (apmServerEnabled && mockServer != null) {
+                mockServer.stop();
             }
         }
     }

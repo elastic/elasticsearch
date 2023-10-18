@@ -24,16 +24,18 @@ import java.util.Collections;
 import java.util.List;
 
 /*
-curl -X GET -u elastic:password "localhost:9200/_search?pretty" -H 'Content-Type: application/json' -d'                                            [15:24:27]─┘
+curl -X GET -u elastic:password "localhost:9200/_search?pretty" -H 'Content-Type: application/json' -d'
 {
     "retriever": {
         "rrf": {
             "retrievers": [
-                "classic": {
-                    "query": {
-                        "match_all": {}
-                    },
-                    "sort": {"user.id.keyword": "desc"}
+                {
+                    "classic": {
+                        "query": {
+                            "match_all": {}
+                        },
+                        "sort": {"user.id.keyword": "desc"}
+                    }
                 }
             ]
         }
@@ -57,6 +59,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
         PARSER.declareObjectArray((v, l) -> v.retrieverBuilders = l, (p, c) -> {
             String name = p.currentName();
             p.nextToken();
+            if (true) throw new IllegalStateException(name);
             return (RetrieverBuilder<?>)p.namedObject(RetrieverBuilder.class, name, c);
         }, RETRIEVERS_FIELD);
         PARSER.declareInt((b, v) -> b.windowSize = v, WINDOW_SIZE_FIELD);

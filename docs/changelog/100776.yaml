@@ -1,6 +1,6 @@
 pr: 100776
-summary: "Health Report API should not return RED for unassigned cold/frozen shards when data is available"
+summary: Health Report API should not return RED for unassigned cold/frozen shards
+  when data is available
 area: ILM+SLM
 type: enhancement
-issues: 
-  - 97606
+issues: []

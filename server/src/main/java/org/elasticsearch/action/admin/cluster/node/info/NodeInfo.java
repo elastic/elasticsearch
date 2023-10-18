@@ -155,8 +155,8 @@ public class NodeInfo extends BaseNodeResponse {
     /**
      * The current ES version
      */
-    public Version getVersion() {
-        return version;
+    public String getVersion() {
+        return version.toString();
     }
 
     /**

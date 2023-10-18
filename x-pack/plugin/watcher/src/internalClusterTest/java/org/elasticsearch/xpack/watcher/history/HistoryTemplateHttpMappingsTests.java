@@ -166,10 +166,10 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertBusy(() -> {
             // ensure watcher history index has been written with this id
             flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery("watch_id", id))
-                .get();
-            assertHitCount(searchResponse, 1L);
+            assertHitCount(
+                client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(QueryBuilders.termQuery("watch_id", id)),
+                1L
+            );
         });
 
         // ensure that enabled is set to false

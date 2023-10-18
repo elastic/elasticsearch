@@ -56,7 +56,7 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
         // verify all docs
         ensureGreen();
         assertHitCount(
-            client().prepareSearch("shrunk_bigindex").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
+            client().prepareSearch("shrunk_bigindex").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")),
             randomNumberOfDocs
         );
     }

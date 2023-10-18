@@ -1,3 +1,4 @@
+[discrete]
 [[esql-substring]]
 === `SUBSTRING`
 Returns a substring of a string, specified by a start position and an optional

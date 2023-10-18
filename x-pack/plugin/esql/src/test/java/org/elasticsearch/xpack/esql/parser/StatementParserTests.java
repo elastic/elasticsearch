@@ -761,8 +761,35 @@ public class StatementParserTests extends ESTestCase {
     public void testWrongIntervalParams() {
         expectError("row x = ?", List.of(new TypedParamValue("date_period", "12")), "Cannot parse [12] to DATE_PERIOD");
         expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12")), "Cannot parse [12] to TIME_DURATION");
-        expectError("row x = ?", List.of(new TypedParamValue("date_period", "2 minutes")), "Cannot parse [2 minutes] to DATE_PERIOD");
-        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "11 months")), "Cannot parse [11 months] to TIME_DURATION");
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("date_period", "12 months foo")),
+            "Cannot parse [12 months foo] to DATE_PERIOD"
+        );
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "12 minutes bar")),
+            "Cannot parse [12 minutes bar] to TIME_DURATION"
+        );
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "12 foo")), "Unexpected time interval qualifier: 'foo'");
+        expectError("row x = ?", List.of(new TypedParamValue("time_duration", "12 bar")), "Unexpected time interval qualifier: 'bar'");
+        expectError("row x = ?", List.of(new TypedParamValue("date_period", "foo days")), "Cannot parse [foo days] to DATE_PERIOD");
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "bar seconds")),
+            "Cannot parse [bar seconds] to TIME_DURATION"
+        );
+
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("date_period", "2 minutes")),
+            "Cannot parse [2 minutes] to DATE_PERIOD, did you mean TIME_DURATION?"
+        );
+        expectError(
+            "row x = ?",
+            List.of(new TypedParamValue("time_duration", "11 months")),
+            "Cannot parse [11 months] to TIME_DURATION, did you mean DATE_PERIOD?"
+        );
     }
 
     public void testMissingInputParams() {

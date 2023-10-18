@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.math.BigInteger;
 import java.time.Duration;
-import java.time.Period;
 import java.time.ZoneId;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
@@ -65,13 +64,12 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
@@ -232,23 +230,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // and same for Period#ofWeeks()
             throw new ParsingException(source, "Number [{}] outside of [{}] range", ctx.integerValue().getText(), qualifier);
         }
-    }
-
-    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws QlIllegalArgumentException,
-        ArithmeticException {
-        return switch (qualifier) {
-            case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
-            case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
-            case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
-            case "hour", "hours" -> Duration.ofHours(safeToLong(value));
-
-            case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
-            case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
-            case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
-            case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
-
-            default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
-        };
     }
 
     @Override

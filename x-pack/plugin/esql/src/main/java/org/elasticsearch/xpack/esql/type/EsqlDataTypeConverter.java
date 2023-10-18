@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -23,6 +22,8 @@ import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
@@ -56,20 +57,49 @@ public class EsqlDataTypeConverter {
     }
 
     public static TemporalAmount parseTemporalAmount(Object val, DataType expectedType) {
+        String errorMessage = "Cannot parse [{}] to {}";
         String str = String.valueOf(val);
         if (str == null) {
             return null;
         }
-        str = str.trim().replaceAll("\\s+", " ");
-        String[] split = str.split(" ");
-        if (split.length == 2) {
-            TemporalAmount result = ExpressionBuilder.parseTemporalAmout(Integer.parseInt(split[0]), split[1], Source.EMPTY);
-            if (EsqlDataTypes.DATE_PERIOD == expectedType && result instanceof Period
-                || EsqlDataTypes.TIME_DURATION == expectedType && result instanceof Duration) {
-                return result;
+        StringBuilder value = new StringBuilder();
+        StringBuilder qualifier = new StringBuilder();
+        StringBuilder nextBuffer = value;
+        boolean lastWasSpace = false;
+        for (char c : str.trim().toCharArray()) {
+            if (c == ' ') {
+                if (lastWasSpace == false) {
+                    nextBuffer = nextBuffer == value ? qualifier : null;
+                }
+                lastWasSpace = true;
+                continue;
+            }
+            if (nextBuffer == null) {
+                throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
+            }
+            nextBuffer.append(c);
+            lastWasSpace = false;
+        }
+
+        if ((value.isEmpty() || qualifier.isEmpty()) == false) {
+            try {
+                TemporalAmount result = parseTemporalAmout(Integer.parseInt(value.toString()), qualifier.toString(), Source.EMPTY);
+                if (EsqlDataTypes.DATE_PERIOD == expectedType && result instanceof Period
+                    || EsqlDataTypes.TIME_DURATION == expectedType && result instanceof Duration) {
+                    return result;
+                }
+                if (result instanceof Period && expectedType == EsqlDataTypes.TIME_DURATION) {
+                    errorMessage += ", did you mean " + EsqlDataTypes.DATE_PERIOD + "?";
+                }
+                if (result instanceof Duration && expectedType == EsqlDataTypes.DATE_PERIOD) {
+                    errorMessage += ", did you mean " + EsqlDataTypes.TIME_DURATION + "?";
+                }
+            } catch (NumberFormatException ex) {
+                // wrong pattern
             }
         }
-        throw new ParsingException(Source.EMPTY, "Cannot parse [{}] to {}", val, expectedType);
+
+        throw new ParsingException(Source.EMPTY, errorMessage, val, expectedType);
     }
 
     /**
@@ -98,6 +128,23 @@ public class EsqlDataTypeConverter {
 
     public static DataType commonType(DataType left, DataType right) {
         return DataTypeConverter.commonType(left, right);
+    }
+
+    public static TemporalAmount parseTemporalAmout(Number value, String qualifier, Source source) throws QlIllegalArgumentException,
+        ArithmeticException {
+        return switch (qualifier) {
+            case "millisecond", "milliseconds" -> Duration.ofMillis(safeToLong(value));
+            case "second", "seconds" -> Duration.ofSeconds(safeToLong(value));
+            case "minute", "minutes" -> Duration.ofMinutes(safeToLong(value));
+            case "hour", "hours" -> Duration.ofHours(safeToLong(value));
+
+            case "day", "days" -> Period.ofDays(safeToInt(safeToLong(value)));
+            case "week", "weeks" -> Period.ofWeeks(safeToInt(safeToLong(value)));
+            case "month", "months" -> Period.ofMonths(safeToInt(safeToLong(value)));
+            case "year", "years" -> Period.ofYears(safeToInt(safeToLong(value)));
+
+            default -> throw new ParsingException(source, "Unexpected time interval qualifier: '{}'", qualifier);
+        };
     }
 
     public enum EsqlConverter implements Converter {

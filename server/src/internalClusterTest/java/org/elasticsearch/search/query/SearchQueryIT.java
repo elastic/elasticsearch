@@ -1474,25 +1474,27 @@ public class SearchQueryIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(
-                boolQuery().must(termQuery("online", true))
-                    .must(
-                        boolQuery().should(
-                            boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000))).must(termQuery("type", "bs"))
-                        )
-                            .should(
-                                boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000))).must(termQuery("type", "s"))
+        assertNoFailures(
+            client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(
+                    boolQuery().must(termQuery("online", true))
+                        .must(
+                            boolQuery().should(
+                                boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
+                                    .must(termQuery("type", "bs"))
                             )
-                    )
-            )
-            .setVersion(true)
-            .setFrom(0)
-            .setSize(100)
-            .setExplain(true)
-            .get();
-        assertNoFailures(response);
+                                .should(
+                                    boolQuery().must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
+                                        .must(termQuery("type", "s"))
+                                )
+                        )
+                )
+                .setVersion(true)
+                .setFrom(0)
+                .setSize(100)
+                .setExplain(true)
+        );
     }
 
     public void testMultiFieldQueryString() {

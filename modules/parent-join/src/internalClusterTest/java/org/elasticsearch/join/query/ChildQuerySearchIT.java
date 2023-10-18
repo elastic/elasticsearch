@@ -247,14 +247,10 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         for (int i = 1; i <= 10; i++) {
             logger.info("Round {}", i);
-            SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.Max)))
-                .get();
-            assertNoFailures(searchResponse);
-            searchResponse = client().prepareSearch("test")
-                .setQuery(constantScoreQuery(hasParentQuery("parent", matchAllQuery(), true)))
-                .get();
-            assertNoFailures(searchResponse);
+            assertNoFailures(
+                client().prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.Max)))
+            );
+            assertNoFailures(client().prepareSearch("test").setQuery(constantScoreQuery(hasParentQuery("parent", matchAllQuery(), true))));
         }
     }
 
@@ -471,18 +467,17 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryStringQuery("c_field:*")), ScoreMode.None)))
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(
+            client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryStringQuery("c_field:*")), ScoreMode.None)))
+        );
 
-        searchResponse = client().prepareSearch("test")
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryStringQuery("p_field:*")), false)))
-            .execute()
-            .actionGet();
-        assertNoFailures(searchResponse);
+        assertNoFailures(
+            client().prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryStringQuery("p_field:*")), false)))
+        );
     }
 
     public void testHasChildAndHasParentFailWhenSomeSegmentsDontContainAnyParentOrChildDocs() throws Exception {
@@ -1711,15 +1706,15 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         refresh();
 
         // make sure that when we explicitly set a type, the inner query is executed in the context of the child type instead
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"), ScoreMode.None))
-            .get();
-        assertSearchHits(searchResponse, "parent-id");
+        assertSearchHits(
+            client().prepareSearch("test").setQuery(hasChildQuery("child-type", new IdsQueryBuilder().addIds("child-id"), ScoreMode.None)),
+            "parent-id"
+        );
         // make sure that when we explicitly set a type, the inner query is executed in the context of the parent type instead
-        searchResponse = client().prepareSearch("test")
-            .setQuery(hasParentQuery("parent-type", new IdsQueryBuilder().addIds("parent-id"), false))
-            .get();
-        assertSearchHits(searchResponse, "child-id");
+        assertSearchHits(
+            client().prepareSearch("test").setQuery(hasParentQuery("parent-type", new IdsQueryBuilder().addIds("parent-id"), false)),
+            "child-id"
+        );
     }
 
     public void testHighlightersIgnoreParentChild() throws IOException {

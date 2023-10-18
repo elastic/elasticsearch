@@ -63,7 +63,6 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     public void testGeoPointGeoTile() throws IOException {
         doTestGeotileGrid(
             GeoPointFieldMapper.CONTENT_TYPE,
-            GeoTileUtils.MAX_ZOOM - 4,  // levels 26 and above have some rounding errors, but this is past the index resolution
             // just generate points on bounds
             () -> randomValueOtherThanMany(
                 p -> p.getLat() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || p.getLat() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK,
@@ -81,11 +80,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     }
 
     public void testGeoShapeGeoTile() throws IOException {
-        doTestGeotileGrid(
-            GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
-            GeoTileUtils.MAX_ZOOM - 1,
-            () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false)
-        );
+        doTestGeotileGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
     }
 
     public void testGeoShapeGeoHex() throws IOException {
@@ -198,10 +193,10 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         );
     }
 
-    private void doTestGeotileGrid(String fieldType, int maxPrecision, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
+    private void doTestGeotileGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
         doTestGrid(
             0,
-            maxPrecision,
+            GeoTileUtils.MAX_ZOOM,
             fieldType,
             (precision, point) -> GeoTileUtils.stringEncode(GeoTileUtils.longEncode(point.getLon(), point.getLat(), precision)),
             tile -> toPoints(GeoTileUtils.toBoundingBox(tile)),

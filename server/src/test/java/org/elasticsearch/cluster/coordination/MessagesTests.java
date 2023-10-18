@@ -246,6 +246,7 @@ public class MessagesTests extends ESTestCase {
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
             CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
+            Set.of(generateRandomStringArray(10, 10, false)),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
@@ -258,6 +259,7 @@ public class MessagesTests extends ESTestCase {
                     return new JoinRequest(
                         createNode(randomAlphaOfLength(10)),
                         joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
@@ -268,6 +270,7 @@ public class MessagesTests extends ESTestCase {
                             TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion())),
                             Map.of()
                         ),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
@@ -275,6 +278,15 @@ public class MessagesTests extends ESTestCase {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
                         joinRequest.getCompatibilityVersions(),
+                        Set.copyOf(randomSubsetOf(joinRequest.getFeatures())),
+                        joinRequest.getMinimumTerm(),
+                        joinRequest.getOptionalJoin()
+                    );
+                } else if (randomBoolean()) {
+                    return new JoinRequest(
+                        joinRequest.getSourceNode(),
+                        joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
                         joinRequest.getOptionalJoin()
                     );
@@ -297,6 +309,7 @@ public class MessagesTests extends ESTestCase {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
                         joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         newOptionalJoin
                     );

@@ -138,12 +138,13 @@ public class JoinRequest extends TransportRequest {
         if (minimumTerm != that.minimumTerm) return false;
         if (sourceNode.equals(that.sourceNode) == false) return false;
         if (compatibilityVersions.equals(that.compatibilityVersions) == false) return false;
+        if (features.equals(that.features) == false) return false;
         return optionalJoin.equals(that.optionalJoin);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceNode, compatibilityVersions, minimumTerm, optionalJoin);
+        return Objects.hash(sourceNode, compatibilityVersions, features, minimumTerm, optionalJoin);
     }
 
     @Override

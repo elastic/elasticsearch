@@ -2203,7 +2203,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
-                    CompatibilityVersionsUtils.staticCurrent()
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of()
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

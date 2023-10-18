@@ -1166,7 +1166,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     coordinationServices.getReconfigurator(),
                     coordinationServices.getLeaderHeartbeatService(),
                     coordinationServices.getPreVoteCollectorFactory(),
-                    CompatibilityVersionsUtils.staticCurrent()
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

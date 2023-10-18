@@ -21,7 +21,13 @@ import java.util.stream.Collectors;
  */
 public class ClusterFeatures {
 
+    /**
+     * The features on each individual node
+     */
     private final Map<String, Set<String>> nodeFeatures;
+    /**
+     * The features present on all nodes
+     */
     private final Set<String> allNodeFeatures;
 
     public ClusterFeatures(Map<String, Set<String>> nodeFeatures) {
@@ -52,7 +58,7 @@ public class ClusterFeatures {
     }
 
     /**
-     * {@code true} if {@code feature} is exported by all nodes in the cluster.
+     * {@code true} if {@code feature} is present on all nodes in the cluster.
      * <p>
      * NOTE: This should not be used directly, as it does not read historical features.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.

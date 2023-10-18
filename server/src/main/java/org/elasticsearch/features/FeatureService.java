@@ -11,6 +11,7 @@ package org.elasticsearch.features;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -86,15 +87,16 @@ public class FeatureService {
     }
 
     /**
-     * The non-historical features exposed by this node
+     * The non-historical features present on this node
      */
     public Set<String> getNodeFeatures() {
         return nodeFeatures;
     }
 
     /**
-     * Returns {@code true} if all nodes present in {@code state} have feature {@code feature}.
+     * Returns {@code true} if all nodes in {@code state} have feature {@code feature}.
      */
+    @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
         if (state.clusterFeatures().clusterHasFeature(feature)) {
             return true;

@@ -41,6 +41,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
+        assert task.getAction().equals(actionName) : task.getAction() + " vs " + actionName;
         final ActionRequestValidationException validationException;
         try {
             validationException = request.validate();

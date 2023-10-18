@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -32,10 +32,13 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logQueryFailure;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.wrapWithFailureLogging;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestEqlSearchAction extends BaseRestHandler {
-    private static Logger logger = LogManager.getLogger(RestEqlSearchAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(RestEqlSearchAction.class);
+    private static final String LOGGING_PREFIX = "EQL query";
     private static final String SEARCH_PATH = "/{index}/_eql/search";
 
     @Override
@@ -67,7 +70,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(EqlSearchAction.INSTANCE, eqlRequest, new ActionListener<>() {
+            cancellableClient.execute(EqlSearchAction.INSTANCE, eqlRequest, wrapWithFailureLogging(new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse response) {
                     try {
@@ -97,10 +100,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
                         channel.sendResponse(new RestResponse(channel, finalException));
                     } catch (Exception inner) {
                         inner.addSuppressed(finalException);
-                        logger.error("failed to send failure response", inner);
+                        logQueryFailure(LOGGER, LOGGING_PREFIX, inner, "failed to send failure response");
                     }
                 }
-            });
+            }, LOGGER, LOGGING_PREFIX));
         };
     }
 

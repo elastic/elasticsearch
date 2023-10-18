@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logQueryFailure;
 
 /**
  * Listens for a single {@link EsqlQueryResponse}, builds a corresponding {@link RestResponse} and sends it.
@@ -73,6 +74,7 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
     }
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
+    private static final String LOGGING_PREFIX = "ESQL query";
     private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
     private final RestChannel channel;
     private final RestRequest restRequest;
@@ -164,6 +166,7 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
             long timeMillis = stopWatch.stop().getMillis();
             onFailure(ex);
             LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            logQueryFailure(LOGGER, LOGGING_PREFIX, ex, null);
         });
     }
 }

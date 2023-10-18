@@ -18,7 +18,7 @@
 package co.elastic.elasticsearch.stateless.objectstore;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeResponse;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
@@ -91,7 +91,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         assertThat(clusterAdmin().prepareDeleteSnapshot("backup", "snapshot").get().isAcknowledged(), is(true));
 
         GetBlobStoreStatsNodesResponse getBlobStoreStatsNodesResponse = client().execute(
-            GetBlobStoreStatsAction.INSTANCE,
+            Stateless.GET_BLOB_STORE_STATS_ACTION,
             new GetBlobStoreStatsNodesRequest()
         ).actionGet();
 
@@ -103,8 +103,8 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
 
         // Test result from talking to a specific node
         final GetBlobStoreStatsNodeResponse nodeResponse = client().execute(
-            GetBlobStoreStatsAction.INSTANCE,
-            new GetBlobStoreStatsNodesRequest(getBlobStoreStatsNodesResponse.getNodes().get(0).getNode().getId())
+            Stateless.GET_BLOB_STORE_STATS_ACTION,
+            new GetBlobStoreStatsNodesRequest()
         ).actionGet().getNodes().get(0);
         assertRepositoryStats(nodeResponse.getRepositoryStats());
         assertObsRepositoryStatsSnapshots(nodeResponse.getObsRepositoryStats());

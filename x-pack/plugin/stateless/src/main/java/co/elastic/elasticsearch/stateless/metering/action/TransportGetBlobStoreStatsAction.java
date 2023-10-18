@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metering.action;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.FailedNodeException;
@@ -57,12 +58,10 @@ public class TransportGetBlobStoreStatsAction extends TransportNodesAction<
         RepositoriesService repositoriesService
     ) {
         super(
-            GetBlobStoreStatsAction.NAME,
-            threadPool,
+            Stateless.GET_BLOB_STORE_STATS_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,
-            GetBlobStoreStatsNodesRequest::new,
             GetBlobStoreStatsNodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

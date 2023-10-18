@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache;
 
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheAction;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -49,7 +49,7 @@ public class ClearBlobCacheRestHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         return restChannel -> client.execute(
-            ClearBlobCacheAction.INSTANCE,
+            Stateless.CLEAR_BLOB_CACHE_ACTION,
             new ClearBlobCacheNodesRequest(),
             new RestChunkedToXContentListener<>(restChannel)
         );

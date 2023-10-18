@@ -5,13 +5,6 @@ import static org.elasticsearch.gradle.internal.distribution.InternalElasticsear
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 
-dockerCompose {
-  if (System.getenv('BUILDKITE') == 'true') {
-    // This flag is only available on newer versions of docker-compose, and many Jenkins agents have older versions
-    upAdditionalArgs = ["--wait"]
-  }
-}
-
 tasks.register("copyKeystore", Sync) {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')

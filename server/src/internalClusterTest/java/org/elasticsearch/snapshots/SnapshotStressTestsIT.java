@@ -502,21 +502,35 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                 if (indicesToClose.length > 0) {
                     logger.info(
-                        "--> closing indices {} in preparation for restoring from [{}:{}]",
-                        indicesToRestoreList,
-                        snapshotInfo.repository(),
-                        snapshotInfo.snapshotId().getName()
+                        "--> waiting for yellow health of [{}] before closing",
+                        Strings.arrayToCommaDelimitedString(indicesToClose)
                     );
-                    indicesAdmin().prepareClose(indicesToClose).execute(mustSucceed(closeIndexResponse -> {
+
+                    SubscribableListener.<ClusterHealthResponse>newForked(
+                        l -> prepareClusterHealthRequest(indicesToClose).setWaitForYellowStatus().execute(l)
+                    ).addListener(mustSucceed(clusterHealthResponse -> {
+                        assertFalse(
+                            "timed out waiting for yellow state of " + Strings.arrayToCommaDelimitedString(indicesToClose),
+                            clusterHealthResponse.isTimedOut()
+                        );
+
                         logger.info(
-                            "--> finished closing indices {} in preparation for restoring from [{}:{}]",
+                            "--> closing indices {} in preparation for restoring from [{}:{}]",
                             indicesToRestoreList,
                             snapshotInfo.repository(),
                             snapshotInfo.snapshotId().getName()
                         );
-                        assertTrue(closeIndexResponse.isAcknowledged());
-                        assertTrue(closeIndexResponse.isShardsAcknowledged());
-                        closeIndicesStep.onResponse(null);
+                        indicesAdmin().prepareClose(indicesToClose).execute(mustSucceed(closeIndexResponse -> {
+                            logger.info(
+                                "--> finished closing indices {} in preparation for restoring from [{}:{}]",
+                                indicesToRestoreList,
+                                snapshotInfo.repository(),
+                                snapshotInfo.snapshotId().getName()
+                            );
+                            assertTrue(closeIndexResponse.isAcknowledged());
+                            assertTrue(closeIndexResponse.isShardsAcknowledged());
+                            closeIndicesStep.onResponse(null);
+                        }));
                     }));
                 } else {
                     closeIndicesStep.onResponse(null);
@@ -524,33 +538,20 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                 if (indicesToDelete.length > 0) {
                     logger.info(
-                        "--> waiting for yellow health of [{}] before deleting",
-                        Strings.arrayToCommaDelimitedString(indicesToDelete)
+                        "--> deleting indices {} in preparation for restoring from [{}:{}]",
+                        indicesToRestoreList,
+                        snapshotInfo.repository(),
+                        snapshotInfo.snapshotId().getName()
                     );
-
-                    SubscribableListener.<ClusterHealthResponse>newForked(
-                        l -> prepareClusterHealthRequest(indicesToDelete).setWaitForYellowStatus().execute(l)
-                    ).addListener(mustSucceed(clusterHealthResponse -> {
-                        assertFalse(
-                            "timed out waiting for yellow state of " + Strings.arrayToCommaDelimitedString(indicesToDelete),
-                            clusterHealthResponse.isTimedOut()
-                        );
+                    indicesAdmin().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
                         logger.info(
-                            "--> deleting indices {} in preparation for restoring from [{}:{}]",
+                            "--> finished deleting indices {} in preparation for restoring from [{}:{}]",
                             indicesToRestoreList,
                             snapshotInfo.repository(),
                             snapshotInfo.snapshotId().getName()
                         );
-                        indicesAdmin().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
-                            logger.info(
-                                "--> finished deleting indices {} in preparation for restoring from [{}:{}]",
-                                indicesToRestoreList,
-                                snapshotInfo.repository(),
-                                snapshotInfo.snapshotId().getName()
-                            );
-                            assertTrue(deleteIndicesResponse.isAcknowledged());
-                            deleteIndicesStep.onResponse(null);
-                        }));
+                        assertTrue(deleteIndicesResponse.isAcknowledged());
+                        deleteIndicesStep.onResponse(null);
                     }));
                 } else {
                     deleteIndicesStep.onResponse(null);
@@ -856,8 +857,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 boolean startedSnapshot = false;
                 try (TransferableReleasables localReleasables = new TransferableReleasables()) {
 
-                    // separate TransferableReleasables for blocking node restarts so we can release these blocks and
-                    // permit data node restarts as soon as the snapshot starts
+                    // separate TransferableReleasables for blocking node restarts & index deletion so we can release these blocks and
+                    // permit data node restarts and index deletions as soon as the snapshot starts
                     final TransferableReleasables releasableAfterStart = new TransferableReleasables();
                     localReleasables.add(releasableAfterStart);
 
@@ -1404,20 +1405,15 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                         } else if (localReleasables.add(tryAcquireAllPermits(permits)) != null) {
                             // delete the index and create a new one
+
                             final Releasable releaseAll = localReleasables.transfer();
 
-                            logger.info("--> waiting for yellow health of [{}] before deleting", indexName);
+                            logger.info("--> deleting index [{}]", indexName);
 
-                            SubscribableListener.<ClusterHealthResponse>newForked(
-                                l -> prepareClusterHealthRequest(indexName).setWaitForYellowStatus().execute(l)
-                            ).addListener(mustSucceed(clusterHealthResponse -> {
-                                assertFalse("timed out waiting for yellow state of " + indexName, clusterHealthResponse.isTimedOut());
-                                logger.info("--> deleting index [{}]", indexName);
-                                indicesAdmin().prepareDelete(indexName).execute(mustSucceed(acknowledgedResponse -> {
-                                    logger.info("--> deleting index [{}] finished", indexName);
-                                    assertTrue(acknowledgedResponse.isAcknowledged());
-                                    createIndexAndContinue(releaseAll);
-                                }));
+                            indicesAdmin().prepareDelete(indexName).execute(mustSucceed(acknowledgedResponse -> {
+                                logger.info("--> deleting index [{}] finished", indexName);
+                                assertTrue(acknowledgedResponse.isAcknowledged());
+                                createIndexAndContinue(releaseAll);
                             }));
 
                             forked = true;

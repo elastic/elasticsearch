@@ -67,6 +67,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
@@ -74,6 +75,7 @@ import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -538,6 +540,23 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             );
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()), hasSize(1));
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).get(0).stringValue(), equalTo(EXTRACTION_FAILED));
+    }
+
+    public void testParseScriptQueryWithParams() throws Exception {
+        addQueryFieldMappings();
+        ScriptScoreQueryBuilder scriptScoreQueryBuilder = new ScriptScoreQueryBuilder(
+            new MatchAllQueryBuilder(),
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "score", Collections.singletonMap("param", "1"))
+        );
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, scriptScoreQueryBuilder).endObject()),
+                    XContentType.JSON
+                )
+            );
+        assertNotNull(doc);
     }
 
     public void testStoringQueries() throws Exception {
@@ -1106,7 +1125,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("return true", (vars) -> true);
+            return Map.of("return true", (vars) -> true, "score", (vars) -> 0f);
         }
 
         @Override

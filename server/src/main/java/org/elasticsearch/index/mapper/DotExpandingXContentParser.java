@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.FilterXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -18,9 +17,6 @@ import org.elasticsearch.xcontent.XContentSubParser;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * An XContentParser that reinterprets field names containing dots as an object structure.
@@ -170,37 +166,6 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         @Override
         protected XContentParser delegate() {
             return parsers.peek();
-        }
-
-        @Override
-        public Map<String, Object> map() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Map<String, Object> mapOrdered() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Map<String, String> mapStrings() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
-            throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<Object> list() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public List<Object> listOrderedMap() throws IOException {
-            throw new UnsupportedOperationException();
         }
     }
 

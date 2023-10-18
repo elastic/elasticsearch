@@ -1124,6 +1124,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         // from the list of the unavailable searchable snapshots because the data is available via the original index.
         void updateSearchableSnapshotWithAvailableIndices(Metadata clusterMetadata, Set<String> indicesWithUnavailableShards) {
             for (String index : searchableSnapshotWithUnavailableShard) {
+                assert clusterMetadata.index(index) != null : "Index metadata of index '" + index + "' should not be null";
                 Settings indexSettings = clusterMetadata.index(index).getSettings();
                 String originalIndex = indexSettings.get(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY);
                 if (originalIndex != null

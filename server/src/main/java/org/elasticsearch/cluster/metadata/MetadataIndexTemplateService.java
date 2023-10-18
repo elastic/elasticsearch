@@ -118,6 +118,58 @@ public class MetadataIndexTemplateService {
                     .map(defaultTimestampField)
                     .endObject()
             );
+            /*
+             * The data stream failure store mapping. The JSON content is as follows:
+             * {
+             *   "_doc": {
+             *     "dynamic": false,
+             *     "_routing": {
+             *       "required": false
+             *     },
+             *     "properties": {
+             *       "@timestamp": {
+             *         "type": "date",
+             *         "ignore_malformed": false
+             *       },
+             *       "document": {
+             *         "properties": {
+             *           "id": {
+             *             "type": "keyword"
+             *           },
+             *           "routing": {
+             *             "type": "keyword"
+             *           },
+             *           "index": {
+             *             "type": "keyword"
+             *           }
+             *         }
+             *       },
+             *       "error": {
+             *         "properties": {
+             *           "message": {
+             *              "type": "wildcard"
+             *           },
+             *           "stack_trace": {
+             *              "type": "text"
+             *           },
+             *           "type": {
+             *              "type": "keyword"
+             *           },
+             *           "pipeline": {
+             *              "type": "keyword"
+             *           },
+             *           "pipeline_trace": {
+             *              "type": "keyword"
+             *           },
+             *           "processor": {
+             *              "type": "keyword"
+             *           }
+             *         }
+             *       }
+             *     }
+             *   }
+             * }
+             */
             DATA_STREAM_FAILURE_STORE_MAPPING = new CompressedXContent(
                 (builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
                     .field("dynamic", false)

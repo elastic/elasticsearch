@@ -119,10 +119,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         }
 
         protected void reset(StreamInput in) throws IOException {
-            int length = in.readInt();
-            byte[] bytes = new byte[length];
-            int read = in.read(bytes, 0, bytes.length);
-            assert read == length : "Failed to read all bytes";
+            byte[] bytes = in.readByteArray();
             reset(new BytesRef(bytes, 0, bytes.length));
         }
 
@@ -209,7 +206,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             byte[] bytes = this.reader.copyBytes();
-            out.writeInt(bytes.length);
+            out.writeVInt(bytes.length);
             out.write(bytes, 0, bytes.length);
         }
     }

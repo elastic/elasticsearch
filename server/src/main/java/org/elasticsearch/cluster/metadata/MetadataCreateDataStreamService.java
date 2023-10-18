@@ -166,6 +166,10 @@ public class MetadataCreateDataStreamService {
         public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
             return descriptor;
         }
+
+        long getStartTime() {
+            return startTime;
+        }
     }
 
     static ClusterState createDataStream(
@@ -241,7 +245,7 @@ public class MetadataCreateDataStreamService {
             if (isSystem) {
                 throw new IllegalArgumentException("Failure stores are not supported on system indices");
             }
-            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.startTime);
+            String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.getStartTime());
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
                 currentState,
@@ -254,7 +258,7 @@ public class MetadataCreateDataStreamService {
         }
 
         if (writeIndex == null) {
-            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, request.startTime);
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, request.getStartTime());
             currentState = createBackingIndex(
                 metadataCreateIndexService,
                 currentState,
@@ -338,7 +342,7 @@ public class MetadataCreateDataStreamService {
             firstBackingIndexName
         ).dataStreamName(dataStreamName)
             .systemDataStreamDescriptor(systemDataStreamDescriptor)
-            .nameResolvedInstant(request.startTime)
+            .nameResolvedInstant(request.getStartTime())
             .performReroute(request.performReroute())
             .setMatchingTemplate(template);
 
@@ -381,7 +385,7 @@ public class MetadataCreateDataStreamService {
             failureStoreIndexName,
             failureStoreIndexName
         ).dataStreamName(dataStreamName)
-            .nameResolvedInstant(request.startTime)
+            .nameResolvedInstant(request.getStartTime())
             .performReroute(false)
             .setMatchingTemplate(template)
             .settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);

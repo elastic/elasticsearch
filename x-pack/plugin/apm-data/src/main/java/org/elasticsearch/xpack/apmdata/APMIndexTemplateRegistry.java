@@ -133,7 +133,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         if (dependencies == null) {
             dependencies = Collections.emptyList();
         }
-        return new ApmIngestPipelineConfig(
+        return new YamlIngestPipelineConfig(
             name,
             "/ingest-pipelines/" + name + ".yaml",
             version,

@@ -19,8 +19,8 @@ import static org.elasticsearch.xpack.apmdata.ResourceUtils.loadVersionedResourc
 /**
  * An APM-plugin-specific implementation that loads ingest pipelines in yaml format from a local resources repository
  */
-public class ApmIngestPipelineConfig extends IngestPipelineConfig {
-    public ApmIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
+public class YamlIngestPipelineConfig extends IngestPipelineConfig {
+    public YamlIngestPipelineConfig(String id, String resource, int version, String versionProperty, List<String> dependencies) {
         super(id, resource, version, versionProperty, dependencies);
     }
 

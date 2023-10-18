@@ -867,9 +867,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (primaries.areAllAvailable()
                 && primaries.searchableSnapshotsState.searchableSnapshotWithOriginalIndexAvailable.isEmpty() == false) {
                 if (primaries.unassigned == 1) {
-                    builder.append(" This is a mounted shard and the original shard is available, so there are no data availability problems.");
+                    builder.append(
+                        " This is a mounted shard and the original shard is available, so there are no data availability problems."
+                    );
                 } else {
-                    builder.append(" These are mounted shards and the original shards are available, so there are no data availability problems.");
+                    builder.append(
+                        " These are mounted shards and the original shards are available, so there are no data availability problems."
+                    );
                 }
             }
             return builder.toString();

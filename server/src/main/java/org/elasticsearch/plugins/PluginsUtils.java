@@ -79,16 +79,9 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
-        boolean buildSupportsStablePlugins;
-        SemanticVersion currentElasticsearchVersion = null;
-        try {
-            currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
-            buildSupportsStablePlugins = true;
-        } catch (IllegalArgumentException e) {
-            buildSupportsStablePlugins = false;
-        }
+        SemanticVersion currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
         // stable plugins can run on the exact version they're built with even if it's not semantic
-        if (info.isStable() && buildSupportsStablePlugins) {
+        if (info.isStable()) {
             SemanticVersion pluginElasticsearchVersion;
             try {
                 pluginElasticsearchVersion = SemanticVersion.create(info.getElasticsearchVersion());

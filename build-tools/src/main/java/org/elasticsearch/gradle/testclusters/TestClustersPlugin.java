@@ -16,7 +16,6 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.execution.TaskExecutionListener;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.internal.file.FileOperations;
@@ -27,7 +26,6 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
-import org.gradle.api.tasks.TaskState;
 import org.gradle.build.event.BuildEventsListenerRegistry;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
@@ -166,8 +164,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         public abstract BuildEventsListenerRegistry getEventsListenerRegistry();
 
         @Inject
-        public TestClustersHookPlugin() {
-        }
+        public TestClustersHookPlugin() {}
+
         public void apply(Project project) {
             if (project != project.getRootProject()) {
                 throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
@@ -177,10 +175,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                 REGISTRY_SERVICE_NAME
             );
 
-            Provider<TaskEventsService> testClusterTasksService =
-                project.getGradle().getSharedServices().registerIfAbsent(
-                    "testClusterTasksService", TaskEventsService.class, spec -> {
-                    });
+            Provider<TaskEventsService> testClusterTasksService = project.getGradle()
+                .getSharedServices()
+                .registerIfAbsent("testClusterTasksService", TaskEventsService.class, spec -> {});
 
             TestClustersRegistry registry = registryProvider.get();
 
@@ -196,7 +193,7 @@ public class TestClustersPlugin implements Plugin<Project> {
             getEventsListenerRegistry().onTaskCompletion(testClusterTasksService);
 
             // After each task we determine if there are clusters that are no longer needed.
-            //configureStopClustersHook(project.getGradle(), registry, testClusterTasksService;
+            // configureStopClustersHook(project.getGradle(), registry, testClusterTasksService;
         }
 
         private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
@@ -212,9 +209,12 @@ public class TestClustersPlugin implements Plugin<Project> {
             });
         }
 
-        private void configureStartClustersHook(Gradle gradle, TestClustersRegistry registry, Provider<TaskEventsService> testClusterTasksService) {
+        private void configureStartClustersHook(
+            Gradle gradle,
+            TestClustersRegistry registry,
+            Provider<TaskEventsService> testClusterTasksService
+        ) {
             testClusterTasksService.get().registry(registry);
-
             gradle.getTaskGraph().whenReady(taskExecutionGraph -> {
                 taskExecutionGraph.getAllTasks()
                     .stream()
@@ -229,29 +229,11 @@ public class TestClustersPlugin implements Plugin<Project> {
                     });
             });
         }
-
-        private static void configureStopClustersHook(Gradle gradle, TestClustersRegistry registry) {
-
-            gradle.addListener(new TaskExecutionListener() {
-                @Override
-                public void afterExecute(Task task, TaskState state) {
-                    if (task instanceof TestClustersAware == false) {
-                        return;
-                    }
-                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
-                    // and caused the cluster to start.
-                    ((TestClustersAware) task).getClusters().forEach(cluster -> registry.stopCluster(cluster, state.getFailure() != null));
-                }
-
-                @Override
-                public void beforeExecute(Task task) {}
-            });
-        }
     }
 
     static public abstract class TaskEventsService implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {
 
-        Map<String,TestClustersAware> tasksMap = new HashMap<>();
+        Map<String, TestClustersAware> tasksMap = new HashMap<>();
         private TestClustersRegistry registryProvider;
 
         public void register(String path, TestClustersAware task) {
@@ -264,16 +246,19 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         @Override
         public void onFinish(FinishEvent finishEvent) {
-            if (finishEvent instanceof TaskFinishEvent) {
+            if (finishEvent instanceof TaskFinishEvent taskFinishEvent) {
                 // Handle task finish event...
-                TaskFinishEvent taskFinishEvent = (TaskFinishEvent)finishEvent;
                 String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
-                TestClustersAware task = tasksMap.get(taskPath);
-                // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
-                // and caused the cluster to start.
-                task.getClusters().forEach(cluster -> registryProvider.stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult));
+                if (tasksMap.containsKey(taskPath)) {
+                    TestClustersAware task = tasksMap.get(taskPath);
+                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
+                    // and caused the cluster to start.
+                    task.getClusters()
+                        .forEach(
+                            cluster -> registryProvider.stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
+                        );
+                }
             }
         }
-
     }
 }

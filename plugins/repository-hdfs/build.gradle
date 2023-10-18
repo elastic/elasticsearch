@@ -291,7 +291,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
 
     testClusters.matching { it.name == testTask.name }.configureEach {
         if (testTask.name.contains("Secure")) {
-            systemProperty "java.security.krb5.conf", configurations.krb5Config.singleFile.getPath(), IGNORE_VALUE
+            systemProperty "java.security.krb5.conf", { configurations.krb5Config.singleFile.getPath() }, IGNORE_VALUE
             extraConfigFile(
                     "repository-hdfs/krb5.keytab",
                     new File(project.configurations.krb5Keytabs.singleFile, "elasticsearch.keytab"),

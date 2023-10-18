@@ -27,7 +27,7 @@ tasks.withType(Test).configureEach {
   doFirst {
     delete(repoDir)
   }
-  nonInputPrperties.systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {

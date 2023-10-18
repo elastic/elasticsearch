@@ -246,6 +246,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     }
 
     /**
+     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+     */
+    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
+        Long shardSize = getShardSize(shardId, primary);
+        return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
      * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
      */
     public String getDataPath(ShardRouting shardRouting) {

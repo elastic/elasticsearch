@@ -1,5 +1,9 @@
+[discrete]
 [[esql-starts_with]]
 === `STARTS_WITH`
+[.text-center]
+image::esql/functions/signature/ends_with.svg[Embedded,opts=inline]
+
 Returns a boolean that indicates whether a keyword string starts with another
 string:
 
@@ -11,3 +15,7 @@ include::{esql-specs}/docs.csv-spec[tag=startsWith]
 |===
 include::{esql-specs}/docs.csv-spec[tag=startsWith-result]
 |===
+
+Supported types:
+
+include::types/starts_with.asciidoc[]

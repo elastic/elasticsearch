@@ -1,0 +1,5 @@
+pr: 100646
+summary: Support complex datemath expressions in index and index alias names
+area: Search
+type: bug
+issues: []

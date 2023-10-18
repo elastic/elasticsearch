@@ -562,6 +562,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     /**
      * Check that log messages about REST API compatibility are recorded to an index
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/96723")
     public void testCompatibleMessagesCanBeIndexed() throws Exception {
 
         final Request compatibleRequest = new Request("GET", "/_test_cluster/compat_only");

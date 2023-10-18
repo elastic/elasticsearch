@@ -1,0 +1,6 @@
+pr: 100470
+summary: DSL waits for the tsdb time boundaries to lapse
+area: Data streams
+type: bug
+issues:
+ - 99696

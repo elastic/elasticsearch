@@ -498,12 +498,13 @@ public final class PlanNamedTypes {
     }
 
     static ExchangeSinkExec readExchangeSinkExec(PlanStreamInput in) throws IOException {
-        return new ExchangeSinkExec(in.readSource(), readAttributes(in), in.readPhysicalPlanNode());
+        return new ExchangeSinkExec(in.readSource(), readAttributes(in), in.readBoolean(), in.readPhysicalPlanNode());
     }
 
     static void writeExchangeSinkExec(PlanStreamOutput out, ExchangeSinkExec exchangeSinkExec) throws IOException {
         out.writeNoSource();
         writeAttributes(out, exchangeSinkExec.output());
+        out.writeBoolean(exchangeSinkExec.isIntermediateAgg());
         out.writePhysicalPlanNode(exchangeSinkExec.child());
     }
 
@@ -958,12 +959,17 @@ public final class PlanNamedTypes {
     }
 
     static InvalidMappedField readInvalidMappedField(PlanStreamInput in) throws IOException {
-        return new InvalidMappedField(in.readString(), in.readString());
+        return new InvalidMappedField(
+            in.readString(),
+            in.readString(),
+            in.readImmutableMap(StreamInput::readString, readerFromPlanReader(PlanStreamInput::readEsFieldNamed))
+        );
     }
 
     static void writeInvalidMappedField(PlanStreamOutput out, InvalidMappedField field) throws IOException {
         out.writeString(field.getName());
         out.writeString(field.errorMessage());
+        out.writeMap(field.getProperties(), (o, v) -> out.writeNamed(EsField.class, v));
     }
 
     static KeywordEsField readKeywordEsField(PlanStreamInput in) throws IOException {

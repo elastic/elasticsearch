@@ -82,7 +82,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -1163,8 +1163,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         // the query cache has an optimization that disables it automatically if there is contention,
         // so we run it in an assertBusy block which should eventually succeed
         assertBusy(() -> {
-            assertSearchResponse(
-                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get()
+            assertNoFailures(
+                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz")))
             );
             IndicesStatsResponse stats = indicesAdmin().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
@@ -1174,8 +1174,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            assertSearchResponse(
-                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get()
+            assertNoFailures(
+                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz")))
             );
             IndicesStatsResponse stats = indicesAdmin().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
@@ -1224,8 +1224,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            assertSearchResponse(
-                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))).get()
+            assertNoFailures(
+                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz")))
             );
             IndicesStatsResponse stats = indicesAdmin().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);

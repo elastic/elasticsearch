@@ -178,7 +178,7 @@ public class Node implements Closeable {
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
     public Node(Environment environment) {
-        this(NodeConstructor.construct(environment, new NodeServiceProvider(), true));
+        this(NodeConstructor.prepareConstruction(environment, new NodeServiceProvider(), true));
     }
 
     /**

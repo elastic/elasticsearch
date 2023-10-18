@@ -1,3 +1,4 @@
+[discrete]
 [[esql-left]]
 === `LEFT`
 [.text-center]

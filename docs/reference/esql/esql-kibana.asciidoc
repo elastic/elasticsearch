@@ -1,0 +1,8 @@
+[[esql-kibana]]
+== Using {esql} in {kib}
+
+++++
+<titleabbrev>Kibana</titleabbrev>
+++++
+
+coming::[8.11]

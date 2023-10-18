@@ -161,17 +161,21 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         for (String allowedField : allowedFields) {
             logger.info("Checking allowed field [{}]", allowedField);
-            SearchResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareSearch("test").setQuery(matchQuery(allowedField, "value")).get();
-            assertHitCount(response, 1);
+            assertHitCount(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(matchQuery(allowedField, "value")),
+                1
+            );
         }
         for (String disallowedField : disAllowedFields) {
             logger.info("Checking disallowed field [{}]", disallowedField);
-            SearchResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareSearch("test").setQuery(matchQuery(disallowedField, "value")).get();
-            assertHitCount(response, 0);
+            assertHitCount(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(matchQuery(disallowedField, "value")),
+                0
+            );
         }
     }
 

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_count]]
 === `MV_COUNT`
 Converts a multivalued field into a single valued field containing a count of the number

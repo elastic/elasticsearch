@@ -460,7 +460,8 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             }
             ComponentTemplate templateConfig = componentTemplateConfigs.get(templateName);
             // note: currently we only take care of component templates that are installed by the same registry as the index template. We
-            // don't enforce proper version for component templates that come from outside of this registry
+            // don't enforce proper version for component templates that come from outside of this registry.
+            // See https://github.com/elastic/elasticsearch/issues/99647
             if (templateConfig != null && templateConfig.version().equals(installedTemplate.version()) == false) {
                 return false;
             }

@@ -24,7 +24,7 @@ public abstract class IngestPipelineConfig {
     protected final String versionProperty;
 
     /**
-     * A list of this pipeline's dependencies, for example- such referred to through a pipeline processor.
+     * A list of this pipeline's dependencies, for example - such referred to through a pipeline processor.
      * This list is used to enforce proper ordering of pipeline installation, so that a pipeline gets installed only if all its
      * dependencies are already installed.
      */

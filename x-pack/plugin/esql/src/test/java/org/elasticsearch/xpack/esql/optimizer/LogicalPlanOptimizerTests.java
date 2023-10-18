@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardL
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -2012,6 +2013,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("min", "max", "gender"));
         aggFieldName(aggs.get(0), Min.class, "salary");
+        aggFieldName(aggs.get(1), Max.class, "salary");
         var source = as(agg.child(), EsRelation.class);
     }
 

@@ -95,15 +95,15 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             Limiter.ONCE,
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
-            new ReplaceAliasingEvalWithProject(),
+            new ReplaceAliasingEvalWithProject()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
-            new ReplaceDuplicateAggWithEval()
         );
 
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
             new CombineEvals(),
+            new ReplaceDuplicateAggWithEval(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),

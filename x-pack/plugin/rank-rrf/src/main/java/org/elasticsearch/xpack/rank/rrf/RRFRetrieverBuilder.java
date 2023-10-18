@@ -23,27 +23,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-/*
-curl -X GET -u elastic:password "localhost:9200/_search?pretty" -H 'Content-Type: application/json' -d'
-{
-    "retriever": {
-        "rrf": {
-            "retrievers": [
-                {
-                    "classic": {
-                        "query": {
-                            "match_all": {}
-                        },
-                        "sort": {"user.id.keyword": "desc"}
-                    }
-                }
-            ]
-        }
-    }
-}
-'
- */
-
 public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuilder> {
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
@@ -57,10 +36,11 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
 
     static {
         PARSER.declareObjectArray((v, l) -> v.retrieverBuilders = l, (p, c) -> {
-            String name = p.currentName();
             p.nextToken();
-            if (true) throw new IllegalStateException(name);
-            return (RetrieverBuilder<?>)p.namedObject(RetrieverBuilder.class, name, c);
+            String name = p.currentName();
+            RetrieverBuilder<?> retrieverBuilder = (RetrieverBuilder<?>) p.namedObject(RetrieverBuilder.class, name, c);
+            p.nextToken();
+            return retrieverBuilder;
         }, RETRIEVERS_FIELD);
         PARSER.declareInt((b, v) -> b.windowSize = v, WINDOW_SIZE_FIELD);
         PARSER.declareInt((b, v) -> b.rankConstant = v, RANK_CONSTANT_FIELD);
@@ -73,8 +53,8 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     }
 
     private List<? extends RetrieverBuilder<?>> retrieverBuilders = Collections.emptyList();
-    private int windowSize;
-    private int rankConstant;
+    private int windowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
+    private int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     public RRFRetrieverBuilder() {
 
@@ -90,7 +70,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
     @SuppressWarnings("unchecked")
     public RRFRetrieverBuilder(StreamInput in) throws IOException {
         super(in);
-        retrieverBuilders = (List<RetrieverBuilder<?>>)(Object)in.readNamedWriteableCollectionAsList(RetrieverBuilder.class);
+        retrieverBuilders = (List<RetrieverBuilder<?>>) (Object) in.readNamedWriteableCollectionAsList(RetrieverBuilder.class);
         windowSize = in.readVInt();
         rankConstant = in.readVInt();
     }
@@ -131,6 +111,14 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder<RRFRetrieverBuil
 
     @Override
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
+        for (RetrieverBuilder<?> retrieverBuilder : retrieverBuilders) {
+            retrieverBuilder.doExtractToSearchSourceBuilder(searchSourceBuilder);
+        }
 
+        if (searchSourceBuilder.rankBuilder() == null) {
+            searchSourceBuilder.rankBuilder(new RRFRankBuilder(windowSize, rankConstant));
+        } else {
+            throw new IllegalStateException("[rank] cannot be declared as a retriever value and as a global value");
+        }
     }
 }

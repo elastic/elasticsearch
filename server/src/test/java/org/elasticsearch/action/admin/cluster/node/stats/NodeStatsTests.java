@@ -32,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -541,7 +542,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(@Nullable HttpStats httpStats) {
-        return httpStats == null ? 0 : 2 + httpStats.getClientStats().size();
+        return httpStats == null ? 0 : 3 + httpStats.getClientStats().size() + httpStats.httpRouteStats().size();
     }
 
     private static int expectedChunks(@Nullable TransportStats transportStats) {
@@ -680,7 +681,7 @@ public class NodeStatsTests extends ESTestCase {
             statsByShard.put(indexTest, indexShardStats);
 
             CommonStats oldStats = new CommonStats(CommonStatsFlags.ALL);
-            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard);
+            nodeIndicesStats = new NodeIndicesStats(oldStats, statsByIndex, statsByShard, true);
         }
         OsStats osStats = null;
         if (frequently()) {
@@ -859,7 +860,12 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(randomNonNegativeLong(), randomNonNegativeLong(), clientStats);
+            httpStats = new HttpStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                clientStats,
+                randomMap(1, 3, () -> new Tuple<>(randomAlphaOfLength(10), HttpStatsTests.randomHttpRouteStats()))
+            );
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

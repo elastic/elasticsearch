@@ -120,9 +120,10 @@ public class RestResponse {
             // log exception only if it is not returned in the response
             Supplier<?> messageSupplier = () -> String.format(
                 Locale.ROOT,
-                "path: %s, params: %s",
+                "path: %s, params: %s, status: %d",
                 channel.request().rawPath(),
-                channel.request().params()
+                channel.request().params(),
+                status.getStatus()
             );
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
@@ -165,7 +166,7 @@ public class RestResponse {
 
     private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
         ToXContent.Params params = restRequest;
-        if (params.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
+        if (restRequest.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;

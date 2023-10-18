@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.cluster.coordination;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +47,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1041")
 public class TransportConsistentClusterStateReadIT extends AbstractStatelessIntegTestCase {
 
     public void testConsistentClusterStateRead() throws Exception {
@@ -144,7 +142,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
             // Wait until the index-node is removed by the master node; notice that the leader check timeout uses the default, meaning that
             // the index node will consider that it can reach the master node
             assertBusy(() -> {
-                var currentState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+                var currentState = internalCluster().getInstance(ClusterService.class, masterNode).state();
                 assertThat(currentState.nodes().get(indexNodeId), is(nullValue()));
             });
         }

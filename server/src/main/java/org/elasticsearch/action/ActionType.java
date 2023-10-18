@@ -18,6 +18,10 @@ public class ActionType<Response extends ActionResponse> {
     private final String name;
     private final Writeable.Reader<Response> responseReader;
 
+    public static <T extends ActionResponse> ActionType<T> localOnly(String name) {
+        return new ActionType<>(name, Writeable.Reader.localOnly());
+    }
+
     /**
      * @param name The name of the action, must be unique across actions.
      * @param responseReader A reader for the response type

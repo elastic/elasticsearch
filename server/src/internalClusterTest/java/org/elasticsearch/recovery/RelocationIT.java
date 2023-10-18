@@ -485,7 +485,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < searchThreads.length; i++) {
             searchThreads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
-                    assertNoFailures(client().prepareSearch("test").setRequestCache(false).get());
+                    assertNoFailures(client().prepareSearch("test").setRequestCache(false));
                 }
             });
             searchThreads[i].start();

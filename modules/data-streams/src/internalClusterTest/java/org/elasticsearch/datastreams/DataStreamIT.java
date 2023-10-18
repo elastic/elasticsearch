@@ -754,11 +754,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        SearchResponse searchResponse = client().prepareSearch("logs-foobar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(client().prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 2, because it matches with the defined filter in the alias:
-        searchResponse = client().prepareSearch("foo").get();
-        assertSearchHits(searchResponse, "2");
+        assertSearchHits(client().prepareSearch("foo"), "2");
 
         // Update alias:
         addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
@@ -786,11 +784,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        searchResponse = client().prepareSearch("logs-foobar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(client().prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 1, because it matches with the defined filter in the alias:
-        searchResponse = client().prepareSearch("foo").get();
-        assertSearchHits(searchResponse, "1");
+        assertSearchHits(client().prepareSearch("foo"), "1");
     }
 
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
@@ -833,11 +829,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the filtered and unfiltered aliases should return all results (unfiltered):
-        SearchResponse searchResponse = client().prepareSearch("foo", "bar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(client().prepareSearch("foo", "bar"), "1", "2");
         // Searching the data stream name and the filtered alias should return all results (unfiltered):
-        searchResponse = client().prepareSearch("foo", dataStreamName).get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(client().prepareSearch("foo", dataStreamName), "1", "2");
     }
 
     public void testRandomDataSteamAliasesUpdate() throws Exception {

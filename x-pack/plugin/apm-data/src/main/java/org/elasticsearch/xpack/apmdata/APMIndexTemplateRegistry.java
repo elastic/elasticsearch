@@ -127,7 +127,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
         if (enabled) {
             return ingestPipelines;
         } else {
-            return  Collections.emptyList();
+            return Collections.emptyList();
         }
     }
 

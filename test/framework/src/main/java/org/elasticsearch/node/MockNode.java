@@ -275,7 +275,7 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(NodeConstructor.prepareConstruction(environment, new MockServiceProvider() {
+        super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
             @Override
             Function<Settings, PluginsService> pluginsServiceCtor(Environment initialEnvironment) {
                 return settings -> new MockPluginsService(settings, initialEnvironment, classpathPlugins);

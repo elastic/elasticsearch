@@ -45,7 +45,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
- * Provides various service implementations to {@link NodeConstructor}
+ * Provides various service implementations to {@link NodeConstruction}
  */
 class NodeServiceProvider {
 

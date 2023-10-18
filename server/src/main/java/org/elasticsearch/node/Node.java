@@ -178,24 +178,24 @@ public class Node implements Closeable {
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
     public Node(Environment environment) {
-        this(NodeConstructor.prepareConstruction(environment, new NodeServiceProvider(), true));
+        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(), true));
     }
 
     /**
-     * Constructs a node using information from {@code constructor}
+     * Constructs a node using information from {@code construction}
      */
-    Node(NodeConstructor constructor) {
-        injector = constructor.injector();
-        environment = constructor.environment();
-        nodeEnvironment = constructor.nodeEnvironment();
-        pluginsService = constructor.pluginsService();
-        client = constructor.client();
-        pluginLifecycleComponents = constructor.pluginLifecycleComponents();
-        localNodeFactory = constructor.localNodeFactory();
-        nodeService = constructor.nodeService();
-        terminationHandler = constructor.terminationHandler();
-        namedWriteableRegistry = constructor.namedWriteableRegistry();
-        namedXContentRegistry = constructor.namedXContentRegistry();
+    Node(NodeConstruction construction) {
+        injector = construction.injector();
+        environment = construction.environment();
+        nodeEnvironment = construction.nodeEnvironment();
+        pluginsService = construction.pluginsService();
+        client = construction.client();
+        pluginLifecycleComponents = construction.pluginLifecycleComponents();
+        localNodeFactory = construction.localNodeFactory();
+        nodeService = construction.nodeService();
+        terminationHandler = construction.terminationHandler();
+        namedWriteableRegistry = construction.namedWriteableRegistry();
+        namedXContentRegistry = construction.namedXContentRegistry();
     }
 
     /**

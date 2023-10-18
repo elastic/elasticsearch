@@ -224,7 +224,7 @@ import static org.elasticsearch.core.Types.forciblyCast;
  * Separating out this logic into a dedicated class is a lot clearer and more flexible than
  * doing all this logic inside a constructor in {@link Node}.
  */
-class NodeConstructor {
+class NodeConstruction {
 
     /**
      * Prepare everything needed to create a {@link Node} instance.
@@ -234,14 +234,14 @@ class NodeConstructor {
      * @param forbidPrivateIndexSettings whether or not private index settings are forbidden when creating an index; this is used in the
      *                                   test framework for tests that rely on being able to set private settings
      */
-    static NodeConstructor prepareConstruction(
+    static NodeConstruction prepareConstruction(
         Environment initialEnvironment,
         NodeServiceProvider serviceProvider,
         boolean forbidPrivateIndexSettings
     ) {
         List<Closeable> closeables = new ArrayList<>();
         try {
-            NodeConstructor constructor = new NodeConstructor(closeables);
+            NodeConstruction constructor = new NodeConstruction(closeables);
             constructor.construct(initialEnvironment, serviceProvider, forbidPrivateIndexSettings);
             return constructor;
         } catch (IOException e) {
@@ -275,7 +275,7 @@ class NodeConstructor {
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
 
-    private NodeConstructor(List<Closeable> resourcesToClose) {
+    private NodeConstruction(List<Closeable> resourcesToClose) {
         this.resourcesToClose = resourcesToClose;
     }
 

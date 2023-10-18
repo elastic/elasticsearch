@@ -39,11 +39,9 @@ public class SpatialStatsTransportAction extends TransportNodesAction<
     ) {
         super(
             SpatialStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            SpatialStatsAction.Request::new,
             SpatialStatsAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -61,7 +59,7 @@ public class SpatialStatsTransportAction extends TransportNodesAction<
 
     @Override
     protected SpatialStatsAction.NodeRequest newNodeRequest(SpatialStatsAction.Request request) {
-        return new SpatialStatsAction.NodeRequest(request);
+        return new SpatialStatsAction.NodeRequest();
     }
 
     @Override

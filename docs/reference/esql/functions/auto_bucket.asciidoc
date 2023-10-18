@@ -1,3 +1,4 @@
+[discrete]
 [[esql-auto_bucket]]
 === `AUTO_BUCKET`
 Creates human-friendly buckets and returns a `datetime` value for each row that

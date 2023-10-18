@@ -303,9 +303,9 @@ import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBui
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.InternalKSTestAggregation;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
+import org.elasticsearch.xpack.ml.autoscaling.AbstractNodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
-import org.elasticsearch.xpack.ml.autoscaling.NodeAvailabilityZoneMapper;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
@@ -1197,10 +1197,9 @@ public class MachineLearning extends Plugin
         // Perform node startup operations
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(
-            settings,
-            clusterService.getClusterSettings()
-        );
+        AbstractNodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = machineLearningExtension.get()
+            .getNodeAvailabilityZoneMapper(settings, clusterService.getClusterSettings());
+
         clusterService.addListener(nodeAvailabilityZoneMapper);
 
         // allocation service objects

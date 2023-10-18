@@ -99,6 +99,10 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     assert hll.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();

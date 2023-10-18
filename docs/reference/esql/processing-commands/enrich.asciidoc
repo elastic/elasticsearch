@@ -1,3 +1,4 @@
+[discrete]
 [[esql-enrich]]
 === `ENRICH`
 You can use `ENRICH` to add data from your existing indices to incoming records.

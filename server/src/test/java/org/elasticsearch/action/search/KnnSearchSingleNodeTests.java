@@ -72,7 +72,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(response, 19);
         assertEquals(10, response.getHits().getHits().length);
         // Make sure we still have 20 docs
-        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true).get(), 20);
+        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true), 20);
     }
 
     public void testKnnWithQuery() throws IOException {

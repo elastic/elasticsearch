@@ -224,8 +224,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap());
-            SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
-            assertNoFailures(resp);
+            assertNoFailures(client().prepareSearch("test-index").setQuery(scriptQuery(script)));
 
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
@@ -241,8 +240,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
             // Set search.allow_expensive_queries to "true" => success
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
-            assertNoFailures(resp);
+            assertNoFailures(client().prepareSearch("test-index").setQuery(scriptQuery(script)));
         } finally {
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         }

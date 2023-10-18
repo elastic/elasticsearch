@@ -111,8 +111,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertHitCount(
             client().prepareSearch()
                 .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                .setSearchType(useDFS ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH)
-                .get(),
+                .setSearchType(useDFS ? SearchType.DFS_QUERY_THEN_FETCH : SearchType.QUERY_THEN_FETCH),
             3
         );
         assertThat(engine, Matchers.instanceOf(FrozenEngine.class));
@@ -293,7 +292,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
         assertEquals(IndexMetadata.State.CLOSE, stateResponse.getState().getMetadata().index("idx-closed").getState());
         assertEquals(IndexMetadata.State.OPEN, stateResponse.getState().getMetadata().index("idx").getState());
-        assertHitCount(client().prepareSearch().get(), 1L);
+        assertHitCount(client().prepareSearch(), 1L);
     }
 
     public void testFreezePattern() {
@@ -307,7 +306,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
 
         IndicesStatsResponse index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(0, index.getTotal().refresh.getTotal());
-        assertHitCount(client().prepareSearch(indexName).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED).get(), 1);
+        assertHitCount(client().prepareSearch(indexName).setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED), 1);
         index = indicesAdmin().prepareStats(indexName).clear().setRefresh(true).get();
         assertEquals(1, index.getTotal().refresh.getTotal());
 

@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class NodeAvailabilityZoneMapperTests extends ESTestCase {
+public class NodeRealAvailabilityZoneMapperTests extends ESTestCase {
 
     public void testBeforeClusterReady() {
         Settings settings = Settings.builder()
@@ -52,11 +52,11 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             Set.of(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING)
         );
 
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings);
+        NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper = new NodeRealAvailabilityZoneMapper(settings, clusterSettings);
 
-        assertThat(nodeAvailabilityZoneMapper.getAwarenessAttributes(), equalTo(List.of("region", "logical_availability_zone")));
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), anEmptyMap());
-        assertThat(nodeAvailabilityZoneMapper.getNumAvailabilityZones(), is(OptionalInt.empty()));
+        assertThat(nodeRealAvailabilityZoneMapper.getAwarenessAttributes(), equalTo(List.of("region", "logical_availability_zone")));
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), anEmptyMap());
+        assertThat(nodeRealAvailabilityZoneMapper.getNumAvailabilityZones(), is(OptionalInt.empty()));
     }
 
     public void testAvailabilityZonesNotConfiguredMultiRoleNodes() {
@@ -84,23 +84,27 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
                 )
             )
             .build();
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper = new NodeRealAvailabilityZoneMapper(
+            settings,
+            clusterSettings,
+            discoveryNodes
+        );
 
-        assertThat(nodeAvailabilityZoneMapper.getAwarenessAttributes(), empty());
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(1));
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone().keySet().iterator().next(), empty());
+        assertThat(nodeRealAvailabilityZoneMapper.getAwarenessAttributes(), empty());
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone().keySet().iterator().next(), empty());
         assertThat(
-            nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone().get(List.of()),
+            nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone().get(List.of()),
             containsInAnyOrder(discoveryNodes.getNodes().values().toArray())
         );
-        assertThat(nodeAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(1));
-        assertThat(nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone(), aMapWithSize(1));
-        assertThat(nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone().keySet().iterator().next(), empty());
+        assertThat(nodeRealAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone(), aMapWithSize(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone().keySet().iterator().next(), empty());
         assertThat(
-            nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone().get(List.of()),
+            nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone().get(List.of()),
             containsInAnyOrder(discoveryNodes.getNodes().values().toArray())
         );
-        assertThat(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(1));
     }
 
     public void testAvailabilityZonesNotConfiguredDedicatedNodes() {
@@ -135,20 +139,24 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
                 )
             )
             .build();
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper = new NodeRealAvailabilityZoneMapper(
+            settings,
+            clusterSettings,
+            discoveryNodes
+        );
 
-        assertThat(nodeAvailabilityZoneMapper.getAwarenessAttributes(), empty());
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(1));
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone().keySet().iterator().next(), empty());
+        assertThat(nodeRealAvailabilityZoneMapper.getAwarenessAttributes(), empty());
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone().keySet().iterator().next(), empty());
         assertThat(
-            nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone().get(List.of()),
+            nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone().get(List.of()),
             containsInAnyOrder(discoveryNodes.getNodes().values().toArray())
         );
-        assertThat(nodeAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(1));
-        assertThat(nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone(), aMapWithSize(1));
-        assertThat(nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone().keySet().iterator().next(), empty());
-        assertThat(nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone().get(List.of()), contains(mlNode));
-        assertThat(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone(), aMapWithSize(1));
+        assertThat(nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone().keySet().iterator().next(), empty());
+        assertThat(nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone().get(List.of()), contains(mlNode));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(1));
     }
 
     public void testAvailabilityZonesConfiguredMultiRoleNodes() {
@@ -178,12 +186,16 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         }
 
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper = new NodeRealAvailabilityZoneMapper(
+            settings,
+            clusterSettings,
+            discoveryNodes
+        );
 
-        assertThat(nodeAvailabilityZoneMapper.getAwarenessAttributes(), equalTo(List.of("region", "logical_availability_zone")));
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(numZones));
+        assertThat(nodeRealAvailabilityZoneMapper.getAwarenessAttributes(), equalTo(List.of("region", "logical_availability_zone")));
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(numZones));
         int totalNodesMapped = 0;
-        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone()
+        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone()
             .entrySet()) {
             List<String> key = entry.getKey();
             assertThat(key, hasSize(2));
@@ -195,9 +207,9 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             }
         }
         assertThat(totalNodesMapped, is(numNodes));
-        assertThat(nodeAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(numZones));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(numZones));
         totalNodesMapped = 0;
-        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone()
+        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone()
             .entrySet()) {
             List<String> key = entry.getKey();
             assertThat(key, hasSize(2));
@@ -209,7 +221,7 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             }
         }
         assertThat(totalNodesMapped, is(numNodes));
-        assertThat(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(numZones));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(numZones));
     }
 
     public void testAvailabilityZonesConfiguredDedicatedNodes() {
@@ -247,12 +259,16 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
         }
 
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
-        NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper = new NodeAvailabilityZoneMapper(settings, clusterSettings, discoveryNodes);
+        NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper = new NodeRealAvailabilityZoneMapper(
+            settings,
+            clusterSettings,
+            discoveryNodes
+        );
 
-        assertThat(nodeAvailabilityZoneMapper.getAwarenessAttributes(), equalTo(List.of("region", "logical_availability_zone")));
-        assertThat(nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(numZones));
+        assertThat(nodeRealAvailabilityZoneMapper.getAwarenessAttributes(), equalTo(List.of("region", "logical_availability_zone")));
+        assertThat(nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone(), aMapWithSize(numZones));
         int totalNodesMapped = 0;
-        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeAvailabilityZoneMapper.getAllNodesByAvailabilityZone()
+        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeRealAvailabilityZoneMapper.getAllNodesByAvailabilityZone()
             .entrySet()) {
             List<String> key = entry.getKey();
             assertThat(key, hasSize(2));
@@ -264,9 +280,9 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             }
         }
         assertThat(totalNodesMapped, is(numNodes));
-        assertThat(nodeAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(numZones));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumAvailabilityZones().getAsInt(), is(numZones));
         int totalMlNodesMapped = 0;
-        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeAvailabilityZoneMapper.getMlNodesByAvailabilityZone()
+        for (Map.Entry<List<String>, Collection<DiscoveryNode>> entry : nodeRealAvailabilityZoneMapper.getMlNodesByAvailabilityZone()
             .entrySet()) {
             List<String> key = entry.getKey();
             assertThat(key, hasSize(2));
@@ -278,6 +294,6 @@ public class NodeAvailabilityZoneMapperTests extends ESTestCase {
             }
         }
         assertThat(totalMlNodesMapped, is(mlNodes.size()));
-        assertThat(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(mlZones.size()));
+        assertThat(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones().getAsInt(), is(mlZones.size()));
     }
 }

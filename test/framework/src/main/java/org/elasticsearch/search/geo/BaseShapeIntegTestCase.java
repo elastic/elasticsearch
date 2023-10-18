@@ -312,11 +312,10 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         assertFirstHit(result, hasId("1"));
 
         // Point in polygon hole
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(4.5, 4.5)))
-            .get();
-        assertHitCount(result, 0);
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(4.5, 4.5))),
+            0
+        );
 
         // by definition the border of a polygon belongs to the inner
         // so the border of a polygons hole also belongs to the inner
@@ -339,11 +338,10 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         assertFirstHit(result, hasId("1"));
 
         // Point not in polygon
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().disjointQuery("area", new Point(3, 3)))
-            .get();
-        assertHitCount(result, 0);
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().disjointQuery("area", new Point(3, 3))),
+            0
+        );
 
         // Point in polygon hole
         result = client().prepareSearch()
@@ -374,8 +372,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         // Polygon WithIn Polygon
         Polygon WithIn = new Polygon(new LinearRing(new double[] { -30, -30, 30, 30, -30 }, new double[] { -30, 30, 30, -30, -30 }));
 
-        result = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().withinQuery("area", WithIn)).get();
-        assertHitCount(result, 2);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().withinQuery("area", WithIn)), 2);
 
         // Create a polygon crossing longitude 180.
         Polygon crossing = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
@@ -394,31 +391,27 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(174, -4)))
-            .get();
-        assertHitCount(result, 1);
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(174, -4))),
+            1
+        );
 
         // In geo coordinates the polygon wraps the dateline, so we need to search within valid longitude ranges
         double xWrapped = getFieldTypeName().contains("geo") ? -174 : 186;
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(xWrapped, -4)))
-            .get();
-        assertHitCount(result, 1);
-
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -4)))
-            .get();
-        assertHitCount(result, 0);
-
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -6)))
-            .get();
-        assertHitCount(result, 1);
+        assertHitCount(
+            client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setPostFilter(queryBuilder().intersectionQuery("area", new Point(xWrapped, -4))),
+            1
+        );
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -4))),
+            0
+        );
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -6))),
+            1
+        );
     }
 
     public void testBulk() throws Exception {

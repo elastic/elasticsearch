@@ -1141,11 +1141,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
             client().prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
-                SearchResponse response = client().prepareSearch("filter1").get();
-                assertHitCount(response, i);
-
-                response = client().prepareSearch("filter2").get();
-                assertHitCount(response, i);
+                assertHitCount(client().prepareSearch("filter1"), i);
+                assertHitCount(client().prepareSearch("filter2"), i);
             }
         }
     }
@@ -1242,7 +1239,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             "test_2",
             () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))
         );
-        assertHitCount(client().prepareSearch("test").get(), 1);
+        assertHitCount(client().prepareSearch("test"), 1);
     }
 
     public void testHiddenAliasesMustBeConsistent() {

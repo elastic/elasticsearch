@@ -738,7 +738,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             Request request = new Request("PUT", "/" + indexName);
             request.setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
             if (softDeletesEnabled == false) {
-                expectSoftDeletesWarning(indexName);
+                expectSoftDeletesWarning(request, indexName);
             }
             client().performRequest(request);
         }

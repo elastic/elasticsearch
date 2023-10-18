@@ -107,7 +107,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         }
         entity += "}";
         if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            expectSoftDeletesWarning(name);
+            expectSoftDeletesWarning(request, name);
         }
         request.setJsonEntity(entity);
         provisioningClient().performRequest(request);

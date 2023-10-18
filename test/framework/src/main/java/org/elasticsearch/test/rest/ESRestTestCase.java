@@ -1601,7 +1601,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (settings != null) {
             entity += "\"settings\": " + Strings.toString(settings);
             if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-                expectSoftDeletesWarning(name);
+                expectSoftDeletesWarning(request, name);
             }
         }
         if (mapping != null) {
@@ -1646,19 +1646,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
-    protected static void expectSoftDeletesWarning(String indexName) {
+    protected static void expectSoftDeletesWarning(Request request, String indexName) {
         final String expectedWarning =
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
                 + indexName
                 + "].";
 
-        expectVersionSpecificWarnings(v -> {
+        request.setOptions(expectVersionSpecificWarnings(v -> {
             if (nodesFeatures.deprecatesSoftDeleteDisabled()) {
                 v.current(expectedWarning);
             }
             v.compatible(expectedWarning);
-        });
+        }));
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {

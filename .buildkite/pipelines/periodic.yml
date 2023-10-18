@@ -1095,7 +1095,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: custom-32-98304
+          machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
@@ -1123,7 +1123,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: custom-32-98304
+          machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"

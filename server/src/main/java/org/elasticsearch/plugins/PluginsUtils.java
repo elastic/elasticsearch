@@ -28,7 +28,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -140,6 +139,7 @@ public class PluginsUtils {
     }
 
     private record SemanticVersion(int major, int minor, int bugfix, String suffix) {
+
         static final Pattern semanticPattern = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(\\D?.*)$");
         static SemanticVersion create(String version) {
             Matcher matcher = semanticPattern.matcher(version);

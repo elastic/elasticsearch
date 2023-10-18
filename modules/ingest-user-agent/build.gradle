@@ -19,10 +19,6 @@ restResources {
   }
 }
 
-dependencies {
-  clusterModules project(':modules:ingest-user-agent')
-}
-
 tasks.named("yamlRestTestV7CompatTransform").configure {task ->
   task.addAllowedWarningRegex("setting \\[ecs\\] is deprecated as ECS format is the default and only option")
 }

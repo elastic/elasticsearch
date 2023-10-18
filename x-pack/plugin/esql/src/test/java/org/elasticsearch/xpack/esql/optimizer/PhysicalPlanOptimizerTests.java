@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
@@ -1965,8 +1966,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        List<String> result = super.filteredWarnings();
-        result.add("No limit defined, adding default limit of [500]");
-        return result;
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -286,8 +287,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        List<String> result = super.filteredWarnings();
-        result.add("No limit defined, adding default limit of [500]");
-        return result;
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

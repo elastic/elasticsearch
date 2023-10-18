@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
 
@@ -185,8 +186,6 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     @Override
     protected List<String> filteredWarnings() {
-        List<String> result = super.filteredWarnings();
-        result.add("No limit defined, adding default limit of [500]");
-        return result;
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

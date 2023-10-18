@@ -33,6 +33,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -121,8 +122,6 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        List<String> result = super.filteredWarnings();
-        result.add("No limit defined, adding default limit of [500]");
-        return result;
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

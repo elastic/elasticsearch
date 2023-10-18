@@ -43,6 +43,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.FILTER;
 import static org.elasticsearch.xpack.ql.util.Queries.Clause.MUST;
@@ -295,8 +296,6 @@ public class FilterTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        List<String> result = super.filteredWarnings();
-        result.add("No limit defined, adding default limit of [500]");
-        return result;
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

@@ -7,15 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.impl.conn.DefaultSchemePortResolver;
-import org.apache.http.impl.conn.SystemDefaultDnsResolver;
-import org.apache.http.impl.nio.conn.ManagedNHttpClientConnectionFactory;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.conn.NoopIOSessionStrategy;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
-import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +24,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -101,27 +94,15 @@ public class HttpClientManager implements Closeable {
     private static PoolingNHttpClientConnectionManager createConnectionManager() {
         ConnectingIOReactor ioReactor;
         try {
-            ioReactor = new DefaultConnectingIOReactor();
+            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
+            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
         } catch (IOReactorException e) {
             var message = "Failed to initialize the inference http client manager";
             logger.error(message, e);
             throw new ElasticsearchException(message, e);
         }
 
-        return new PoolingNHttpClientConnectionManager(
-            ioReactor,
-            ManagedNHttpClientConnectionFactory.INSTANCE,
-            RegistryBuilder.<SchemeIOSessionStrategy>create()
-                .register("http", NoopIOSessionStrategy.INSTANCE)
-                .register("https", SSLIOSessionStrategy.getSystemDefaultStrategy())
-                .build(),
-            DefaultSchemePortResolver.INSTANCE,
-            SystemDefaultDnsResolver.INSTANCE,
-            // everything above this are the default values when creating the pooling connection manager but they must be copied here
-            // because there is no builder and we want to set the keep alive time below
-            2,
-            TimeUnit.MINUTES
-        );
+        return new PoolingNHttpClientConnectionManager(ioReactor);
     }
 
     private void addSettingsUpdateConsumers(ClusterService clusterService) {

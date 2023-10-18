@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.protocol.HttpContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -56,20 +54,6 @@ public class HttpClient implements Closeable {
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
-        clientBuilder.setUserTokenHandler(context -> "hi");
-        clientBuilder.setKeepAliveStrategy((HttpResponse response, HttpContext context) -> {
-            // long keepAliveDuration = getKeepAliveDuration(response, context);
-            // if (keepAliveDuration > 30000) {
-            // keepAliveDuration = 30000;
-            // }
-            return 30000;
-        });
-
-        var b = RequestConfig.custom();
-        b.setSocketTimeout(30000);
-        b.setConnectTimeout(30000);
-        b.setConnectionRequestTimeout(30000);
-        clientBuilder.setDefaultRequestConfig(b.build());
 
         return clientBuilder.build();
     }

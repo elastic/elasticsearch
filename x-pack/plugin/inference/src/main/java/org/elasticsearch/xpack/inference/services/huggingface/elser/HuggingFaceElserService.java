@@ -34,10 +34,9 @@ public class HuggingFaceElserService implements InferenceService {
     public static final String NAME = "hugging_face_elser";
 
     private final SetOnce<HttpRequestSenderFactory> factory;
-    private AtomicReference<Sender> sender = new AtomicReference<>();
+    private final AtomicReference<Sender> sender = new AtomicReference<>();
 
     public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory) {
-        // sender = factory.get().createSender(name());
         this.factory = factory;
     }
 
@@ -122,7 +121,7 @@ public class HuggingFaceElserService implements InferenceService {
         IOUtils.closeWhileHandlingException(sender.get());
     }
 
-    private void createSender() {
+    private synchronized void createSender() {
         if (sender.get() == null) {
             sender.set(factory.get().createSender(name()));
         }

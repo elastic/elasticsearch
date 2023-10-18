@@ -293,7 +293,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();

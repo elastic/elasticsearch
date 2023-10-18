@@ -17,7 +17,6 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
-import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
@@ -140,9 +139,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                         .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
                         .orElse(
                             providerFactory.provider(
-                                () -> taskExtensionsProperties.has("refspec")
-                                    ? taskExtensionsProperties.get("refspec").toString()
-                                    : null
+                                () -> taskExtensionsProperties.has("refspec") ? taskExtensionsProperties.get("refspec").toString() : null
                             )
                         )
                         .getOrElse(remote.get() + "/" + bwcBranch);

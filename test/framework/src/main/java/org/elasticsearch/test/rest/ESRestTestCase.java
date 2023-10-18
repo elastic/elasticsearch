@@ -101,6 +101,7 @@ import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -200,15 +201,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
-    private static TreeSet<String> nodeVersions;
-    private static TreeSet<NodeFeatures> nodeFeatures;
-
-    interface NodeFeatures {
-        boolean supportsSearchableSnapshotsIndices();
-        boolean supportsComposableIndexTemplates();
-        boolean supportsBulkDeleteOnTemplates();
-        boolean isSoftDeletesDisabledDeprecated();
-    }
+    protected static TreeSet<String> nodeVersions;
+    protected static ESRestTestNodesFeatures nodesFeatures;
 
     @Before
     public void initClient() throws IOException {
@@ -217,7 +211,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodeVersions == null;
-            assert nodeFeatures == null;
+            assert nodesFeatures == null;
             String cluster = getTestRestCluster();
             String[] stringUrls = cluster.split(",");
             List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
@@ -237,13 +231,13 @@ public abstract class ESRestTestCase extends ESTestCase {
 
             availableFeatures = EnumSet.of(ProductFeature.LEGACY_TEMPLATES);
             nodeVersions = new TreeSet<>();
-            nodeFeatures = new TreeSet<>();
+            var testNodesFeaturesBuilder = VersionBasedNodesFeatures.builder();
             boolean serverless = false;
             Map<?, ?> response = entityAsMap(adminClient.performRequest(new Request("GET", "_nodes/plugins")));
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                nodeFeatures.add(createNodeFeaturesFromNodeInfo(nodeInfo));
+                testNodesFeaturesBuilder.addInfoFromNode(nodeInfo);
                 nodeVersions.add(nodeInfo.get("version").toString());
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
@@ -280,39 +274,14 @@ public abstract class ESRestTestCase extends ESTestCase {
                     );
                 }
             }
+            nodesFeatures = testNodesFeaturesBuilder.build();
         }
         assert client != null;
         assert adminClient != null;
         assert clusterHosts != null;
         assert availableFeatures != null;
         assert nodeVersions != null;
-        assert nodeFeatures != null;
-    }
-
-    private NodeFeatures createNodeFeaturesFromNodeInfo(Map<?,?> nodeInfo) {
-        // TODO[lor]: this needs to be replaced with (historical) feature checks once https://github.com/elastic/elasticsearch/pull/100330
-        Version version = Version.fromString(nodeInfo.get("version").toString().replace("-SNAPSHOT", ""));
-        return new NodeFeatures() {
-            @Override
-            public boolean supportsSearchableSnapshotsIndices() {
-                return version.onOrAfter(Version.V_7_8_0);
-            }
-
-            @Override
-            public boolean supportsComposableIndexTemplates() {
-                return version.onOrAfter(Version.V_7_7_0);
-            }
-
-            @Override
-            public boolean supportsBulkDeleteOnTemplates() {
-                return version.onOrAfter(Version.V_7_13_0);
-            }
-
-            @Override
-            public boolean isSoftDeletesDisabledDeprecated() {
-                return version.onOrAfter(Version.V_7_6_0);
-            }
-        };
+        assert nodesFeatures != null;
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -471,7 +440,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             adminClient = null;
             availableFeatures = null;
             nodeVersions = null;
-            nodeFeatures = null;
+            nodesFeatures = null;
         }
     }
 
@@ -597,19 +566,14 @@ public abstract class ESRestTestCase extends ESTestCase {
      * all feature states, deleting system indices, system associated indices, and system data streams.
      */
     protected boolean resetFeatureStates() {
-        try {
-            final Version minimumNodeVersion = minimumNodeVersion();
-            // Reset feature state API was introduced in 7.13.0
-            if (minimumNodeVersion.before(Version.V_7_13_0)) {
-                return false;
-            }
+        // Reset feature state API was introduced in 7.13.0
+        if (nodesFeatures.supportsFeatureStateReset() == false) {
+            return false;
+        }
 
-            // ML reset fails when ML is disabled in versions before 8.7
-            if (isMlEnabled() == false && minimumNodeVersion.before(Version.V_8_7_0)) {
-                return false;
-            }
-        } catch (IOException e) {
-            throw new AssertionError("Failed to find a minimum node version.", e);
+        // ML reset fails when ML is disabled in versions before 8.7
+        if (isMlEnabled() == false && nodesFeatures.enforcesMlResetEnabled() == false) {
+            return false;
         }
         return true;
     }
@@ -727,8 +691,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-
-
     private void wipeCluster() throws Exception {
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
@@ -745,7 +707,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (nodeFeatures.stream().allMatch(NodeFeatures::supportsSearchableSnapshotsIndices)
+        if (nodesFeatures.supportsSearchableSnapshotsIndices()
             && has(ProductFeature.XPACK)
             && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
             wipeSearchableSnapshotsIndices();
@@ -779,7 +741,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                  */
                 // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.7.0:
-                if (nodeFeatures.stream().allMatch(NodeFeatures::supportsComposableIndexTemplates)) {
+                if (nodesFeatures.supportsComposableIndexTemplates()) {
                     try {
                         Request getTemplatesRequest = new Request("GET", "_index_template");
                         Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
@@ -794,7 +756,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (names.isEmpty() == false) {
                             // Ideally we would want to check the version of the elected master node and
                             // send the delete request directly to that node.
-                            if (nodeFeatures.stream().allMatch(NodeFeatures::supportsBulkDeleteOnTemplates)) {
+                            if (nodesFeatures.supportsBulkDeleteOnTemplates()) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -825,7 +787,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (names.isEmpty() == false) {
                             // Ideally we would want to check the version of the elected master node and
                             // send the delete request directly to that node.
-                            if (nodeFeatures.stream().allMatch(NodeFeatures::supportsBulkDeleteOnTemplates)) {
+                            if (nodesFeatures.supportsBulkDeleteOnTemplates()) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -944,7 +906,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (has(ProductFeature.XPACK)) {
                 // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.8.0:
-                if (nodeFeatures.stream().allMatch(NodeFeatures::supportsComposableIndexTemplates)) {
+                if (nodesFeatures.supportsComposableIndexTemplates()) {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
@@ -989,7 +951,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (has(ProductFeature.SHUTDOWN) == false || minimumNodeVersion().before(Version.V_7_15_0)) {
+        if (has(ProductFeature.SHUTDOWN) == false || nodesFeatures.supportsNodeShutdownApi() == false) {
             // Node shutdown APIs are only present in xpack
             return;
         }
@@ -1008,7 +970,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        boolean includeHidden = nodesFeatures.supportsOperationsOnHiddenIndices();
         try {
             // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
@@ -1182,7 +1144,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
+        boolean includeHidden = nodesFeatures.supportsOperationsOnHiddenIndices();
         Request refreshRequest = new Request("POST", "/_refresh");
         refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
         // Allow system index deprecation warnings
@@ -1639,7 +1601,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (settings != null) {
             entity += "\"settings\": " + Strings.toString(settings);
             if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-                expectSoftDeletesWarning(request, name);
+                expectSoftDeletesWarning(name);
             }
         }
         if (mapping != null) {
@@ -1684,23 +1646,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(request);
     }
 
-    protected static void expectSoftDeletesWarning(Request request, String indexName) {
-        final List<String> expectedWarnings = List.of(
+    protected static void expectSoftDeletesWarning(String indexName) {
+        final String expectedWarning =
             "Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions. "
                 + "Please do not specify value for setting [index.soft_deletes.enabled] of index ["
                 + indexName
-                + "]."
-        );
-        if (nodeFeatures.stream().allMatch(NodeFeatures::isSoftDeletesDisabledDeprecated)) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false)
-            );
-        } else if (nodeFeatures.stream().anyMatch(NodeFeatures::isSoftDeletesDisabledDeprecated)) {
-            request.setOptions(
-                RequestOptions.DEFAULT.toBuilder()
-                    .setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false)
-            );
-        }
+                + "].";
+
+        expectVersionSpecificWarnings(v -> {
+            if (nodesFeatures.deprecatesSoftDeleteDisabled()) {
+                v.current(expectedWarning);
+            }
+            v.compatible(expectedWarning);
+        });
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -1990,7 +1948,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        boolean mustHavePRRLs = minimumNodeVersion().onOrAfter(Version.V_7_6_0);
+        boolean mustHavePRRLs = nodesFeatures.enforcesPeerRecoveryRetentionLeases();
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")
@@ -2033,28 +1991,6 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Returns the minimum node version among all nodes of the cluster
-     */
-    protected static Version minimumNodeVersion() throws IOException {
-        final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version");
-
-        final Response response = adminClient().performRequest(request);
-        final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
-
-        Version minVersion = null;
-        for (Map.Entry<String, Object> node : nodes.entrySet()) {
-            @SuppressWarnings("unchecked")
-            Version nodeVersion = parseLegacyVersion((String) ((Map<String, Object>) node.getValue()).get("version"));
-            if (minVersion == null || minVersion.after(nodeVersion)) {
-                minVersion = nodeVersion;
-            }
-        }
-        assertNotNull(minVersion);
-        return minVersion;
-    }
-
-    /**
      * Returns the minimum index version among all nodes of the cluster
      */
     protected static IndexVersion minimumIndexVersion() throws IOException {
@@ -2071,13 +2007,21 @@ public abstract class ESRestTestCase extends ESTestCase {
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
                 ? IndexVersion.fromId(Integer.parseInt(versionStr))
-                : IndexVersion.fromId(parseLegacyVersion((String) nodeData.get("version")).id);
+                : IndexVersion.fromId(parseLegacyVersion((String) nodeData.get("version")));
             if (minVersion == null || minVersion.after(indexVersion)) {
                 minVersion = indexVersion;
             }
         }
         assertNotNull(minVersion);
         return minVersion;
+    }
+
+    private static int parseLegacyVersion(String version) {
+        Matcher semanticVersionMatcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*").matcher(version);
+        if (semanticVersionMatcher.matches()) {
+            return Version.fromString(semanticVersionMatcher.group(1)).id;
+        }
+        return IndexVersion.MINIMUM_COMPATIBLE.id();
     }
 
     @SuppressWarnings("unchecked")

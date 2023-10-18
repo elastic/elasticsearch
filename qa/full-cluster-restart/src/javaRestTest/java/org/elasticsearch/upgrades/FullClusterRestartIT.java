@@ -68,7 +68,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -95,7 +94,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
 
-    private static TemporaryFolder repoDirectory = new TemporaryFolder();
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
 
@@ -896,7 +895,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1020,7 +1019,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // Create the index
             count = between(200, 300);
             Settings.Builder settings = Settings.builder();
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -1514,7 +1513,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public void testOperationBasedRecovery() throws Exception {
         if (isRunningAgainstOldCluster()) {
             Settings.Builder settings = indexSettings(1, 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1577,7 +1576,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 3)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1);
-            if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
+            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false);
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -1698,7 +1697,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
             // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
+            if (nodesFeatures.deprecatesSystemIndicesAccess() == false) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
                 putAliasRequest.setJsonEntity("""

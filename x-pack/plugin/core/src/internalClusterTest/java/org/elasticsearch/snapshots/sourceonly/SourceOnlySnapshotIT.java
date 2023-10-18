@@ -348,7 +348,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         }
         indexRandom(true, builders);
         flushAndRefresh();
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")).get(), 1);
+        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")), 1);
 
         createSnapshot(repo, snapshot, Collections.singletonList(sourceIdx));
 

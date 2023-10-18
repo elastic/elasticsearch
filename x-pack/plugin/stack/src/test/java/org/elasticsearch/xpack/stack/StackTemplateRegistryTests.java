@@ -108,6 +108,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             disabledRegistry.getComponentTemplateConfigs()
                 .keySet()
                 .stream()
+                // We have a naming convention that internal component templates contain `@`. See also put-component-template.asciidoc.
                 .filter(t -> t.contains("@") == false)
                 .collect(Collectors.toSet()),
             empty()
@@ -115,6 +116,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getLifecyclePolicies(), not(empty()));
         assertThat(
+            // We have a naming convention that internal ILM policies contain `@`. See also put-lifecycle.asciidoc.
             disabledRegistry.getLifecyclePolicies().stream().filter(p -> p.getName().contains("@") == false).collect(Collectors.toSet()),
             empty()
         );

@@ -1878,6 +1878,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
+        if (name.contains("@")) {
+            // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
@@ -1887,29 +1891,19 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "saml-service-provider":
             case "logs":
             case "logs-settings":
-            case "logs@settings":
             case "logs-mappings":
-            case "logs@mappings":
             case "metrics":
             case "metrics-settings":
-            case "metrics@settings":
             case "metrics-tsdb-settings":
-            case "metrics@tsdb-settings":
             case "metrics-mappings":
-            case "metrics@mappings":
             case "synthetics":
             case "synthetics-settings":
-            case "synthetics@settings":
             case "synthetics-mappings":
-            case "synthetics@mappings":
             case ".snapshot-blob-cache":
             case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
-            case "data-streams@mappings":
-            case "ecs@dynamic_templates":
-            case "ecs@mappings":
             case "search-acl-filter":
             case ".kibana-reporting":
                 return true;

@@ -9,6 +9,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.script.ScriptType;
@@ -17,12 +18,12 @@ import java.util.Map;
 
 public class SearchTemplateRequestBuilder extends ActionRequestBuilder<SearchTemplateRequest, SearchTemplateResponse> {
 
-    SearchTemplateRequestBuilder(ElasticsearchClient client, SearchTemplateAction action) {
+    SearchTemplateRequestBuilder(ElasticsearchClient client, ActionType<SearchTemplateResponse> action) {
         super(client, action, new SearchTemplateRequest());
     }
 
     public SearchTemplateRequestBuilder(ElasticsearchClient client) {
-        this(client, SearchTemplateAction.INSTANCE);
+        this(client, MustachePlugin.SEARCH_TEMPLATE_ACTION);
     }
 
     public SearchTemplateRequestBuilder setRequest(SearchRequest searchRequest) {

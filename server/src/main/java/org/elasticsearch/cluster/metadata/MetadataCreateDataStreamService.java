@@ -238,14 +238,15 @@ public class MetadataCreateDataStreamService {
         // that as part of creating the backing index if required.
         IndexMetadata failureStoreIndex = null;
         if (template.getDataStreamTemplate().hasFailureStore()) {
+            if (isSystem) {
+                throw new IllegalArgumentException("Failure stores are not supported on system indices");
+            }
             String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.startTime);
             currentState = createFailureStoreIndex(
                 metadataCreateIndexService,
                 currentState,
                 request,
                 dataStreamName,
-                systemDataStreamDescriptor,
-                isSystem,
                 template,
                 failureStoreIndexName
             );
@@ -368,8 +369,6 @@ public class MetadataCreateDataStreamService {
         ClusterState currentState,
         CreateDataStreamClusterStateUpdateRequest request,
         String dataStreamName,
-        SystemDataStreamDescriptor systemDataStreamDescriptor,
-        boolean isSystem,
         ComposableIndexTemplate template,
         String failureStoreIndexName
     ) throws Exception {
@@ -382,16 +381,10 @@ public class MetadataCreateDataStreamService {
             failureStoreIndexName,
             failureStoreIndexName
         ).dataStreamName(dataStreamName)
-            .systemDataStreamDescriptor(systemDataStreamDescriptor)
             .nameResolvedInstant(request.startTime)
             .performReroute(false)
-            .setMatchingTemplate(template);
-
-        if (isSystem) {
-            createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
-        } else {
-            createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
-        }
+            .setMatchingTemplate(template)
+            .settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(

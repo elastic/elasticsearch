@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_max]]
 === `MV_MAX`
 Converts a multivalued field into a single valued field containing the maximum value. For example:

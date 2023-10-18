@@ -189,11 +189,12 @@ public class DocumentAndFieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1").toString(), equalTo("value2"));
 
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(QueryBuilders.termQuery("field1", "value1"))
-            .get();
-        assertHitCount(response, 0);
+        assertHitCount(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user5", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(QueryBuilders.termQuery("field1", "value1")),
+            0
+        );
     }
 
     public void testQueryCache() {

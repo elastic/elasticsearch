@@ -1,3 +1,4 @@
+[discrete]
 [[esql-date_format]]
 === `DATE_FORMAT`
 Returns a string representation of a date in the provided format. If no format

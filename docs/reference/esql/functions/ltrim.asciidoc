@@ -1,3 +1,4 @@
+[discrete]
 [[esql-ltrim]]
 === `LTRIM`
 Removes leading whitespaces from strings.

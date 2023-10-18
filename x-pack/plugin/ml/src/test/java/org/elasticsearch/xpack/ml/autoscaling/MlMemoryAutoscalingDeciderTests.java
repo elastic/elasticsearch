@@ -132,7 +132,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
     private static final long PER_NODE_OVERHEAD = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
 
     private NodeLoadDetector nodeLoadDetector;
-    private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper;
     private ClusterService clusterService;
     private Settings settings;
     private LongSupplier timeSupplier;
@@ -152,7 +152,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
             NodeLoad.builder("any").setUseMemory(true).incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes()).build()
         );
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeRealAvailabilityZoneMapper = mock(NodeRealAvailabilityZoneMapper.class);
         clusterService = mock(ClusterService.class);
         settings = Settings.EMPTY;
         timeSupplier = System::currentTimeMillis;
@@ -580,7 +580,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         List<String> jobTasks = List.of("waiting_job", "waiting_job_2");
         List<String> analytics = List.of("analytics_waiting");
         // Two small nodes in cluster, so simulate two availability zones
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
+        when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
         List<NodeLoad> nodesWithRoom = List.of(
             NodeLoad.builder("partially_filled")
                 .setMaxMemory(2 * TEST_JOB_SIZE + PER_NODE_OVERHEAD)
@@ -909,7 +909,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
     public void testScaleUp_withWaitingModelsAndRoomInNodes() {
         // Two small nodes in cluster, so simulate two availability zones
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
+        when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
         List<NodeLoad> nodesWithRoom = List.of(
             NodeLoad.builder("partially_filled")
                 .setMaxMemory(2 * TEST_JOB_SIZE + PER_NODE_OVERHEAD)
@@ -945,7 +945,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
     }
 
     public void testScaleDown() {
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
+        when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
         MlMemoryAutoscalingDecider decider = buildDecider();
         decider.setMaxMachineMemoryPercent(25);
         { // Current capacity allows for smaller node
@@ -1297,7 +1297,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         return new MlMemoryAutoscalingDecider(
             settings,
             clusterService,
-            nodeAvailabilityZoneMapper,
+            nodeRealAvailabilityZoneMapper,
             nodeLoadDetector,
             new ScaleTimer(timeSupplier)
         );

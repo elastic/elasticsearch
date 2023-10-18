@@ -132,7 +132,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
 
         assertAcked(indicesAdmin().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0), nbDocs);
     }
 
     public void testCloseAlreadyClosedIndex() throws Exception {
@@ -244,7 +244,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         assertIndexIsClosed(indexName);
         assertAcked(indicesAdmin().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -349,7 +349,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         refresh(indexName);
         assertIndexIsOpened(indexName);
         assertHitCount(
-            client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
+            client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE),
             indexer.totalIndexedDocs()
         );
     }

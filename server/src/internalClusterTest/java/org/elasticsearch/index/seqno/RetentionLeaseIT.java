@@ -580,20 +580,10 @@ public class RetentionLeaseIT extends ESIntegTestCase {
         final CountDownLatch actionLatch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean();
 
-        primaryConsumer.accept(primary, new ActionListener<ReplicationResponse>() {
-
-            @Override
-            public void onResponse(final ReplicationResponse replicationResponse) {
-                success.set(true);
-                actionLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(final Exception e) {
-                failWithException(e);
-            }
-
-        });
+        primaryConsumer.accept(primary, ActionTestUtils.assertNoFailureListener(ignored -> {
+            success.set(true);
+            actionLatch.countDown();
+        }));
         actionLatch.await();
         assertTrue(success.get());
         afterSync.accept(primary);

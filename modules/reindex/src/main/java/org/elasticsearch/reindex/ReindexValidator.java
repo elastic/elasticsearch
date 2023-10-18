@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.Arrays;
 import java.util.List;
@@ -160,6 +161,13 @@ public class ReindexValidator {
     }
 
     private static boolean isRemoteExpression(String expression) {
-        return expression.contains(":");
+        // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
+        // expression, e.g., cluster0:index-name
+        // in the same time date-math `expression` can also contain ':' symbol inside its name
+        // to distinguish between those two, given `expression` is pre-evaluated using date-math resolver
+        // after evaluation date-math `expression` should not contain ':' symbol
+        // otherwise if `expression` is legit remote name, ':' symbol remains
+        return IndexNameExpressionResolver.resolveDateMathExpression(expression)
+            .contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
     }
 }

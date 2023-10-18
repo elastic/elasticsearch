@@ -283,7 +283,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
         }
 
         logger.info("--> closing test index...");
@@ -306,9 +306,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
         }
     }
 
@@ -548,7 +548,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNull(
             state.metadata().persistentSettings().get("archived." + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey())
         );
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
     public void testHalfDeletedIndexImport() throws Exception {

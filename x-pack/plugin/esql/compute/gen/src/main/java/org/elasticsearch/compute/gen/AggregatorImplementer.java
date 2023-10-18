@@ -401,6 +401,12 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+        builder.addStatement("Block uncastBlock = page.getBlock(channels.get(0))");
+        builder.beginControlFlow("if (uncastBlock.areAllValuesNull())");
+        {
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
         int count = 0;
         for (var interState : intermediateState) {
             builder.addStatement(

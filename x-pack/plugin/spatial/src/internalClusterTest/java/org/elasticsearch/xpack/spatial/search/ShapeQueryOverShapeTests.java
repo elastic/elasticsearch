@@ -220,7 +220,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
      * Test that ignore_malformed on GeoShapeFieldMapper does not fail the entire document
      */
     public void testIgnoreMalformed() {
-        assertHitCount(client().prepareSearch(IGNORE_MALFORMED_INDEX).setQuery(matchAllQuery()).get(), numDocs);
+        assertHitCount(client().prepareSearch(IGNORE_MALFORMED_INDEX).setQuery(matchAllQuery()), numDocs);
     }
 
     /**

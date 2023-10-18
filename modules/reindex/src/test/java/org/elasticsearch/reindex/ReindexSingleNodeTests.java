@@ -34,7 +34,7 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
         }
 
         indicesAdmin().prepareRefresh("source").get();
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+        assertHitCount(client().prepareSearch("source").setSize(0), max);
 
         // Copy a subset of the docs sorted
         int subsetSize = randomIntBetween(1, max - 1);
@@ -45,8 +45,8 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
         copy.request().addSortField("foo", SortOrder.DESC);
         assertThat(copy.get(), matcher().created(subsetSize));
 
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), subsetSize);
-        assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max - subsetSize)).get(), 0);
+        assertHitCount(client().prepareSearch("dest").setSize(0), subsetSize);
+        assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max - subsetSize)), 0);
         assertWarnings(ReindexValidator.SORT_DEPRECATED_MESSAGE);
     }
 }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_expand]]
 === `MV_EXPAND`
 

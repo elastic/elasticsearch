@@ -1,3 +1,4 @@
+[discrete]
 [[esql-agg-max]]
 === `MAX`
 The maximum value of a numeric field.

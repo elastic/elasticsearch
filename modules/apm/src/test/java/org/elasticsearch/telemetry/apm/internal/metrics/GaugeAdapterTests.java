@@ -8,8 +8,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
-import io.opentelemetry.api.metrics.Meter;
-
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.TestAPMMeterService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -22,18 +21,16 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class GaugeAdapterTests extends ESTestCase {
     TestAPMMeterService meterService;
-    Meter meter;
 
     @Before
     public void init() {
         meterService = new TestAPMMeterService();
-        meter = meterService.getMeter();
     }
 
     // testing that a value reported is then used in a callback
     @SuppressWarnings("unchecked")
     public void testLongGaugeRecord() {
-        LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(meter, "name", "desc", "unit");
+        LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(meterService.getMeter(), "name", "desc", "unit");
 
         // recording a value
         Map<String, Object> attributes = Map.of("k", 1L);
@@ -41,23 +38,23 @@ public class GaugeAdapterTests extends ESTestCase {
 
         meterService.collectMetrics();
 
-        List<TestAPMMeterService.Metric> metrics = meterService.getMetrics(longGaugeAdapter, "name");
+        List<Measurement> metrics = meterService.getMetrics(longGaugeAdapter);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).getAttributes(), equalTo(attributes));
-        assertThat(metrics.get(0).getNumber(), equalTo(1L));
+        assertThat(metrics.get(0).attributes(), equalTo(attributes));
+        assertThat(metrics.get(0).getLong(), equalTo(1L));
     }
 
     // testing that a value reported is then used in a callback
     @SuppressWarnings("unchecked")
     public void testDoubleGaugeRecord() {
-        DoubleGaugeAdapter doubleGaugeAdapter = new DoubleGaugeAdapter(meter, "name", "desc", "unit");
+        DoubleGaugeAdapter doubleGaugeAdapter = new DoubleGaugeAdapter(meterService.getMeter(), "name", "desc", "unit");
         Map<String, Object> attributes = Map.of("k", 1L);
         doubleGaugeAdapter.record(1.0, attributes);
         meterService.collectMetrics();
 
-        List<TestAPMMeterService.Metric> metrics = meterService.getMetrics(doubleGaugeAdapter, "name");
+        List<Measurement> metrics = meterService.getMetrics(doubleGaugeAdapter);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).getAttributes(), equalTo(attributes));
-        assertThat(metrics.get(0).getNumber(), equalTo(1.0));
+        assertThat(metrics.get(0).attributes(), equalTo(attributes));
+        assertThat(metrics.get(0).getDouble(), equalTo(1.0));
     }
 }

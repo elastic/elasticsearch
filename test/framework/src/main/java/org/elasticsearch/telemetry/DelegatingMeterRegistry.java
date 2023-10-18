@@ -18,11 +18,11 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-public class DelegatingMeter implements MeterRegistry {
+public class DelegatingMeterRegistry implements MeterRegistry {
 
     private final MeterRegistry delegate;
 
-    public DelegatingMeter(MeterRegistry delegate) {
+    public DelegatingMeterRegistry(MeterRegistry delegate) {
         this.delegate = delegate;
     }
 

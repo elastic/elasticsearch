@@ -94,7 +94,19 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testDisabledDoesNotAddTemplates() {
+    public void testDisabledDoesNotAddIndexTemplates() {
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
+        assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
+    }
+
+    public void testDisabledStillAddsComponentTemplatesAndIlmPolicies() {
         Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
             settings,
@@ -113,7 +125,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 .collect(Collectors.toSet()),
             empty()
         );
-        assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getLifecyclePolicies(), not(empty()));
         assertThat(
             // We have a naming convention that internal ILM policies contain `@`. See also put-lifecycle.asciidoc.

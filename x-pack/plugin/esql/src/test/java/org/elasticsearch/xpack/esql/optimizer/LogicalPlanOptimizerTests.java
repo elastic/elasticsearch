@@ -1989,11 +1989,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * Project[[min{r}#3, max{r}#6, min2{r}#9, max2{r}#12, gender{f}#16]]
-     * \_Eval[[min{r}#3 AS min2, max{r}#6 AS max2]]
-     *   \_Limit[500[INTEGER]]
-     *     \_Aggregate[[gender{f}#16],[MIN(salary{f}#19) AS min, MAX(salary{f}#19) AS max, gender{f}#16]]
-     *       \_EsRelation[test][_meta_field{f}#20, emp_no{f}#14, first_name{f}#15, ..]
+     * Project[[min{r}#1385, max{r}#1388, min{r}#1385 AS min2, max{r}#1388 AS max2, gender{f}#1398]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[gender{f}#1398],[MIN(salary{f}#1401) AS min, MAX(salary{f}#1401) AS max, gender{f}#1398]]
+     *     \_EsRelation[test][_meta_field{f}#1402, emp_no{f}#1396, first_name{f}#..]
      */
     public void testEliminateDuplicateAggsMixed() {
         var plan = plan("""
@@ -2002,13 +2001,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """);
 
         var project = as(plan, Project.class);
-        assertThat(Expressions.names(project.projections()), contains("min", "max", "min2", "max2", "gender"));
-        var eval = as(project.child(), Eval.class);
-        var fields = eval.fields();
-        assertThat(Expressions.names(fields), contains("min2", "max2"));
-        assertThat(Expressions.name(fields.get(0).child()), is("min"));
-        assertThat(Expressions.name(fields.get(1).child()), is("max"));
-        var limit = as(eval.child(), Limit.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("min", "max", "min2", "max2", "gender"));
+        as(projections.get(0), ReferenceAttribute.class);
+        as(projections.get(1), ReferenceAttribute.class);
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("min"));
+        assertThat(Expressions.name(aliased(projections.get(3), ReferenceAttribute.class)), is("max"));
+
+        var limit = as(project.child(), Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         var aggs = agg.aggregates();
         assertThat(Expressions.names(aggs), contains("min", "max", "gender"));

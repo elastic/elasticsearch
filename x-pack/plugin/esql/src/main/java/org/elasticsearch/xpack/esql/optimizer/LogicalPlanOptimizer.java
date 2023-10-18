@@ -1039,10 +1039,10 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Aggregate aggregate) {
             LogicalPlan plan = aggregate;
 
+            boolean foundDuplicate = false;
             var aggs = aggregate.aggregates();
             Map<AggregateFunction, Attribute> seenAggs = Maps.newMapWithExpectedSize(aggs.size());
-            // list of aliases pointing to the source attributes
-            List<Alias> duplicates = new ArrayList<>();
+            List<NamedExpression> projections = new ArrayList<>();
             List<NamedExpression> keptAggs = new ArrayList<>(aggs.size());
 
             for (NamedExpression agg : aggs) {
@@ -1050,23 +1050,25 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
                 if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
                     var seen = seenAggs.putIfAbsent(af, attr);
                     if (seen != null) {
-                        duplicates.add(as.replaceChild(seen));
+                        foundDuplicate = true;
+                        projections.add(as.replaceChild(seen));
                     }
                     // otherwise keep the agg in place
                     else {
                         keptAggs.add(agg);
+                        projections.add(attr);
                     }
                 } else {
                     keptAggs.add(agg);
+                    projections.add(attr);
                 }
             }
 
-            // at least one duplicate found - add an eval and project (to keep the output in place)
-            if (duplicates.size() > 0) {
+            // at least one duplicate found - add the projection (to keep the output in place)
+            if (foundDuplicate) {
                 var source = aggregate.source();
                 var newAggregate = new Aggregate(source, aggregate.child(), aggregate.groupings(), keptAggs);
-                var newEval = new Eval(source, newAggregate, duplicates);
-                plan = new Project(source, newEval, aggregate.output());
+                plan = new Project(source, newAggregate, projections);
             }
 
             return plan;

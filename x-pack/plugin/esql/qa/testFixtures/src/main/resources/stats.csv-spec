@@ -695,4 +695,5 @@ from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salar
 c:l| m:i   | m1:i  | c1:l| gender:s
 33 | 25976 | 25976 | 33  | F
 57 | 25945 | 25945 | 57  | M
+10 | 25324 | 25324 | 10  | null
 ;

@@ -208,7 +208,10 @@ GET my-index/_search
 The result is the top 10 documents that are closest in meaning to your query
 text from the `my-index` index sorted by their relevancy. The result also
 contains the extracted tokens for each of the relevant search results with their
-weights.
+weights. Tokens are learned associations capturing relevance, they are not 
+synonyms. To learn more about what tokens are, refer to 
+{ml-docs}/ml-nlp-elser.html#elser-tokens[this page]. It is possible to exclude 
+tokens from source, refer to <<save-space,this section>> to learn more.
 
 [source,consol-result]
 ----
@@ -325,12 +328,14 @@ by using the <<include-exclude,source exclude>> mapping to remove the ELSER
 terms from the document source.
 
 WARNING: Reindex uses the document source to populate the destination index.
-Once the ELSER terms have been excluded from the source, they cannot be
-recovered through reindexing. Excluding the tokens from the source is a
+**Once the ELSER terms have been excluded from the source, they cannot be**
+**recovered through reindexing.** Excluding the tokens from the source is a
 space-saving optimsation that should only be applied if you are certain that
 reindexing will not be required in the future! It's important to carefully
 consider this trade-off and make sure that excluding the ELSER terms from the
-source aligns with your specific requirements and use case.
+source aligns with your specific requirements and use case. Review the 
+<<disable-source-field>> and <<include-exclude>> sections carefully to learn 
+more about the possible consequences of excluding the tokens from the `_source`.
 
 The mapping that excludes `content_embedding` from the  `_source` field can be 
 created by the following API call: 

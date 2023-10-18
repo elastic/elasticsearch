@@ -487,7 +487,7 @@ If in doubt about which command to use, simply run <gradle path>:check
 
 == Testing packaging
 
-The packaging tests uses cloud instances to verify
+The packaging tests are run on different build vm cloud instances to verify
 that installing and running Elasticsearch distributions works correctly on
 supported operating systems. These tests should really only be run on ephemeral
 systems because they're destructive; that is, these tests install and remove

@@ -181,7 +181,7 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
                     Class<?>[] classes = (Class<?>[]) annotation.getClass().getMethod("filters").invoke(annotation);
                     if (Arrays.stream(classes).noneMatch(c -> c.getName().equals("org.elasticsearch.test.TestClustersThreadFilter"))) {
                         throw new IllegalStateException(
-                            "TestClustersThreadFilter is required when using shard clusters. Annotate your test with the following:\n\n"
+                            "TestClustersThreadFilter is required when using shared clusters. Annotate your test with the following:\n\n"
                                 + "    @ThreadLeakFilters(filters = TestClustersThreadFilter.class)\n"
                         );
                     }

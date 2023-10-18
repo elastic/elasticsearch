@@ -66,7 +66,9 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(clusterState) == false) {
                 unavailableIndices.add(index);
             }
         }

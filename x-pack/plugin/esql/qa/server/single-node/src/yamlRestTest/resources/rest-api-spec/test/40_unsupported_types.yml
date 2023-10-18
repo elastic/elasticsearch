@@ -104,6 +104,7 @@ unsupported:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -269,6 +270,7 @@ unsupported with sort:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | sort some_doc.bar'

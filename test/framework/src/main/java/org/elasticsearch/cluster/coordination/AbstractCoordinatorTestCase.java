@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -1177,7 +1176,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 client.initialize(
                     Map.of(
-                        NodesHotThreadsAction.INSTANCE,
+                        TransportNodesHotThreadsAction.TYPE,
                         new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
                         MasterHistoryAction.INSTANCE,
                         new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),

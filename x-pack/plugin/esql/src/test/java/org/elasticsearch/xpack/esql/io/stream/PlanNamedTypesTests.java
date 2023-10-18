@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Less
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -45,6 +46,10 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -73,10 +78,18 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
+import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
+import org.elasticsearch.xpack.ql.plan.logical.Limit;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -99,12 +112,13 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 
 public class PlanNamedTypesTests extends ESTestCase {
 
-    // List of known serializable plan nodes - this should be kept up to date or retrieved
+    // List of known serializable physical plan nodes - this should be kept up to date or retrieved
     // programmatically. Excludes LocalSourceExec
-    static final List<Class<? extends PhysicalPlan>> PHYSICAL_PLAN_NODE_CLS = List.of(
+    public static final List<Class<? extends PhysicalPlan>> PHYSICAL_PLAN_NODE_CLS = List.of(
         AggregateExec.class,
         DissectExec.class,
         EsQueryExec.class,
@@ -136,6 +150,46 @@ public class PlanNamedTypesTests extends ESTestCase {
             .map(PlanNameRegistry.Entry::name)
             .toList();
         assertThat(actual, equalTo(expected));
+    }
+
+    // List of known serializable logical plan nodes - this should be kept up to date or retrieved
+    // programmatically.
+    public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
+        Aggregate.class,
+        Dissect.class,
+        EsRelation.class,
+        Eval.class,
+        Enrich.class,
+        Filter.class,
+        Grok.class,
+        Limit.class,
+        OrderBy.class,
+        Project.class,
+        TopN.class
+    );
+
+    // Tests that all logical plan nodes have a suitably named serialization entry.
+    public void testLogicalPlanEntries() {
+        var expected = LOGICAL_PLAN_NODE_CLS.stream().map(Class::getSimpleName).toList();
+        var actual = PlanNamedTypes.namedTypeEntries()
+            .stream()
+            .filter(e -> e.categoryClass().isAssignableFrom(LogicalPlan.class))
+            .map(PlanNameRegistry.Entry::name)
+            .toList();
+        assertThat(actual, equalTo(expected));
+    }
+
+    public void testFunctionEntries() {
+        var serializableFunctions = PlanNamedTypes.namedTypeEntries()
+            .stream()
+            .filter(e -> Function.class.isAssignableFrom(e.concreteClass()))
+            .map(PlanNameRegistry.Entry::name)
+            .sorted()
+            .toList();
+
+        for (var function : (new EsqlFunctionRegistry()).listFunctions()) {
+            assertThat(serializableFunctions, hasItem(equalTo(PlanNamedTypes.name(function.clazz()))));
+        }
     }
 
     // Tests that all names are unique - there should be a good reason if this is not the case.

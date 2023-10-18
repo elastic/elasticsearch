@@ -7,13 +7,10 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.testclusters.apmserver.ApmServerBuildService;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.options.Option;
@@ -58,9 +55,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
     private final Path tlsBasePath = Path.of(
         new File(getProject().getRootDir(), "build-tools-internal/src/main/resources/run.ssl").toURI()
     );
-
-    @Internal
-    public abstract Property<ApmServerBuildService> getMockApmServer();
+    private MockApmServer mockServer;
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
@@ -191,9 +186,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
                 }
 
                 if (apmServerEnabled) {
-                    ApmServerBuildService apmServerBuildService = getMockApmServer().get();
+                    mockServer = new MockApmServer(9999);
                     node.setting("telemetry.metrics.enabled", "true");
-                    node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + apmServerBuildService.getPort());
+                    node.setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
                 }
 
             }

@@ -34,7 +34,7 @@ public class EsRelation extends LeafPlan {
         this(source, index, attributes, false);
     }
 
-    private EsRelation(Source source, EsIndex index, List<Attribute> attributes, boolean frozen) {
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, boolean frozen) {
         super(source);
         this.index = index;
         this.attrs = attributes;

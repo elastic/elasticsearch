@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
+import java.util.Objects;
 
 public class EsqlProject extends Project {
 
@@ -46,5 +47,22 @@ public class EsqlProject extends Project {
     @Override
     public Project withProjections(List<? extends NamedExpression> projections) {
         return new EsqlProject(source(), child(), projections);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(projections(), child());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        Project other = (EsqlProject) obj;
+        return Objects.equals(projections(), other.projections()) && Objects.equals(child(), other.child());
     }
 }

@@ -11,8 +11,8 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 
-import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 
 /**
  * Filters out tiles using the provided bounds at the provided precision. In order to be efficient it works on the X/Y coordinates of the

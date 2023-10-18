@@ -30,6 +30,7 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         mappers.put(RankFeaturesFieldMapper.CONTENT_TYPE, RankFeaturesFieldMapper.PARSER);
         mappers.put(SearchAsYouTypeFieldMapper.CONTENT_TYPE, SearchAsYouTypeFieldMapper.PARSER);
         mappers.put(MatchOnlyTextFieldMapper.CONTENT_TYPE, MatchOnlyTextFieldMapper.PARSER);
+        mappers.put(CountedKeywordFieldMapper.CONTENT_TYPE, CountedKeywordFieldMapper.PARSER);
         return Collections.unmodifiableMap(mappers);
     }
 

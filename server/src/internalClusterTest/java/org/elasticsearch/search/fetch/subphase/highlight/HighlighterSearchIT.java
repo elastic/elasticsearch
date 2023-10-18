@@ -1539,11 +1539,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchPhraseQuery("title", "this is a test"))
-            .highlighter(new HighlightBuilder().field("title", 50, 1, 10))
-            .get();
-        assertNoFailures(search);
+        assertNoFailures(
+            client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .highlighter(new HighlightBuilder().field("title", 50, 1, 10))
+        );
 
         assertFailures(
             client().prepareSearch()
@@ -1560,7 +1560,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
                 .highlighter(new HighlightBuilder().field("tit*", 50, 1, 10).highlighterType("fvh"))
-                .get()
         );
     }
 
@@ -2656,11 +2655,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchQuery("title", "this is a test"))
-            .highlighter(new HighlightBuilder().field("title"))
-            .get();
-        assertNoFailures(search);
+        assertNoFailures(
+            client().prepareSearch().setQuery(matchQuery("title", "this is a test")).highlighter(new HighlightBuilder().field("title"))
+        );
     }
 
     public void testPostingsHighlighterBoostingQuery() throws IOException {

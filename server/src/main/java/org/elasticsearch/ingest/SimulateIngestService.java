@@ -43,16 +43,17 @@ public class SimulateIngestService extends IngestService {
      * @return A transformed version of rawPipelineSubstitutions, where the values are Pipeline objects
      * @throws Exception
      */
-    @SuppressWarnings("unchecked")
-    private Map<String, Pipeline> getPipelineSubstitutions(Map<String, Object> rawPipelineSubstitutions, IngestService ingestService)
-        throws Exception {
+    private Map<String, Pipeline> getPipelineSubstitutions(
+        Map<String, Map<String, Object>> rawPipelineSubstitutions,
+        IngestService ingestService
+    ) throws Exception {
         Map<String, Pipeline> parsedPipelineSubstitutions = new HashMap<>();
-        if (pipelineSubstitutions != null) {
-            for (Map.Entry<String, Object> entry : rawPipelineSubstitutions.entrySet()) {
+        if (rawPipelineSubstitutions != null) {
+            for (Map.Entry<String, Map<String, Object>> entry : rawPipelineSubstitutions.entrySet()) {
                 String pipelineId = entry.getKey();
                 Pipeline pipeline = Pipeline.create(
                     pipelineId,
-                    (Map<String, Object>) entry.getValue(),
+                    entry.getValue(),
                     ingestService.getProcessorFactories(),
                     ingestService.getScriptService()
                 );
@@ -62,11 +63,17 @@ public class SimulateIngestService extends IngestService {
         return parsedPipelineSubstitutions;
     }
 
+    /**
+     * This method returns the Pipeline for the given pipelineId. If a substitute definition of the pipeline has been defined for the
+     * cuurent simulate, then that pipeline is returned. Otherwise the pipeline stored in the cluster state is returned.
+     * @param pipelineId
+     * @return
+     */
     @Override
-    public Pipeline getPipeline(String id) {
-        Pipeline pipeline = pipelineSubstitutions.get(id);
+    public Pipeline getPipeline(String pipelineId) {
+        Pipeline pipeline = pipelineSubstitutions.get(pipelineId);
         if (pipeline == null) {
-            pipeline = super.getPipeline(id);
+            pipeline = super.getPipeline(pipelineId);
         }
         return pipeline;
     }

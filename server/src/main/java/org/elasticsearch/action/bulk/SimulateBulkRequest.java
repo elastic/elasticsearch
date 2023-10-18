@@ -15,24 +15,57 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * This extends BulkRequest with support for providing substitute pipeline definitions.
+ * This extends BulkRequest with support for providing substitute pipeline definitions. In a user request, the pipeline substitutions
+ * will look something like this:
+ *
+ *   "pipeline_substitutions": {
+ *     "my-pipeline-1": {
+ *       "processors": [
+ *         {
+ *           "set": {
+ *             "field": "my-new-boolean-field",
+ *             "value": true
+ *           }
+ *         }
+ *       ]
+ *     },
+ *     "my-pipeline-2": {
+ *       "processors": [
+ *         {
+ *           "set": {
+ *             "field": "my-new-boolean-field",
+ *             "value": true
+ *           },
+ *           "rename": {
+ *               "field": "old_field",
+ *               "target_field": "new field"
+ *           }
+ *         }
+ *       ]
+ *     }
+ *   }
+ *
+ *   The pipelineSubstitutions Map held by this class is intended to be the result of XContentHelper.convertToMap(). The top-level keys
+ *   are the pipelineIds ("my-pipeline-1" and "my-pipeline-2" in the example above). The values are the Maps of "processors" to the List of
+ *   processor definitions.
  */
 public class SimulateBulkRequest extends BulkRequest {
-    private Map<String, Object> pipelineSubstitutions = Map.of();
+    private Map<String, Map<String, Object>> pipelineSubstitutions = Map.of();
 
     public SimulateBulkRequest() {
         super();
     }
 
+    @SuppressWarnings("unchecked")
     public SimulateBulkRequest(StreamInput in) throws IOException {
         super(in);
-        this.pipelineSubstitutions = in.readMap();
+        this.pipelineSubstitutions = (Map<String, Map<String, Object>>) in.readGenericValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeGenericMap(pipelineSubstitutions);
+        out.writeGenericValue(pipelineSubstitutions);
     }
 
     /**
@@ -40,11 +73,11 @@ public class SimulateBulkRequest extends BulkRequest {
      * The key of the map is the pipelineId, and the value the pipeline definition as parsed by XContentHelper.convertToMap().
      * @param pipelineSubstitutions
      */
-    public void setPipelineSubstitutions(Map<String, Object> pipelineSubstitutions) {
+    public void setPipelineSubstitutions(Map<String, Map<String, Object>> pipelineSubstitutions) {
         this.pipelineSubstitutions = pipelineSubstitutions;
     }
 
-    public Map<String, Object> getPipelineSubstitutions() {
+    public Map<String, Map<String, Object>> getPipelineSubstitutions() {
         return pipelineSubstitutions;
     }
 }

@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        Map<String, Object> pipelineSubstitutions = getTestPipelineSubstitutions();
+        Map<String, Map<String, Object>> pipelineSubstitutions = getTestPipelineSubstitutions();
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
         simulateBulkRequest.setPipelineSubstitutions(pipelineSubstitutions);
         /*
@@ -30,7 +30,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
         assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
     }
 
-    private Map<String, Object> getTestPipelineSubstitutions() {
+    private Map<String, Map<String, Object>> getTestPipelineSubstitutions() {
         return new HashMap<>() {
             {
                 put("pipeline1", new HashMap<>() {

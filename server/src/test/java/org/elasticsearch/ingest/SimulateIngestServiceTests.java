@@ -64,7 +64,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
-            Map<String, Object> pipelineSubstitutions = new HashMap<>() {
+            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
                 {
                     put("pipeline1", new HashMap<>() {
                         {
@@ -106,7 +106,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
              * one).
              */
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
-            Map<String, Object> pipelineSubstitutions = new HashMap<>() {
+            Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
                 {
                     put("pipeline2", new HashMap<>() {
                         {

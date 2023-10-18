@@ -124,6 +124,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -417,20 +418,21 @@ public class Stateless extends Plugin
         clusterService.addListener(memoryMetricsService);
         components.add(memoryMetricsService);
 
-        // ingest
-        var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
-        var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
-        var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats);
-        var ingestLoadSampler = IngestLoadSampler.create(
-            threadPool,
-            writeLoadSampler,
-            ingestLoadPublisher,
-            ingestLoadProbe::getIngestionLoad,
-            hasIndexRole,
-            settings,
-            clusterService
-        );
-        components.add(ingestLoadSampler);
+        if (hasIndexRole) {
+            var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);
+            var writeLoadSampler = AverageWriteLoadSampler.create(threadPool, settings, clusterService.getClusterSettings());
+            var ingestLoadProbe = new IngestLoadProbe(clusterService.getClusterSettings(), writeLoadSampler::getExecutorStats);
+            var ingestLoadSampler = new IngestLoadSampler(
+                threadPool,
+                writeLoadSampler,
+                ingestLoadPublisher,
+                ingestLoadProbe::getIngestionLoad,
+                EsExecutors.nodeProcessors(settings).count(),
+                clusterService.getClusterSettings()
+            );
+            clusterService.addListener(ingestLoadSampler);
+            components.add(ingestLoadSampler);
+        }
         var ingestMetricService = new IngestMetricsService(
             clusterService.getClusterSettings(),
             threadPool::relativeTimeInNanos,
@@ -438,6 +440,7 @@ public class Stateless extends Plugin
         );
         clusterService.addListener(ingestMetricService);
         components.add(ingestMetricService);
+
         final ShardSizeCollector shardSizeCollector;
         if (hasSearchRole) {
             var searchShardSizeCollector = new SearchShardSizeCollector(

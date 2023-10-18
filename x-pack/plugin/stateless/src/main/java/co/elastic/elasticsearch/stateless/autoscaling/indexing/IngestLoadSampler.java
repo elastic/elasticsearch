@@ -17,12 +17,11 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -45,7 +44,7 @@ import static co.elastic.elasticsearch.stateless.autoscaling.AutoscalingDataTran
  * and publish the new reading to the elected master periodically (parameterized by {@code MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING}
  * or when the change is significant enough (parameterized by {@code MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING})
  */
-public class IngestLoadSampler implements ClusterStateListener {
+public class IngestLoadSampler extends AbstractLifecycleComponent implements ClusterStateListener {
     public static final Setting<Double> MIN_SENSITIVITY_RATIO_FOR_PUBLICATION_SETTING = Setting.doubleSetting(
         "serverless.autoscaling.indexing.sampler.min_sensitivity_ratio_for_publication",
         0.1,
@@ -74,7 +73,6 @@ public class IngestLoadSampler implements ClusterStateListener {
     private final IngestLoadPublisher ingestionLoadPublisher;
     private final DoubleSupplier currentIndexLoadSupplier;
     private final double numProcessors;
-    private final boolean isIndexNode;
 
     private volatile double minSensitivityRatio;
     private volatile TimeValue samplingFrequency;
@@ -84,7 +82,6 @@ public class IngestLoadSampler implements ClusterStateListener {
     private volatile SamplingTask samplingTask;
     private final AtomicLong lastPublicationRelativeTimeInMillis = new AtomicLong();
     private final AtomicReference<Object> inFlightPublicationTicket = new AtomicReference<>();
-    private volatile TransportVersion minTransportVersion = TransportVersions.MINIMUM_COMPATIBLE;
     private volatile String nodeId;
 
     public IngestLoadSampler(
@@ -92,7 +89,6 @@ public class IngestLoadSampler implements ClusterStateListener {
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestionLoadPublisher,
         DoubleSupplier currentIndexLoadSupplier,
-        boolean isIndexNode,
         double numProcessors,
         ClusterSettings clusterSettings
     ) {
@@ -104,7 +100,6 @@ public class IngestLoadSampler implements ClusterStateListener {
         clusterSettings.initializeAndWatch(SAMPLING_FREQUENCY_SETTING, value -> this.samplingFrequency = value);
         clusterSettings.initializeAndWatch(MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING, value -> this.maxTimeBetweenPublications = value);
         this.numProcessors = numProcessors;
-        this.isIndexNode = isIndexNode;
 
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
@@ -120,7 +115,6 @@ public class IngestLoadSampler implements ClusterStateListener {
         AverageWriteLoadSampler writeLoadSampler,
         IngestLoadPublisher ingestLoadPublisher,
         DoubleSupplier getIngestionLoad,
-        boolean hasIndexRole,
         Settings settings,
         ClusterService clusterService
     ) {
@@ -129,7 +123,6 @@ public class IngestLoadSampler implements ClusterStateListener {
             writeLoadSampler,
             ingestLoadPublisher,
             getIngestionLoad,
-            hasIndexRole,
             EsExecutors.nodeProcessors(settings).count(),
             clusterService.getClusterSettings()
         );
@@ -148,39 +141,31 @@ public class IngestLoadSampler implements ClusterStateListener {
         return loadSampler;
     }
 
-    void start() {
-        if (isIndexNode) {
-            var newSamplingTask = new SamplingTask();
-            samplingTask = newSamplingTask;
-            newSamplingTask.run();
-        }
-    }
-
-    void stop() {
-        if (isIndexNode) {
-            samplingTask = null;
-        }
+    @Override
+    protected void doStart() {
+        var newSamplingTask = new SamplingTask();
+        samplingTask = newSamplingTask;
+        newSamplingTask.run();
     }
 
     @Override
+    protected void doStop() {
+        samplingTask = null;
+    }
+
+    @Override
+    protected void doClose() {}
+
+    @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (isIndexNode == false) {
-            return;
-        }
         assert nodeId == null || nodeId.equals(event.state().nodes().getLocalNodeId());
         if (nodeId == null) {
             setNodeId(event.state().nodes().getLocalNodeId());
         }
-        setMinTransportVersion(event.state().getMinTransportVersion());
         if (event.nodesDelta().masterNodeChanged()) {
             clearInFlightPublicationTicket();
             publishCurrentLoad(nodeId);
         }
-    }
-
-    // Visible for testing
-    void setMinTransportVersion(TransportVersion minTransportVersion) {
-        this.minTransportVersion = minTransportVersion;
     }
 
     // Visible for testing

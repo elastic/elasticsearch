@@ -127,7 +127,7 @@ Head Human Resources   |10004
 ;
 
 expandWithMultiSort
-from employees | keep emp_no, job_positions | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
+from employees | keep emp_no, job_positions | sort emp_no | mv_expand job_positions | limit 10 | where emp_no <= 10006 | sort job_positions nulls first;
 
 emp_no:integer |  job_positions:keyword       
 10003          |null                      

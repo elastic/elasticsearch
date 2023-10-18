@@ -16,9 +16,7 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
@@ -35,21 +33,16 @@ import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.specs.Specs;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.initialization.layout.BuildLayout;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-
-import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes.ARCHIVE;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.ALL_INTERNAL;

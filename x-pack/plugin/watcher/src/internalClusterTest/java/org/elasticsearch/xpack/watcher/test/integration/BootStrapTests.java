@@ -193,7 +193,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             );
         }
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0).get(), numWatches);
+        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0), numWatches);
 
         startWatcher();
 

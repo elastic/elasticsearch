@@ -114,8 +114,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                                 SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
                             )
                         )
-                        .setSize(0)
-                        .get(),
+                        .setSize(0),
                     indicesToDelete.contains(mountedIndex) ? 0L : mountedIndices.get(mountedIndex).v2()
                 );
             }
@@ -197,7 +196,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
         assertBusy(() -> {
             refreshSystemIndex(true);
-            assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0).get(), 0L);
+            assertHitCount(systemClient().prepareSearch(SNAPSHOT_BLOB_CACHE_INDEX).setSize(0), 0L);
         });
     }
 

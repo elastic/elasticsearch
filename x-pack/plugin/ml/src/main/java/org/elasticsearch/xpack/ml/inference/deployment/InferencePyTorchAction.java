@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -109,6 +111,17 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         } catch (IOException e) {
             logger.error(() -> "[" + getDeploymentId() + "] error writing to inference process", e);
             onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
+        } catch (ElasticsearchException e) {
+            // Don't log problems related to the shape of the input as errors
+            if (e.status().getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
+                logger.error(() -> "[" + getDeploymentId() + "] internal server error running inference", e);
+            } else {
+                logger.debug(() -> "[" + getDeploymentId() + "] error running inference due to input", e);
+            }
+            onFailure(e);
+        } catch (IllegalArgumentException e) {
+            logger.debug(() -> "[" + getDeploymentId() + "] illegal argument running inference", e);
+            onFailure(e);
         } catch (Exception e) {
             logger.error(() -> "[" + getDeploymentId() + "] error running inference", e);
             onFailure(e);

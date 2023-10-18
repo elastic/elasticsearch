@@ -61,7 +61,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
             );
         }
         indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
-        assertHitCount(client().prepareSearch().get(), (numDocs));
+        assertHitCount(client().prepareSearch(), (numDocs));
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {
             final AtomicBoolean stop = new AtomicBoolean(false);
@@ -134,7 +134,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
             if (nonCriticalExceptions.isEmpty() == false) {
                 logger.info("non-critical exceptions: {}", nonCriticalExceptions);
                 for (int j = 0; j < 10; j++) {
-                    assertHitCount(client().prepareSearch().get(), numDocs);
+                    assertHitCount(client().prepareSearch(), numDocs);
                 }
             }
         }

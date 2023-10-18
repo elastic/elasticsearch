@@ -93,7 +93,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)).get(), 1);
+            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
         }
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
@@ -143,7 +143,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen("test");
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)).get(), 1);
+            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
         }
     }
 }

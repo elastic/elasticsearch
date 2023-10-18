@@ -1,3 +1,4 @@
+[discrete]
 [[esql-agg-count-distinct]]
 === `COUNT_DISTINCT`
 The approximate number of distinct values.
@@ -14,6 +15,7 @@ include::{esql-specs}/stats_count_distinct.csv-spec[tag=count-distinct-result]
 Can take any field type as input and the result is always a `long` not matter
 the input type.
 
+[discrete]
 ==== Counts are approximate
 
 Computing exact counts requires loading values into a set and returning its
@@ -28,6 +30,7 @@ properties:
 
 include::../../aggregations/metrics/cardinality-aggregation.asciidoc[tag=explanation]
 
+[discrete]
 ==== Precision is configurable
 
 The `COUNT_DISTINCT` function takes an optional second parameter to configure the

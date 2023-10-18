@@ -46,11 +46,9 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     ) {
         super(
             GeoIpDownloaderStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            Request::new,
             NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -66,7 +64,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
 
     @Override
     protected NodeRequest newNodeRequest(Request request) {
-        return new NodeRequest(request);
+        return new NodeRequest();
     }
 
     @Override

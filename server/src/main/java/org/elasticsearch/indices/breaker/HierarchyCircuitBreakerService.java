@@ -412,7 +412,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage
                 ? CircuitBreaker.Durability.TRANSIENT
                 : CircuitBreaker.Durability.PERMANENT;
-            logger.debug(() -> format("%s", messageString));
+            logger.warn(() -> format("%s", messageString));
             throw new CircuitBreakingException(messageString, memoryUsed.totalUsage, parentLimit, durability);
         }
     }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-agg-sum]]
 === `SUM`
 The sum of a numeric field.

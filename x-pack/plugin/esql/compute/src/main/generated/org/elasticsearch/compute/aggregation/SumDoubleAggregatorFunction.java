@@ -95,6 +95,10 @@ public final class SumDoubleAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     DoubleVector value = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
     DoubleVector delta = page.<DoubleBlock>getBlock(channels.get(1)).asVector();
     BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(2)).asVector();

@@ -113,7 +113,7 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     private CollapseBuilder collapseBuilder;
 
     public ClassicRetrieverBuilder() {
-
+        super();
     }
 
     public ClassicRetrieverBuilder(ClassicRetrieverBuilder original) {

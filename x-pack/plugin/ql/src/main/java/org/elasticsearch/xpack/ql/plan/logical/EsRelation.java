@@ -43,7 +43,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, frozen);
+        return NodeInfo.create(this, EsRelation::new, index, attrs, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {

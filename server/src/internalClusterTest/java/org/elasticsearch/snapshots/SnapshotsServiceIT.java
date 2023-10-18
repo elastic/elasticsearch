@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
-    public void testDeletingSnapshotsIsLoggedAfterClusterStateIsProcessed() throws InterruptedException {
+    public void testDeletingSnapshotsIsLoggedAfterClusterStateIsProcessed() throws Exception {
         createRepository("test-repo", "fs");
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
@@ -68,6 +68,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(e.getMessage(), containsString("[test-repo:does-not-exist] is missing"));
             assertThat(startDeleteSnapshot("test-repo", "test-snapshot").actionGet().isAcknowledged(), is(true));
 
+            awaitNoMoreRunningOperations(); // ensure background file deletion is completed
             mockLogAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(LogManager.getLogger(SnapshotsService.class), mockLogAppender);

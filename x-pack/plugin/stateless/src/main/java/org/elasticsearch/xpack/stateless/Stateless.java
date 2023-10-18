@@ -41,7 +41,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
 import co.elastic.elasticsearch.stateless.cache.ClearBlobCacheRestHandler;
-import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheAction;
+import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesResponse;
 import co.elastic.elasticsearch.stateless.cache.action.TransportClearBlobCacheAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessElectionStrategy;
@@ -65,7 +65,7 @@ import co.elastic.elasticsearch.stateless.lucene.stats.GetAllShardSizesAction;
 import co.elastic.elasticsearch.stateless.lucene.stats.GetShardSizeAction;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSizeStatsClient;
 import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
@@ -97,6 +97,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -204,6 +205,14 @@ public class Stateless extends Plugin
 
     public static final String NAME = "stateless";
 
+    public static final ActionType<GetBlobStoreStatsNodesResponse> GET_BLOB_STORE_STATS_ACTION = ActionType.localOnly(
+        "cluster:monitor/" + NAME + "/blob_store/stats/get"
+    );
+
+    public static final ActionType<ClearBlobCacheNodesResponse> CLEAR_BLOB_CACHE_ACTION = ActionType.localOnly(
+        "cluster:admin/" + NAME + "/blob_cache/clear"
+    );
+
     /** Setting for enabling stateless. Defaults to false. **/
     public static final Setting<Boolean> STATELESS_ENABLED = Setting.boolSetting(
         DiscoveryNode.STATELESS_ENABLED_SETTING_NAME,
@@ -279,8 +288,8 @@ public class Stateless extends Plugin
             new ActionHandler<>(GetAllShardSizesAction.INSTANCE, GetAllShardSizesAction.TransportGetAllShardSizes.class),
             new ActionHandler<>(GetShardSizeAction.INSTANCE, GetShardSizeAction.TransportGetShardSize.class),
 
-            new ActionHandler<>(ClearBlobCacheAction.INSTANCE, TransportClearBlobCacheAction.class),
-            new ActionHandler<>(GetBlobStoreStatsAction.INSTANCE, TransportGetBlobStoreStatsAction.class),
+            new ActionHandler<>(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
+            new ActionHandler<>(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
             new ActionHandler<>(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
             new ActionHandler<>(StatelessPrimaryRelocationAction.INSTANCE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),

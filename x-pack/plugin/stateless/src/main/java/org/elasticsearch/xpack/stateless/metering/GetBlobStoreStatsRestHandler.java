@@ -17,7 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.metering;
 
-import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsAction;
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -51,8 +51,8 @@ public class GetBlobStoreStatsRestHandler extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         return restChannel -> client.execute(
-            GetBlobStoreStatsAction.INSTANCE,
-            new GetBlobStoreStatsNodesRequest(nodesIds),
+            Stateless.GET_BLOB_STORE_STATS_ACTION,
+            new GetBlobStoreStatsNodesRequest(),
             new RestActions.NodesResponseRestListener<>(restChannel)
         );
     }

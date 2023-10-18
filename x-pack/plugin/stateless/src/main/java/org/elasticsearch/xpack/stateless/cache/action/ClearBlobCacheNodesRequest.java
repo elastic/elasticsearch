@@ -17,17 +17,19 @@
 
 package co.elastic.elasticsearch.stateless.cache.action;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
 public class ClearBlobCacheNodesRequest extends BaseNodesRequest<ClearBlobCacheNodesRequest> {
-    public ClearBlobCacheNodesRequest(String... nodesIds) {
+    public ClearBlobCacheNodesRequest() {
         super((String[]) null);
     }
 
-    public ClearBlobCacheNodesRequest(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        TransportAction.localOnly();
     }
 }

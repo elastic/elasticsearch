@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.action;
 
+import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.Stateless.SharedBlobCacheServiceSupplier;
 
 import org.elasticsearch.action.FailedNodeException;
@@ -49,12 +50,10 @@ public class TransportClearBlobCacheAction extends TransportNodesAction<
         SharedBlobCacheServiceSupplier sharedBlobCacheServiceSupplier
     ) {
         super(
-            ClearBlobCacheAction.NAME,
-            threadPool,
+            Stateless.CLEAR_BLOB_CACHE_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,
-            ClearBlobCacheNodesRequest::new,
             ClearBlobCacheNodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

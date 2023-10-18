@@ -106,6 +106,9 @@ If you want to customize these templates, don't override them as they may be res
 Instead, look for a `...@custom` component template in the `composed_of` section of the managed index template.
 These custom component templates allow you to customize the mappings of managed index templates,
 without having to override managed index templates or component templates.
+Note that the custom component templates may not exist yet.
+After you create them using the <<indices-component-template>>, they'll be picked up by the index template.
+See <<data-streams-change-mappings-and-settings>> on how to apply the changes to the corresponding data stream.
 
 To avoid naming collisions with built-in and Fleet-managed component templates,
 avoid using `@` as part of your own component template names.

@@ -1,7 +1,9 @@
 setup:
   - skip:
-      version: ' - 8.10.99'
-      reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
+      version: 'all'
+      reason: 'AwaitsFix https://github.com/elastic/elasticsearch/issues/100502'
+      #version: ' - 8.10.99'
+      #reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
 
   # Additional logging for issue: https://github.com/elastic/elasticsearch/issues/100502
   - do:

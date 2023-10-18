@@ -8,10 +8,10 @@ preview::[]
 <titleabbrev>Render Search Application Query</titleabbrev>
 ++++
 
-Given specified query parameters, generates an Elasticsearch query using the search template associated with the search
+Given specified query parameters, generates an {es} query using the search template associated with the search
 application or a default template if none is specified.
 Unspecified template parameters will be assigned their default values (if applicable).
-Returns the specific Elasticsearch query that would be generated and executed by calling
+Returns the specific {es} query that would be generated and executed by calling
 <<search-application-search,search application search>>.
 
 [[search-application-render-query-request]]
@@ -29,8 +29,7 @@ Requires read privileges on the backing alias of the search application.
 
 `params`::
 (Optional, map of strings to objects)
-Query parameters used to generate the Elasticsearch query from the search template associated with the search
-application.
+Query parameters used to generate the {es} query from the search template associated with the search application.
 If a parameter used in the search template is not specified in `params`, the parameter's default value will be used.
 
 [NOTE]
@@ -57,7 +56,8 @@ Search Application `<name>` does not exist.
 [[search-application-render-query-example]]
 ==== {api-examples-title}
 
-The following example generates a query for a search application called `my-app` that uses the search template:
+The following example generates a query for a search application called `my-app` that uses the search template from
+the <<search-application-api-bm25-template, text search example>>::
 
 ////
 [source,console]
@@ -67,7 +67,6 @@ PUT /index1
 PUT _application/search_application/my-app
 {
   "indices": ["index1"],
-  "updated_at_millis": 1682105622204,
   "template": {
     "script": {
       "lang": "mustache",
@@ -76,16 +75,21 @@ PUT _application/search_application/my-app
         "query": {
           "multi_match": {
             "query": "{{query_string}}",
-            "fields": ["title^{{title_boost}}", "description"]
+            "fields": [{{#text_fields}}"{{name}}^{{boost}}",{{/text_fields}}]
           }
         },
+        "explain": "{{explain}}",
         "from": "{{from}}",
         "size": "{{size}}"
       }
       """,
       "params": {
         "query_string": "*",
-        "title_boost": 10,
+        "text_fields": [
+          {"name": "title", "boost": 10},
+          {"name": "description", "boost": 5}
+        ],
+        "explain": false,
         "from": 0,
         "size": 10
       }
@@ -108,50 +112,14 @@ DELETE index1
 
 [source,console]
 ----
-GET _application/search_application/my-app/
-----
-
-[source,console-result]
-----
-{
-  "name": "my-app",
-  "updated_at_millis": 1682105622204,
-  "indices": ["index1"],
-  "template": {
-    "script": {
-      "source": """
-      {
-        "query": {
-          "multi_match": {
-            "query": "{{query_string}}",
-            "fields": ["title^{{title_boost}}", "description"]
-          }
-        },
-        "from": "{{from}}",
-        "size": "{{size}}"
-      }
-      """,
-      "lang": "mustache",
-      "params": {
-        "title_boost": 10,
-        "from": 0,
-        "size": 10,
-        "query_string": "*"
-      }
-    }
-  }
-}
-----
-
-The following request will use the search template to generate an Elasticsearch query:
-
-[source,console]
-----
 POST _application/search_application/my-app/_render_query
 {
   "params": {
     "query_string": "my first query",
-    "title_boost": 5
+    "text_fields": [
+      {"name": "title", "boost": 5},
+      {"name": "description", "boost": 1}
+    ]
   }
 }
 ----
@@ -171,10 +139,11 @@ A sample response:
         "title^5.0"
       ]
     }
-  }
+  },
+  "explain": false
 }
 ----
 // TEST[continued]
 
-In this case, the `from` and `size` parameters are not specified in the request, so the default values specified in the
-search template are used.
+In this case, the `from`, `size`, and `explain` parameters are not specified in the request, so the default values
+specified in the search template are used.

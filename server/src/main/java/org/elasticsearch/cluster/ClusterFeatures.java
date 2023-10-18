@@ -28,22 +28,21 @@ public class ClusterFeatures {
     /**
      * The features present on all nodes
      */
-    private final Set<String> allNodeFeatures;
+    private Set<String> allNodeFeatures;
 
     public ClusterFeatures(Map<String, Set<String>> nodeFeatures) {
         this.nodeFeatures = nodeFeatures.entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> Set.copyOf(e.getValue())));
-        this.allNodeFeatures = calculateAllNodeFeatures(nodeFeatures.values());
     }
 
-    private static Set<String> calculateAllNodeFeatures(Collection<Set<String>> nodeFeatures) {
+    private Set<String> calculateAllNodeFeatures() {
         if (nodeFeatures.isEmpty()) {
             return Set.of();
         }
 
         Set<String> allNodeFeatures = null;
-        for (Set<String> featureSet : nodeFeatures) {
+        for (Set<String> featureSet : nodeFeatures.values()) {
             if (allNodeFeatures == null) {
                 allNodeFeatures = new HashSet<>(featureSet);
             } else {
@@ -64,6 +63,9 @@ public class ClusterFeatures {
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
     public boolean clusterHasFeature(NodeFeature feature) {
+        if (allNodeFeatures == null) {
+            allNodeFeatures = calculateAllNodeFeatures();
+        }
         return allNodeFeatures.contains(feature.id());
     }
 }

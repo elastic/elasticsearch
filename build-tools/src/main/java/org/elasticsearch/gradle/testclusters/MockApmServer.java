@@ -40,8 +40,8 @@ public class MockApmServer {
     }
 
     /**
-     * Simple main that starts a mock APM server, prints the port it is
-     * running on, and exits after 2_000 seconds. This is not needed
+     * Simple main that starts a mock APM server and prints the port it is
+     * running on. This is not needed
      * for testing, it is just a convenient template for trying things out
      * if you want play around.
      */

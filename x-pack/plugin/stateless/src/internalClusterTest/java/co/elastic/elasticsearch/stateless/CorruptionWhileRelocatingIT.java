@@ -25,12 +25,8 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -79,23 +75,6 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         ensureGreen(indexName);
 
         final var index = resolveIndex(indexName);
-        final var unassignedFuture = new PlainActionFuture<Exception>();
-        var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-        clusterService.addListener(event -> {
-            if (unassignedFuture.isDone() == false && event.indexRoutingTableChanged(indexName)) {
-                event.state()
-                    .routingTable()
-                    .index(index)
-                    .shardsWithState(ShardRoutingState.UNASSIGNED)
-                    .stream()
-                    .filter(ShardRouting::isSearchable)
-                    .filter(shardRouting -> shardRouting.unassignedInfo() != null)
-                    .filter(shardRouting -> shardRouting.unassignedInfo().getFailure() != null)
-                    .map(shardRouting -> shardRouting.unassignedInfo().getFailure())
-                    .findFirst()
-                    .ifPresent(unassignedFuture::onResponse);
-            }
-        });
 
         // Create multiple segments that must be large enough so that the compound commit never fits in a single cache region
         indexDocs(indexName, 1_000);

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -277,6 +278,7 @@ public class HeapAttackIT extends ESRestTestCase {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
         return client().performRequest(request);
     }

@@ -1,0 +1,17 @@
+[[esql-commands]]
+== {esql} commands
+
+++++
+<titleabbrev>Commands</titleabbrev>
+++++
+
+{esql} provides a comprehensive set of source and processing commands:
+
+<<esql-source-commands>>::
+include::source-commands/esql-source-commands.asciidoc[tag=list]
+
+<<esql-processing-commands>>::
+include::processing-commands/esql-processing-commands.asciidoc[tag=list]
+
+include::source-commands/esql-source-commands.asciidoc[]
+include::processing-commands/esql-processing-commands.asciidoc[]

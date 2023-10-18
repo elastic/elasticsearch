@@ -126,7 +126,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         IndicesService indicesService
     ) {
         httpManager.set(HttpClientManager.create(settings, threadPool, clusterService));
-        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpManager.get()));
+        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpManager.get(), clusterService, settings));
         ModelRegistry modelRegistry = new ModelRegistry(client);
         return List.of(modelRegistry);
     }
@@ -174,7 +174,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Stream.concat(HttpSettings.getSettings().stream(), HttpClientManager.getSettings().stream()).collect(Collectors.toList());
+        return Stream.of(
+            HttpSettings.getSettings(),
+            HttpClientManager.getSettings(),
+            HttpRequestSenderFactory.HttpRequestSender.getSettings()
+        ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
     @Override

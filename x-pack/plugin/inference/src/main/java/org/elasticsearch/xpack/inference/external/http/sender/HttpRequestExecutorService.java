@@ -15,6 +15,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -51,23 +53,28 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     private final CountDownLatch terminationLatch = new CountDownLatch(1);
     private final HttpClientContext httpContext;
     private final HttpClient httpClient;
+    private final ThreadPool threadPool;
 
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient) {
-        this(serviceName, httpClient, null);
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
+    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool) {
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>());
     }
 
-    @SuppressForbidden(reason = "properly rethrowing errors, see EsExecutors.rethrowErrors")
-    HttpRequestExecutorService(String serviceName, HttpClient httpClient, @Nullable Integer capacity) {
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
+    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, int capacity) {
+        this(serviceName, httpClient, threadPool, new LinkedBlockingQueue<>(capacity));
+    }
+
+    /**
+     * This constructor should only be used directly for testing.
+     */
+    @SuppressForbidden(reason = "wraps a queue and handles errors appropriately")
+    HttpRequestExecutorService(String serviceName, HttpClient httpClient, ThreadPool threadPool, BlockingQueue<HttpTask> queue) {
         this.serviceName = Objects.requireNonNull(serviceName);
         this.httpClient = Objects.requireNonNull(httpClient);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.httpContext = HttpClientContext.create();
-
-        if (capacity == null) {
-            this.queue = new LinkedBlockingQueue<>();
-        } else {
-            this.queue = new LinkedBlockingQueue<>(capacity);
-        }
+        this.queue = queue;
     }
 
     /**
@@ -76,18 +83,36 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     public void start() {
         try {
             while (running.get()) {
-                HttpTask task = queue.take();
-                if (task.shouldShutdown() || running.get() == false) {
-                    running.set(false);
-                    logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
-                } else {
-                    executeTask(task);
-                }
+                handleTasks();
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
+            running.set(false);
+            notifyRequestsOfShutdown();
             terminationLatch.countDown();
+        }
+    }
+
+    /**
+     * Protects the task retrieval logic from an unexpected exception.
+     *
+     * @throws InterruptedException rethrows the exception if it occurred retrieving a task because the thread is likely attempting to
+     * shut down
+     */
+    private void handleTasks() throws InterruptedException {
+        try {
+            HttpTask task = queue.take();
+            if (task.shouldShutdown() || running.get() == false) {
+                running.set(false);
+                logger.debug(() -> format("Http executor service [%s] exiting", serviceName));
+            } else {
+                executeTask(task);
+            }
+        } catch (InterruptedException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.warn(format("Http executor service [%s] failed while retrieving task for execution", serviceName), e);
         }
     }
 
@@ -95,7 +120,37 @@ class HttpRequestExecutorService extends AbstractExecutorService {
         try {
             task.run();
         } catch (Exception e) {
-            logger.error(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
+            logger.warn(format("Http executor service [%s] failed to execute request [%s]", serviceName, task), e);
+        }
+    }
+
+    private synchronized void notifyRequestsOfShutdown() {
+        assert isShutdown() : "Requests should only be notified if the executor is shutting down";
+
+        try {
+            List<HttpTask> notExecuted = new ArrayList<>();
+            queue.drainTo(notExecuted);
+
+            for (HttpTask task : notExecuted) {
+                rejectTask(task);
+            }
+        } catch (Exception e) {
+            logger.warn(format("Failed to notify tasks of queuing service [%s] shutdown", serviceName));
+        }
+    }
+
+    private void rejectTask(HttpTask task) {
+        try {
+            task.onRejection(
+                new EsRejectedExecutionException(
+                    format("Failed to send request, queue service [%s] has shutdown prior to executing request", serviceName),
+                    true
+                )
+            );
+        } catch (Exception e) {
+            logger.warn(
+                format("Failed to notify request [%s] for service [%s] of rejection after queuing service shutdown", task, serviceName)
+            );
         }
     }
 
@@ -135,21 +190,17 @@ class HttpRequestExecutorService extends AbstractExecutorService {
     /**
      * Send the request at some point in the future.
      * @param request the http request to send
+     * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
+     *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
+     *                If null, then the request will wait forever
      * @param listener an {@link ActionListener<HttpResult>} for the response or failure
      */
-    public void send(HttpRequestBase request, ActionListener<HttpResult> listener) {
-        // var a = request.getConfig();
-        // var b = RequestConfig.copy(a);
-        // b.setSocketTimeout(30000);
-        // b.setConnectTimeout(30000);
-        // b.setConnectionRequestTimeout(30000);
-        // request.setConfig(b.build());
-
-        RequestTask task = new RequestTask(request, httpClient, httpContext, listener);
+    public void send(HttpRequestBase request, @Nullable TimeValue timeout, ActionListener<HttpResult> listener) {
+        RequestTask task = new RequestTask(request, httpClient, httpContext, timeout, threadPool, listener);
 
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(
-                format("Failed to execute task because the http executor service [%s] has shutdown", serviceName),
+                format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),
                 true
             );
 
@@ -165,6 +216,11 @@ class HttpRequestExecutorService extends AbstractExecutorService {
             );
 
             task.onRejection(rejected);
+        } else if (isShutdown()) {
+            // It is possible that a shutdown and notification request occurred after we initially checked for shutdown above
+            // If the task was added after the queue was already drained it could sit there indefinitely. So let's check again if
+            // we shut down and if so we'll redo the notification
+            notifyRequestsOfShutdown();
         }
     }
 

@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction.Response;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzerAction;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersRequest;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -84,10 +83,8 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "foo").get();
         assertNoFailures(indicesAdmin().prepareRefresh("test").execute().actionGet());
 
-        SearchResponse response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 0L);
+        assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
         Response analyzeResponse = indicesAdmin().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
         assertEquals(2, analyzeResponse.getTokens().size());
         assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
@@ -127,11 +124,9 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 assertTrue(tokens.contains(testTerm));
             }
 
-            response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-            assertHitCount(response, 1L);
+            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
             long expectedHitCount = preview ? 0L : 1L;
-            response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", testTerm)).get();
-            assertHitCount(response, expectedHitCount);
+            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", testTerm)), expectedHitCount);
         }
     }
 }

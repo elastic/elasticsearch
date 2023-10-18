@@ -53,7 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.anyOf;
@@ -348,17 +348,18 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(1L));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(
-                randomizeType(
-                    multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase").operator(
-                        Operator.OR
-                    ).type(MatchQueryParser.Type.PHRASE_PREFIX)
-                )
-            )
-            .get();
-        assertSearchHits(searchResponse, "ultimate2", "ultimate1");
-        assertHitCount(searchResponse, 2L);
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("test")
+                .setQuery(
+                    randomizeType(
+                        multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase").operator(
+                            Operator.OR
+                        ).type(MatchQueryParser.Type.PHRASE_PREFIX)
+                    )
+                ),
+            "ultimate2",
+            "ultimate1"
+        );
     }
 
     public void testSingleField() throws NoSuchFieldException, IllegalAccessException {
@@ -750,28 +751,30 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("theone"));
         // counter example
-        searchResponse = client().prepareSearch("test")
-            .setQuery(
-                randomizeType(
-                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
-                        randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
-                    ).operator(Operator.AND)
-                )
-            )
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(
+                    randomizeType(
+                        multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                            randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
+                        ).operator(Operator.AND)
+                    )
+                ),
+            0L
+        );
 
         // counter example
-        searchResponse = client().prepareSearch("test")
-            .setQuery(
-                randomizeType(
-                    multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
-                        randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
-                    ).operator(Operator.AND)
-                )
-            )
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(
+                    randomizeType(
+                        multiMatchQuery("captain america marvel hero", "first_name", "last_name", "category").type(
+                            randomBoolean() ? MultiMatchQueryBuilder.Type.CROSS_FIELDS : MultiMatchQueryBuilder.DEFAULT_TYPE
+                        ).operator(Operator.AND)
+                    )
+                ),
+            0L
+        );
 
         // test if boosts work
         searchResponse = client().prepareSearch("test")
@@ -839,13 +842,12 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 )
             )
             .get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("ultimate1"));
         /*
-         * Doesn't find theone because "alpha 15" isn't a number and we don't
+         * Doesn't find the one because "alpha 15" isn't a number and we don't
          * break on spaces.
          */
-        assertHitCount(searchResponse, 1);
+        assertHitCount(searchResponse, 1L);
+        assertFirstHit(searchResponse, hasId("ultimate1"));
 
         // Lenient wasn't always properly lenient with two numeric fields
         searchResponse = client().prepareSearch("test")

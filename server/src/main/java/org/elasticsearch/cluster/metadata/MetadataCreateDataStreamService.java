@@ -395,7 +395,7 @@ public class MetadataCreateDataStreamService {
                 currentState,
                 createIndexRequest,
                 false,
-                ActionListener.noop()
+                AllocationActionListener.rerouteCompletionIsNotRequired()
             );
         } catch (ResourceAlreadyExistsException e) {
             // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during

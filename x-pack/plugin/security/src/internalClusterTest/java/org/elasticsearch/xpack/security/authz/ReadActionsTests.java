@@ -74,7 +74,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("test1", "test2", "index1", "index2");
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "index*")
+            trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "index*")
         );
         assertEquals("no such index [index*]", e.getMessage());
     }
@@ -86,7 +86,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testEmptyClusterSearchForAllDisallowNoIndices() {
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
+            trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
         );
         assertEquals("no such index [[]]", e.getMessage());
     }
@@ -98,7 +98,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testEmptyClusterSearchForWildcardDisallowNoIndices() {
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "*")
+            trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "*")
         );
         assertEquals("no such index [*]", e.getMessage());
     }
@@ -112,7 +112,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
+            trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))
         );
         assertEquals("no such index [[]]", e.getMessage());
     }
@@ -126,19 +126,19 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "*")
+            trySearch(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()), "*")
         );
         assertEquals("no such index [*]", e.getMessage());
     }
 
     public void testExplicitNonAuthorizedIndex() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("test*", "index1"), SearchAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("test*", "index1").get(), SearchAction.NAME);
     }
 
     public void testIndexNotFound() {
         createIndicesWithRandomAliases("test1", "test2", "index1");
-        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("missing"), SearchAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(() -> trySearch("missing").get(), SearchAction.NAME);
     }
 
     public void testIndexNotFoundIgnoreUnavailable() {
@@ -199,8 +199,8 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     }
 
     public void testMissingDateMath() {
-        expectThrows(ElasticsearchSecurityException.class, () -> trySearch("<unauthorized-datemath-{now/M}>"));
-        expectThrows(IndexNotFoundException.class, () -> trySearch("<test-datemath-{now/M}>"));
+        expectThrows(ElasticsearchSecurityException.class, trySearch("<unauthorized-datemath-{now/M}>"));
+        expectThrows(IndexNotFoundException.class, trySearch("<test-datemath-{now/M}>"));
     }
 
     public void testMultiSearchUnauthorizedIndex() {
@@ -415,6 +415,10 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     private SearchRequestBuilder trySearch(IndicesOptions options, String... indices) {
         return client().prepareSearch(indices).setIndicesOptions(options);
+    }
+
+    private static <T extends Throwable> T expectThrows(Class<T> expectedType, SearchRequestBuilder searchRequestBuilder) {
+        return expectThrows(expectedType, searchRequestBuilder::get);
     }
 
     private static void assertReturnedIndices(SearchRequestBuilder searchRequestBuilder, String... indices) {

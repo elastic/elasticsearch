@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -114,6 +115,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
+                    assertThat(threadContext.isSystemContext(), is(true));
                     assertSame(NodesInfoAction.INSTANCE, action);
                     assertThat(
                         asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(),
@@ -128,7 +130,10 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, ActionListener.wrap(response -> {
+            assertThat(threadContext.isSystemContext(), is(false));
+            future.onResponse(response);
+        }, future::onFailure));
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteServerNodes));
@@ -191,6 +196,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
+                    assertThat(threadContext.isSystemContext(), is(true));
                     assertSame(NodesInfoAction.INSTANCE, action);
                     assertThat(asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(), empty());
                     listener.onResponse((Response) nodesInfoResponse);
@@ -202,7 +208,10 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, ActionListener.wrap(response -> {
+            assertThat(threadContext.isSystemContext(), is(false));
+            future.onResponse(response);
+        }, future::onFailure));
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteNodes));

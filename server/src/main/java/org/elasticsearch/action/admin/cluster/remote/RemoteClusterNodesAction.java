@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.client.internal.Client;
@@ -104,6 +105,14 @@ public class RemoteClusterNodesAction extends ActionType<RemoteClusterNodesActio
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             final ThreadContext threadContext = client.threadPool().getThreadContext();
+            executeWithSystemContext(
+                request,
+                threadContext,
+                new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), listener)
+            );
+        }
+
+        private void executeWithSystemContext(Request request, ThreadContext threadContext, ActionListener<Response> listener) {
             try (var ignore = threadContext.stashContext()) {
                 threadContext.markAsSystemContext();
                 if (request.remoteClusterServer) {

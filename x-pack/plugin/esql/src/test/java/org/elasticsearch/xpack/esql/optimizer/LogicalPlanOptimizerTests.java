@@ -2033,6 +2033,37 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         fail("Awaits fix");
     }
 
+    /**
+     * Expects
+     * Project[[max(x){r}#11, max(x){r}#11 AS max(y), max(x){r}#11 AS max(z)]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[],[MAX(salary{f}#21) AS max(x)]]
+     *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testEliminateDuplicateAggsNonCount() {
+        var plan = plan("""
+            from test
+            | eval x = salary
+            | eval y = x
+            | eval z = y
+            | stats max(x), max(y), max(z)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("max(x)", "max(y)", "max(z)"));
+        as(projections.get(0), ReferenceAttribute.class);
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("max(x)"));
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("max(x)"));
+
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("max(x)"));
+        aggFieldName(aggs.get(0), Max.class, "salary");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);

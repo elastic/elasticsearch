@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -523,20 +524,33 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                 if (indicesToDelete.length > 0) {
                     logger.info(
-                        "--> deleting indices {} in preparation for restoring from [{}:{}]",
-                        indicesToRestoreList,
-                        snapshotInfo.repository(),
-                        snapshotInfo.snapshotId().getName()
+                        "--> waiting for yellow health of [{}] before deleting",
+                        Strings.arrayToCommaDelimitedString(indicesToDelete)
                     );
-                    indicesAdmin().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
+
+                    SubscribableListener.<ClusterHealthResponse>newForked(
+                        l -> prepareClusterHealthRequest(indicesToDelete).setWaitForYellowStatus().execute(l)
+                    ).addListener(mustSucceed(clusterHealthResponse -> {
+                        assertFalse(
+                            "timed out waiting for yellow state of " + Strings.arrayToCommaDelimitedString(indicesToDelete),
+                            clusterHealthResponse.isTimedOut()
+                        );
                         logger.info(
-                            "--> finished deleting indices {} in preparation for restoring from [{}:{}]",
+                            "--> deleting indices {} in preparation for restoring from [{}:{}]",
                             indicesToRestoreList,
                             snapshotInfo.repository(),
                             snapshotInfo.snapshotId().getName()
                         );
-                        assertTrue(deleteIndicesResponse.isAcknowledged());
-                        deleteIndicesStep.onResponse(null);
+                        indicesAdmin().prepareDelete(indicesToDelete).execute(mustSucceed(deleteIndicesResponse -> {
+                            logger.info(
+                                "--> finished deleting indices {} in preparation for restoring from [{}:{}]",
+                                indicesToRestoreList,
+                                snapshotInfo.repository(),
+                                snapshotInfo.snapshotId().getName()
+                            );
+                            assertTrue(deleteIndicesResponse.isAcknowledged());
+                            deleteIndicesStep.onResponse(null);
+                        }));
                     }));
                 } else {
                     deleteIndicesStep.onResponse(null);
@@ -842,7 +856,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 boolean startedSnapshot = false;
                 try (TransferableReleasables localReleasables = new TransferableReleasables()) {
 
-                    // separate TransferableReleasables for blocking node restarts & index deletion so we can release these blocks and
+                    // separate TransferableReleasables for blocking node restarts so we can release these blocks and
                     // permit data node restarts and index deletions as soon as the snapshot starts
                     final TransferableReleasables releasableAfterStart = new TransferableReleasables();
                     localReleasables.add(releasableAfterStart);
@@ -1390,15 +1404,20 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
                         } else if (localReleasables.add(tryAcquireAllPermits(permits)) != null) {
                             // delete the index and create a new one
-
                             final Releasable releaseAll = localReleasables.transfer();
 
-                            logger.info("--> deleting index [{}]", indexName);
+                            logger.info("--> waiting for yellow health of [{}] before deleting", indexName);
 
-                            indicesAdmin().prepareDelete(indexName).execute(mustSucceed(acknowledgedResponse -> {
-                                logger.info("--> deleting index [{}] finished", indexName);
-                                assertTrue(acknowledgedResponse.isAcknowledged());
-                                createIndexAndContinue(releaseAll);
+                            SubscribableListener.<ClusterHealthResponse>newForked(
+                                l -> prepareClusterHealthRequest(indexName).setWaitForYellowStatus().execute(l)
+                            ).addListener(mustSucceed(clusterHealthResponse -> {
+                                assertFalse("timed out waiting for yellow state of " + indexName, clusterHealthResponse.isTimedOut());
+                                logger.info("--> deleting index [{}]", indexName);
+                                indicesAdmin().prepareDelete(indexName).execute(mustSucceed(acknowledgedResponse -> {
+                                    logger.info("--> deleting index [{}] finished", indexName);
+                                    assertTrue(acknowledgedResponse.isAcknowledged());
+                                    createIndexAndContinue(releaseAll);
+                                }));
                             }));
 
                             forked = true;

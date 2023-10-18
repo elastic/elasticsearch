@@ -1,0 +1,12 @@
+[discrete]
+[[esql-binary-operators]]
+=== Binary operators
+
+These binary comparison operators are supported:
+
+* equality: `==`
+* inequality: `!=`
+* less than: `<`
+* less than or equal: `<=`
+* larger than: `>`
+* larger than or equal: `>=`

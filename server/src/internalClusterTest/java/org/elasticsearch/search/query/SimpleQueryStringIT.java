@@ -258,19 +258,21 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("baz | egg*").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("baz | egg*").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)),
+            0L
+        );
 
-        searchResponse = client().prepareSearch()
-            .setSource(
-                new SearchSourceBuilder().query(
-                    QueryBuilders.simpleQueryStringQuery("foo|bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)
-                )
-            )
-            .get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(
+            client().prepareSearch()
+                .setSource(
+                    new SearchSourceBuilder().query(
+                        QueryBuilders.simpleQueryStringQuery("foo|bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)
+                    )
+                ),
+            1L
+        );
 
         searchResponse = client().prepareSearch()
             .setQuery(

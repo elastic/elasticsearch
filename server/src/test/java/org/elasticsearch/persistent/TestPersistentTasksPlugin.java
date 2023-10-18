@@ -76,9 +76,14 @@ import static org.junit.Assert.fail;
  */
 public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
+    public static final ActionType<TestTasksResponse> TEST_ACTION = new ActionType<>(
+        "cluster:admin/persistent/task_test",
+        TestTasksResponse::new
+    );
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Collections.singletonList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class));
+        return Collections.singletonList(new ActionHandler<>(TEST_ACTION, TransportTestTaskAction.class));
     }
 
     @Override
@@ -413,16 +418,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
     }
 
-    public static class TestTaskAction extends ActionType<TestTasksResponse> {
-
-        public static final TestTaskAction INSTANCE = new TestTaskAction();
-        public static final String NAME = "cluster:admin/persistent/task_test";
-
-        private TestTaskAction() {
-            super(NAME, TestTasksResponse::new);
-        }
-    }
-
     public static class TestTask extends AllocatedPersistentTask {
         private volatile String operation;
 
@@ -446,9 +441,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
     static class TestTaskResponse implements Writeable {
 
-        TestTaskResponse() {
-
-        }
+        TestTaskResponse() {}
 
         TestTaskResponse(StreamInput in) throws IOException {
             in.readBoolean();
@@ -489,7 +482,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
     public static class TestTasksRequestBuilder extends TasksRequestBuilder<TestTasksRequest, TestTasksResponse, TestTasksRequestBuilder> {
 
         protected TestTasksRequestBuilder(ElasticsearchClient client) {
-            super(client, TestTaskAction.INSTANCE, new TestTasksRequest());
+            super(client, TEST_ACTION, new TestTasksRequest());
         }
 
         public TestTasksRequestBuilder setOperation(String operation) {
@@ -536,7 +529,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         @Inject
         public TransportTestTaskAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
             super(
-                TestTaskAction.NAME,
+                TEST_ACTION.name(),
                 clusterService,
                 transportService,
                 actionFilters,

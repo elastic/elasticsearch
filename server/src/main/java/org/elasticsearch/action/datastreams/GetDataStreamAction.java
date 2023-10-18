@@ -307,7 +307,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                 }
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
-                if (DataStream.isFailureStoreEnabled() && dataStream.getFailureStores().isEmpty() == false) {
+                if (DataStream.isFailureStoreEnabled()) {
                     builder.field(DataStream.FAILURE_STORES_FIELD.getPreferredName());
                     builder.startArray();
                     for (Index failureStore : dataStream.getFailureStores()) {

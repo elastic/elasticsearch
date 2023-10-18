@@ -205,7 +205,7 @@ public class StatelessRestIT extends ESRestTestCase {
         if (options != null) {
             getIndexSettingsRequest.setOptions(options);
         }
-        final Response getSettingsResponse = client().performRequest(getIndexSettingsRequest);
+        final Response getSettingsResponse = adminClient().performRequest(getIndexSettingsRequest);
         assertOK(getSettingsResponse);
         final Map<String, Object> getSettingsMap = responseAsMap(getSettingsResponse);
         assertThat(getSettingsMap.keySet(), hasSize(1));

@@ -81,7 +81,7 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -633,20 +633,19 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         client().prepareIndex("lookup_index").setId("2").setSource("other", "value2", "field", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         // user sees the terms doc field
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD))
-        )
-            .prepareSearch("search_index")
-            .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "1", "field")))
-            .get();
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "2");
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "2", "field")))
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "1", "field"))),
+            "1",
+            "2"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(QueryBuilders.termsLookupQuery("field", new TermsLookup("lookup_index", "2", "field"))),
+            "1"
+        );
         // user does not see the terms doc field
         assertHitCount(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user6", USERS_PASSWD)))

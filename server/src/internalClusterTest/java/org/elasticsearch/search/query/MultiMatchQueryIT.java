@@ -53,7 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.anyOf;
@@ -348,17 +348,18 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(1L));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(
-                randomizeType(
-                    multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase").operator(
-                        Operator.OR
-                    ).type(MatchQueryParser.Type.PHRASE_PREFIX)
-                )
-            )
-            .get();
-        assertSearchHits(searchResponse, "ultimate2", "ultimate1");
-        assertHitCount(searchResponse, 2L);
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("test")
+                .setQuery(
+                    randomizeType(
+                        multiMatchQuery("the Ul", "full_name_phrase", "first_name_phrase", "last_name_phrase", "category_phrase").operator(
+                            Operator.OR
+                        ).type(MatchQueryParser.Type.PHRASE_PREFIX)
+                    )
+                ),
+            "ultimate2",
+            "ultimate1"
+        );
     }
 
     public void testSingleField() throws NoSuchFieldException, IllegalAccessException {

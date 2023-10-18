@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +46,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -87,17 +86,17 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute()
             .actionGet();
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(
-                new PercolateQueryBuilder(
-                    "query",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
-                    XContentType.JSON
-                )
-            )
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("index")
+                .setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+                        XContentType.JSON
+                    )
+                ),
+            "1"
+        );
     }
 
     public void testPercolateQueryWithNestedDocuments_doNotLeakBitsetCacheEntries() throws Exception {
@@ -265,17 +264,17 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .get();
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(
-                new PercolateQueryBuilder(
-                    "query",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
-                    XContentType.JSON
-                )
-            )
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("test")
+                .setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
+                        XContentType.JSON
+                    )
+                ),
+            "1"
+        );
     }
 
     public void testRangeQueriesWithNow() throws Exception {

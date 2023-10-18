@@ -13,13 +13,13 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -54,17 +54,13 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testSearchForAll() {
         // index1 is not authorized and referred to through wildcard
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
-
-        SearchResponse searchResponse = trySearch();
-        assertReturnedIndices(searchResponse, "test1", "test2", "test3");
+        assertReturnedIndices(trySearch(), "test1", "test2", "test3");
     }
 
     public void testSearchForWildcard() {
         // index1 is not authorized and referred to through wildcard
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
-
-        SearchResponse searchResponse = trySearch("*");
-        assertReturnedIndices(searchResponse, "test1", "test2", "test3");
+        assertReturnedIndices(trySearch("*"), "test1", "test2", "test3");
     }
 
     public void testSearchNonAuthorizedWildcard() {
@@ -96,8 +92,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     }
 
     public void testEmptyClusterSearchForWildcard() {
-        SearchResponse searchResponse = trySearch("*");
-        assertNoSearchHits(searchResponse);
+        assertNoSearchHits(trySearch("*"));
     }
 
     public void testEmptyClusterSearchForWildcardDisallowNoIndices() {
@@ -176,41 +171,31 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testExplicitExclusion() {
         // index1 is not authorized and referred to through wildcard, test2 is excluded
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
-
-        SearchResponse searchResponse = trySearch("*", "-test2");
-        assertReturnedIndices(searchResponse, "test1", "test3");
+        assertReturnedIndices(trySearch("*", "-test2"), "test1", "test3");
     }
 
     public void testWildcardExclusion() {
         // index1 is not authorized and referred to through wildcard, test2 is excluded
         createIndicesWithRandomAliases("test1", "test2", "test21", "test3", "index1");
-
-        SearchResponse searchResponse = trySearch("*", "-test2*");
-        assertReturnedIndices(searchResponse, "test1", "test3");
+        assertReturnedIndices(trySearch("*", "-test2*"), "test1", "test3");
     }
 
     public void testInclusionAndWildcardsExclusion() {
         // index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
-
-        SearchResponse searchResponse = trySearch("test1*", "index*", "-test11*");
-        assertReturnedIndices(searchResponse, "test1", "test10");
+        assertReturnedIndices(trySearch("test1*", "index*", "-test11*"), "test1", "test10");
     }
 
     public void testExplicitAndWildcardsInclusionAndWildcardExclusion() {
         // index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
-
-        SearchResponse searchResponse = trySearch("test2", "test11*", "index*", "-test2*");
-        assertReturnedIndices(searchResponse, "test111", "test112");
+        assertReturnedIndices(trySearch("test2", "test11*", "index*", "-test2*"), "test111", "test112");
     }
 
     public void testExplicitAndWildcardInclusionAndExplicitExclusions() {
         // index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
-
-        SearchResponse searchResponse = trySearch("test10", "test11*", "index*", "-test111", "-test112");
-        assertReturnedIndices(searchResponse, "test10");
+        assertReturnedIndices(trySearch("test10", "test11*", "index*", "-test111", "-test112"), "test10");
     }
 
     public void testMissingDateMath() {
@@ -424,12 +409,21 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[4].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
     }
 
-    private SearchResponse trySearch(String... indices) {
-        return client().prepareSearch(indices).get(TimeValue.timeValueSeconds(20));
+    private SearchRequestBuilder trySearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
-    private SearchResponse trySearch(IndicesOptions options, String... indices) {
-        return client().prepareSearch(indices).setIndicesOptions(options).get(TimeValue.timeValueSeconds(20));
+    private SearchRequestBuilder trySearch(IndicesOptions options, String... indices) {
+        return client().prepareSearch(indices).setIndicesOptions(options);
+    }
+
+    private static void assertReturnedIndices(SearchRequestBuilder searchRequestBuilder, String... indices) {
+        var searchResponse = searchRequestBuilder.get();
+        try {
+            assertReturnedIndices(searchResponse, indices);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private static void assertReturnedIndices(SearchResponse searchResponse, String... indices) {

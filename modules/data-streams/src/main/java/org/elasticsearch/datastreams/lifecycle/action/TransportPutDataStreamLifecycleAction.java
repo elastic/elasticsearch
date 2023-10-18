@@ -46,7 +46,7 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
         SystemIndices systemIndices
     ) {
         super(
-            PutDataStreamLifecycleAction.NAME,
+            PutDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,

@@ -1,0 +1,7 @@
+pr: 100826
+summary: Fix geo tile bounding boxes to be consistent with arithmetic method
+area: Geo
+type: bug
+issues:
+ - 92611
+ - 95574

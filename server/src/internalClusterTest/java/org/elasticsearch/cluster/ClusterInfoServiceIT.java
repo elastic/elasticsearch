@@ -11,7 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -247,8 +247,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = newHashSet(
-            NodesStatsAction.NAME,
-            NodesStatsAction.NAME + "[n]",
+            TransportNodesStatsAction.TYPE.name(),
+            TransportNodesStatsAction.TYPE.name() + "[n]",
             IndicesStatsAction.NAME,
             IndicesStatsAction.NAME + "[n]"
         );

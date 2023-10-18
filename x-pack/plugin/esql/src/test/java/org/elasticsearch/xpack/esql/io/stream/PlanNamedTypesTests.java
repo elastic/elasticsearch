@@ -116,7 +116,6 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeser
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-@com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class PlanNamedTypesTests extends ESTestCase {
 
     // List of known serializable physical plan nodes - this should be kept up to date or retrieved
@@ -466,7 +465,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testEsRelation() throws IOException {
-        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), randomBoolean());
+        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeEsRelation(out, orig);
@@ -477,7 +476,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     public void testEsqlProject() throws IOException {
         var orig = new EsqlProject(
             Source.EMPTY,
-            new EsRelation(Source.EMPTY, randomEsIndex(), randomBoolean()),
+            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean()),
             List.of(randomFieldAttribute())
         );
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -488,7 +487,8 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testMvExpand() throws IOException {
-        var orig = new MvExpand(Source.EMPTY, new EsRelation(Source.EMPTY, randomEsIndex(), randomBoolean()), randomFieldAttribute());
+        var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeMvExpand(out, orig);

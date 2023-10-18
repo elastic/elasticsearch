@@ -11,6 +11,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -24,13 +25,41 @@ public class SimulateIngestService extends IngestService {
         super(ingestService);
         if (request instanceof SimulateBulkRequest simulateBulkRequest) {
             try {
-                pipelineSubstitutions = simulateBulkRequest.getPipelineSubstitutions(ingestService);
+                pipelineSubstitutions = getPipelineSubstitutions(simulateBulkRequest.getPipelineSubstitutions(), ingestService);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         } else {
             pipelineSubstitutions = Map.of();
         }
+    }
+
+    /**
+     * This transforms the pipeline substitutions from a SimulateBulkRequest into a new map, where the key is the pipelineId and the
+     * value is the Pipeline instance. The Pipeline is created using the Processor.Factories and the ScriptService of the given
+     * ingestService.
+     * @param rawPipelineSubstitutions The pipeline substitutions map received from a SimulateBulkRequest
+     * @param ingestService The ingestService beoing used
+     * @return A transformed version of rawPipelineSubstitutions, where the values are Pipeline objects
+     * @throws Exception
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Pipeline> getPipelineSubstitutions(Map<String, Object> rawPipelineSubstitutions, IngestService ingestService)
+        throws Exception {
+        Map<String, Pipeline> parsedPipelineSubstitutions = new HashMap<>();
+        if (pipelineSubstitutions != null) {
+            for (Map.Entry<String, Object> entry : rawPipelineSubstitutions.entrySet()) {
+                String pipelineId = entry.getKey();
+                Pipeline pipeline = Pipeline.create(
+                    pipelineId,
+                    (Map<String, Object>) entry.getValue(),
+                    ingestService.getProcessorFactories(),
+                    ingestService.getScriptService()
+                );
+                parsedPipelineSubstitutions.put(pipelineId, pipeline);
+            }
+        }
+        return parsedPipelineSubstitutions;
     }
 
     @Override

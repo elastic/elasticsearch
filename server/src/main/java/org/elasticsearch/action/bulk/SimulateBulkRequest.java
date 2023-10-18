@@ -10,19 +10,15 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
  * This extends BulkRequest with support for providing substitute pipeline definitions.
  */
 public class SimulateBulkRequest extends BulkRequest {
-    // Non-private for unit testing
-    Map<String, Object> pipelineSubstitutions = Map.of();
+    private Map<String, Object> pipelineSubstitutions = Map.of();
 
     public SimulateBulkRequest() {
         super();
@@ -33,30 +29,22 @@ public class SimulateBulkRequest extends BulkRequest {
         this.pipelineSubstitutions = in.readMap();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericMap(pipelineSubstitutions);
     }
 
+    /**
+     * This sets the pipeline definitions that are to be used in place of any pre-existing pipeline definitions with the same pipelineId.
+     * The key of the map is the pipelineId, and the value the pipeline definition as parsed by XContentHelper.convertToMap().
+     * @param pipelineSubstitutions
+     */
     public void setPipelineSubstitutions(Map<String, Object> pipelineSubstitutions) {
         this.pipelineSubstitutions = pipelineSubstitutions;
     }
 
-    @SuppressWarnings("unchecked")
-    public Map<String, Pipeline> getPipelineSubstitutions(IngestService ingestService) throws Exception {
-        Map<String, Pipeline> parsedPipelineSubstitutions = new HashMap<>();
-        if (pipelineSubstitutions != null) {
-            for (Map.Entry<String, Object> entry : pipelineSubstitutions.entrySet()) {
-                String pipelineId = entry.getKey();
-                Pipeline pipeline = Pipeline.create(
-                    pipelineId,
-                    (Map<String, Object>) entry.getValue(),
-                    ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
-                );
-                parsedPipelineSubstitutions.put(pipelineId, pipeline);
-            }
-        }
-        return parsedPipelineSubstitutions;
+    public Map<String, Object> getPipelineSubstitutions() {
+        return pipelineSubstitutions;
     }
 }

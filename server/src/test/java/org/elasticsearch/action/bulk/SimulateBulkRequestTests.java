@@ -8,20 +8,13 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.test.ESTestCase;
-import org.mockito.ArgumentCaptor;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SimulateBulkRequestTests extends ESTestCase {
 
@@ -34,18 +27,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
          * Writable
          */
         SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new);
-        assertThat(copy.pipelineSubstitutions, equalTo(simulateBulkRequest.pipelineSubstitutions));
-    }
-
-    public void testGetPipelineSubstitutions() throws Exception {
-        Map<String, Object> pipelineSubstitutions = getTestPipelineSubstitutions();
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
-        simulateBulkRequest.setPipelineSubstitutions(pipelineSubstitutions);
-        Map<String, Pipeline> returnedPipelineSubstitions = simulateBulkRequest.getPipelineSubstitutions(getTestIngestService());
-        assertThat(returnedPipelineSubstitions.size(), equalTo(pipelineSubstitutions.size()));
-        for (String pipelineId : pipelineSubstitutions.keySet()) {
-            List<Processor> processors = returnedPipelineSubstitions.get(pipelineId).getProcessors();
-        }
+        assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
     }
 
     private Map<String, Object> getTestPipelineSubstitutions() {
@@ -75,31 +57,5 @@ public class SimulateBulkRequestTests extends ESTestCase {
                 });
             }
         };
-    }
-
-    private IngestService getTestIngestService() throws Exception {
-        IngestService ingestService = mock(IngestService.class);
-        Processor.Factory processorFactory = mock(Processor.Factory.class);
-        ArgumentCaptor<String> messageCapture = ArgumentCaptor.forClass(String.class);
-        when(processorFactory.create(any(), messageCapture.capture(), any(), any())).thenReturn(new Processor() {
-            @Override
-            public String getType() {
-                return messageCapture.getValue();
-            }
-
-            @Override
-            public String getTag() {
-                return null;
-            }
-
-            @Override
-            public String getDescription() {
-                return null;
-            }
-        });
-        when(ingestService.getProcessorFactories()).thenReturn(
-            Map.of("processor1", processorFactory, "processor2", processorFactory, "processor3", processorFactory)
-        );
-        return ingestService;
     }
 }

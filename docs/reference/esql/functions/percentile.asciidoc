@@ -1,3 +1,4 @@
+[discrete]
 [[esql-agg-percentile]]
 === `PERCENTILE`
 The value at which a certain percentage of observed values occur. For example,
@@ -13,6 +14,7 @@ include::{esql-specs}/stats_percentile.csv-spec[tag=percentile]
 include::{esql-specs}/stats_percentile.csv-spec[tag=percentile-result]
 |===
 
+[discrete]
 [[esql-agg-percentile-approximate]]
 ==== `PERCENTILE` is (usually) approximate
 

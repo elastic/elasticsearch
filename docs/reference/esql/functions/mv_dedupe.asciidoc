@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_dedupe]]
 === `MV_DEDUPE`
 Removes duplicates from a multivalued field. For example:

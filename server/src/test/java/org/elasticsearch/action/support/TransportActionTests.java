@@ -158,7 +158,6 @@ public class TransportActionTests extends ESTestCase {
         }
 
         @Override
-        public void writeTo(StreamOutput out) {
-        }
+        public void writeTo(StreamOutput out) {}
     }
 }

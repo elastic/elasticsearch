@@ -6,7 +6,7 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
+            number_of_replicas: 1
           mappings:
             runtime:
               voltage_percent:
@@ -151,7 +151,7 @@ setup:
   - match: {hits.total.value: 2}
   - match: {hits.hits.0._source.voltage: 0.0}
   - match: {hits.hits.1._source.voltage: 4.0}
-  
+
   - do:
       search:
         index: sensor

@@ -27,7 +27,6 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:mapper-extras')
-  clusterModules project(':modules:analysis-common')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->

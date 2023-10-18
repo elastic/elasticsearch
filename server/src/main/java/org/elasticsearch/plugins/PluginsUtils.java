@@ -28,6 +28,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -79,72 +80,69 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
-        boolean buildSupportsStablePlugins;
-        SemanticVersion currentElasticsearchVersion = null;
-        try {
-            currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
-            buildSupportsStablePlugins = true;
-        } catch (IllegalArgumentException e) {
-            buildSupportsStablePlugins = false;
-        }
-        // stable plugins can run on the exact version they're built with even if it's not semantic
-        if (info.isStable() && buildSupportsStablePlugins) {
-            SemanticVersion pluginElasticsearchVersion;
-            try {
-                pluginElasticsearchVersion = SemanticVersion.create(info.getElasticsearchVersion());
-            } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException(
-                    "Stable Plugin ["
-                        + info.getName()
-                        + "] was built for non-semantic Elasticsearch version "
-                        + info.getElasticsearchVersion()
-                        + " and cannot run on version "
-                        + Build.current().version()
-                );
-            }
+        boolean hasSemanticVersion = SemanticVersion.semanticPattern.matcher(Build.current().version()).matches();
+        // If we're not on a semantic version, assume plugins are compatible
+        if (hasSemanticVersion) {
+            SemanticVersion currentElasticsearchVersion = SemanticVersion.create(Build.current().version());
+            if (info.isStable()) {
+                SemanticVersion pluginElasticsearchVersion;
+                try {
+                    pluginElasticsearchVersion = SemanticVersion.create(info.getElasticsearchVersion());
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for non-semantic Elasticsearch version "
+                            + info.getElasticsearchVersion()
+                            + " and cannot run on version "
+                            + Build.current().version()
+                    );
+                }
 
-            // case: Major version mismatch
-            if (pluginElasticsearchVersion.major != currentElasticsearchVersion.major) {
+                // case: Major version mismatch
+                if (pluginElasticsearchVersion.major != currentElasticsearchVersion.major) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for Elasticsearch major version "
+                            + pluginElasticsearchVersion.major
+                            + " but version "
+                            + Build.current().version()
+                            + " is running"
+                    );
+                }
+
+                // case: stable plugin from the future
+                if (pluginElasticsearchVersion.after(currentElasticsearchVersion)) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for Elasticsearch version "
+                            + info.getElasticsearchVersion()
+                            + " but earlier version "
+                            + Build.current().version()
+                            + " is running"
+                    );
+                }
+            } else if (info.getElasticsearchVersion().equals(currentElasticsearchVersion.toString()) == false) {
                 throw new IllegalArgumentException(
-                    "Stable Plugin ["
+                    "Plugin ["
                         + info.getName()
-                        + "] was built for Elasticsearch major version "
-                        + pluginElasticsearchVersion.major
+                        + "] was built for Elasticsearch version "
+                        + info.getElasticsearchVersion()
                         + " but version "
                         + Build.current().version()
                         + " is running"
                 );
             }
-
-            // case: stable plugin from the future
-            if (pluginElasticsearchVersion.after(currentElasticsearchVersion)) {
-                throw new IllegalArgumentException(
-                    "Stable Plugin ["
-                        + info.getName()
-                        + "] was built for Elasticsearch version "
-                        + info.getElasticsearchVersion()
-                        + " but earlier version "
-                        + Build.current().version()
-                        + " is running"
-                );
-            }
-        } else if (info.getElasticsearchVersion().equals(currentElasticsearchVersion.toString()) == false) {
-            throw new IllegalArgumentException(
-                "Plugin ["
-                    + info.getName()
-                    + "] was built for Elasticsearch version "
-                    + info.getElasticsearchVersion()
-                    + " but version "
-                    + Build.current().version()
-                    + " is running"
-            );
         }
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
     private record SemanticVersion(int major, int minor, int bugfix, String suffix) {
+        static final Pattern semanticPattern = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(\\D?.*)$");
         static SemanticVersion create(String version) {
-            Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(\\D?.*)$").matcher(version);
+            Matcher matcher = semanticPattern.matcher(version);
             if (matcher.matches() == false) {
                 throw new IllegalArgumentException("Cannot be parsed as a semantic version: " + version);
             }

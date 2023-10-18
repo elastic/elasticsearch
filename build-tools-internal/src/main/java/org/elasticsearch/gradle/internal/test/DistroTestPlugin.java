@@ -65,23 +65,12 @@ import static org.elasticsearch.gradle.internal.distribution.InternalElasticsear
  * This class defines gradle tasks for testing our various distribution artifacts.
  */
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "17.0.2+8";
-    private static final String SYSTEM_JDK_VENDOR = "adoptium";
-    private static final String GRADLE_JDK_VERSION = "16.0.2+7";
-    private static final String GRADLE_JDK_VENDOR = "adoptium";
 
     // all distributions used by distro tests. this is temporary until tests are per distribution
     private static final String EXAMPLE_PLUGIN_CONFIGURATION = "examplePlugin";
     private static final String DISTRIBUTION_SYSPROP = "tests.distribution";
     private static final String BWC_DISTRIBUTION_SYSPROP = "tests.bwc-distribution";
     private static final String EXAMPLE_PLUGIN_SYSPROP = "tests.example-plugin";
-
-    private final File rootDir;
-
-    @Inject
-    public DistroTestPlugin(BuildLayout buildLayout) {
-        this.rootDir = buildLayout.getRootDirectory();
-    }
 
     @Override
     public void apply(Project project) {
@@ -168,7 +157,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         lifecyleTasks.put(ARCHIVE, project.getTasks().register(taskPrefix + ".archives"));
         lifecyleTasks.put(DEB, project.getTasks().register(taskPrefix + ".packages"));
         lifecyleTasks.put(RPM, lifecyleTasks.get(DEB));
-
         return lifecyleTasks;
     }
 
@@ -180,29 +168,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         return versionTasks;
-    }
-
-    private static TaskProvider<Copy> createJdk(
-        Project project,
-        String purpose,
-        String vendor,
-        String version,
-        String platform,
-        String architecture
-    ) {
-        Jdk jdk = JdkDownloadPlugin.getContainer(project).create(platform + "-" + purpose);
-        jdk.setVendor(vendor);
-        jdk.setVersion(version);
-        jdk.setPlatform(platform);
-        jdk.setArchitecture(architecture);
-
-        String taskname = "copy" + GUtils.capitalize(platform) + GUtils.capitalize(purpose) + "Jdk";
-        TaskProvider<Copy> copyTask = project.getTasks().register(taskname, Copy.class);
-        copyTask.configure(t -> {
-            t.from(jdk);
-            t.into(new File(project.getBuildDir(), "jdks/" + platform + "-" + architecture + "-" + vendor + "-" + version));
-        });
-        return copyTask;
     }
 
     private static Configuration configureExamplePlugin(Project project) {
@@ -286,11 +251,6 @@ public class DistroTestPlugin implements Plugin<Project> {
         }
 
         return distro;
-    }
-
-    // return true if the project is for a windows VM, false otherwise
-    private static boolean isWindows(Project project) {
-        return project.getName().contains("windows");
     }
 
     private static String distroId(ElasticsearchDistributionType type, Platform platform, boolean bundledJdk, Architecture architecture) {

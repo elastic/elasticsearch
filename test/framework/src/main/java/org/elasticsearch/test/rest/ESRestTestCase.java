@@ -209,19 +209,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodeVersions == null;
-            String cluster = getTestRestCluster();
-            String[] stringUrls = cluster.split(",");
-            List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-            for (String stringUrl : stringUrls) {
-                int portSeparator = stringUrl.lastIndexOf(':');
-                if (portSeparator < 0) {
-                    throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-                }
-                String host = stringUrl.substring(0, portSeparator);
-                int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-                hosts.add(buildHttpHost(host, port));
-            }
-            clusterHosts = unmodifiableList(hosts);
+            clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -279,6 +267,21 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static boolean has(ProductFeature feature) {
         return availableFeatures.contains(feature);
+    }
+
+    protected List<HttpHost> parseClusterHosts(String hostsString) {
+        String[] stringUrls = hostsString.split(",");
+        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+        for (String stringUrl : stringUrls) {
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+            }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+            hosts.add(buildHttpHost(host, port));
+        }
+        return unmodifiableList(hosts);
     }
 
     protected String getTestRestCluster() {

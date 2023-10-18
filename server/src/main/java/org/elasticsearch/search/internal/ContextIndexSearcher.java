@@ -499,12 +499,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private static class TimeExceededException extends RuntimeException {
-
-        @Override
-        public Throwable fillInStackTrace() {
-            // never re-thrown so we can save the expensive stacktrace
-            return this;
-        }
+        //This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
     }
 
     /**

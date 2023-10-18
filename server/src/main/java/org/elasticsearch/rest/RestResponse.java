@@ -115,7 +115,7 @@ public class RestResponse {
     @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
-        ToXContent.Params params = channel.request();
+        ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
             Supplier<?> messageSupplier = () -> String.format(
@@ -130,9 +130,6 @@ public class RestResponse {
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
-        }
-        if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
-            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
@@ -169,10 +166,14 @@ public class RestResponse {
 
     private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
         ToXContent.Params params = restRequest;
-        if (restRequest.paramAsBoolean("error_trace", false)) {
+        if (restRequest.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;
+    }
+
+    protected boolean skipStackTrace() {
+        return status() == RestStatus.UNAUTHORIZED;
     }
 
     private static void build(

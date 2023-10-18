@@ -219,7 +219,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 )
                 : plan.policyName();
 
-            var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+            var matchField = policy != null && (plan.matchField() == null || plan.matchField() instanceof EmptyAttribute)
                 ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
                 : plan.matchField();
 

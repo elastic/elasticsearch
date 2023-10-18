@@ -10,7 +10,7 @@ package org.elasticsearch.plugins.cli;
 
 import joptsimple.OptionSet;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.plugins.cli.SyncPluginsAction.ELASTICSEARCH_PLUGINS_YML_CACHE;
 
@@ -61,14 +62,19 @@ class ListPluginsCommand extends EnvironmentAwareCommand {
         terminal.println(Terminal.Verbosity.SILENT, prefix + plugin.getFileName().toString());
         PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(plugin));
         terminal.println(Terminal.Verbosity.VERBOSE, info.toString(prefix));
-        if (info.getElasticsearchVersion().equals(Version.CURRENT) == false) {
+
+        // When PluginDescriptor#getElasticsearchVersion returns a string, we can revisit the need
+        // for a semantic version
+        String semanticVersion = InstallPluginAction.getSemanticVersion(Build.current().version());
+        String buildVersion = Objects.nonNull(semanticVersion) ? semanticVersion : Build.current().version();
+        if (info.getElasticsearchVersion().toString().equals(buildVersion) == false) {
             terminal.errorPrintln(
                 "WARNING: plugin ["
                     + info.getName()
                     + "] was built for Elasticsearch version "
                     + info.getElasticsearchVersion()
                     + " but version "
-                    + Version.CURRENT
+                    + buildVersion
                     + " is required"
             );
         }

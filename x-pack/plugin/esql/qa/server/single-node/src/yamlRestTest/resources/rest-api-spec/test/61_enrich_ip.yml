@@ -4,6 +4,9 @@ setup:
       indices.create:
         index: networks
         body:
+          settings:
+            index.number_of_shards: 1
+            index.routing.rebalance.enable: "none"
           mappings:
             properties:
               range:
@@ -22,6 +25,10 @@ setup:
           - { "range": "10.100.0.0/16", "name": "Production", "department": "OPS" }
           - { "index": { } }
           - { "range": "10.101.0.0/16", "name": "QA", "department": "Engineering" }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
 
   - do:
       enrich.put_policy:
@@ -64,6 +71,7 @@ setup:
           - { "@timestamp": "2023-06-24", "ip": "13.101.0.114", "message": "authentication failed" }
 ---
 "IP strings":
+
   - do:
       esql.query:
         body:

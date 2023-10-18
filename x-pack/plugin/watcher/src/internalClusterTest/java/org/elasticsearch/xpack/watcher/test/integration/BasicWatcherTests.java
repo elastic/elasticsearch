@@ -134,7 +134,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         refresh();
-        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0).get(), 0L);
+        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0), 0L);
 
         // Deleting the same watch for the second time
         deleteWatchResponse = new DeleteWatchRequestBuilder(client()).setId("_name").get();

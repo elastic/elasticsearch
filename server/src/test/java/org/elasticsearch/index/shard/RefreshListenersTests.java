@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -217,18 +218,10 @@ public class RefreshListenersTests extends ESTestCase {
                 assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
                 latch.countDown();
             }));
-            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
+            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), ActionTestUtils.assertNoFailureListener(ignored -> {
+                assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
+                latch.countDown();
+            })));
         }
         assertNull(threadPool.getThreadContext().getHeader("test"));
         assertEquals(2, latch.getCount());

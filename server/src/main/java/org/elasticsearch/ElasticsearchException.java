@@ -32,6 +32,7 @@ import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
@@ -1856,10 +1857,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             172,
             TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED
         ),
+        TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
+            TooManyScrollContextsException.class,
+            TooManyScrollContextsException::new,
+            173,
+            TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
+        ),
         INVALID_BUCKET_PATH_EXCEPTION(
             AggregationExecutionException.InvalidBucketPath.class,
             AggregationExecutionException.InvalidBucketPath::new,
-            173,
+            174,
             TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
         );
 

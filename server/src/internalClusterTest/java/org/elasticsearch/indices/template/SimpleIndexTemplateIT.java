@@ -512,16 +512,11 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 5L);
+        assertHitCount(client().prepareSearch("test_index"), 5L);
+        assertHitCount(client().prepareSearch("simple_alias"), 5L);
+        assertHitCount(client().prepareSearch("templated_alias-test_index"), 5L);
 
-        searchResponse = client().prepareSearch("simple_alias").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("templated_alias-test_index").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("filtered_alias").get();
+        SearchResponse searchResponse = client().prepareSearch("filtered_alias").get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
 
@@ -563,10 +558,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(client().prepareSearch("test_index"), 2L);
 
-        searchResponse = client().prepareSearch("my_alias").get();
+        SearchResponse searchResponse = client().prepareSearch("my_alias").get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
     }
@@ -599,13 +593,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(client().prepareSearch("test_index"), 2L);
+        assertHitCount(client().prepareSearch("alias1"), 2L);
 
-        searchResponse = client().prepareSearch("alias1").get();
-        assertHitCount(searchResponse, 2L);
-
-        searchResponse = client().prepareSearch("alias2").get();
+        SearchResponse searchResponse = client().prepareSearch("alias2").get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
     }

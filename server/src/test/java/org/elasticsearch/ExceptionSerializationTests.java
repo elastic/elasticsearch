@@ -75,6 +75,7 @@ import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
@@ -835,7 +836,8 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(170, ElasticsearchRoleRestrictionException.class);
         ids.put(171, ApiNotAvailableException.class);
         ids.put(172, RecoveryCommitTooNewException.class);
-        ids.put(173, AggregationExecutionException.InvalidBucketPath.class);
+        ids.put(173, TooManyScrollContextsException.class);
+        ids.put(174, AggregationExecutionException.InvalidBucketPath.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

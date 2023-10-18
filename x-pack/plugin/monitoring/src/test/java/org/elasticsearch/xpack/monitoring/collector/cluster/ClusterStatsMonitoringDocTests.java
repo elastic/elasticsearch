@@ -313,7 +313,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final List<XPackFeatureSet.Usage> usageList = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        Version mockNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
+        var mockNodeVersion = randomAlphaOfLengthBetween(6, 32);
         when(mockNodeInfo.getVersion()).thenReturn(mockNodeVersion);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
@@ -332,11 +332,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
 
         final PluginsAndModules mockPluginsAndModules = mock(PluginsAndModules.class);
         when(mockNodeInfo.getInfo(PluginsAndModules.class)).thenReturn(mockPluginsAndModules);
+        String pluginEsBuildVersion = randomAlphaOfLength(10);
         final PluginDescriptor pluginDescriptor = new PluginDescriptor(
             "_plugin",
             "_plugin_desc",
             "_plugin_version",
-            Version.CURRENT,
+            pluginEsBuildVersion,
             "1.8",
             "_plugin_class",
             null,
@@ -454,7 +455,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         Object[] args = new Object[] {
             needToEnableTLS ? ",\"cluster_needs_tls\": true" : "",
             mockNodeVersion,
-            Version.CURRENT,
+            pluginEsBuildVersion,
             Version.CURRENT,
             IndexVersion.MINIMUM_COMPATIBLE,
             IndexVersion.current(),

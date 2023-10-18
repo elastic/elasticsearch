@@ -88,18 +88,14 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject();
         {
-            mapping.startObject("_doc");
+            mapping.startObject("properties");
             {
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("english_text");
-                    mapping.field("type", "text");
-                    mapping.endObject();
+                mapping.startObject("english_text");
+                mapping.field("type", "text");
+                mapping.endObject();
 
-                    mapping.startObject("value");
-                    mapping.field("type", "long");
-                    mapping.endObject();
-                }
+                mapping.startObject("value");
+                mapping.field("type", "long");
                 mapping.endObject();
             }
             mapping.endObject();
@@ -130,6 +126,8 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
                 .endObject();
             client().prepareIndex(index).setId("id").setSource(doc).get();
         }
+        // Force merge to ensure that there are more than one numeric value to justify doc value.
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
         PlainActionFuture<AnalyzeIndexDiskUsageResponse> future = PlainActionFuture.newFuture();
         client().execute(
             AnalyzeIndexDiskUsageAction.INSTANCE,

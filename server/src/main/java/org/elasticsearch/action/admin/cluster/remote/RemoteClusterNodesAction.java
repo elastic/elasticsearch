@@ -93,7 +93,7 @@ public class RemoteClusterNodesAction {
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-            super(RemoteClusterNodesAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            super(TYPE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.client = client;
         }
 

@@ -164,7 +164,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 "monitoring_user",
                 new RoleDescriptor(
                     "monitoring_user",
-                    new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", TransportRemoteInfoAction.NAME },
+                    new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", TransportRemoteInfoAction.TYPE.name() },
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".monitoring-*")

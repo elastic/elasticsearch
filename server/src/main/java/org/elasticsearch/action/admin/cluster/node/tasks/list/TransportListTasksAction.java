@@ -40,8 +40,7 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
-    public static final String NAME = "cluster:monitor/tasks/lists";
-    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>(NAME, ListTasksResponse::new);
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>("cluster:monitor/tasks/lists", ListTasksResponse::new);
 
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
@@ -55,7 +54,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Inject
     public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
-            NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
@@ -121,7 +120,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             );
             try {
                 for (final var task : processTasks(request)) {
-                    if (task.getAction().startsWith(NAME) == false) {
+                    if (task.getAction().startsWith(TYPE.name()) == false) {
                         // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
                         // for itself or one of its child tasks
                         matchedTasks.add(task);

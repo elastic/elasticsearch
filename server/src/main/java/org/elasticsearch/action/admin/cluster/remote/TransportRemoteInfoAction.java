@@ -24,8 +24,7 @@ import static java.util.stream.Collectors.toList;
 
 public final class TransportRemoteInfoAction extends HandledTransportAction<RemoteInfoRequest, RemoteInfoResponse> {
 
-    public static final String NAME = "cluster:monitor/remote/info";
-    public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(NAME, RemoteInfoResponse::new);
+    public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>("cluster:monitor/remote/info", RemoteInfoResponse::new);
     private final RemoteClusterService remoteClusterService;
 
     @Inject
@@ -34,7 +33,7 @@ public final class TransportRemoteInfoAction extends HandledTransportAction<Remo
         ActionFilters actionFilters,
         SearchTransportService searchTransportService
     ) {
-        super(NAME, transportService, actionFilters, RemoteInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(TYPE.name(), transportService, actionFilters, RemoteInfoRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.remoteClusterService = searchTransportService.getRemoteClusterService();
     }
 

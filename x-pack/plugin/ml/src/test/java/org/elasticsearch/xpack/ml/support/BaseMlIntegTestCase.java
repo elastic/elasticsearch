@@ -120,7 +120,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
     // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
-    private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.NAME, HealthNode.TASK_NAME);
+    private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
 
     @Override
     protected boolean ignoreExternalCluster() {

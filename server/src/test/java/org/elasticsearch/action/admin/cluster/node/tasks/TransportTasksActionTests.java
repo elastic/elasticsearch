@@ -922,7 +922,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Get the parent task
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions(TransportListTasksAction.NAME + "*");
+        listTasksRequest.setActions(TransportListTasksAction.TYPE.name() + "*");
         ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
             testNodes[0].transportService.getTaskManager(),
             testNodes[0].transportService.getLocalNodeConnection(),

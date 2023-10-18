@@ -49,7 +49,7 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
         final PlainActionFuture<Response> tasksFuture = new PlainActionFuture<>();
         final Cancellable tasksCancellable = getRestClient().performRequestAsync(tasksRequest, wrapAsRestResponseListener(tasksFuture));
 
-        awaitTaskWithPrefix(TransportListTasksAction.NAME + "[n]");
+        awaitTaskWithPrefix(TransportListTasksAction.TYPE.name() + "[n]");
 
         tasksCancellable.cancel();
 
@@ -61,7 +61,7 @@ public class RestListTasksCancellationIT extends HttpSmokeTestCase {
             () -> assertFalse(
                 taskManagers.stream()
                     .flatMap(taskManager -> taskManager.getCancellableTasks().values().stream())
-                    .anyMatch(t -> t.getAction().startsWith(TransportListTasksAction.NAME))
+                    .anyMatch(t -> t.getAction().startsWith(TransportListTasksAction.TYPE.name()))
             )
         );
 

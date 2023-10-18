@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,8 +34,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     TransportNodesUsageAction.NodeUsageRequest,
     NodeUsage> {
 
-    public static final String NAME = "cluster:monitor/nodes/usage";
-    public static final ActionType<NodesUsageResponse> TYPE = new ActionType<>(NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesUsageResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/usage");
     private final UsageService restUsageService;
     private final AggregationUsageService aggregationUsageService;
     private final long sinceTime;
@@ -51,7 +49,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         AggregationUsageService aggregationUsageService
     ) {
         super(
-            NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,

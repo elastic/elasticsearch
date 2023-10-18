@@ -61,7 +61,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
         );
 
         assertFalse(future.isDone());
-        awaitTaskWithPrefix(TransportNodesStatsAction.NAME);
+        awaitTaskWithPrefix(TransportNodesStatsAction.TYPE.name());
 
         logger.info("--> Checking that all the HttpTransport are waiting...");
         safeAwait(cyclicBarrier);
@@ -71,12 +71,12 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
 
         assertTrue(future.isDone());
         expectThrows(CancellationException.class, future::actionGet);
-        assertAllCancellableTasksAreCancelled(TransportNodesStatsAction.NAME);
+        assertAllCancellableTasksAreCancelled(TransportNodesStatsAction.TYPE.name());
 
         logger.info("--> Releasing all the node requests :)");
         safeAwait(cyclicBarrier);
 
-        assertAllTasksHaveFinished(TransportNodesStatsAction.NAME);
+        assertAllTasksHaveFinished(TransportNodesStatsAction.TYPE.name());
     }
 
     @Override

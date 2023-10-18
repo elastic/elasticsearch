@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,9 +35,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     TransportNodesInfoAction.NodeInfoRequest,
     NodeInfo> {
 
-    public static final String NAME = "cluster:monitor/nodes/info";
-
-    public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>(NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesInfoResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/info");
     private final NodeService nodeService;
 
     @Inject
@@ -50,7 +47,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,

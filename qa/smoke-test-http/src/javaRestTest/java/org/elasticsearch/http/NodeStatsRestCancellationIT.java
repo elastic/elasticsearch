@@ -14,6 +14,6 @@ import org.elasticsearch.client.Request;
 
 public class NodeStatsRestCancellationIT extends BlockedSearcherRestCancellationTestCase {
     public void testNodeStatsRestCancellation() throws Exception {
-        runTest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats"), TransportNodesStatsAction.NAME);
+        runTest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats"), TransportNodesStatsAction.TYPE.name());
     }
 }

@@ -247,8 +247,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = newHashSet(
-            TransportNodesStatsAction.NAME,
-            TransportNodesStatsAction.NAME + "[n]",
+            TransportNodesStatsAction.TYPE.name(),
+            TransportNodesStatsAction.TYPE.name() + "[n]",
             IndicesStatsAction.NAME,
             IndicesStatsAction.NAME + "[n]"
         );

@@ -494,7 +494,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(TransportListTasksAction.NAME)
+                            if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
                                 || taskFilter.test(taskName)) {
                                 continue;
@@ -1258,8 +1258,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void logIfThereAreRunningTasks() throws IOException {
         Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
-        runningTasks.remove(TransportListTasksAction.NAME);
-        runningTasks.remove(TransportListTasksAction.NAME + "[n]");
+        runningTasks.remove(TransportListTasksAction.TYPE.name());
+        runningTasks.remove(TransportListTasksAction.TYPE.name() + "[n]");
         if (runningTasks.isEmpty()) {
             return;
         }

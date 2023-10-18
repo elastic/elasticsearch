@@ -126,7 +126,9 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testTaskCounts() {
         // Run only on data nodes
-        ListTasksResponse response = clusterAdmin().prepareListTasks("data:true").setActions(TransportListTasksAction.NAME + "[n]").get();
+        ListTasksResponse response = clusterAdmin().prepareListTasks("data:true")
+            .setActions(TransportListTasksAction.TYPE.name() + "[n]")
+            .get();
         assertThat(response.getTasks().size(), greaterThanOrEqualTo(cluster().numDataNodes()));
     }
 

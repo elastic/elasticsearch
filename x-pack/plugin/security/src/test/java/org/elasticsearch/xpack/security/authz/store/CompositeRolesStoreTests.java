@@ -2683,7 +2683,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
             ClusterStatsAction.NAME,
-            TransportNodesStatsAction.NAME
+            TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
                 getAsyncSearchUserRole().cluster().check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),
@@ -2697,7 +2697,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             ClusterStateAction.NAME,
             GetWatchAction.NAME,
             ClusterStatsAction.NAME,
-            TransportNodesStatsAction.NAME
+            TransportNodesStatsAction.TYPE.name()
         )) {
             assertThat(
                 getXPackUserRole().cluster().check(action, mock(TransportRequest.class), AuthenticationTestHelper.builder().build()),

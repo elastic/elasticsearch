@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,8 +33,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     TransportNodesHotThreadsAction.NodeRequest,
     NodeHotThreads> {
 
-    private static final String NAME = "cluster:monitor/nodes/hot_threads";
-    public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>(NAME, Writeable.Reader.localOnly());
+    public static final ActionType<NodesHotThreadsResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/hot_threads");
 
     @Inject
     public TransportNodesHotThreadsAction(
@@ -44,7 +42,14 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
         TransportService transportService,
         ActionFilters actionFilters
     ) {
-        super(NAME, clusterService, transportService, actionFilters, NodeRequest::new, threadPool.executor(ThreadPool.Names.GENERIC));
+        super(
+            TYPE.name(),
+            clusterService,
+            transportService,
+            actionFilters,
+            NodeRequest::new,
+            threadPool.executor(ThreadPool.Names.GENERIC)
+        );
     }
 
     @Override

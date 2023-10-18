@@ -1491,7 +1491,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         );
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
-        assertThat(monitoringUserRole.cluster().check(TransportRemoteInfoAction.NAME, request, authentication), is(true));
+        assertThat(monitoringUserRole.cluster().check(TransportRemoteInfoAction.TYPE.name(), request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(monitoringUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));

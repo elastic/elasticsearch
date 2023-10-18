@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
@@ -39,6 +40,9 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
+    public static final String NAME = "cluster:monitor/tasks/lists";
+    public static final ActionType<ListTasksResponse> TYPE = new ActionType<>(NAME, ListTasksResponse::new);
+
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
             timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
@@ -51,7 +55,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     @Inject
     public TransportListTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
-            ListTasksAction.NAME,
+            NAME,
             clusterService,
             transportService,
             actionFilters,
@@ -117,7 +121,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             );
             try {
                 for (final var task : processTasks(request)) {
-                    if (task.getAction().startsWith(ListTasksAction.NAME) == false) {
+                    if (task.getAction().startsWith(NAME) == false) {
                         // It doesn't make sense to wait for List Tasks and it can cause an infinite loop of the task waiting
                         // for itself or one of its child tasks
                         matchedTasks.add(task);

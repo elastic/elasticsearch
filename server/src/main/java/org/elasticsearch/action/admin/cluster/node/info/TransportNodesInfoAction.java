@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -34,6 +36,9 @@ public class TransportNodesInfoAction extends TransportNodesAction<
     TransportNodesInfoAction.NodeInfoRequest,
     NodeInfo> {
 
+    public static final String NAME = "cluster:monitor/nodes/info";
+
+    public static final ActionType<NodesInfoResponse> TYPE = new ActionType<>(NAME, Writeable.Reader.localOnly());
     private final NodeService nodeService;
 
     @Inject
@@ -45,7 +50,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesInfoAction.NAME,
+            NAME,
             clusterService,
             transportService,
             actionFilters,

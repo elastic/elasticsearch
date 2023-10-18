@@ -1,5 +1,5 @@
 pr: 101057
 summary: Add error logging for *QL
-area: "SQL, EQL, ES|QL"
+area: EQL
 type: enhancement
 issues: []

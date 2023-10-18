@@ -583,12 +583,12 @@ public class GeoDistanceIT extends ESIntegTestCase {
         refresh();
         client().prepareGet("locations", "1").get();
 
-        SearchResponse result = client().prepareSearch("locations")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .setPostFilter(QueryBuilders.geoDistanceQuery("pin").geoDistance(GeoDistance.ARC).point(lat, lon).distance("1m"))
-            .get();
-
-        assertHitCount(result, 1);
+        assertHitCount(
+            client().prepareSearch("locations")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(QueryBuilders.geoDistanceQuery("pin").geoDistance(GeoDistance.ARC).point(lat, lon).distance("1m")),
+            1
+        );
     }
 
     public void testDistanceSortingWithUnmappedField() throws Exception {

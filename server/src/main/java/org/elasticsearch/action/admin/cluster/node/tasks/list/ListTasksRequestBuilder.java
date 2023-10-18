@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 
@@ -16,7 +17,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class ListTasksRequestBuilder extends TasksRequestBuilder<ListTasksRequest, ListTasksResponse, ListTasksRequestBuilder> {
 
-    public ListTasksRequestBuilder(ElasticsearchClient client, ListTasksAction action) {
+    public ListTasksRequestBuilder(ElasticsearchClient client, ActionType<ListTasksResponse> action) {
         super(client, action, new ListTasksRequest());
     }
 

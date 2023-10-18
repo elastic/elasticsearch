@@ -1,0 +1,16 @@
+[[esql-language]]
+== {esql} language
+
+++++
+<titleabbrev>{esql} language</titleabbrev>
+++++
+
+Detailed information about the {esql} language:
+
+* <<esql-syntax>>
+* <<esql-multivalued-fields>>
+* <<esql-metadata-fields>>
+
+include::esql-syntax.asciidoc[]
+include::multivalued-fields.asciidoc[]
+include::metadata-fields.asciidoc[]

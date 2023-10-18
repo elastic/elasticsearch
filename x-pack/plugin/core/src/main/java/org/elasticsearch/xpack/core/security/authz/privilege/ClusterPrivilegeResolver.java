@@ -165,12 +165,12 @@ public class ClusterPrivilegeResolver {
 
     private static final Set<String> CROSS_CLUSTER_SEARCH_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME
     );
     private static final Set<String> CROSS_CLUSTER_REPLICATION_PATTERN = Set.of(
         RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
-        RemoteClusterNodesAction.NAME,
+        RemoteClusterNodesAction.TYPE.name(),
         XPackInfoAction.NAME,
         ClusterStateAction.NAME
     );

@@ -154,7 +154,7 @@ final class ElasticServiceAccounts {
         "fleet-server-remote",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server-remote",
-            new String[] { "manage_own_api_key" },
+            new String[] { "monitor", "manage_own_api_key" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-*", "metrics-*")

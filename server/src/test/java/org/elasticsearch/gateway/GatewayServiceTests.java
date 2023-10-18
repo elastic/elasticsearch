@@ -206,33 +206,6 @@ public class GatewayServiceTests extends ESTestCase {
         assertThat(clusterService.state().nodes().getDataNodes().size(), equalTo(newDataNodeCount));
     }
 
-    public void test() {
-        final Settings.Builder settingsBuilder = Settings.builder();
-        final ClusterState initialState = buildClusterState(1, 0);
-        final ClusterService clusterService = createClusterService(settingsBuilder, initialState);
-        assertClusterStateBlocks(clusterService, true);
-
-        clusterService.submitUnbatchedStateUpdateTask("set", new ClusterStateUpdateTask() {
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                logger.info("execute");
-                return currentState;
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                logger.info("clusterStateProcessed");
-            }
-
-            @Override
-            public void onFailure(Exception e) {}
-        });
-
-        deterministicTaskQueue.runAllTasksInTimeOrder();
-
-    }
-
     public void testImmediateRecovery() {
         final Settings.Builder settingsBuilder = Settings.builder();
         final int expectedNumberOfDataNodes = randomIntBetween(1, 3);

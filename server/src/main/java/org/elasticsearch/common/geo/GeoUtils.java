@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -564,6 +565,20 @@ public class GeoUtils {
                 }
             };
         }
+    }
+
+    /**
+     * Transforms the provided longitude to the equivalent in lucene quantize space.
+     */
+    public static double quantizeLon(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
+    }
+
+    /**
+     * Transforms the provided latitude to the equivalent in lucene quantize space.
+     */
+    public static double quantizeLat(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }
 
     private GeoUtils() {}

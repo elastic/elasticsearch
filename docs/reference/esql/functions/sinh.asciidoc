@@ -1,3 +1,4 @@
+[discrete]
 [[esql-sinh]]
 === `SINH`
 [.text-center]

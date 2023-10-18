@@ -15,10 +15,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.support.AbstractClient;
@@ -114,7 +114,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
-                    assertSame(NodesInfoAction.INSTANCE, action);
+                    assertSame(TransportNodesInfoAction.TYPE, action);
                     assertThat(
                         asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(),
                         containsInAnyOrder(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName())
@@ -191,7 +191,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
                     Request request,
                     ActionListener<Response> listener
                 ) {
-                    assertSame(NodesInfoAction.INSTANCE, action);
+                    assertSame(TransportNodesInfoAction.TYPE, action);
                     assertThat(asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(), empty());
                     listener.onResponse((Response) nodesInfoResponse);
                 }

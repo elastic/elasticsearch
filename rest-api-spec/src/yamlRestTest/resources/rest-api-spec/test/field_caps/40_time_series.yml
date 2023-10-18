@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.0.99, 8.7.00 - 8.9.99"
+      reason: introduced in 8.1.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests
 
   - do:
       indices.create:
@@ -177,8 +177,6 @@ setup:
         fields: [ "metricset", "non_tsdb_field", "k8s.pod.*" ]
 
   - length: {indices: 2}
-  - match: {indices.0: tsdb_index1}
-  - match: {indices.1: tsdb_index2}
 
   - match: {fields.metricset.keyword.searchable: true}
   - match: {fields.metricset.keyword.aggregatable: true}

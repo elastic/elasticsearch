@@ -857,7 +857,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 try (TransferableReleasables localReleasables = new TransferableReleasables()) {
 
                     // separate TransferableReleasables for blocking node restarts so we can release these blocks and
-                    // permit data node restarts and index deletions as soon as the snapshot starts
+                    // permit data node restarts as soon as the snapshot starts
                     final TransferableReleasables releasableAfterStart = new TransferableReleasables();
                     localReleasables.add(releasableAfterStart);
 

@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -26,7 +26,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.HTTP_CLIENT_SENDER_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class HttpClient implements Closeable {
@@ -72,21 +71,11 @@ public class HttpClient implements Closeable {
         }
     }
 
-    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) {
+    public void send(HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
-        assert status.get() == Status.STARTED;
+        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
-        threadPool.executor(HTTP_CLIENT_SENDER_THREAD_POOL_NAME).execute(() -> {
-            try {
-                doPrivilegedSend(request, listener);
-            } catch (IOException e) {
-                listener.onFailure(new ElasticsearchException(format("Failed to send request [%s]", request.getRequestLine()), e));
-            }
-        });
-    }
-
-    private void doPrivilegedSend(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
-        SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
+        SocketAccess.doPrivileged(() -> client.execute(request, context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingUtilityThread(response, request, listener);
@@ -94,7 +83,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                logger.error(format("Request [%s] failed", request.getRequestLine()), ex);
+                logger.warn(format("Request [%s] failed", request.getRequestLine()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
@@ -110,7 +99,7 @@ public class HttpClient implements Closeable {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                logger.error(format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                logger.warn(format("Failed to create http result for [%s]", request.getRequestLine()), e);
                 listener.onFailure(e);
             }
         });

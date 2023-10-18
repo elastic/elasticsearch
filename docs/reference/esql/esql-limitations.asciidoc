@@ -1,0 +1,32 @@
+[[esql-limitations]]
+== {esql} limitations
+
+++++
+<titleabbrev>Limitations</titleabbrev>
+++++
+
+[discrete]
+[[esql-supported-types]]
+=== Supported types
+
+* {esql} currently supports the following <<mapping-types,field types>>:
+
+** `alias`
+** `boolean`
+** `date`
+** `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+** `ip`
+** `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+** `int` (`short` and `byte` are represented as `int`)
+** `long`
+** `null`
+** `text`
+** `unsigned_long`
+** `version`
+
+[discrete]
+[[esql-max-rows]]
+=== 10,000 row maximum
+
+A single query will not return more than 10,000 rows, regardless of the
+`LIMIT` command's value.

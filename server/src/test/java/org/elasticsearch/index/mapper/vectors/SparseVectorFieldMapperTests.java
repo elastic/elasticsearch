@@ -240,7 +240,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
             PREVIOUS_SPARSE_VECTOR_INDEX_VERSION,
-            IndexVersion.V_8_500_000
+            IndexVersion.FIRST_DETACHED_INDEX_VERSION
         );
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");

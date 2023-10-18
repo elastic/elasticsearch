@@ -341,7 +341,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             analyseRepository(request);
             assertFalse(sawSpuriousValue.get());
         } catch (RepositoryVerificationException e) {
-            assertTrue(sawSpuriousValue.get());
+            if (sawSpuriousValue.get() == false) {
+                fail(e, "did not see spurious value, so why did the verification fail?");
+            }
         }
     }
 

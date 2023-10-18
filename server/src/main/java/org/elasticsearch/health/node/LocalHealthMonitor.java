@@ -465,6 +465,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 false,
                 false,
                 false,
+                false,
                 true,
                 false,
                 false,

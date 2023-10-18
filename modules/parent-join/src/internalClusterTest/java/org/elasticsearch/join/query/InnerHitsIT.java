@@ -676,19 +676,19 @@ public class InnerHitsIT extends ParentChildTestCase {
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index1");
-        response = client().prepareSearch("index1")
-            .setQuery(
-                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                    .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("index1")
-            .setQuery(
-                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                    .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
+        assertNoFailures(
+            client().prepareSearch("index1")
+                .setQuery(
+                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
+                )
+        );
+        assertNoFailures(
+            client().prepareSearch("index1")
+                .setQuery(
+                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
+                )
+        );
     }
 }

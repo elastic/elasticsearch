@@ -1006,22 +1006,22 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
 
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index2");
-        response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
+        assertNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
+                    )
                 )
-            )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
+        );
+        assertNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
+                    )
                 )
-            )
-            .get();
-        assertNoFailures(response);
+        );
     }
 
 }

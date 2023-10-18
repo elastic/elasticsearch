@@ -1573,7 +1573,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 unavailable primary shard. This is a mounted shard and the original "
-                        + "shard is available, so there is no data loss.",
+                        + "shard is available, so there are no data availability problems.",
                     Map.of("unassigned_primaries", 1, "started_primaries", 1),
                     List.of(),
                     List.of(

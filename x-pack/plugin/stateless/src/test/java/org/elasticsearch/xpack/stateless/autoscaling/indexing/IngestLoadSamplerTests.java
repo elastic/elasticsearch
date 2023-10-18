@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.indexing;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -74,11 +73,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             () -> nodeIngestLoad,
-            true,
             numProcessors,
             clusterSettings
         );
-        sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
         sampler.start();
 
@@ -126,11 +123,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
-            true,
             numProcessors,
             clusterSettings
         );
-        sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
         sampler.start();
 
@@ -195,11 +190,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             ingestLoadProbe,
-            true,
             numProcessors,
             clusterSettings
         );
-        sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
         sampler.start();
 
@@ -245,11 +238,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             readingIter::next,
-            true,
             numProcessors,
             clusterSettings
         );
-        sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
         sampler.start();
 
@@ -323,11 +314,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier,
-            true,
             numProcessors,
             clusterSettings
         );
-        sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
         sampler.start();
 
@@ -353,8 +342,7 @@ public class IngestLoadSamplerTests extends ESTestCase {
         var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
 
         var clusterSettings = clusterSettings(Settings.EMPTY);
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, true, 8, clusterSettings);
-        sampler.setMinTransportVersion(TransportVersion.current());
+        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, 8, clusterSettings);
         sampler.setNodeId(randomIdentifier());
 
         // The sampler does not schedule any task before starting the service or publish any metrics
@@ -375,37 +363,6 @@ public class IngestLoadSamplerTests extends ESTestCase {
         assertThat(deterministicTaskQueue.hasDeferredTasks(), is(false));
 
         assertThat(publishedMetrics, is(equalTo(List.of(indexLoad))));
-    }
-
-    public void testSamplingIsNotScheduledForNonIndexNodes() {
-        var deterministicTaskQueue = new DeterministicTaskQueue();
-        var threadPool = deterministicTaskQueue.getThreadPool();
-        var indexLoad = randomIngestionLoad(randomIntBetween(2, 32));
-
-        var publishedMetrics = new ArrayList<Double>();
-        var ingestLoadPublisher = new IngestLoadPublisher(null, null) {
-            @Override
-            public void publishIngestionLoad(double ingestionLoad, String nodeId, ActionListener<Void> listener) {
-                publishedMetrics.add(ingestionLoad);
-                listener.onResponse(null);
-            }
-        };
-        var writeLoadSampler = new RandomAverageWriteLoadSampler(threadPool);
-
-        var clusterSettings = clusterSettings(Settings.EMPTY);
-        var sampler = new IngestLoadSampler(threadPool, writeLoadSampler, ingestLoadPublisher, () -> indexLoad, false, 8, clusterSettings);
-        sampler.setMinTransportVersion(TransportVersion.current());
-        sampler.setNodeId(randomIdentifier());
-
-        // The sampler does not schedule any task before starting the service or publish any metrics
-        assertThat(publishedMetrics, is(empty()));
-        assertThat(deterministicTaskQueue.hasDeferredTasks(), is(false));
-
-        sampler.start();
-
-        // The sampler is not started since the node is not an index node
-        assertThat(publishedMetrics, is(empty()));
-        assertThat(deterministicTaskQueue.hasDeferredTasks(), is(false));
     }
 
     public void testMetricsArePublishedAfterFailures() {
@@ -451,11 +408,9 @@ public class IngestLoadSamplerTests extends ESTestCase {
             writeLoadSampler,
             ingestLoadPublisher,
             currentIndexLoadSupplier::next,
-            true,
             numProcessors,
             clusterSettings
         );
-        sampler.setMinTransportVersion(TransportVersion.current());
         sampler.setNodeId(randomIdentifier());
         sampler.start();
 

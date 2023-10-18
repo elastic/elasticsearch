@@ -27,23 +27,19 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
 public class APMPlugin extends Plugin implements ActionPlugin {
     private static final Logger logger = LogManager.getLogger(APMPlugin.class);
     private final Settings settings;
-    private final boolean enabled;
 
     private final SetOnce<APMIndexTemplateRegistry> registry = new SetOnce<>();
 
     public APMPlugin(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.APM_DATA_ENABLED.get(settings);
     }
 
     @Override
@@ -63,14 +59,11 @@ public class APMPlugin extends Plugin implements ActionPlugin {
         AllocationService allocationService,
         IndicesService indicesService
     ) {
-        logger.info("APM is {}", enabled ? "enabled" : "disabled");
         registry.set(new APMIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));
-        if (enabled) {
-            registry.get().initialize();
-            return List.of(registry.get());
-        } else {
-            return Collections.emptyList();
-        }
+        APMIndexTemplateRegistry registryInstance = registry.get();
+        logger.info("APM is {}", registryInstance.isEnabled() ? "enabled" : "disabled");
+        registryInstance.initialize();
+        return List.of(registryInstance);
     }
 
     @Override

@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.XPackSettings.APM_DATA_ENABLED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -78,7 +79,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
             new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY)
         );
         apmIndexTemplateRegistry = new APMIndexTemplateRegistry(
-            Settings.EMPTY,
+            Settings.builder().put(APM_DATA_ENABLED.getKey(), true).build(),
             clusterService,
             threadPool,
             client,

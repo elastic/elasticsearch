@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 
@@ -41,6 +42,7 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
+    private final boolean enabled;
 
     @SuppressWarnings("unchecked")
     public APMIndexTemplateRegistry(
@@ -73,6 +75,8 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
                 Map.Entry<String, Map<String, Object>> pipelineConfig = map.entrySet().iterator().next();
                 return loadIngestPipeline(pipelineConfig.getKey(), version, (List<String>) pipelineConfig.getValue().get("dependencies"));
             }).collect(Collectors.toList());
+
+            enabled = XPackSettings.APM_DATA_ENABLED.get(nodeSettings);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -80,6 +84,10 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
 
     public int getVersion() {
         return version;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
     }
 
     public void close() {
@@ -98,17 +106,29 @@ public class APMIndexTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return componentTemplates;
+        if (enabled) {
+            return componentTemplates;
+        } else {
+            return Map.of();
+        }
     }
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return composableIndexTemplates;
+        if (enabled) {
+            return composableIndexTemplates;
+        } else {
+            return Map.of();
+        }
     }
 
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
-        return ingestPipelines;
+        if (enabled) {
+            return ingestPipelines;
+        } else {
+            return  Collections.emptyList();
+        }
     }
 
     private static ComponentTemplate loadComponentTemplate(String name, int version) {

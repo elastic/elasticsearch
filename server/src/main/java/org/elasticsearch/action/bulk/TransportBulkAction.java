@@ -296,7 +296,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
-        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
@@ -364,7 +363,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-        indexData(task, bulkRequest, executorName, listener, responses, autoCreateIndices, indicesThatCannotBeCreated, startTime);
+        indexData(task, bulkRequest, executorName, listener, autoCreateIndices, indicesThatCannotBeCreated, startTime);
     }
 
     protected void indexData(
@@ -372,11 +371,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         BulkRequest bulkRequest,
         String executorName,
         ActionListener<BulkResponse> listener,
-        AtomicArray<BulkItemResponse> responses,
         Set<String> autoCreateIndices,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         if (autoCreateIndices.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
         } else {

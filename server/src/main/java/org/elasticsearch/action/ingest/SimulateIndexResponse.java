@@ -50,6 +50,7 @@ public class SimulateIndexResponse extends IndexResponse {
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("_index", getShardId().getIndexName());
         builder.field("_source", XContentHelper.convertToMap(source, false, sourceXContentType).v2());
+        assert executedPipelines != null; // This ought to never be null because we always ask to list pipelines in simulate mode
         builder.array("executed_pipelines", executedPipelines.toArray());
         return builder;
     }

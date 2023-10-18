@@ -64,13 +64,14 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         BulkRequest bulkRequest,
         String executorName,
         ActionListener<BulkResponse> listener,
-        AtomicArray<BulkItemResponse> responses,
         Set<String> autoCreateIndices,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated,
         long startTime
     ) {
+        final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests.get(i);
+            assert request instanceof IndexRequest; // This action is only ever called with IndexRequests
             responses.set(
                 i,
                 BulkItemResponse.success(

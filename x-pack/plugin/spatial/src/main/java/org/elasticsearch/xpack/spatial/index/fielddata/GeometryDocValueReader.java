@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -35,15 +38,15 @@ import java.io.IOException;
  * -----------------------------------------
  * -----------------------------------------
  */
-public class GeometryDocValueReader {
-    private final ByteArrayStreamInput input;
+public class GeometryDocValueReader implements Writeable {
+    private final GeometryByteArrayReader input;
     private final Extent extent;
     private int treeOffset;
     private int docValueOffset;
 
     public GeometryDocValueReader() {
         this.extent = new Extent();
-        this.input = new ByteArrayStreamInput();
+        this.input = new GeometryByteArrayReader();
     }
 
     /**
@@ -109,10 +112,17 @@ public class GeometryDocValueReader {
         }
     }
 
-    byte[] copyBytes() {
-        input.setPosition(0);
-        byte[] copy = new byte[input.length()];
-        input.readBytes(copy, 0, copy.length);
-        return copy;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        input.writeTo(out);
     }
+
+    private static class GeometryByteArrayReader extends ByteArrayStreamInput implements Writeable {
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesReference(new BytesArray(bytes));
+        }
+    }
+
 }

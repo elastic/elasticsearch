@@ -207,8 +207,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            byte[] bytes = this.reader.copyBytes();
-            out.writeBytesReference(new BytesArray(bytes));
+            this.reader.writeTo(out);
         }
     }
 

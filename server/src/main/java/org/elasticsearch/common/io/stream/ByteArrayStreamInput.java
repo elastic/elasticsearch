@@ -19,7 +19,7 @@ import java.io.IOException;
  */
 public final class ByteArrayStreamInput extends StreamInput {
 
-    private byte[] bytes;
+    protected byte[] bytes;
     private int pos;
     private int limit;
 

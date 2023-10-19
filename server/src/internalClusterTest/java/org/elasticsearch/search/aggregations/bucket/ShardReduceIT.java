@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
@@ -37,6 +36,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -96,7 +96,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Global global = response.getAggregations().get("global");
         Histogram histo = global.getAggregations().get("histo");
@@ -113,7 +113,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Filter filter = response.getAggregations().get("filter");
         Histogram histo = filter.getAggregations().get("histo");
@@ -129,7 +129,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Missing missing = response.getAggregations().get("missing");
         Histogram histo = missing.getAggregations().get("histo");
@@ -149,7 +149,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Global global = response.getAggregations().get("global");
         Filter filter = global.getAggregations().get("filter");
@@ -168,7 +168,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested");
         Histogram histo = nested.getAggregations().get("histo");
@@ -185,7 +185,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         Histogram histo = terms.getBucketByKey("term").getAggregations().get("histo");
@@ -202,7 +202,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         Histogram histo = terms.getBucketByKey("1").getAggregations().get("histo");
@@ -219,7 +219,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         Histogram histo = terms.getBucketByKey("1.5").getAggregations().get("histo");
@@ -236,7 +236,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         Histogram histo = range.getBuckets().get(0).getAggregations().get("histo");
@@ -253,7 +253,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         Histogram histo = range.getBuckets().get(0).getAggregations().get("histo");
@@ -270,7 +270,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         Histogram histo = range.getBuckets().get(0).getAggregations().get("histo");
@@ -287,7 +287,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram topHisto = response.getAggregations().get("topHisto");
         Histogram histo = topHisto.getBuckets().get(0).getAggregations().get("histo");
@@ -304,7 +304,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram topHisto = response.getAggregations().get("topHisto");
         Histogram histo = topHisto.getBuckets().iterator().next().getAggregations().get("histo");
@@ -321,7 +321,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         GeoGrid grid = response.getAggregations().get("grid");
         Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
@@ -337,7 +337,7 @@ public class ShardReduceIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         GeoGrid grid = response.getAggregations().get("grid");
         Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");

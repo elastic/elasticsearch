@@ -16,9 +16,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -48,7 +48,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r1);
+        assertNoFailures(r1);
         assertThat(r1.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(0, 1);
 
@@ -58,7 +58,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r2);
+        assertNoFailures(r2);
         assertThat(r2.getHits().getTotalHits().value, equalTo(3L));
         assertRequestCacheStats(1, 1);
 
@@ -73,7 +73,7 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             .setSize(0)
             .setQuery(QueryBuilders.rangeQuery("s").gte("a").lte("g"))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r3);
+        assertNoFailures(r3);
         assertThat(r3.getHits().getTotalHits().value, equalTo(5L));
         assertRequestCacheStats(1, 2);
     }

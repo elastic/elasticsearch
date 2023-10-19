@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.LongBounds;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -61,6 +60,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -229,7 +229,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -270,7 +270,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .execute()
             .actionGet();
         ZoneId tz = ZoneId.of("+01:00");
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -333,7 +333,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.DAY).minDocCount(1).timeZone(tz).format(format)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -366,7 +366,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.MONTH).order(BucketOrder.key(true)))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -388,7 +388,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -409,7 +409,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -430,7 +430,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -451,7 +451,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -513,7 +513,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -537,7 +537,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -561,7 +561,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -585,7 +585,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -641,7 +641,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -686,7 +686,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .addAggregation(dateHistogram("histo").field("dates").calendarInterval(DateHistogramInterval.MONTH))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -730,7 +730,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -781,7 +781,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -836,7 +836,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -876,7 +876,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -927,7 +927,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -940,7 +940,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .addAggregation(dateHistogram("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1130,7 +1130,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 throw e;
             }
         }
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1187,7 +1187,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .extendedBounds(new LongBounds("now/d", "now/d+23h"))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         assertThat(
             "Expected 24 buckets for one day aggregation with hourly interval",
@@ -1245,7 +1245,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .extendedBounds(new LongBounds("2016-01-01T06:00:00Z", "2016-01-08T08:00:00Z"))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1322,7 +1322,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         ZoneId tz = ZoneId.of("+01:00");
 
@@ -1370,7 +1370,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .format("yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX")
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2014-01-01T00:00:00.000+02:00"));
@@ -1395,7 +1395,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .minDocCount(0)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(4));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2014-01-01T00:00:00.000+01:00"));
@@ -1432,7 +1432,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .extendedBounds(new LongBounds("2018-01", "2018-01"))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2018-01"));
@@ -1455,7 +1455,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                 dateHistogram("histo").field("d").calendarInterval(DateHistogramInterval.MONTH).timeZone(ZoneId.of("Europe/Berlin"))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
@@ -1469,7 +1469,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .format("yyyy-MM-dd")
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2016-11-01"));
@@ -1586,7 +1586,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .calendarInterval(DateHistogramInterval.MONTH)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1606,7 +1606,7 @@ public class DateHistogramIT extends ESIntegTestCase {
                     .calendarInterval(DateHistogramInterval.MONTH)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1622,7 +1622,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(dateHistogram("histo").field("d").calendarInterval(DateHistogramInterval.MONTH))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1686,7 +1686,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histogram = response.getAggregations().get("histo");
         assertThat(histogram, notNullValue());
@@ -1730,7 +1730,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .addDocValueField("date")
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         Histogram histogram = r.getAggregations().get("histo");
         List<? extends Bucket> buckets = histogram.getBuckets();
@@ -1746,7 +1746,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .addDocValueField("date")
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         histogram = r.getAggregations().get("histo");
         buckets = histogram.getBuckets();
@@ -1764,7 +1764,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         InternalDateHistogram histogram = response.getAggregations().get("histo");
         List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
@@ -1782,7 +1782,7 @@ public class DateHistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         InternalDateHistogram histogram = response.getAggregations().get("histo");
         List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();

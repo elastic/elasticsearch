@@ -14,11 +14,11 @@ import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -35,7 +35,7 @@ public class GeoCentroidIT extends CentroidAggregationTestBase {
                     .subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         GeoGrid grid = response.getAggregations().get("geoGrid");
         assertThat(grid, notNullValue());

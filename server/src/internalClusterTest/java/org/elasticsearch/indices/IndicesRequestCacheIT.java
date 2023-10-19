@@ -35,6 +35,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHist
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -66,7 +67,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0).calendarInterval(DateHistogramInterval.MONTH)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(r1);
+        assertNoFailures(r1);
 
         // The cached is actually used
         assertThat(
@@ -85,7 +86,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                         .calendarInterval(DateHistogramInterval.MONTH)
                 )
                 .get();
-            ElasticsearchAssertions.assertNoFailures(r2);
+            assertNoFailures(r2);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");
             final List<? extends Bucket> buckets1 = h1.getBuckets();
@@ -529,7 +530,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .setProfile(profile)
                 .setQuery(QueryBuilders.termQuery("k", "hello"))
                 .get();
-            ElasticsearchAssertions.assertNoFailures(resp);
+            assertNoFailures(resp);
             ElasticsearchAssertions.assertAllSuccessful(resp);
             assertThat(resp.getHits().getTotalHits().value, equalTo(1L));
             if (profile == false) {

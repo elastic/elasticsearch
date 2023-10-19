@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInform
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,6 +57,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,7 +130,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         SearchResponse response = request.get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {
@@ -287,7 +287,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
 
         SearchResponse response1 = request1.get();
-        ElasticsearchAssertions.assertNoFailures(response1);
+        assertNoFailures(response1);
 
         SearchRequestBuilder request2;
         if (useSigText) {
@@ -390,9 +390,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 );
         }
         SearchResponse response = request.get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         Iterator<? extends Terms.Bucket> classBuckets = classes.getBuckets().iterator();
@@ -428,7 +428,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             .subAggregation(subAgg);
 
         SearchResponse response = client().prepareSearch("test").setQuery(query).addAggregation(agg).get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         SignificantTerms sigTerms = response.getAggregations().get("significant_terms");
         assertThat(sigTerms.getBuckets().size(), equalTo(2));
@@ -504,7 +504,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 );
         }
         SearchResponse response = request.get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
             SignificantTerms sigTerms = classBucket.getAggregations().get("mySignificantTerms");
             for (SignificantTerms.Bucket bucket : sigTerms.getBuckets()) {
@@ -598,7 +598,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic))
                 .get();
         }
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -623,7 +623,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 .addAggregation(significantTerms("foo").field("s").significanceHeuristic(scriptHeuristic))
                 .get();
         }
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -640,7 +640,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         } else {
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(significantTerms("foo").field("s")).get();
         }
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

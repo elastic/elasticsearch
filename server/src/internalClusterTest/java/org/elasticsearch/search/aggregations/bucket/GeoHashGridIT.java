@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,6 +36,7 @@ import static org.elasticsearch.geometry.utils.Geohash.PRECISION;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +136,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
                 .get();
 
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             List<? extends Bucket> buckets = geoGrid.getBuckets();
@@ -163,7 +163,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
                 .get();
 
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
@@ -188,7 +188,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 )
                 .get();
 
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
 
             Filter filter = response.getAggregations().get("filtered");
 
@@ -211,7 +211,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
                 .get();
 
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             assertThat(geoGrid.getBuckets().size(), equalTo(0));
@@ -225,7 +225,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
                 .get();
 
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             for (GeoGrid.Bucket cell : geoGrid.getBuckets()) {
@@ -245,7 +245,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
                 .addAggregation(geohashGrid("geohashgrid").field("location").size(1).shardSize(100).precision(precision))
                 .get();
 
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
 
             GeoGrid geoGrid = response.getAggregations().get("geohashgrid");
             // Check we only have one bucket with the best match for that resolution

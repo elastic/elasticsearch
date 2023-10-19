@@ -13,8 +13,8 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +30,7 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
             .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         GeoPoint geoValuesTopLeft = new GeoPoint(38, -179);
         GeoPoint geoValuesBottomRight = new GeoPoint(-24, 178);
@@ -54,7 +54,7 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
             .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(true))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         GeoBounds geoBounds = response.getAggregations().get(aggName());
         assertThat(geoBounds, notNullValue());

@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -43,6 +42,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -174,7 +174,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -224,7 +224,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -274,7 +274,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -320,7 +320,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -366,7 +366,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -413,7 +413,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -463,7 +463,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -509,7 +509,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -552,7 +552,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -602,7 +602,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -630,7 +630,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -683,7 +683,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -732,7 +732,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -791,7 +791,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -885,7 +885,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -940,7 +940,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

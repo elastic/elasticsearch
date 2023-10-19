@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +53,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -268,7 +268,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         SearchResponse allResponse = client().prepareSearch("idx")
             .addAggregation(new TermsAggregationBuilder("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values())))
             .get();
-        ElasticsearchAssertions.assertNoFailures(allResponse);
+        assertNoFailures(allResponse);
         LongTerms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
@@ -285,7 +285,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                 )
                 .get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
             assertThat(terms.getName(), equalTo("terms"));
@@ -306,7 +306,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         // Scripts force the results to doubles
         DoubleTerms terms = response.getAggregations().get("terms");
@@ -332,7 +332,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         // Scripts force the results to doubles
         DoubleTerms terms = response.getAggregations().get("terms");
@@ -362,7 +362,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         // The script always converts long to double
         DoubleTerms terms = response.getAggregations().get("terms");
@@ -410,7 +410,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -443,7 +443,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -470,7 +470,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -495,7 +495,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -527,7 +527,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -568,7 +568,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms tags = response.getAggregations().get("num_tags");
         assertThat(tags, notNullValue());
@@ -609,7 +609,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms tags = response.getAggregations().get("tags");
         assertThat(tags, notNullValue());
@@ -749,7 +749,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -780,7 +780,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -811,7 +811,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -882,7 +882,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -942,7 +942,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -961,7 +961,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -974,7 +974,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(new TermsAggregationBuilder("terms").field("d")).get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

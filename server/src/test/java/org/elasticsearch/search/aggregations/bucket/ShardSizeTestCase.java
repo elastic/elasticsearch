@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,6 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
@@ -79,11 +79,11 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
         indexRandom(true, docs);
 
         SearchResponse resp = client().prepareSearch("idx").setRouting(routing1).setQuery(matchAllQuery()).get();
-        ElasticsearchAssertions.assertNoFailures(resp);
+        assertNoFailures(resp);
         long totalOnOne = resp.getHits().getTotalHits().value;
         assertThat(totalOnOne, is(15L));
         resp = client().prepareSearch("idx").setRouting(routing2).setQuery(matchAllQuery()).get();
-        ElasticsearchAssertions.assertNoFailures(resp);
+        assertNoFailures(resp);
         long totalOnTwo = resp.getHits().getTotalHits().value;
         assertThat(totalOnTwo, is(12L));
     }

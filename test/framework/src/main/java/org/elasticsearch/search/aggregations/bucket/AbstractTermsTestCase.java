@@ -14,7 +14,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public abstract class AbstractTermsTestCase extends ESIntegTestCase {
 
@@ -40,7 +41,7 @@ public abstract class AbstractTermsTestCase extends ESIntegTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                 )
                 .get();
-            ElasticsearchAssertions.assertNoFailures(allTerms);
+            assertNoFailures(allTerms);
 
             Terms terms = allTerms.getAggregations().get("terms");
             assertEquals(0, terms.getSumOfOtherDocCounts()); // size is 0
@@ -58,7 +59,7 @@ public abstract class AbstractTermsTestCase extends ESIntegTestCase {
                                 .collectMode(randomFrom(SubAggCollectionMode.values()))
                         )
                         .get();
-                    ElasticsearchAssertions.assertNoFailures(resp);
+                    assertNoFailures(resp);
                     terms = resp.getAggregations().get("terms");
                     assertEquals(Math.min(size, totalNumTerms), terms.getBuckets().size());
                     assertEquals(sumOfDocCounts, sumOfDocCounts(terms));

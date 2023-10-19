@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -26,6 +25,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermsShardMinDocCountIT extends ESIntegTestCase {
@@ -72,7 +72,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                 )
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         InternalFilter filteredBucket = response.getAggregations().get("inclass");
         SignificantTerms sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(0));
@@ -89,7 +89,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                 )
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         filteredBucket = response.getAggregations().get("inclass");
         sigterms = filteredBucket.getAggregations().get("mySignificantTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));
@@ -136,7 +136,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                     .order(BucketOrder.key(true))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         Terms sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(0));
 
@@ -151,7 +151,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
                     .order(BucketOrder.key(true))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         sigterms = response.getAggregations().get("myTerms");
         assertThat(sigterms.getBuckets().size(), equalTo(2));
 

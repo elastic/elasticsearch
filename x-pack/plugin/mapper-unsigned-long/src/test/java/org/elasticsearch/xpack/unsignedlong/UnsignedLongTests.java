@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -42,6 +41,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,7 +104,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .get();
-                ElasticsearchAssertions.assertNoFailures(response);
+                assertNoFailures(response);
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(hits.length, numDocs);
                 int i = 0;
@@ -119,7 +119,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.DESC)
                     .get();
-                ElasticsearchAssertions.assertNoFailures(response);
+                assertNoFailures(response);
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(hits.length, numDocs);
                 int i = numDocs - 1;
@@ -135,7 +135,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new Long[] { 100L })
                     .get();
-                ElasticsearchAssertions.assertNoFailures(response);
+                assertNoFailures(response);
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(hits.length, 7);
                 int i = 3;
@@ -151,7 +151,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new BigInteger[] { new BigInteger("18446744073709551614") })
                     .get();
-                ElasticsearchAssertions.assertNoFailures(response);
+                assertNoFailures(response);
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(hits.length, 2);
                 int i = 8;
@@ -167,7 +167,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new String[] { "18446744073709551614" })
                     .get();
-                ElasticsearchAssertions.assertNoFailures(response);
+                assertNoFailures(response);
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(hits.length, 2);
                 int i = 8;
@@ -203,7 +203,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     .addSort("ul_field", SortOrder.DESC)
                     .searchAfter(new BigInteger[] { new BigInteger("18446744073709551615") })
                     .get();
-                ElasticsearchAssertions.assertNoFailures(response);
+                assertNoFailures(response);
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(hits.length, 8);
                 int i = 7;
@@ -218,7 +218,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         // terms agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(terms("ul_terms").field("ul_field")).get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             Terms terms = response.getAggregations().get("ul_terms");
 
             long[] expectedBucketDocCounts = { 2, 2, 2, 1, 1, 1, 1 };
@@ -244,7 +244,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                 .setSize(0)
                 .addAggregation(histogram("ul_histo").field("ul_field").interval(9E18).minDocCount(0))
                 .get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             Histogram histo = response.getAggregations().get("ul_histo");
 
             long[] expectedBucketDocCounts = { 3, 3, 4 };
@@ -265,7 +265,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
                     range("ul_range").field("ul_field").addUnboundedTo(9.0E18).addRange(9.0E18, 1.8E19).addUnboundedFrom(1.8E19)
                 )
                 .get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             Range range = response.getAggregations().get("ul_range");
 
             long[] expectedBucketDocCounts = { 3, 3, 4 };
@@ -281,7 +281,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         // sum agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(sum("ul_sum").field("ul_field")).get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             Sum sum = response.getAggregations().get("ul_sum");
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
             assertEquals(expectedSum, sum.value(), 0.001);
@@ -289,14 +289,14 @@ public class UnsignedLongTests extends ESIntegTestCase {
         // max agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             Max max = response.getAggregations().get("ul_max");
             assertEquals(1.8446744073709551615E19, max.value(), 0.001);
         }
         // min agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")).get();
-            ElasticsearchAssertions.assertNoFailures(response);
+            assertNoFailures(response);
             Min min = response.getAggregations().get("ul_min");
             assertEquals(0, min.value(), 0.001);
         }

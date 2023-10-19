@@ -39,7 +39,6 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -65,6 +64,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -288,7 +288,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .setQuery(QueryBuilders.matchQuery("name", "bar"))
             .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
         Global global = searchResponse.getAggregations().get("global");
         Terms terms = global.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(4));
@@ -299,7 +299,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
             .addSort("_index", SortOrder.ASC)
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(4));
@@ -310,7 +310,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("test").field("name"))
             .addSort("_index", SortOrder.ASC)
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
         terms = searchResponse.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(2));
 

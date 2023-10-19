@@ -23,7 +23,6 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -40,6 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,7 +130,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 dupCounter++;
             }
         }
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
         assertThat(dupCounter, equalTo(0L));
         assertHitCount(searchResponse, numDocs);
         IndicesStatsResponse index = indicesAdmin().prepareStats("index").clear().setSegments(true).get();

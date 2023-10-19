@@ -26,7 +26,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +39,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -193,7 +193,7 @@ public class SearchStatsIT extends ESIntegTestCase {
             .setSize(size)
             .setScroll(TimeValue.timeValueMinutes(2))
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
 
         // refresh the stats now that scroll contexts are opened
         indicesStats = indicesAdmin().prepareStats(index).get();

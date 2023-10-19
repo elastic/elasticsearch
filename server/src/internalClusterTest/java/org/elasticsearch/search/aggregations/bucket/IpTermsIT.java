@@ -15,7 +15,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -23,6 +22,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class IpTermsIT extends AbstractTermsTestCase {
 
@@ -64,7 +64,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
         SearchResponse response = client().prepareSearch("index")
             .addAggregation(new TermsAggregationBuilder("my_terms").script(script).executionHint(randomExecutionHint()))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
 
@@ -92,7 +92,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
         SearchResponse response = client().prepareSearch("index")
             .addAggregation(new TermsAggregationBuilder("my_terms").script(script).executionHint(randomExecutionHint()))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
 
@@ -120,7 +120,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
             .addAggregation(new TermsAggregationBuilder("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint()))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
 

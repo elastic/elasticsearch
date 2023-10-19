@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
@@ -50,6 +49,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.scriptedMetric;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -363,7 +363,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(scriptedMetric("scripted").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -411,7 +411,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -463,7 +463,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op list aggregation", Collections.emptyMap()))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -517,7 +517,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -580,7 +580,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -648,7 +648,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -707,7 +707,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             )
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocs));
 
         Global global = searchResponse.getAggregations().get("global");
@@ -765,7 +765,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -815,7 +815,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -859,7 +859,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -917,7 +917,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -952,7 +952,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     .reduceScript(new Script(ScriptType.STORED, null, "reduceScript_stored", Collections.emptyMap()))
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
 
         Aggregation aggregation = response.getAggregations().get("scripted");
@@ -1012,7 +1012,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                     )
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(numDocs));
         Aggregation aggregation = response.getAggregations().get("histo");
         assertThat(aggregation, notNullValue());
@@ -1150,7 +1150,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                 scriptedMetric("foo").initScript(ndInitScript).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1166,7 +1166,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(ndMapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1182,7 +1182,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(ndRandom).reduceScript(reduceScript))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1198,7 +1198,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(ndRandom))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1214,7 +1214,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
-        ElasticsearchAssertions.assertNoFailures(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

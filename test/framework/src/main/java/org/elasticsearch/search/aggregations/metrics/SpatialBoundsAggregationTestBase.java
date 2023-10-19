@@ -17,13 +17,13 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -41,7 +41,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
         assertThat(geoBounds, notNullValue());
@@ -60,7 +60,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
             .addAggregation(global("global").subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -100,7 +100,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     public void testMultiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), MULTI_VALUED_FIELD_NAME)).get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
         assertThat(geoBounds, notNullValue());
@@ -118,7 +118,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
             .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
         assertThat(geoBounds, notNullValue());
@@ -134,7 +134,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
             .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
         assertThat(geoBounds, notNullValue());
@@ -171,7 +171,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
             .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -194,7 +194,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
             .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         SpatialBounds<T> geoBounds = response.getAggregations().get(aggName());
         assertThat(geoBounds, notNullValue());

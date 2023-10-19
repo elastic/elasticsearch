@@ -15,10 +15,10 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -38,7 +38,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
@@ -52,7 +52,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
             .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
         assertThat(geoCentroid, notNullValue());
@@ -65,7 +65,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
         SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
             .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
         assertThat(geoCentroid, notNullValue());
@@ -79,7 +79,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         CentroidAggregation geoCentroid = response.getAggregations().get(aggName());
         assertThat(geoCentroid, notNullValue());
@@ -93,7 +93,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)))
             .get();
-        ElasticsearchAssertions.assertNoFailures(response);
+        assertNoFailures(response);
 
         Global global = response.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -120,7 +120,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
             .setQuery(matchAllQuery())
             .addAggregation(centroidAgg(aggName()).field(MULTI_VALUED_FIELD_NAME))
             .get();
-        ElasticsearchAssertions.assertNoFailures(searchResponse);
+        assertNoFailures(searchResponse);
 
         CentroidAggregation geoCentroid = searchResponse.getAggregations().get(aggName());
         assertThat(geoCentroid, notNullValue());

@@ -63,18 +63,18 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
     }
 
     public void testCreateTask() {
-        GetCheckpointAction.Request request = randomRequest(17);
+        Request request = randomRequest(17);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[17]")));
     }
 
     public void testCreateTaskWithNullIndices() {
-        GetCheckpointAction.Request request = new Request(null, null);
+        Request request = new Request(null, null);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
 
-    private static GetCheckpointAction.Request randomRequest(Integer numIndices) {
+    private static Request randomRequest(Integer numIndices) {
         return new Request(
             numIndices != null ? Stream.generate(() -> randomAlphaOfLength(10)).limit(numIndices).toArray(String[]::new) : null,
             IndicesOptions.fromParameters(

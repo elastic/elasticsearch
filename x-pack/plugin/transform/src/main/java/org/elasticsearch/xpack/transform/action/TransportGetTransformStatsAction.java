@@ -122,11 +122,13 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionListener<Response> listener
     ) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
-        ClusterState state = clusterService.state();
-        String nodeId = state.nodes().getLocalNode().getId();
+        ClusterState clusterState = clusterService.state();
+        String nodeId = clusterState.nodes().getLocalNode().getId();
         final TaskId parentTaskId = new TaskId(nodeId, actionTask.getId());
 
-        actionTask.ensureNotCancelled();
+        if (actionTask.notifyIfCancelled(listener)) {
+            return;
+        }
         if (transformTask.isCancelled()) {
             listener.onResponse(new Response(Collections.emptyList()));
             return;
@@ -239,11 +241,11 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private static void setNodeAttributes(
         TransformStats transformStats,
         PersistentTasksCustomMetadata persistentTasksCustomMetadata,
-        ClusterState state
+        ClusterState clusterState
     ) {
         var pTask = persistentTasksCustomMetadata.getTask(transformStats.getId());
         if (pTask != null) {
-            transformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
+            transformStats.setNode(NodeAttributes.fromDiscoveryNode(clusterState.nodes().get(pTask.getExecutorNode())));
         }
     }
 

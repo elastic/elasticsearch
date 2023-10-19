@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.field;
 
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -41,7 +40,9 @@ public class IPAddressTests extends ESTestCase {
     }
 
     public void testWriteable() throws IOException {
-        var registry = new NamedWriteableRegistry(List.of(new Entry(GenericNamedWriteable.class, IPAddress.NAMED_WRITEABLE_NAME, IPAddress::new)));
+        var registry = new NamedWriteableRegistry(
+            List.of(new Entry(GenericNamedWriteable.class, IPAddress.NAMED_WRITEABLE_NAME, IPAddress::new))
+        );
         var original = new IPAddress("192.168.1.1");
         var generic = copyNamedWriteable(original, registry, GenericNamedWriteable.class);
         var copied = asInstanceOf(IPAddress.class, generic);

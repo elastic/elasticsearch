@@ -202,7 +202,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (contentPath.isWithinLeafObject()) {
                 return super.map(mapFactory, mapValueParser);
             }
-            return super.map(mapFactory, mapValueParser);
+            throw new UnsupportedOperationException();
         }
 
         @Override

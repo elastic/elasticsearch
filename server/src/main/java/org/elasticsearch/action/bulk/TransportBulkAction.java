@@ -271,6 +271,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
         boolean hasIndexRequestsWithPipelines = false;
+        boolean hasInferenceFields = false;
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
@@ -278,6 +279,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (indexRequest != null) {
                 IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
+                hasInferenceFields |= ingestService.hasInferenceFields(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {
@@ -288,7 +290,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
 
-        if (hasIndexRequestsWithPipelines) {
+        if (hasIndexRequestsWithPipelines || hasInferenceFields) {
             // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.

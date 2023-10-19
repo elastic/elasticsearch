@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;

@@ -15,6 +15,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+/**
+ * A single measurement from an {@link org.elasticsearch.telemetry.metric.Instrument}.
+ * @param value
+ * @param attributes
+ * @param isDouble
+ */
 public record Measurement(Number value, Map<String, Object> attributes, boolean isDouble) {
     public Measurement {
         Objects.requireNonNull(value);
@@ -34,6 +40,10 @@ public record Measurement(Number value, Map<String, Object> attributes, boolean 
         return value.longValue();
     }
 
+    /**
+     * Add measurements with the same attributes together.  All measurements must be from the
+     * same instrument.  If some measurements differ on {@link #isDouble}, @throws IllegalArgumentException
+     */
     public static List<Measurement> combine(List<Measurement> measurements) {
         if (measurements == null || measurements.isEmpty()) {
             return Collections.emptyList();

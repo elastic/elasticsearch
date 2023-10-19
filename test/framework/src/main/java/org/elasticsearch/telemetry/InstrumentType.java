@@ -20,6 +20,10 @@ import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
 import java.util.Objects;
 
+/**
+ * Enum with the different types for use as keys.  This enum acts a bridge between the Otel and Elasticsearch versions of each
+ * of the instruments.
+ */
 enum InstrumentType {
     DOUBLE_COUNTER(true),
     LONG_COUNTER(false),

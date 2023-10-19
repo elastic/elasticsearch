@@ -27,39 +27,39 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
     }
 
     public List<Measurement> getMetrics(Instrument instrument) {
-        return meter.getRecorder().getMetrics(instrument);
+        return meter.getRecorder().getMeasurements(instrument);
     }
 
     public List<Measurement> getDoubleCounterMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.DOUBLE_COUNTER, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_COUNTER, name);
     }
 
     public List<Measurement> getLongCounterMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.LONG_COUNTER, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_COUNTER, name);
     }
 
     public List<Measurement> getDoubleUpDownCounterMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_UP_DOWN_COUNTER, name);
     }
 
     public List<Measurement> getLongUpDownCounterMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.LONG_UP_DOWN_COUNTER, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, name);
     }
 
     public List<Measurement> getDoubleGaugeMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.DOUBLE_GAUGE, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_GAUGE, name);
     }
 
     public List<Measurement> getLongGaugeMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.LONG_GAUGE, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, name);
     }
 
     public List<Measurement> getDoubleHistogramMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.DOUBLE_HISTOGRAM, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.DOUBLE_HISTOGRAM, name);
     }
 
     public List<Measurement> getLongHistogramMeasurement(String name) {
-        return meter.getRecorder().getMetrics(InstrumentType.LONG_HISTOGRAM, name);
+        return meter.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, name);
     }
 
     @Override

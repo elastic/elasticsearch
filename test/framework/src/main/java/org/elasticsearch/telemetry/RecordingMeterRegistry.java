@@ -19,6 +19,11 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+/**
+ * A {@link MeterRegistry} that records all instrument invocations.
+ * Tests can subclass this class and extend the build[Instrument] methods to do their
+ * own validations at instrument registration time and/or provide their own instruments.
+ */
 public class RecordingMeterRegistry implements MeterRegistry {
     protected final MetricRecorder<Instrument> recorder = new MetricRecorder<>();
 

@@ -22,6 +22,9 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Recording versions of Elasticsearch {@link Instrument}s.  All invocations are recorded via {@link MetricRecorder}.
+ */
 public class RecordingInstruments {
     protected abstract static class RecordingInstrument implements Instrument {
         protected final String name;

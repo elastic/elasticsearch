@@ -10,6 +10,9 @@ package org.elasticsearch.telemetry;
 
 import java.util.Objects;
 
+/**
+ * A record of the arguments for a registered instrument.
+ */
 record Registration(String name, String description, String unit) {
     Registration {
         Objects.requireNonNull(name);

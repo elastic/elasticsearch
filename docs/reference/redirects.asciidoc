@@ -1932,8 +1932,3 @@ Refer to <<remote-clusters>>.
 === Configure roles and users for remote clusters
 
 Refer to <<remote-clusters>>.
-
-[id="ingest-pipeline-search-inference-update-mapping"]
-==== Update mapping
-
-coming::[8.11.0]

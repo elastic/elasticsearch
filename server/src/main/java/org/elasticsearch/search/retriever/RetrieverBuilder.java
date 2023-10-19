@@ -44,6 +44,7 @@ public abstract class RetrieverBuilder<RB extends RetrieverBuilder<RB>>
         String name,
         AbstractObjectParser<? extends RetrieverBuilder<?>, RetrieverParserContext> parser
     ) {
+        // TODO add support for multiple filters
         parser.declareObject(RetrieverBuilder::preFilterQueryBuilder, (p, c) -> {
             QueryBuilder preFilterQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage);
             c.trackSectionUsage(name + ":" + PRE_FILTER_FIELD.getPreferredName());

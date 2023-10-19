@@ -70,25 +70,25 @@ missing routing path field:
   - match: { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 4 }
 
-  - match: { aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match: { aggregations.tsids.buckets.0.key._tsid: "Dh_r6QMn0c6jJhFGYOwd6Oix0Ruaua4Wo_hP7e-sEqo5ihHDmAXfxM3_zbMMRzVn-ZChwA" }
   - match: { aggregations.tsids.buckets.0.key.tag: null }
   - match: { aggregations.tsids.buckets.0.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 7.15, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.0.voltage.value: { value: 6.69, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match: { aggregations.tsids.buckets.1.key._tsid: "Dh_r6QMn0c6jJhFGYOwd6Oix0Ruaua4Wo_hP7e-sEqp12oDhVMfWLO-N2j8tEM_EPwLCbQ" }
   - match: { aggregations.tsids.buckets.1.key.tag: null }
   - match: { aggregations.tsids.buckets.1.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 6.69, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.1.voltage.value: { value: 7.15, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.2.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: { aggregations.tsids.buckets.2.key.tag: "first" }
+  - match: { aggregations.tsids.buckets.2.key._tsid: "qSFbO7EapWUonTzXAt9gquix0Ruaua4Wo_hP7e-sEqqaET_vOYoRw8zJD_nynQNV36JwKq7uZCw" }
+  - match: { aggregations.tsids.buckets.2.key.tag: null }
   - match: { aggregations.tsids.buckets.2.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 7.30, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.2.voltage.value: { value: 6.70, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.3.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.3.key.tag: "second" }
+  - match: { aggregations.tsids.buckets.3.key._tsid: "qSFbO7EapWUonTzXAt9gquix0Ruaua4Wo_hP7e-sEqrcUWJEddqA4Vma0dpEIEx4FPmEt0nD4ck" }
+  - match: { aggregations.tsids.buckets.3.key.tag: null }
   - match: { aggregations.tsids.buckets.3.doc_count: 2 }
-  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 6.70, error: 0.01 }}
+  - close_to: { aggregations.tsids.buckets.3.voltage.value: { value: 7.30, error: 0.01 }}
 
 ---
 missing dimension on routing path field:
@@ -201,12 +201,12 @@ multi-value routing path field:
   - match: {hits.total.value: 4}
   - length: {aggregations.tsids.buckets: 2}
 
-  - match: {aggregations.tsids.buckets.0.key.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match: {aggregations.tsids.buckets.0.key.tag: "first" }
+  - match: {aggregations.tsids.buckets.0.key._tsid: "qSFbO7EapWUonTzXAt9gquix0Ruaua4Wo_hP7e-sEqqaET_vOYoRw8zJD_nynQNV36JwKq7uZCw" }
+  - match: {aggregations.tsids.buckets.0.key.tag: null }
   - match: {aggregations.tsids.buckets.0.doc_count: 2 }
-  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.30, error: 0.01 }}
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 6.70, error: 0.01 }}
 
-  - match: { aggregations.tsids.buckets.1.key.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match: { aggregations.tsids.buckets.1.key.tag: "second" }
+  - match: { aggregations.tsids.buckets.1.key._tsid: "qSFbO7EapWUonTzXAt9gquix0Ruaua4Wo_hP7e-sEqrcUWJEddqA4Vma0dpEIEx4FPmEt0nD4ck" }
+  - match: { aggregations.tsids.buckets.1.key.tag: null }
   - match: {aggregations.tsids.buckets.1.doc_count: 2 }
-  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 6.70, error: 0.01 }}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 7.30, error: 0.01 }}

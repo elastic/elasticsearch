@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardL
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
@@ -1923,6 +1924,147 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var source = as(agg.child(), EsRelation.class);
     }
 
+    /**
+     * Expects
+     * Project[[c1{r}#2, c2{r}#4, cs{r}#6, cm{r}#8, cexp{r}#10]]
+     * \_Eval[[c1{r}#2 AS c2, c1{r}#2 AS cs, c1{r}#2 AS cm, c1{r}#2 AS cexp]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
+     *       \_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
+    public void testEliminateDuplicateAggsCountAll() {
+        var plan = plan("""
+              from test
+            | stats c1 = count(1), c2 = count(2), cs = count(*), cm = count(), cexp = count("123")
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c1", "c2", "cs", "cm", "cexp"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("c2", "cs", "cm", "cexp"));
+        for (Alias field : fields) {
+            assertThat(Expressions.name(field.child()), is("c1"));
+        }
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("c1"));
+        aggFieldName(aggs.get(0), Count.class, "*");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Project[[c1{r}#7, cx{r}#10, cs{r}#12, cy{r}#15]]
+     * \_Eval[[c1{r}#7 AS cx, c1{r}#7 AS cs, c1{r}#7 AS cy]]
+     *   \_Limit[500[INTEGER]]
+     *     \_Aggregate[[],[COUNT([2a][KEYWORD]) AS c1]]
+     *       \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
+    public void testEliminateDuplicateAggsWithAliasedFields() {
+        var plan = plan("""
+              from test
+            | eval x = 1
+            | eval y = x
+            | stats c1 = count(1), cx = count(x), cs = count(*), cy = count(y)
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c1", "cx", "cs", "cy"));
+        var eval = as(project.child(), Eval.class);
+        var fields = eval.fields();
+        assertThat(Expressions.names(fields), contains("cx", "cs", "cy"));
+        for (Alias field : fields) {
+            assertThat(Expressions.name(field.child()), is("c1"));
+        }
+        var limit = as(eval.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("c1"));
+        aggFieldName(aggs.get(0), Count.class, "*");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Project[[min{r}#1385, max{r}#1388, min{r}#1385 AS min2, max{r}#1388 AS max2, gender{f}#1398]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[gender{f}#1398],[MIN(salary{f}#1401) AS min, MAX(salary{f}#1401) AS max, gender{f}#1398]]
+     *     \_EsRelation[test][_meta_field{f}#1402, emp_no{f}#1396, first_name{f}#..]
+     */
+    public void testEliminateDuplicateAggsMixed() {
+        var plan = plan("""
+              from test
+            | stats min = min(salary), max = max(salary), min2 = min(salary), max2 = max(salary) by gender
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("min", "max", "min2", "max2", "gender"));
+        as(projections.get(0), ReferenceAttribute.class);
+        as(projections.get(1), ReferenceAttribute.class);
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("min"));
+        assertThat(Expressions.name(aliased(projections.get(3), ReferenceAttribute.class)), is("max"));
+
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("min", "max", "gender"));
+        aggFieldName(aggs.get(0), Min.class, "salary");
+        aggFieldName(aggs.get(1), Max.class, "salary");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * EsqlProject[[a{r}#5, c{r}#8]]
+     * \_Eval[[null[INTEGER] AS x]]
+     *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634")
+    public void testEliminateDuplicateAggWithNull() {
+        var plan = plan("""
+              from test
+            | eval x = null + 1
+            | stats a = avg(x), c = count(x)
+            """);
+        fail("Awaits fix");
+    }
+
+    /**
+     * Expects
+     * Project[[max(x){r}#11, max(x){r}#11 AS max(y), max(x){r}#11 AS max(z)]]
+     * \_Limit[500[INTEGER]]
+     *   \_Aggregate[[],[MAX(salary{f}#21) AS max(x)]]
+     *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     */
+    public void testEliminateDuplicateAggsNonCount() {
+        var plan = plan("""
+            from test
+            | eval x = salary
+            | eval y = x
+            | eval z = y
+            | stats max(x), max(y), max(z)
+            """);
+
+        var project = as(plan, Project.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("max(x)", "max(y)", "max(z)"));
+        as(projections.get(0), ReferenceAttribute.class);
+        assertThat(Expressions.name(aliased(projections.get(1), ReferenceAttribute.class)), is("max(x)"));
+        assertThat(Expressions.name(aliased(projections.get(2), ReferenceAttribute.class)), is("max(x)"));
+
+        var limit = as(project.child(), Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        var aggs = agg.aggregates();
+        assertThat(Expressions.names(aggs), contains("max(x)"));
+        aggFieldName(aggs.get(0), Max.class, "salary");
+        var source = as(agg.child(), EsRelation.class);
+    }
+
     private <T> T aliased(Expression exp, Class<T> clazz) {
         var alias = as(exp, Alias.class);
         return as(alias.child(), clazz);
@@ -1932,7 +2074,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(exp, Alias.class);
         var af = as(alias.child(), aggType);
         var field = af.field();
-        assertThat(Expressions.name(field), is(fieldName));
+        var name = field.foldable() ? BytesRefs.toString(field.fold()) : Expressions.name(field);
+        assertThat(name, is(fieldName));
     }
 
     private LogicalPlan optimizedPlan(String query) {

@@ -256,12 +256,12 @@ public class GeoTileUtilsTests extends ESTestCase {
                 Matchers.anyOf(equalTo(x + 1), equalTo(tiles - 1))
             );
             // next encoded value down belongs to the tile
-            assertThat(GeoTileUtils.getXTile(quantizeLonDown(rectangle.getMaxX()), tiles), equalTo(x));
+            assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLonDown(rectangle.getMaxX()), tiles), equalTo(x));
             // min longitude belongs to the tile
             assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLon(rectangle.getMinX()), tiles), equalTo(x));
             if (x != 0) {
                 // next encoded value down belongs to the previous tile
-                assertThat(GeoTileUtils.getXTile(quantizeLonDown(rectangle.getMinX()), tiles), equalTo(x - 1));
+                assertThat(GeoTileUtils.getXTile(GeoUtils.quantizeLonDown(rectangle.getMinX()), tiles), equalTo(x - 1));
             }
         }
     }
@@ -276,7 +276,7 @@ public class GeoTileUtilsTests extends ESTestCase {
             assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLat(rectangle.getMaxLat()), tiles), equalTo(y));
             if (y != 0) {
                 // next encoded value up belongs to the previous tile
-                assertThat(GeoTileUtils.getYTile(quantizeLatUp(rectangle.getMaxLat()), tiles), equalTo(y - 1));
+                assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLatUp(rectangle.getMaxLat()), tiles), equalTo(y - 1));
             }
             // min latitude belongs to the next tile except the last one
             assertThat(
@@ -284,15 +284,8 @@ public class GeoTileUtilsTests extends ESTestCase {
                 Matchers.anyOf(equalTo(y + 1), equalTo(tiles - 1))
             );
             // next encoded value up belongs to the tile
-            assertThat(GeoTileUtils.getYTile(quantizeLatUp(rectangle.getMinLat()), tiles), equalTo(y));
+            assertThat(GeoTileUtils.getYTile(GeoUtils.quantizeLatUp(rectangle.getMinLat()), tiles), equalTo(y));
         }
     }
 
-    private static double quantizeLonDown(double lon) {
-        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon) - 1);
-    }
-
-    private static double quantizeLatUp(double lat) {
-        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat) + 1);
-    }
 }

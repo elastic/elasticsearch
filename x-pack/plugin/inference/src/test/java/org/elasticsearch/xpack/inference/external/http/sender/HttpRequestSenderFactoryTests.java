@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpRequestBase;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,6 +19,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.junit.After;
@@ -28,9 +30,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.external.http.HttpClientManagerTests.mockClusterServiceEmpty;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -80,7 +83,7 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
         when(mockThreadPool.executor(anyString())).thenReturn(mockExecutorService);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
 
-        var senderFactory = new HttpRequestSenderFactory(mockThreadPool, clientManager);
+        var senderFactory = new HttpRequestSenderFactory(mockThreadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
             sender.start();
@@ -94,7 +97,7 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
             var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            sender.send(httpPost, listener);
+            sender.send(httpPost, null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -108,12 +111,55 @@ public class HttpRequestSenderFactoryTests extends ESTestCase {
     }
 
     public void testHttpRequestSender_Throws_WhenCallingSendBeforeStart() throws Exception {
-        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager);
+        var senderFactory = new HttpRequestSenderFactory(threadPool, clientManager, mockClusterServiceEmpty(), Settings.EMPTY);
 
         try (var sender = senderFactory.createSender("test_service")) {
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(AssertionError.class, () -> sender.send(mock(HttpRequestBase.class), listener));
             assertThat(thrownException.getMessage(), is("call start() before sending a request"));
+        }
+    }
+
+    public void testHttpRequestSender_Throws_WhenATimeoutOccurs() throws Exception {
+        var mockManager = mock(HttpClientManager.class);
+        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+
+        var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.setMaxRequestTimeout(TimeValue.timeValueNanos(1));
+            sender.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            sender.send(mock(HttpRequestBase.class), TimeValue.timeValueNanos(1), listener);
+
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
+            );
+        }
+    }
+
+    public void testHttpRequestSenderWithTimeout_Throws_WhenATimeoutOccurs() throws Exception {
+        var mockManager = mock(HttpClientManager.class);
+        when(mockManager.getHttpClient()).thenReturn(mock(HttpClient.class));
+
+        var senderFactory = new HttpRequestSenderFactory(threadPool, mockManager, mockClusterServiceEmpty(), Settings.EMPTY);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
+            sender.send(mock(HttpRequestBase.class), TimeValue.timeValueNanos(1), listener);
+
+            var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
+
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Request timed out waiting to be executed after [%s]", TimeValue.timeValueNanos(1)))
+            );
         }
     }
 }

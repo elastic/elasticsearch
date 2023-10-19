@@ -579,7 +579,6 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(ex.getMessage(), Matchers.containsString("Invalid aggregation name [_mvt_name]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101038")
     public void testCentroidGridTypeOnPolygon() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + (z + 2) + "/" + 4 * x + "/" + 4 * y);
         mvtRequest.setJsonEntity("{\"size\" : 0, \"grid_type\": \"centroid\",  \"grid_precision\": 2}");

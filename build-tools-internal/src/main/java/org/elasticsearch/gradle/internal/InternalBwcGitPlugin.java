@@ -82,6 +82,8 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         });
 
         TaskProvider<Task> addRemoteTaskProvider = tasks.register("addRemote", addRemote -> {
+            String rootProjectName = project.getRootProject().getName();
+
             addRemote.dependsOn(findRemoteTaskProvider);
             addRemote.onlyIf("remote exists", task -> ((boolean) extraProperties.get("remoteExists")) == false);
             addRemote.doLast(new Action<Task>() {
@@ -99,7 +101,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                                         : null
                                 )
                             )
-                            .getOrElse("https://github.com/" + remoteRepo + "/" + project.getRootProject().getName());
+                            .getOrElse("https://github.com/" + remoteRepo + "/" + rootProjectName);
                         spec.commandLine("git", "remote", "add", remoteRepo, remoteRepoUrl);
                     });
                 }
@@ -127,6 +129,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
         String projectPath = project.getPath();
         TaskProvider<Task> checkoutBwcBranchTaskProvider = tasks.register("checkoutBwcBranch", checkoutBwcBranch -> {
             checkoutBwcBranch.dependsOn(fetchLatestTaskProvider);
+            ExtraPropertiesExtension taskExtensionsProperties = checkoutBwcBranch.getExtensions().getExtraProperties();
             checkoutBwcBranch.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -136,9 +139,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                         .orElse(providerFactory.systemProperty("tests.bwc.refspec." + bwcBranch))
                         .orElse(
                             providerFactory.provider(
-                                () -> task.getExtensions().getExtraProperties().has("refspec")
-                                    ? task.getExtensions().getExtraProperties().get("refspec").toString()
-                                    : null
+                                () -> taskExtensionsProperties.has("refspec") ? taskExtensionsProperties.get("refspec").toString() : null
                             )
                         )
                         .getOrElse(remote.get() + "/" + bwcBranch);

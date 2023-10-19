@@ -459,7 +459,7 @@ public final class DataTypeConverter {
     /**
      * Converts arbitrary object to the desired data type.
      * <p>
-     * Throws QlClientIllegalArgumentException if such conversion is not possible
+     * Throws InvalidArgumentException if such conversion is not possible
      */
     public static Object convert(Object value, DataType dataType) {
         DataType detectedType = DataTypes.fromJava(value);

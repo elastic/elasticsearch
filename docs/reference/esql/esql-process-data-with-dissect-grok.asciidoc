@@ -1,0 +1,47 @@
+[[esql-process-data-with-dissect-and-grok]]
+=== Process data with `DISSECT` and `GROK`
+
+++++
+<titleabbrev>Process data with DISSECT and GROK</titleabbrev>
+++++
+
+Your data may contain unstructured strings that you want to structure, so you
+can further analyze it. For example, log messages may contain IP addresses that
+you want to extract so you can find the most active IP addresses.
+
+Structuring data can be done at index time, using the
+<<dissect-processor,Dissect>> or <<grok-processor,Grok>> ingest processors, or
+the {ls} {logstash-ref}/plugins-filters-dissect.html[Dissect] or
+{logstash-ref}/plugins-filters-grok.html[Grok] filters. With {esql}, you can
+also structure data at query time, using the <<esql-dissect>> and <<esql-grok>>
+processors.
+
+[[esql-grok-or-dissect]]
+==== `GROK` or `DISSECT`? Or both?
+
+`DISSECT` differs from `GROK` in that it does not use regular expressions and is
+faster. `DISSECT` works well when data is reliably repeated. `GROK` is a better
+choice when the structure of your text varies from row to row.
+
+You can use both `DISSECT` and `GROK` for a hybrid use case when a section of
+the line is reliably repeated, but the entire line is not. The `DISSECT` filter
+can deconstruct the section of the line that is repeated. The `GROK` filter can
+process the remaining field values with more regex predictability.
+
+[[esql-process-data-with-dissect]]
+==== `DISSECT`
+
+include::../ingest/processors/dissect.asciidoc[tag=intro-example]
+
+and result in adding the following columns to the input table:
+
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+clientip:keyword | ident:keyword | auth:keyword | @timestamp:keyword | verb:keyword | request:keyword | httpversion:keyword  | status:keyword | size:keyword
+1.2.3.4 | - | - | 30/Apr/1998:22:00:52 +0000 | GET | /english/venues/cities/images/montpellier/18.gif | 1.0 | 1200 | 3171
+|===
+
+include::../ingest/processors/dissect.asciidoc[tag=intro-example-explanation]
+
+[[esql-process-data-with-grok]]
+==== `GROK`

@@ -10,6 +10,7 @@ within a document. However unlike the <<grok-processor,Grok Processor>>, dissect
 {wikipedia}/Regular_expression[Regular Expressions]. This allows dissect's syntax to be simple and for
 some cases faster than the <<grok-processor,Grok Processor>>.
 
+// tag::intro-example[]
 Dissect matches a single text field against a defined pattern.
 
 For example the following pattern:
@@ -22,6 +23,7 @@ will match a log line of this format:
 --------------------------------------------------
 1.2.3.4 - - [30/Apr/1998:22:00:52 +0000] \"GET /english/venues/cities/images/montpellier/18.gif HTTP/1.0\" 200 3171
 --------------------------------------------------
+// end::intro-example[]
 and result in a document with the following fields:
 [source,js]
 --------------------------------------------------
@@ -44,11 +46,13 @@ and result in a document with the following fields:
 --------------------------------------------------
 // NOTCONSOLE
 
+// tag::intro-example-explanation[]
 A dissect pattern is defined by the parts of the string that will be discarded. In the example above the first part
-to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` is everything up
+to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` everything up
 until that space.
 Later dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`.
 Paying special attention the parts of the string to discard will help build successful dissect patterns.
+// end::intro-example-explanation[]
 
 Successful matches require all keys in a pattern to have a value. If any of the `%{keyname}` defined in the pattern do
 not have a value, then an exception is thrown and may be handled by the <<handling-pipeline-failures,`on_failure`>> directive.

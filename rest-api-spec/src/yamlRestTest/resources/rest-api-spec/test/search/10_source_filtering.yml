@@ -32,7 +32,7 @@ setup:
 "_source: false":
   - do: { search: { body: { _source: false, query: { match_all: {} } } } }
   - length:   { hits.hits: 1  }
-  - not_exist: hits.hits.0._source
+  - not_exists: hits.hits.0._source
 
 ---
 "no filtering":
@@ -44,25 +44,25 @@ setup:
 "_source in body":
   - do: { search: { body: { _source: include.field1, query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include.field1: v1 }
-  - not_exist: hits.hits.0._source.include.field2
+  - not_exists: hits.hits.0._source.include.field2
 
 ---
 "_source_includes and _source in body":
   - do: { search: { _source_includes: include.field1, body: { _source: include.field2, query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include.field1: v1 }
-  - not_exist: hits.hits.0._source.include.field2
+  - not_exists: hits.hits.0._source.include.field2
 
 ---
 "_source_includes":
   - do: { search: { _source_includes: include.field1, body: { query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include.field1: v1 }
-  - not_exist: hits.hits.0._source.include.field2
+  - not_exists: hits.hits.0._source.include.field2
 
 ---
 "_source_excludes":
   - do: { search: { _source_excludes: count, body: { query: { match_all: {} } } } }
   - match:  { hits.hits.0._source.include: { field1 : v1 , field2: v2 }}
-  - not_exist: hits.hits.0._source.count
+  - not_exists: hits.hits.0._source.count
 
 ---
 "_source field1 field2":
@@ -73,7 +73,7 @@ setup:
           query: { match_all: {} }
   - match:  { hits.hits.0._source.include.field1: v1 }
   - match:  { hits.hits.0._source.include.field2: v2 }
-  - not_exist: hits.hits.0._source.count
+  - not_exists: hits.hits.0._source.count
 
 ---
 "_source.include field1 field2":
@@ -85,7 +85,7 @@ setup:
           query: { match_all: {} }
   - match:  { hits.hits.0._source.include.field1: v1 }
   - match:  { hits.hits.0._source.include.field2: v2 }
-  - not_exist: hits.hits.0._source.count
+  - not_exists: hits.hits.0._source.count
 
 ---
 "_source includes and excludes":
@@ -97,7 +97,7 @@ setup:
             excludes: "*.field2"
           query: { match_all: {} }
   - match:  { hits.hits.0._source.include.field1: v1 }
-  - not_exist:  hits.hits.0._source.include.field2
+  - not_exists:  hits.hits.0._source.include.field2
 
 ---
 "_source include on bigint":
@@ -108,7 +108,7 @@ setup:
             includes: bigint
           query: { match_all: {} }
   - match:  { hits.hits.0._source.bigint: 72057594037927936 }
-  - not_exist:  hits.hits.0._source.include.field2
+  - not_exists:  hits.hits.0._source.include.field2
 
 
 ---
@@ -127,7 +127,7 @@ setup:
         body:
           stored_fields: [ include.field2 ]
           query: { match_all: {} }
-  - not_exist:  hits.hits.0._source
+  - not_exists:  hits.hits.0._source
 
 ---
 "fields in body with source":

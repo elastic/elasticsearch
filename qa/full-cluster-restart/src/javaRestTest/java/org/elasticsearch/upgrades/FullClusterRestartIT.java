@@ -762,7 +762,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             if (randomBoolean()) {
                 performSyncedFlush(index, randomBoolean());
             }
-            saveInfoDocument("should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
             count = countOfIndexedRandomDocuments();
         }

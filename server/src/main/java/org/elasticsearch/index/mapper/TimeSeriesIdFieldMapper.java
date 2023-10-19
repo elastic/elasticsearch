@@ -236,6 +236,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         public BytesReference similarityHash() throws IOException {
             // NOTE: hash all dimension field names
             int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
+            int tsidHashIndex = 0;
             byte[] tsidHash = new byte[16 + 16 + 16 + 4 * numberOfDimensions];
 
             int dimensionValuesLength = 0;
@@ -245,20 +246,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 dimensionValuesLength += (dimensionValueBytesRef.length - dimensionValueBytesRef.offset);
                 sb.append(dimension.name);
             }
-            final BytesRef dimensionNamesHash = hash128(new BytesRef(sb.toString()));
-
-            int tsidHashIndex = 0;
-            System.arraycopy(dimensionNamesHash.bytes, dimensionNamesHash.offset, tsidHash, tsidHashIndex, dimensionNamesHash.length);
-            tsidHashIndex += dimensionNamesHash.length;
+            tsidHashIndex += hash128(new BytesRef(sb.toString()), tsidHash, tsidHashIndex);
 
             // NOTE: hash all metric field names
             sb.setLength(0);
             for (final String metric : metrics) {
                 sb.append(metric);
             }
-            final BytesRef metricFieldsHash = hash128(new BytesRef(sb.toString()));
-            System.arraycopy(metricFieldsHash.bytes, metricFieldsHash.offset, tsidHash, tsidHashIndex, metricFieldsHash.length);
-            tsidHashIndex += metricFieldsHash.length;
+            tsidHashIndex += hash128(new BytesRef(sb.toString()), tsidHash, tsidHashIndex);
 
             // NOTE: catenate all dimension value hashes up to names certain number of dimensions
             int tsidHashStartIndex = tsidHashIndex;
@@ -283,8 +278,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 );
                 buf2Index += (dimensionValueBytesRef.length - dimensionValueBytesRef.offset);
             }
-            final BytesRef dimensionValuesHash = hash128(new BytesRef(buf2, 0, buf2.length));
-            System.arraycopy(dimensionValuesHash.bytes, dimensionValuesHash.offset, tsidHash, tsidHashIndex, dimensionValuesHash.length);
+            tsidHashIndex += hash128(new BytesRef(buf2, 0, buf2.length), tsidHash, tsidHashIndex);
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(TSID_HASH_SENTINEL);
@@ -293,13 +287,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
         }
 
-        private BytesRef hash128(final BytesRef value) throws IOException {
-            byte[] buffer = new byte[16];
+        private int hash128(final BytesRef value, final byte[] buffer, int bufferIndex) throws IOException {
             final MurmurHash3.Hash128 hash128 = new MurmurHash3.Hash128();
             MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash128);
-            ByteUtils.writeLongLE(hash128.h1, buffer, 0);
-            ByteUtils.writeLongLE(hash128.h2, buffer, 8);
-            return new BytesRef(buffer);
+            ByteUtils.writeLongLE(hash128.h1, buffer, bufferIndex);
+            ByteUtils.writeLongLE(hash128.h2, buffer, bufferIndex + 8);
+            return 16;
         }
 
         @Override

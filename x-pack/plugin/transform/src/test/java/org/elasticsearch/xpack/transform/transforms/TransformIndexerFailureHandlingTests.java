@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -135,7 +136,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 checkpointProvider,
                 initialState,
                 initialPosition,
-                mock(Client.class),
+                mock(ParentTaskAssigningClient.class),
                 jobStats,
                 transformConfig,
                 /* TransformProgress */ null,

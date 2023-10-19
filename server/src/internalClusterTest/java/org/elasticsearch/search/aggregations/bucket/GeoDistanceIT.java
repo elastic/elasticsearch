@@ -39,7 +39,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geoDistance;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -144,7 +144,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         }
         SearchResponse response = client().prepareSearch("idx").addAggregation(builder).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -191,7 +191,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -240,7 +240,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -287,7 +287,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -335,7 +335,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());
@@ -462,7 +462,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range geoDist = response.getAggregations().get("amsterdam_rings");
         assertThat(geoDist, notNullValue());

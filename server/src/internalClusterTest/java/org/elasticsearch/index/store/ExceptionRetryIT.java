@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -130,7 +130,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 dupCounter++;
             }
         }
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         assertThat(dupCounter, equalTo(0L));
         assertHitCount(searchResponse, numDocs);
         IndicesStatsResponse index = indicesAdmin().prepareStats("index").clear().setSegments(true).get();

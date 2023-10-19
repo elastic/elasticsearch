@@ -119,7 +119,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(respMap.get("values"), equalTo(List.of(List.of(2, 5))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/100724/")
     public void testEnrich() throws Exception {
         createEnrichPolicy();
         try {

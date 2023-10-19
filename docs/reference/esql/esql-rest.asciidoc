@@ -107,7 +107,7 @@ s|Description
 
 |smile
 |application/smile
-|{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar 
+|{wikipedia}/Smile_(data_interchange_format)[Smile] binary data format similar
 to CBOR
 
 |===
@@ -220,6 +220,7 @@ POST /_query
     | WHERE page_count > 300 AND author == "Frank Herbert"
     | STATS count = COUNT(*) by year
     | WHERE count > 0
+    | LIMIT 5
   """
 }
 ----
@@ -239,6 +240,7 @@ POST /_query
     | WHERE page_count > ? AND author == ?
     | STATS count = COUNT(*) by year
     | WHERE count > ?
+    | LIMIT 5
   """,
   "params": [300, "Frank Herbert", 0]
 }

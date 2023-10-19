@@ -56,6 +56,7 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
         return ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
     }
 
+    @Override
     public AbstractNodeAvailabilityZoneMapper getNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
         return new NodeRealAvailabilityZoneMapper(settings, clusterSettings);
     }

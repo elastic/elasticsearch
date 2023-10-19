@@ -12,6 +12,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierPatternContext;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -61,7 +62,6 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -149,8 +149,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
-        String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
-        return child -> new MvExpand(source(ctx), child, new UnresolvedAttribute(source(ctx), identifier));
+        return child -> new MvExpand(source(ctx), child, visitIdentifierPattern(ctx.identifierPattern()));
 
     }
 
@@ -174,11 +173,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitSourceIdentifiers(ctx.sourceIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
-            for (var c : ctx.metadata().sourceIdentifier()) {
-                String id = visitSourceIdentifier(c);
+            for (var c : ctx.metadata().fromIdentifier()) {
+                String id = visitFromIdentifier(c);
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
@@ -253,16 +252,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitDropCommand(EsqlBaseParser.DropCommandContext ctx) {
-        var identifiers = ctx.sourceIdentifier();
+        var identifiers = ctx.identifierPattern();
         List<NamedExpression> removals = new ArrayList<>(identifiers.size());
 
-        for (EsqlBaseParser.SourceIdentifierContext idCtx : identifiers) {
-            Source src = source(idCtx);
-            String identifier = visitSourceIdentifier(idCtx);
-            if (identifier.equals(WILDCARD)) {
+        for (IdentifierPatternContext patternContext : identifiers) {
+            NamedExpression identifier = visitIdentifierPattern(patternContext);
+            if (identifier instanceof UnresolvedStar) {
+                var src = identifier.source();
                 throw new ParsingException(src, "Removing all fields is not allowed [{}]", src.text());
             }
-            removals.add(new UnresolvedAttribute(src, identifier));
+            removals.add(identifier);
         }
 
         return child -> new Drop(source(ctx), child, removals);
@@ -279,13 +278,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.PROJECT() != null) {
             addWarning("PROJECT command is no longer supported, please use KEEP instead");
         }
-        List<NamedExpression> projections = new ArrayList<>(ctx.sourceIdentifier().size());
+        var identifiers = ctx.identifierPattern();
+        List<NamedExpression> projections = new ArrayList<>(identifiers.size());
         boolean hasSeenStar = false;
-        for (var srcIdCtx : ctx.sourceIdentifier()) {
-            NamedExpression ne = visitProjectExpression(srcIdCtx);
+        for (IdentifierPatternContext idCtx : identifiers) {
+            NamedExpression ne = visitIdentifierPattern(idCtx);
             if (ne instanceof UnresolvedStar) {
                 if (hasSeenStar) {
-                    throw new ParsingException(ne.source(), "Cannot specify [*] more than once", ne.source().text());
+                    var src = ne.source();
+                    throw new ParsingException(src, "Cannot specify [*] more than once", src.text());
                 } else {
                     hasSeenStar = true;
                 }
@@ -308,10 +309,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) {
         return p -> {
-            final String policyName = visitSourceIdentifier(ctx.policyName);
+            final NamedExpression policyName = visitIdentifierPattern(ctx.policyName);
             var source = source(ctx);
             NamedExpression matchField = ctx.ON() != null
-                ? new UnresolvedAttribute(source(ctx.matchField), visitSourceIdentifier(ctx.matchField))
+                ? visitIdentifierPattern(ctx.matchField)
                 : new EmptyAttribute(source);
             if (matchField.name().contains("*")) {
                 throw new ParsingException(
@@ -320,33 +321,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     matchField.name()
                 );
             }
+
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
             return new Enrich(
                 source,
                 p,
-                new Literal(source(ctx.policyName), policyName, DataTypes.KEYWORD),
+                new Literal(source(ctx.policyName), policyName.name(), DataTypes.KEYWORD),
                 matchField,
                 null,
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };
-    }
-
-    @Override
-    public NamedExpression visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) {
-        Source src = source(ctx);
-        String enrichField = enrichFieldName(ctx.enrichField);
-        String newName = enrichFieldName(ctx.newName);
-        UnresolvedAttribute enrichAttr = new UnresolvedAttribute(src, enrichField);
-        return newName == null ? enrichAttr : new Alias(src, newName, enrichAttr);
-    }
-
-    private String enrichFieldName(EsqlBaseParser.SourceIdentifierContext ctx) {
-        String name = ctx == null ? null : visitSourceIdentifier(ctx);
-        if (name != null && name.contains(WILDCARD)) {
-            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", name);
-        }
-        return name;
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

@@ -207,10 +207,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
 
-        return new UnresolvedAttribute(
-            source(ctx),
-            Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".")
-        );
+        List<String> strings = visitList(this, ctx.identifier(), String.class);
+        return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
     }
 
     @Override
@@ -378,22 +376,39 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         );
     }
 
-    public NamedExpression visitProjectExpression(EsqlBaseParser.SourceIdentifierContext ctx) {
+    @Override
+    public NamedExpression visitIdentifierPattern(EsqlBaseParser.IdentifierPatternContext ctx) {
         Source src = source(ctx);
-        String identifier = visitSourceIdentifier(ctx);
+        String identifier = unquoteIdentifier(null, ctx.PROJECT_UNQUOTED_IDENTIFIER());
         return identifier.equals(WILDCARD) ? new UnresolvedStar(src, null) : new UnresolvedAttribute(src, identifier);
     }
 
     @Override
     public Alias visitRenameClause(EsqlBaseParser.RenameClauseContext ctx) {
         Source src = source(ctx);
-        String newName = visitSourceIdentifier(ctx.newName);
-        String oldName = visitSourceIdentifier(ctx.oldName);
+        String newName = visitIdentifier(ctx.newName);
+        String oldName = visitIdentifier(ctx.oldName);
         if (newName.contains(WILDCARD) || oldName.contains(WILDCARD)) {
             throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
         }
 
-        return new Alias(src, newName, new UnresolvedAttribute(source(ctx.oldName), oldName));
+        return new Alias(src, newName, new UnresolvedAttribute(src, oldName));
+    }
+
+    @Override
+    public NamedExpression visitEnrichWithClause(EsqlBaseParser.EnrichWithClauseContext ctx) {
+        Source src = source(ctx);
+        NamedExpression enrichField = enrichFieldName(ctx.enrichField);
+        NamedExpression newName = enrichFieldName(ctx.newName);
+        return newName == null ? enrichField : new Alias(src, newName.name(), enrichField);
+    }
+
+    private NamedExpression enrichFieldName(EsqlBaseParser.IdentifierPatternContext ctx) {
+        var name = visitIdentifierPattern(ctx);
+        if (name != null && name.name().contains(WILDCARD)) {
+            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", name.name());
+        }
+        return name;
     }
 
     @Override

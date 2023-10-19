@@ -733,7 +733,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testFieldContainingDotsAndNumbers() {
-        LogicalPlan where = processingCommand("where a.b.1m.4321 ");
+        LogicalPlan where = processingCommand("where `a.b.1m.4321`");
         assertThat(where, instanceOf(Filter.class));
         Filter w = (Filter) where;
         assertThat(w.child(), equalTo(PROCESSING_CMD_INPUT));

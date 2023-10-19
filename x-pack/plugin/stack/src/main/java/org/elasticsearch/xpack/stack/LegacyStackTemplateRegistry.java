@@ -235,8 +235,7 @@ public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
             "logs-default-pipeline",
             "/logs@default-pipeline.json",
             REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Collections.singletonList("logs@json-message")
+            TEMPLATE_VERSION_VARIABLE
         )
     );
 

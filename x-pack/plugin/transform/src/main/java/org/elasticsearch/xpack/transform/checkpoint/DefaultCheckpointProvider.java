@@ -135,9 +135,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             }
 
             for (Map.Entry<String, List<String>> remoteIndex : resolvedIndexes.getRemoteIndicesPerClusterAlias().entrySet()) {
-                ParentTaskAssigningClient remoteClient = client.getRemoteClusterClient(
-                    remoteIndex.getKey(),
-                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                ParentTaskAssigningClient remoteClient = new ParentTaskAssigningClient(
+                    client.getRemoteClusterClient(remoteIndex.getKey(), EsExecutors.DIRECT_EXECUTOR_SERVICE),
+                    client.getParentTask()
                 );
                 getCheckpointsFromOneCluster(
                     remoteClient,

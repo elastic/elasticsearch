@@ -16,8 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.util.concurrent.Executor;
-
 /**
  * A {@linkplain Client} that sets the parent task on all requests that it makes. Use this to conveniently implement actions that cause
  * many other actions.
@@ -40,6 +38,10 @@ public class ParentTaskAssigningClient extends FilterClient {
         this(in, new TaskId(localNode.getId(), parentTask.getId()));
     }
 
+    public TaskId getParentTask() {
+        return parentTask;
+    }
+
     /**
      * Fetch the wrapped client. Use this to make calls that don't set {@link ActionRequest#setParentTask(TaskId)}.
      */
@@ -55,11 +57,5 @@ public class ParentTaskAssigningClient extends FilterClient {
     ) {
         request.setParentTask(parentTask);
         super.doExecute(action, request, listener);
-    }
-
-    @Override
-    public ParentTaskAssigningClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        Client remoteClient = super.getRemoteClusterClient(clusterAlias, responseExecutor);
-        return new ParentTaskAssigningClient(remoteClient, parentTask);
     }
 }

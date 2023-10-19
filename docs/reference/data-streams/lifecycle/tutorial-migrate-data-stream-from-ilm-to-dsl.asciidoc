@@ -155,18 +155,20 @@ in the index template).
 
 To migrate the `dsl-data-stream` to data stream lifecycle we'll have to execute
 two steps:
+
 1. Update the index template that's backing the index template to configure <<index-lifecycle-prefer-ilm, prefer_ilm>> 
 to `false`, and to configure data stream lifecycle. 
+2. Configure the data stream lifecycle for the _existing_ `dsl-data-stream` using
+the <<data-streams-put-lifecycle, lifecycle API>>.
 
 IMPORTANT: The data stream lifecycle configuration that's added to the index template,
 being a data stream configuration, will only apply to **new** data streams. 
 Our data stream exists already, so even though we added a data stream lifecycle
 configuration in the index template it will not be applied to `dsl-data-stream`.
 
-2. Configure the data stream lifecycle for the _existing_ `dsl-data-stream` using
-the <<data-streams-put-lifecycle, lifecycle API>>.
 
-Let's configure the index template:
+[[update-index-template-for-dsl]]
+Let's update the index template:
 
 [source,console]
 ----
@@ -349,6 +351,101 @@ GET _data_stream/dsl-data-stream
 <3> The new write index received the `false` value for the `prefer_ilm` setting, as we configured
 in the index template
 <4> The new write index is managed by `Data stream lifecycle`
+
+We can easily change this data stream to be managed by {ilm-cap} because we didn't remove 
+the {ilm-cap} policy when we <<update-index-template-for-dsl, updated 
+the index template>>. 
+
+We can achieve this in two ways:
+
+1. <<data-streams-delete-lifecycle, Delete the lifecycle>> from the data streams
+2. Disable the data stream lifecycle by configured the `enabled` flag to `false`.
+
+Let's implement option 2 and disable the data stream lifecycle: 
+
+[source,console]
+----
+PUT _data_stream/dsl-data-stream/_lifecycle
+{
+    "data_retention": "7d",
+    "enabled": false <1> 
+}
+----
+// TEST[continued]
+<1> The `enabled` flag can be ommitted and defaults to `true` however, here we 
+explicitly configure it to `false`
+Let's check the state of the data stream:
+
+[source,console]
+----
+GET _data_stream/dsl-data-stream
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+  "data_streams": [
+    {
+      "name": "dsl-data-stream",
+      "timestamp_field": {
+        "name": "@timestamp"
+      },
+      "indices": [
+        {
+          "index_name": ".ds-dsl-data-stream-2023.10.19-000001",     
+          "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg",
+          "prefer_ilm": true,                                       
+          "ilm_policy": "pre-dsl-ilm-policy",                       
+          "managed_by": "Index Lifecycle Management"                
+        },
+        {
+          "index_name": ".ds-dsl-data-stream-2023.10.19-000002",
+          "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw",
+          "prefer_ilm": true,
+          "ilm_policy": "pre-dsl-ilm-policy",
+          "managed_by": "Index Lifecycle Management"                
+        },
+        {
+          "index_name": ".ds-dsl-data-stream-2023.10.19-000003",
+          "index_uuid": "PA_JquKGSiKcAKBA8abcd1",
+          "prefer_ilm": false,                                      
+          "ilm_policy": "pre-dsl-ilm-policy",
+          "managed_by": "Index Lifecycle Management"                <1>
+        }
+      ],
+      "generation": 3,
+      "status": "GREEN",
+      "template": "dsl-data-stream-template",
+      "lifecycle": {
+        "enabled": false,                                          <2>
+        "data_retention": "7d"
+      },
+      "ilm_policy": "pre-dsl-ilm-policy",                           
+      "next_generation_managed_by": "Index Lifecycle Management",  <3>        
+      "prefer_ilm": false,                                          
+      "hidden": false,
+      "system": false,
+      "allow_custom_routing": false,
+      "replicated": false
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
+// TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
+// TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
+<1> The write index is now managed by {ilm-cap}
+<2> The `lifecycle` configured on the data stream is now disabled. 
+<3> The next write index will be managed by {ilm-cap}
+
+Had we removed the {ilm-cap} policy from the index template when we <<update-index-template-for-dsl, updated>>
+it, the write index of the data stream will now be `Unmanaged` because the index 
+wouldn't have the {ilm-cap} policy configured to fallback onto.
 
 //////////////////////////
 [source,console]

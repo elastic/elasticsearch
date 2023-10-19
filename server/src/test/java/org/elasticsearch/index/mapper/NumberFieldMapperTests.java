@@ -379,6 +379,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
     }
 
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return n -> ((Number) n); // Just assert it's a number
+    }
+
     protected abstract Number randomNumber();
 
     protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
@@ -398,10 +403,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             if (randomBoolean()) {
                 Tuple<Object, Object> v = generateValue();
                 if (v.v2() instanceof Number n) {
-                    return new SyntheticSourceExample(v.v1(), round.apply(n), this::mapping);
+                    Number result = round.apply(n);
+                    return new SyntheticSourceExample(v.v1(), result, result, this::mapping);
                 }
                 // ignore_malformed value
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), List.of(), this::mapping);
             }
             List<Tuple<Object, Object>> values = randomList(1, maxVals, this::generateValue);
             List<Object> in = values.stream().map(Tuple::v1).toList();
@@ -412,7 +418,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 .collect(Collectors.toCollection(ArrayList::new));
             values.stream().filter(v -> false == v.v2() instanceof Number).map(v -> v.v2()).forEach(outList::add);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
+
+            List<Object> outBlockList = values.stream()
+                .filter(v -> v.v2() instanceof Number)
+                .map(t -> round.apply((Number) t.v2()))
+                .sorted()
+                .collect(Collectors.toCollection(ArrayList::new));
+            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
         private Tuple<Object, Object> generateValue() {

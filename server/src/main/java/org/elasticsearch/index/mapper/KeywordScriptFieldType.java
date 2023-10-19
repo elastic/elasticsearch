@@ -116,7 +116,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
         Function<String, Set<String>> sourcePathsLookup
     ) {
-        return BlockDocValuesReader.bytesRefsFromFieldData(loadFieldData.apply(this));
+        IndexFieldData<?> ifd = loadFieldData.apply(this);
+        return BlockDocValuesReader.bytesRefsFromDocValues(context -> ifd.load(context).getBytesValues());
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -1033,10 +1036,24 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public record SyntheticSourceExample(
         CheckedConsumer<XContentBuilder, IOException> inputValue,
         CheckedConsumer<XContentBuilder, IOException> result,
+        CheckedConsumer<XContentBuilder, IOException> blockLoaderResult,
         CheckedConsumer<XContentBuilder, IOException> mapping
     ) {
         public SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {
-            this(b -> b.value(inputValue), b -> b.value(result), mapping);
+            this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(result), mapping);
+        }
+
+        /**
+         * Create an example that returns different results from doc values
+         * than from synthetic source.
+         */
+        public SyntheticSourceExample(
+            Object inputValue,
+            Object result,
+            Object blockLoaderResults,
+            CheckedConsumer<XContentBuilder, IOException> mapping
+        ) {
+            this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
         }
 
         private void buildInput(XContentBuilder b) throws IOException {
@@ -1048,6 +1065,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
             result.accept(b);
             return Strings.toString(b.endObject());
+        }
+
+        private Object expectedParsed() throws IOException {
+            return XContentHelper.convertToMap(JsonXContent.jsonXContent, expected(), false).get("field");
+        }
+
+        private String expectedBlockLoader() throws IOException {
+            XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
+            blockLoaderResult.accept(b);
+            return Strings.toString(b.endObject());
+        }
+
+        private Object expectedParsedBlockLoader() throws IOException {
+            return XContentHelper.convertToMap(JsonXContent.jsonXContent, expectedBlockLoader(), false).get("field");
         }
     }
 
@@ -1077,7 +1108,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
         CheckedConsumer<XContentBuilder, IOException> mapping = syntheticSourceSupport(true).example(1).mapping();
         for (ExampleMalformedValue v : exampleMalformedValues()) {
-            assertSyntheticSource(new SyntheticSourceExample(v.value, v.value, mapping));
+            assertSyntheticSource(new SyntheticSourceExample(v.value, v.value, v.value, mapping));
         }
     }
 
@@ -1206,6 +1237,68 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
+    }
+
+    @Repeat(iterations = 100)
+    public final void testBlockLoaderReadValues() throws IOException {
+        testBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
+    }
+
+    @Repeat(iterations = 100)
+    public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
+        testBlockLoader(blockReader -> {
+            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
+            blockReader.readValuesFromSingleDoc(0, block);
+            return block;
+        });
+    }
+
+    private void testBlockLoader(CheckedFunction<BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
+        SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
+        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            example.mapping().accept(b);
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(null, mapper.mappingLookup()::sourcePaths);
+        Function<Object, Object> valuesConvert = loadBlockExpected();
+        if (valuesConvert == null) {
+            assertNull(loader);
+            return;
+        }
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.documentMapper().parse(source(b -> {
+                b.field("field");
+                example.inputValue.accept(b);
+            })).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                TestBlock block = body.apply(loader.reader(reader.leaves().get(0)));
+                Object inBlock = block.get(0);
+                if (inBlock != null) {
+                    if (inBlock instanceof List<?> l) {
+                        inBlock = l.stream().map(valuesConvert).toList();
+                    } else {
+                        inBlock = valuesConvert.apply(inBlock);
+                    }
+                }
+                Object expected = loader instanceof BlockSourceReader ? example.expectedParsed() : example.expectedParsedBlockLoader();
+                if (List.of().equals(expected)) {
+                    expected = null;
+                }
+                assertEquals(expected, inBlock);
+            }
+        }
+    }
+
+    /**
+     * How {@link MappedFieldType#blockLoader} should load values or {@code null}
+     * if that method isn't supported by field being tested.
+     */
+    protected Function<Object, Object> loadBlockExpected() {
+        return null;
     }
 
     public final void testEmptyDocumentNoDocValueLoader() throws IOException {

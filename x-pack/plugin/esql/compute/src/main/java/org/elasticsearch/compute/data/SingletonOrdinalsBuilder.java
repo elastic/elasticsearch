@@ -38,7 +38,7 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
-    public SingletonOrdinalsBuilder appendInt(int value) {
+    public SingletonOrdinalsBuilder appendOrd(int value) {
         ords[count++] = value;
         return this;
     }

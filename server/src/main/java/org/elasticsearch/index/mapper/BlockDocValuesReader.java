@@ -16,14 +16,12 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
 import org.elasticsearch.index.mapper.BlockLoader.BuilderFactory;
@@ -31,13 +29,10 @@ import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Docs;
 import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
-import org.elasticsearch.index.mapper.BlockLoader.SingletonOrdinalsBuilder;
-import org.elasticsearch.index.mapper.BlockLoader.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
+import org.elasticsearch.index.mapper.BlockLoader.SingletonOrdinalsBuilder;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Set;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -130,22 +125,29 @@ public abstract class BlockDocValuesReader {
         };
     }
 
-    public static BlockLoader bytesRefsFromFieldData(IndexFieldData<?> fieldData) {
-        return context -> new BytesValuesReader(fieldData.load(context).getBytesValues());
-    }
-
-    public static BlockLoader bytesRefsFromStored(String field) {
-        StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(field));
-        return context -> new BytesStoredValuesReader(loader.getLoader(context, null), field);
+    /**
+     * Load {@link BytesRef} values from doc values. Prefer {@link #bytesRefsFromOrds} if
+     * doc values are indexed with ordinals because that's generally much faster. It's
+     * possible to use this with field data, but generally should be avoided because field
+     * data has higher per invocation overhead.
+     */
+    public static BlockLoader bytesRefsFromDocValues(CheckedFunction<LeafReaderContext, SortedBinaryDocValues, IOException> fieldData) {
+        return context -> new BytesValuesReader(fieldData.apply(context));
     }
 
     /**
      * Convert from the stored {@link long} into the {@link double} to load.
+     * Sadly, this will go megamorphic pretty quickly and slow us down,
+     * but it gets the job done for now.
      */
     public interface ToDouble {
         double convert(long v);
     }
 
+    /**
+     * Load {@code double} values from doc values. Prefer this over {@link #doublesFromFieldData}
+     * because there are more chances for optimization and fewer layers.
+     */
     public static BlockLoader doubles(String fieldName, ToDouble toDouble) {
         return context -> {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
@@ -157,8 +159,11 @@ public abstract class BlockDocValuesReader {
         };
     }
 
+    /**
+     * Load {@code double} values from field data. Prefer {@link #doubles} because
+     * it has more chances for optimization and fewer layers.
+     */
     public static BlockLoader doublesFromFieldData(IndexNumericFieldData fieldData) {
-        // TODO fielddata is always megamorphic and won't be quick
         return context -> {
             SortedNumericDoubleValues docValues = fieldData.load(context).getDoubleValues();
             NumericDoubleValues singleton = FieldData.unwrapSingleton(docValues);
@@ -169,11 +174,9 @@ public abstract class BlockDocValuesReader {
         };
     }
 
-    public static BlockLoader id() {
-        StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME));
-        return context -> new IdReader(loader.getLoader(context, null));
-    }
-
+    /**
+     * Load {@code int} values from doc values.
+     */
     public static BlockLoader ints(String fieldName) {
         return context -> {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
@@ -186,8 +189,9 @@ public abstract class BlockDocValuesReader {
     }
 
     /**
-     * Load a block from doc values. Generally this to {@link #longsFromFieldData(IndexNumericFieldData)}
-     * because there are more chances for optimization and fewer layers.
+     * Load a block of {@code long}s from doc values. Prefer this over
+     * {@link #longsFromFieldData} because there are more chances for
+     * optimization and fewer layers.
      */
     public static BlockLoader longs(String fieldName) {
         return context -> {
@@ -705,7 +709,7 @@ public abstract class BlockDocValuesReader {
                     throw new IllegalStateException("docs within same block must be in order");
                 }
                 if (ordinals.advanceExact(doc)) {
-                    builder.appendInt(ordinals.ordValue());
+                    builder.appendOrd(ordinals.ordValue());
                 } else {
                     builder.appendNull();
                 }
@@ -850,119 +854,6 @@ public abstract class BlockDocValuesReader {
         @Override
         public String toString() {
             return "BytesValuesReader";
-        }
-    }
-
-    private static class BytesStoredValuesReader extends BlockDocValuesReader {
-        private final LeafStoredFieldLoader loader;
-        private final String field;
-        private final BytesRef scratch = new BytesRef();
-        private int docID = -1;
-
-        BytesStoredValuesReader(LeafStoredFieldLoader loader, String field) {
-            this.loader = loader;
-            this.field = field;
-        }
-
-        @Override
-        public BytesRefBuilder builder(BuilderFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
-        }
-
-        @Override
-        public BytesRefBuilder readValues(BuilderFactory factory, Docs docs) throws IOException {
-            var blockBuilder = builder(factory, docs.count());
-            for (int i = 0; i < docs.count(); i++) {
-                int doc = docs.get(i);
-                if (doc < this.docID) {
-                    throw new IllegalStateException("docs within same block must be in order");
-                }
-                read(doc, blockBuilder);
-            }
-            return blockBuilder;
-        }
-
-        @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
-        }
-
-        private void read(int doc, BytesRefBuilder builder) throws IOException {
-            this.docID = doc;
-            loader.advanceTo(doc);
-            List<Object> values = loader.storedFields().get(field);
-            if (values == null) {
-                builder.appendNull();
-                return;
-            }
-            if (values.size() == 1) {
-                builder.appendBytesRef(toBytesRef(scratch, (String) values.get(0)));
-                return;
-            }
-            builder.beginPositionEntry();
-            for (Object v : values) {
-                builder.appendBytesRef((BytesRef) v);
-            }
-            builder.endPositionEntry();
-        }
-
-        @Override
-        public int docID() {
-            return docID;
-        }
-
-        @Override
-        public String toString() {
-            return "BytesValuesStoredReader";
-        }
-    }
-
-    private static class IdReader extends BlockDocValuesReader {
-        private final LeafStoredFieldLoader loader;
-        private final BytesRef scratch = new BytesRef();
-        private int docID = -1;
-
-        IdReader(LeafStoredFieldLoader loader) {
-            this.loader = loader;
-        }
-
-        @Override
-        public BytesRefBuilder builder(BuilderFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
-        }
-
-        @Override
-        public BytesRefBuilder readValues(BuilderFactory factory, Docs docs) throws IOException {
-            var blockBuilder = builder(factory, docs.count());
-            for (int i = 0; i < docs.count(); i++) {
-                int doc = docs.get(i);
-                if (doc < this.docID) {
-                    throw new IllegalStateException("docs within same block must be in order");
-                }
-                read(doc, blockBuilder);
-            }
-            return blockBuilder;
-        }
-
-        @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
-        }
-
-        private void read(int doc, BytesRefBuilder builder) throws IOException {
-            this.docID = doc;
-            loader.advanceTo(doc);
-            builder.appendBytesRef(toBytesRef(scratch, loader.id()));
-        }
-
-        @Override
-        public int docID() {
-            return docID;
-        }
-
-        @Override
-        public String toString() {
-            return "IdReader";
         }
     }
 
@@ -1113,6 +1004,9 @@ public abstract class BlockDocValuesReader {
         }
     }
 
+    /**
+     * Convert a {@link String} into a utf-8 {@link BytesRef}.
+     */
     protected static BytesRef toBytesRef(BytesRef scratch, String v) {
         int len = UnicodeUtil.maxUTF8Length(v.length());
         if (scratch.bytes.length < len) {

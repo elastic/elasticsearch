@@ -595,7 +595,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             + "] is only supported in synthetic _source index if it creates doc values or stored fields"
                     );
                 }
-                return BlockDocValuesReader.bytesRefsFromStored(name());
+                return BlockStoredFieldsReader.bytesRefsFromBytesRefs(name());
             }
             return BlockSourceReader.bytesRefs(sourceValueFetcher(sourcePathsLookup.apply(name())));
         }

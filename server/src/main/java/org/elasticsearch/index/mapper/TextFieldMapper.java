@@ -942,12 +942,12 @@ public class TextFieldMapper extends FieldMapper {
             Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
             Function<String, Set<String>> sourcePathsLookup
         ) {
+            if (syntheticSourceDelegate != null) {
+                return syntheticSourceDelegate.blockLoader(loadFieldData, sourcePathsLookup);
+            }
             if (isSyntheticSource) {
                 if (isStored()) {
-                    return BlockDocValuesReader.bytesRefsFromStored(name());
-                }
-                if (syntheticSourceDelegate != null) {
-                    return syntheticSourceDelegate.blockLoader(loadFieldData, sourcePathsLookup);
+                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
                 }
                 /*
                  * We *shouldn't fall to this exception. The mapping should be

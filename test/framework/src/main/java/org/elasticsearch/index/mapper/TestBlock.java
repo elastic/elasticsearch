@@ -8,18 +8,114 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
-public class TestBlock implements BlockLoader.BooleanBuilder, BlockLoader.BytesRefBuilder, BlockLoader.DoubleBuilder {
+public class TestBlock
+    implements
+        BlockLoader.BooleanBuilder,
+        BlockLoader.BytesRefBuilder,
+        BlockLoader.DoubleBuilder,
+        BlockLoader.IntBuilder,
+        BlockLoader.LongBuilder,
+        BlockLoader.SingletonOrdinalsBuilder {
+    public static BlockLoader.BuilderFactory FACTORY = new BlockLoader.BuilderFactory() {
+        @Override
+        public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.BooleanBuilder booleans(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.BytesRefBuilder bytesRefs(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder doubles(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.IntBuilder ints(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder longsFromDocValues(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder longs(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.Builder nulls(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
+        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+            return new TestBlock(ordinals);
+        }
+    };
+
+    public static final BlockLoader.Docs docs(int... docs) {
+        return new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return docs.length;
+            }
+
+            @Override
+            public int get(int i) {
+                return docs[i];
+            }
+        };
+    }
+
+    private final SortedDocValues sortedDocValues;
     private final List<Object> values = new ArrayList<>();
 
     private List<Object> currentPosition = null;
+
+    private TestBlock(@Nullable SortedDocValues sortedDocValues) {
+        this.sortedDocValues = sortedDocValues;
+    }
+
+    public Object get(int i) {
+        return values.get(i);
+    }
 
     @Override
     public TestBlock appendNull() {
@@ -49,13 +145,32 @@ public class TestBlock implements BlockLoader.BooleanBuilder, BlockLoader.BytesR
     }
 
     @Override
-    public BlockLoader.BytesRefBuilder appendBytesRef(BytesRef value) {
+    public TestBlock appendBytesRef(BytesRef value) {
         return add(BytesRef.deepCopyOf(value));
     }
 
     @Override
-    public BlockLoader.DoubleBuilder appendDouble(double value) {
+    public TestBlock appendDouble(double value) {
         return add(value);
+    }
+
+    @Override
+    public TestBlock appendInt(int value) {
+        return add(value);
+    }
+
+    @Override
+    public TestBlock appendLong(long value) {
+        return add(value);
+    }
+
+    @Override
+    public TestBlock appendOrd(int value) {
+        try {
+            return add(sortedDocValues.lookupOrd(value));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private TestBlock add(Object value) {

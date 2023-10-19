@@ -35,6 +35,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
@@ -368,13 +369,15 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<Double, Double> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), roundDocValues(v.v1()), this::mapping);
             }
             List<Tuple<Double, Double>> values = randomList(1, maxValues, this::generateValue);
             List<Double> in = values.stream().map(Tuple::v1).toList();
             List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
+            List<Double> outBlockList = values.stream().map(v -> roundDocValues(v.v1())).sorted().toList();
+            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
 
         private Tuple<Double, Double> generateValue() {
@@ -396,6 +399,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 return decoded - Math.ulp(decoded);
             }
             return decoded;
+        }
+
+        private double roundDocValues(double d) {
+            long encoded = Math.round(d * scalingFactor);
+            return encoded * (1 / scalingFactor);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
@@ -425,6 +433,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 )
             );
         }
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> (Number) v;
     }
 
     @Override

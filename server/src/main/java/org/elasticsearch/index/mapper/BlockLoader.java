@@ -103,7 +103,10 @@ public interface BlockLoader {
         LongBuilder appendLong(long value);
     }
 
-    interface SingletonOrdinalsBuilder extends IntBuilder {}
-
-    interface OrdinalsBuilder extends LongBuilder {}
+    interface SingletonOrdinalsBuilder extends Builder {
+        /**
+         * Appends an ordinal to the builder.
+         */
+        SingletonOrdinalsBuilder appendOrd(int value);
+    }
 }

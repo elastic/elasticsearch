@@ -29,7 +29,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -143,8 +142,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
             Function<String, Set<String>> sourcePathsLookup
         ) {
-            // TODO load a constant - we shouldn't need BlockDocValuesReader at all
-            return BlockDocValuesReader.bytesRefsFromFieldData(loadFieldData.apply(this));
+            // TODO load a constant - we shouldn't need BlockDocValuesReader at all - some higher level abstraction would be nice
+            IndexFieldData<?> ifd = loadFieldData.apply(this);
+            return BlockDocValuesReader.bytesRefsFromDocValues(context -> ifd.load(context).getBytesValues());
         }
 
         @Override

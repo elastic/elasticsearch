@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.LongFieldScript;
@@ -19,11 +21,13 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@Seed("E4A92E72A82EE198:1A4787AC631219CA")
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
@@ -118,6 +122,17 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
     public void testFetchCoerced() throws IOException {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return n -> {
+            Number number = ((Number) n);
+            if (Integer.MIN_VALUE <= number.longValue() && number.longValue() <= Integer.MAX_VALUE) {
+                return number.intValue();
+            }
+            return number.longValue();
+        };
     }
 
     protected IngestScriptSupport ingestScriptSupport() {

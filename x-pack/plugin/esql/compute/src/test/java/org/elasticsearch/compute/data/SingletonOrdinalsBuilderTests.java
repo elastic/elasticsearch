@@ -28,12 +28,14 @@ public class SingletonOrdinalsBuilderTests extends ESTestCase {
     public void testAppend() {
         // NOCOMMIT real tests
         try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(breakingDriverContext().blockFactory(), null, 5)) {
-            builder.appendInt(0);
-            builder.appendInt(0);
-            builder.appendInt(1);
-            builder.appendInt(2);
+            builder.appendOrd(0);
+            builder.appendOrd(0);
+            builder.appendOrd(1);
+            builder.appendOrd(2);
         }
     }
+
+    // NOCOMMIT tests with cranky
 
     public void testCompactWithNulls() {
         assertCompactToUnique(new int[] { -1, -1, -1, -1, 0, 1, 2 }, List.of(0, 1, 2));

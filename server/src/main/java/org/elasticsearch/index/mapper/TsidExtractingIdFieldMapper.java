@@ -94,7 +94,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
             Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
             Function<String, Set<String>> sourcePathsLookup
         ) {
-            return BlockDocValuesReader.id();
+            return BlockStoredFieldsReader.id();
         }
 
         @Override

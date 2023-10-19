@@ -9,12 +9,12 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.common.logging.HeaderWarning;
 
 import java.io.IOException;
 import java.util.ArrayList;

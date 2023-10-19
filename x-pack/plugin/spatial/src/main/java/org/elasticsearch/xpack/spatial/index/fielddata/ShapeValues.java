@@ -12,6 +12,8 @@ import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.GenericNamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -119,8 +121,8 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         }
 
         protected void reset(StreamInput in) throws IOException {
-            byte[] bytes = in.readByteArray();
-            reset(new BytesRef(bytes, 0, bytes.length));
+            BytesReference bytes = in.readBytesReference();
+            reset(bytes.toBytesRef());
         }
 
         public BoundingBox boundingBox() {
@@ -206,8 +208,7 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             byte[] bytes = this.reader.copyBytes();
-            out.writeVInt(bytes.length);
-            out.write(bytes, 0, bytes.length);
+            out.writeBytesReference(new BytesArray(bytes));
         }
     }
 

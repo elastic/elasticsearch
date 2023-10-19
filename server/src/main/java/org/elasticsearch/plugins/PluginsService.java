@@ -362,7 +362,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         var services = loadServiceProviders(service);
         if (services.size() > 1) {
             throw new IllegalStateException(String.format(Locale.ROOT, "More than one extension found for %s", service.getSimpleName()));
-        } else if (services.size() == 0) {
+        } else if (services.isEmpty()) {
             return fallback.get();
         }
         return services.get(0);

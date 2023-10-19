@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -256,8 +255,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             "logs@default-pipeline",
             "/logs@default-pipeline.json",
             REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            Collections.singletonList("logs@json-pipeline")
+            TEMPLATE_VERSION_VARIABLE
         )
     );
 

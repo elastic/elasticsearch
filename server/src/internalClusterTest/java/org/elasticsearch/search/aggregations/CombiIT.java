@@ -24,7 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -66,7 +66,7 @@ public class CombiIT extends ESIntegTestCase {
             .addAggregation(terms("values").field("value").collectMode(aggCollectionMode))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Aggregations aggs = response.getAggregations();
 

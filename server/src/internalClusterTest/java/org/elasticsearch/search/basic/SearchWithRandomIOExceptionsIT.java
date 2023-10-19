@@ -32,8 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 
 public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
@@ -193,9 +192,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             indicesAdmin().prepareClose("test").execute().get();
             indicesAdmin().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
-            assertNoFailures(searchResponse);
-            assertHitCount(searchResponse, numInitialDocs);
+            assertHitCountAndNoFailures(client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")), numInitialDocs);
         }
     }
 }

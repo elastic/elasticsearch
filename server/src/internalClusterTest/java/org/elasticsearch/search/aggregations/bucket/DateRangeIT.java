@@ -42,7 +42,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRang
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -136,7 +136,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -171,7 +171,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -217,7 +217,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -264,7 +264,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -318,7 +318,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -364,7 +364,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -420,7 +420,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -495,7 +495,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -541,7 +541,7 @@ public class DateRangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -661,7 +661,7 @@ public class DateRangeIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -684,7 +684,7 @@ public class DateRangeIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -706,7 +706,7 @@ public class DateRangeIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

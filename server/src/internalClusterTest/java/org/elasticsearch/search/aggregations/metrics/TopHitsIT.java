@@ -65,7 +65,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.smileBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
@@ -320,7 +319,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -354,7 +353,7 @@ public class TopHitsIT extends ESIntegTestCase {
             .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group").subAggregation(topHits("hits")))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         assertThat(response.getHits().getTotalHits().value, equalTo(8L));
         assertThat(response.getHits().getHits().length, equalTo(0));
@@ -388,7 +387,7 @@ public class TopHitsIT extends ESIntegTestCase {
             .addAggregation(terms("terms").executionHint(randomExecutionHint()).field("group"))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         assertThat(response.getHits().getTotalHits().value, equalTo(8L));
         assertThat(response.getHits().getHits().length, equalTo(0));
@@ -409,7 +408,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -442,7 +441,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -469,7 +468,7 @@ public class TopHitsIT extends ESIntegTestCase {
             .addAggregation(global("global").subAggregation(topHits("hits")))
             .get();
 
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         Global global = searchResponse.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -494,7 +493,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .subAggregation(topHits("hits").sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)).from(from).size(size))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         SearchResponse control = client().prepareSearch("idx")
             .setFrom(from)
@@ -502,7 +501,7 @@ public class TopHitsIT extends ESIntegTestCase {
             .setPostFilter(QueryBuilders.termQuery(TERMS_AGGS_FIELD, "val0"))
             .addSort(SORT_FIELD, SortOrder.DESC)
             .get();
-        assertSearchResponse(control);
+        assertNoFailures(control);
         SearchHits controlHits = control.getHits();
 
         Terms terms = response.getAggregations().get("terms");
@@ -541,7 +540,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .subAggregation(max("max_sort").field(SORT_FIELD))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -578,7 +577,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .subAggregation(max("max_score").field("value"))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -632,7 +631,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -699,7 +698,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
     public void testEmptyIndex() throws Exception {
         SearchResponse response = client().prepareSearch("empty").addAggregation(topHits("hits")).get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         TopHits hits = response.getAggregations().get("hits");
         assertThat(hits, notNullValue());
@@ -718,7 +717,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         .subAggregation(topHits("hits").trackScores(trackScore).size(1).sort("_index", SortOrder.DESC))
                 )
                 .get();
-            assertSearchResponse(response);
+            assertNoFailures(response);
 
             Terms terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
@@ -1077,7 +1076,7 @@ public class TopHitsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1139,7 +1138,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
                 )
                 .get();
-            assertSearchResponse(r);
+            assertNoFailures(r);
 
             assertThat(
                 indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1162,7 +1161,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
                 )
                 .get();
-            assertSearchResponse(r);
+            assertNoFailures(r);
 
             assertThat(
                 indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1180,7 +1179,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     topHits("foo").scriptField("bar", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "5", Collections.emptyMap()))
                 )
                 .get();
-            assertSearchResponse(r);
+            assertNoFailures(r);
 
             assertThat(
                 indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1203,7 +1202,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
                 )
                 .get();
-            assertSearchResponse(r);
+            assertNoFailures(r);
 
             assertThat(
                 indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1216,7 +1215,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
             // Ensure that non-scripted requests are cached as normal
             r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(topHits("foo")).get();
-            assertSearchResponse(r);
+            assertNoFailures(r);
 
             assertThat(
                 indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

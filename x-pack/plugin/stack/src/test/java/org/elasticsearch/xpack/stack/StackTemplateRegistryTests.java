@@ -376,9 +376,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
             } else if (action instanceof PutLifecycleAction) {
                 // Ignore such
                 return AcknowledgedResponse.TRUE;
-            } else if (action instanceof PutPipelineAction) {
-                // Ignore such
-                return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutComposableIndexTemplateAction) {
                 calledTimes.incrementAndGet();
                 assertThat(request, instanceOf(PutComposableIndexTemplateAction.Request.class));

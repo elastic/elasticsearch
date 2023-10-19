@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.util.Map;
 
-class StackRegistryWithNonRequiredTemplates extends LegacyStackTemplateRegistry {
+class StackRegistryWithNonRequiredTemplates extends StackTemplateRegistry {
     StackRegistryWithNonRequiredTemplates(
         Settings nodeSettings,
         ClusterService clusterService,

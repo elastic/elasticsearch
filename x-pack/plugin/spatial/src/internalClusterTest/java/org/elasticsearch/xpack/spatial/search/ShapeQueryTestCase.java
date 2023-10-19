@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -32,7 +33,6 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -87,7 +87,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle).relation(ShapeRelation.INTERSECTS))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -95,7 +95,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
         // default query, without specifying relation (expect intersects)
         searchResponse = client().prepareSearch(defaultIndexName).setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)).get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -124,7 +124,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             .setQuery(new ShapeQueryBuilder(defaultFieldName, circle).relation(ShapeRelation.INTERSECTS))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -153,7 +153,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             .setQuery(new ShapeQueryBuilder(defaultFieldName, polygon).relation(ShapeRelation.INTERSECTS))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         SearchHits searchHits = searchResponse.getHits();
         assertThat(searchHits.getTotalHits().value, equalTo(1L));
         assertThat(searchHits.getAt(0).getId(), equalTo("1"));
@@ -195,7 +195,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             .setQuery(new ShapeQueryBuilder(defaultFieldName, mp).relation(ShapeRelation.INTERSECTS))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).getId(), not(equalTo("2")));
@@ -225,7 +225,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle).relation(ShapeRelation.INTERSECTS))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("2"));
@@ -283,7 +283,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
             )
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("point2"));
@@ -295,7 +295,7 @@ public abstract class ShapeQueryTestCase extends ESSingleNodeTestCase {
                     .indexedShapePath(indexedShapePath)
             )
             .get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
     }
 

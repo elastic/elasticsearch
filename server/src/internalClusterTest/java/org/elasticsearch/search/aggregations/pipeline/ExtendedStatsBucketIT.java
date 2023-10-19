@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.extendedStatsBucket;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -104,7 +104,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
             .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma))
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));

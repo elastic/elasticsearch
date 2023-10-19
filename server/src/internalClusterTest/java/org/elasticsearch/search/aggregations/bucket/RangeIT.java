@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -40,7 +41,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -142,7 +142,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), equalTo(numDocs + 1));
@@ -200,7 +200,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -241,7 +241,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6).format("#"))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -284,7 +284,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -331,7 +331,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -403,7 +403,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -457,7 +457,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -517,7 +517,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -581,7 +581,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").script(script).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -622,7 +622,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(-1).addUnboundedFrom(1000))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -672,7 +672,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").script(script).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -730,7 +730,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -773,7 +773,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -816,7 +816,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -930,7 +930,7 @@ public class RangeIT extends ESIntegTestCase {
                     .addRange(0, 10)
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -950,7 +950,7 @@ public class RangeIT extends ESIntegTestCase {
                     .addRange(0, 10)
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -963,7 +963,7 @@ public class RangeIT extends ESIntegTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(range("foo").field("i").addRange(0, 10)).get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -980,7 +980,7 @@ public class RangeIT extends ESIntegTestCase {
             .addAggregation(range("range").field("route_length_miles").addUnboundedTo(50.0).addRange(50.0, 150.0).addUnboundedFrom(150.0))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
@@ -1011,7 +1011,7 @@ public class RangeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());

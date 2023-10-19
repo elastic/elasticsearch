@@ -20,6 +20,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.BaseMatcher;
@@ -36,7 +37,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -164,7 +164,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             .addScriptField("label_lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lat", Collections.emptyMap()))
             .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()))
             .get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         final double qLat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
         final double qLon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon));
@@ -208,7 +208,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             .addScriptField("label_lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lat", Collections.emptyMap()))
             .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()))
             .get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         for (int i = 0; i < size; i++) {
             lats[i] = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lats[i]));
@@ -247,7 +247,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
             .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
             .get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat(fields.get("lat").getValue(), equalTo(Double.NaN));

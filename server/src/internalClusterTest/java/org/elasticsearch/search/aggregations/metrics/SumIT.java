@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.core.IsNull;
 
 import java.util.ArrayList;
@@ -38,7 +39,6 @@ import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugi
 import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugin.VALUE_SCRIPT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -238,7 +238,7 @@ public class SumIT extends AbstractNumericTestCase {
                 sum("foo").field("d").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, RANDOM_SCRIPT, Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -256,7 +256,7 @@ public class SumIT extends AbstractNumericTestCase {
                 sum("foo").field("d").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_SCRIPT, Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -269,7 +269,7 @@ public class SumIT extends AbstractNumericTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(sum("foo").field("d")).get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -286,7 +286,7 @@ public class SumIT extends AbstractNumericTestCase {
             .addAggregation(sum("sum").field("route_length_miles"))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Sum sum = response.getAggregations().get("sum");
         assertThat(sum, IsNull.notNullValue());
@@ -299,7 +299,7 @@ public class SumIT extends AbstractNumericTestCase {
             .addAggregation(terms("terms").field("transit_mode").subAggregation(sum("sum").field("route_length_miles")))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());

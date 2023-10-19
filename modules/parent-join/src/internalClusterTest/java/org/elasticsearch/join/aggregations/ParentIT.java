@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,7 +28,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.join.aggregations.JoinAggregationBuilders.parent;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ParentIT extends AbstractParentChildTestCase {
@@ -39,7 +39,7 @@ public class ParentIT extends AbstractParentChildTestCase {
             .addAggregation(parent("to_article", "comment"));
         SearchResponse searchResponse = searchRequest.get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         long articlesWithComment = articleToControl.values()
             .stream()
             .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
@@ -58,7 +58,7 @@ public class ParentIT extends AbstractParentChildTestCase {
             .setQuery(matchQuery("randomized", true))
             .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         long articlesWithComment = articleToControl.values()
             .stream()
@@ -121,7 +121,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                     )
             );
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         final Set<String> commenters = getCommenters();
         final Map<String, Set<String>> commenterToComments = getCommenterToComments();
@@ -201,7 +201,7 @@ public class ParentIT extends AbstractParentChildTestCase {
 
     public void testNonExistingParentType() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test").addAggregation(parent("non-existing", "xyz")).get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         Parent parent = searchResponse.getAggregations().get("non-existing");
         assertThat(parent.getName(), equalTo("non-existing"));
@@ -218,7 +218,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                     .subAggregation(parent("to_article", "comment").subAggregation(terms("to_category").field("category").size(10000)))
             );
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
 
         final Set<String> commenters = getCommenters();
         final Map<String, Set<String>> commenterToComments = getCommenterToComments();

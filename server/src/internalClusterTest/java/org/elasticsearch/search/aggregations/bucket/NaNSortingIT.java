@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -28,7 +29,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.extended
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -154,7 +154,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         final Terms terms = response.getAggregations().get("terms");
         assertCorrectlySorted(terms, asc, agg);
     }
@@ -183,7 +183,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         final Histogram histo = response.getAggregations().get("histo");
         assertCorrectlySorted(histo, asc, agg);
     }

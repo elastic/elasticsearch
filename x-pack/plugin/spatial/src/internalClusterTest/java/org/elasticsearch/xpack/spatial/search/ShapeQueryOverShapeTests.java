@@ -22,6 +22,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -35,7 +36,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -176,43 +176,43 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
             .indexedShapeIndex(indexName)
             .indexedShapePath("location");
         SearchResponse result = client().prepareSearch(searchIndex).setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         filter = new ShapeQueryBuilder("location", "1").relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex(indexName)
             .indexedShapePath("1.location");
         result = client().prepareSearch(searchIndex).setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         filter = new ShapeQueryBuilder("location", "1").relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex(indexName)
             .indexedShapePath("1.2.location");
         result = client().prepareSearch(searchIndex).setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         filter = new ShapeQueryBuilder("location", "1").relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex(indexName)
             .indexedShapePath("1.2.3.location");
         result = client().prepareSearch(searchIndex).setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
 
         // now test the query variant
         ShapeQueryBuilder query = new ShapeQueryBuilder("location", "1").indexedShapeIndex(indexName).indexedShapePath("location");
         result = client().prepareSearch(searchIndex).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         query = new ShapeQueryBuilder("location", "1").indexedShapeIndex(indexName).indexedShapePath("1.location");
         result = client().prepareSearch(searchIndex).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         query = new ShapeQueryBuilder("location", "1").indexedShapeIndex(indexName).indexedShapePath("1.2.location");
         result = client().prepareSearch(searchIndex).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         query = new ShapeQueryBuilder("location", "1").indexedShapeIndex(indexName).indexedShapePath("1.2.3.location");
         result = client().prepareSearch(searchIndex).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
     }
 
@@ -265,7 +265,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
     public void testExistsQuery() {
         ExistsQueryBuilder eqb = QueryBuilders.existsQuery(FIELD);
         SearchResponse result = client().prepareSearch(INDEX).setQuery(eqb).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, numDocs);
     }
 
@@ -288,7 +288,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         Rectangle rectangle = new Rectangle(-50, 50, 50, -50);
         ShapeQueryBuilder queryBuilder = new ShapeQueryBuilder("location", rectangle).relation(ShapeRelation.CONTAINS);
         SearchResponse response = client().prepareSearch("test_contains").setQuery(queryBuilder).get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Assert;
 
@@ -28,7 +29,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.signific
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SharedSignificantTermsTestMethods {
@@ -51,7 +51,7 @@ public class SharedSignificantTermsTestMethods {
             .addAggregation(terms("class").field(CLASS_FIELD).subAggregation(significantTerms("sig_terms").field(TEXT_FIELD)))
             .execute()
             .actionGet();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         StringTerms classes = response.getAggregations().get("class");
         Assert.assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {

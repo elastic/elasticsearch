@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -28,7 +29,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.percentilesBucket;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -73,7 +73,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
             .addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum"))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -110,7 +110,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
             .addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum").setPercents(PERCENTS))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -208,7 +208,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
             .addAggregation(percentilesBucket("percentile_terms_bucket", termsName + ">percentile_histo_bucket[99.9]").setPercents(percent))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());

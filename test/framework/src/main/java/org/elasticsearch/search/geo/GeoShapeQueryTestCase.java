@@ -25,6 +25,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,7 +38,6 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoShapeQueryBuilder> {
@@ -163,7 +163,7 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
         SearchResponse result = client().prepareSearch(defaultIndexName)
             .setQuery(queryBuilder().intersectionQuery(defaultFieldName, filterShape))
             .get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
     }
 

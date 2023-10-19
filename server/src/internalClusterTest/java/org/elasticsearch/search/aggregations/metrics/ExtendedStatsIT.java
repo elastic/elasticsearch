@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.ExtendedStats.Bounds;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,7 +39,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -873,7 +873,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -892,7 +892,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -905,7 +905,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(extendedStats("foo").field("d")).get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

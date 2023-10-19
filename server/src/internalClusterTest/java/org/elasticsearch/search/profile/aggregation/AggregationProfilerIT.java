@@ -24,6 +24,7 @@ import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MapMatcher;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -42,7 +43,6 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -127,7 +127,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             .setProfile(true)
             .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L))
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -171,7 +171,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -258,7 +258,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -329,7 +329,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     .subAggregation(max("max").field(NUMBER_FIELD))
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -398,7 +398,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -615,7 +615,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(0));
@@ -652,7 +652,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     .subAggregation(new MaxAggregationBuilder("m").field("date"))
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("dateidx").numPrimaries));
@@ -724,7 +724,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 .setProfile(true)
                 .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
                 .get();
-            assertSearchResponse(response);
+            ElasticsearchAssertions.assertNoFailures(response);
             Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
             assertThat(profileResults, notNullValue());
             assertThat(profileResults.size(), equalTo(getNumShards("date_filter_by_filter_disabled").numPrimaries));

@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -39,7 +40,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -495,7 +495,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -514,7 +514,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -530,7 +530,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             .setSize(0)
             .addAggregation(percentileRanks("foo", new double[] { 50.0 }).field("d"))
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,7 +42,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -554,7 +554,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -575,7 +575,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -591,7 +591,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
             .setSize(0)
             .addAggregation(percentiles("foo").method(PercentilesMethod.HDR).field("d").percentiles(50.0))
             .get();
-        assertSearchResponse(r);
+        ElasticsearchAssertions.assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

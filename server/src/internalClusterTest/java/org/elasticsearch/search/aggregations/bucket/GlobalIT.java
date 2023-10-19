@@ -15,13 +15,13 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -65,7 +65,7 @@ public class GlobalIT extends ESIntegTestCase {
             .addAggregation(global("global").subAggregation(stats("value_stats").field("value")))
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         Global global = response.getAggregations().get("global");
         assertThat(global, notNullValue());

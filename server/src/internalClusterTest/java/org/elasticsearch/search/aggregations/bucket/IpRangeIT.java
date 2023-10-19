@@ -17,6 +17,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,7 +26,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -73,7 +73,7 @@ public class IpRangeIT extends ESIntegTestCase {
                     .addUnboundedFrom("192.168.1.10")
             )
             .get();
-        assertSearchResponse(rsp);
+        ElasticsearchAssertions.assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -106,7 +106,7 @@ public class IpRangeIT extends ESIntegTestCase {
                     .addUnboundedFrom("192.168.1.10")
             )
             .get();
-        assertSearchResponse(rsp);
+        ElasticsearchAssertions.assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -139,7 +139,7 @@ public class IpRangeIT extends ESIntegTestCase {
                     .addMaskRange("2001:db8::/64")
             )
             .get();
-        assertSearchResponse(rsp);
+        ElasticsearchAssertions.assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -166,7 +166,7 @@ public class IpRangeIT extends ESIntegTestCase {
                     .addUnboundedFrom("192.168.1.10")
             )
             .get();
-        assertSearchResponse(rsp);
+        ElasticsearchAssertions.assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -199,7 +199,7 @@ public class IpRangeIT extends ESIntegTestCase {
                     .addUnboundedFrom("192.168.1.10")
             )
             .get();
-        assertSearchResponse(rsp);
+        ElasticsearchAssertions.assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 

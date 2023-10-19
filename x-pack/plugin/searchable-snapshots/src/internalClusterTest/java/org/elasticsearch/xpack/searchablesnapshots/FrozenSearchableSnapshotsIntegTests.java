@@ -51,6 +51,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
@@ -70,7 +71,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
@@ -470,7 +470,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 dateHistogram("histo").field("f").timeZone(ZoneId.of("+01:00")).minDocCount(0).calendarInterval(DateHistogramInterval.MONTH)
             )
             .get();
-        assertSearchResponse(r1);
+        ElasticsearchAssertions.assertNoFailures(r1);
 
         assertRequestCacheState(client(), "test-index", 0, 1);
 
@@ -491,7 +491,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                         .calendarInterval(DateHistogramInterval.MONTH)
                 )
                 .get();
-            assertSearchResponse(r2);
+            ElasticsearchAssertions.assertNoFailures(r2);
             assertRequestCacheState(client(), "test-index", i + 1, 1);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");

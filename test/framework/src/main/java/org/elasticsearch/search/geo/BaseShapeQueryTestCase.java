@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -43,7 +44,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -150,28 +150,28 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .indexedShapeIndex("shapes")
             .indexedShapePath(defaultFieldName);
         SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         filter = queryBuilder().shapeQuery(defaultFieldName, "1")
             .relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex("shapes")
             .indexedShapePath("1.geo");
         result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         filter = queryBuilder().shapeQuery(defaultFieldName, "1")
             .relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex("shapes")
             .indexedShapePath("1.2.geo");
         result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         filter = queryBuilder().shapeQuery(defaultFieldName, "1")
             .relation(ShapeRelation.INTERSECTS)
             .indexedShapeIndex("shapes")
             .indexedShapePath("1.2.3.geo");
         result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
 
         // now test the query variant
@@ -179,19 +179,19 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .indexedShapeIndex("shapes")
             .indexedShapePath(defaultFieldName);
         result = client().prepareSearch(defaultIndexName).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         query = queryBuilder().shapeQuery(defaultFieldName, "1").indexedShapeIndex("shapes").indexedShapePath("1.geo");
         result = client().prepareSearch(defaultIndexName).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         query = queryBuilder().shapeQuery(defaultFieldName, "1").indexedShapeIndex("shapes").indexedShapePath("1.2.geo");
         result = client().prepareSearch(defaultIndexName).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
         query = queryBuilder().shapeQuery(defaultFieldName, "1").indexedShapeIndex("shapes").indexedShapePath("1.2.3.geo");
         result = client().prepareSearch(defaultIndexName).setQuery(query).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
     }
 
@@ -220,7 +220,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         QueryBuilder intersects = queryBuilder().intersectionQuery(defaultFieldName, queryCollection);
         SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(intersects).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertTrue("query: " + intersects + " doc: " + Strings.toString(docSource), result.getHits().getTotalHits().value > 0);
     }
 
@@ -350,7 +350,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .setQuery(queryBuilder().intersectionQuery(defaultFieldName, query))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("blakely"));
@@ -395,7 +395,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         SearchResponse result = client().prepareSearch(defaultIndexName)
             .setQuery(queryBuilder().intersectionQuery(defaultFieldName, point))
             .get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
     }
 
@@ -408,7 +408,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
         QueryBuilder filter = queryBuilder().shapeQuery(defaultFieldName, innerPolygon).relation(ShapeRelation.CONTAINS);
         SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(filter).get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
     }
 
@@ -424,7 +424,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
 
         ExistsQueryBuilder eqb = existsQuery(defaultFieldName);
         SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(eqb).get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
     }
 
@@ -461,7 +461,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .setQuery(queryBuilder().intersectionQuery(defaultFieldName, "Big_Rectangle"))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -470,7 +470,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .setQuery(queryBuilder().shapeQuery(defaultFieldName, "Big_Rectangle"))
             .get();
 
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -492,7 +492,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         SearchResponse result = client().prepareSearch(defaultIndexName)
             .setQuery(queryBuilder().intersectionQuery(defaultFieldName, polygon))
             .get();
-        assertSearchResponse(result);
+        ElasticsearchAssertions.assertNoFailures(result);
         assertHitCount(result, 1);
     }
 
@@ -539,26 +539,26 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
         {
             QueryBuilder filter = queryBuilder().intersectionQuery(defaultFieldName, new GeometryCollection<>(List.of(polygon1)));
             SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-            assertSearchResponse(result);
+            ElasticsearchAssertions.assertNoFailures(result);
             assertHitCount(result, 1);
         }
         {
             QueryBuilder filter = queryBuilder().intersectionQuery(defaultFieldName, new GeometryCollection<>(List.of(polygon2)));
             SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-            assertSearchResponse(result);
+            ElasticsearchAssertions.assertNoFailures(result);
             assertHitCount(result, 0);
         }
         {
             QueryBuilder filter = queryBuilder().intersectionQuery(defaultFieldName, new GeometryCollection<>(List.of(polygon1, polygon2)));
             SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-            assertSearchResponse(result);
+            ElasticsearchAssertions.assertNoFailures(result);
             assertHitCount(result, 1);
         }
         {
             // no shape
             QueryBuilder filter = queryBuilder().shapeQuery(defaultFieldName, GeometryCollection.EMPTY);
             SearchResponse result = client().prepareSearch(defaultIndexName).setQuery(matchAllQuery()).setPostFilter(filter).get();
-            assertSearchResponse(result);
+            ElasticsearchAssertions.assertNoFailures(result);
             assertHitCount(result, 0);
         }
     }
@@ -627,7 +627,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
                 .setTrackTotalHits(true)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.INTERSECTS))
                 .get();
-            assertSearchResponse(searchResponse);
+            ElasticsearchAssertions.assertNoFailures(searchResponse);
             SearchHits searchHits = searchResponse.getHits();
             assertThat(searchHits.getTotalHits().value, equalTo(1L));
         }
@@ -652,7 +652,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
                 .setTrackTotalHits(true)
                 .setQuery(queryBuilder().shapeQuery(defaultFieldName, point).relation(ShapeRelation.INTERSECTS))
                 .get();
-            assertSearchResponse(searchResponse);
+            ElasticsearchAssertions.assertNoFailures(searchResponse);
             SearchHits searchHits = searchResponse.getHits();
             assertThat(searchHits.getTotalHits().value, equalTo(1L));
         }
@@ -685,7 +685,7 @@ public abstract class BaseShapeQueryTestCase<T extends AbstractGeometryQueryBuil
             .setTrackTotalHits(true)
             .setQuery(queryBuilder().shapeQuery(defaultFieldName, center).relation(ShapeRelation.INTERSECTS))
             .get();
-        assertSearchResponse(searchResponse);
+        ElasticsearchAssertions.assertNoFailures(searchResponse);
         SearchHits searchHits = searchResponse.getHits();
         assertThat(searchHits.getTotalHits().value, equalTo((long) polygons.length));
     }

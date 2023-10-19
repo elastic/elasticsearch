@@ -14,8 +14,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -79,7 +79,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -113,7 +113,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -149,7 +149,7 @@ public class BooleanTermsIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
 
         UnmappedTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());

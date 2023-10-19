@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.List;
 
@@ -26,7 +27,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -99,7 +99,7 @@ public class SamplerIT extends ESIntegTestCase {
                     .subAggregation(sampler("sample").shardSize(100).subAggregation(max("max_price").field("price")))
             )
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Terms genres = response.getAggregations().get("genres");
         List<? extends Bucket> genreBuckets = genres.getBuckets();
         // For this test to be useful we need >1 genre bucket to compare
@@ -129,7 +129,7 @@ public class SamplerIT extends ESIntegTestCase {
             .setSize(60)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Sampler sample = response.getAggregations().get("sample");
         Terms authors = sample.getAggregations().get("authors");
         List<? extends Bucket> testBuckets = authors.getBuckets();
@@ -151,7 +151,7 @@ public class SamplerIT extends ESIntegTestCase {
             .setSize(60)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Sampler sample = response.getAggregations().get("sample");
         assertThat(sample.getDocCount(), equalTo(0L));
         Terms authors = sample.getAggregations().get("authors");
@@ -169,7 +169,7 @@ public class SamplerIT extends ESIntegTestCase {
             .setExplain(true)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         Sampler sample = response.getAggregations().get("sample");
         assertThat(sample.getDocCount(), greaterThan(0L));
         Terms authors = sample.getAggregations().get("authors");
@@ -186,6 +186,6 @@ public class SamplerIT extends ESIntegTestCase {
             .setSize(60)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
     }
 }

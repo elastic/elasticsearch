@@ -26,6 +26,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -39,7 +40,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -75,7 +75,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
             .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
             .get();
-        assertSearchResponse(response);
+        ElasticsearchAssertions.assertNoFailures(response);
         assertThat(
             ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
             equalTo(2)

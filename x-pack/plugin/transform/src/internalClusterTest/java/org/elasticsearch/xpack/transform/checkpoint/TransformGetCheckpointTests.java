@@ -249,7 +249,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             ActionListener<GetCheckpointNodeAction.Response> listener
         ) {
             ++calls;
-            getGlobalCheckpoints(mockIndicesService, task, request.getShards(), listener);
+            getGlobalCheckpoints(mockIndicesService, task, request.getShards(), request.getTimeout(), listener);
         }
 
         public int getCalls() {

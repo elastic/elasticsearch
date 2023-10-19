@@ -168,6 +168,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                         indicesService,
                         task,
                         oneNodeAndItsShards.getValue(),
+                        timeout,
                         groupedListener
                     );
                     continue;

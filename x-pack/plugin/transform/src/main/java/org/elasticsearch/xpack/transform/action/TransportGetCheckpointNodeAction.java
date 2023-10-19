@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.transform.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Response;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,13 +47,14 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        getGlobalCheckpoints(indicesService, task, request.getShards(), listener);
+        getGlobalCheckpoints(indicesService, task, request.getShards(), request.getTimeout(), listener);
     }
 
     protected static void getGlobalCheckpoints(
         IndicesService indicesService,
         Task task,
         Set<ShardId> shards,
+        TimeValue timeout,
         ActionListener<Response> listener
     ) {
         Map<String, long[]> checkpointsByIndexOfThisNode = new HashMap<>();
@@ -58,6 +62,19 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
             if (task instanceof CancellableTask) {
                 // There is no point continuing this work if the task has been cancelled.
                 if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                    return;
+                }
+            }
+            if (timeout != null) {
+                Instant now = Instant.now();
+                if (task.getStartTime() + timeout.millis() < now.toEpochMilli()) {
+                    listener.onFailure(
+                        new ElasticsearchTimeoutException(
+                            "Action {} timed out after {}",
+                            GetCheckpointNodeAction.NAME,
+                            timeout.getStringRep()
+                        )
+                    );
                     return;
                 }
             }

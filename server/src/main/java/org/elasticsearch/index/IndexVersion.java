@@ -51,7 +51,6 @@ import java.util.ServiceLoader;
  * If you revert a commit with an index version change, you <em>must</em> ensure there is a <em>new</em> index version
  * representing the reverted change. <em>Do not</em> let the index version go backwards, it must <em>always</em> be incremented.
  */
-@SuppressWarnings({"checkstyle:linelength", "deprecation"})
 public record IndexVersion(int id, Version luceneVersion) implements VersionId<IndexVersion>, ToXContentFragment {
 
     private static class CurrentHolder {

@@ -93,7 +93,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHigh
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -3349,7 +3348,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 )
                 .get();
 
-            assertSearchResponse(r1);
+            assertNoFailures(r1);
             assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1, equalTo("<x>hello</x> world"));
         }

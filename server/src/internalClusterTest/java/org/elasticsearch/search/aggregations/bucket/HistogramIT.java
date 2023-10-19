@@ -51,7 +51,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -238,7 +238,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -290,7 +290,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).offset(offset))
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         // shifting by offset>2 creates new extra bucket [0,offset-1]
         // if offset is >= number of values in original last bucket, that effect is canceled
         int expectedNumberOfBuckets = (offset >= (numDocs % interval + 1)) ? numValueBuckets : numValueBuckets + 1;
@@ -324,7 +324,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.key(true)))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -345,7 +345,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.key(false)))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -366,7 +366,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.count(true)))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -393,7 +393,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.count(false)))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -424,7 +424,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -467,7 +467,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -509,7 +509,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -551,7 +551,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -595,7 +595,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -633,7 +633,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -689,7 +689,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         final int numBuckets = (numDocs + 1) / interval - 2 / interval + 1;
         final long[] counts = new long[(numDocs + 1) / interval + 1];
@@ -717,7 +717,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).interval(interval))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -738,7 +738,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).interval(interval).order(BucketOrder.key(false)))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -763,7 +763,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         final int numBuckets = (numDocs + 2) / interval - 2 / interval + 1;
         final long[] counts = new long[(numDocs + 2) / interval + 1];
@@ -799,7 +799,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -823,7 +823,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -844,7 +844,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -857,7 +857,7 @@ public class HistogramIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -882,7 +882,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -990,7 +990,7 @@ public class HistogramIT extends ESIntegTestCase {
                 throw e;
             }
         }
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1067,7 +1067,7 @@ public class HistogramIT extends ESIntegTestCase {
                 throw e;
             }
         }
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -1110,7 +1110,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse r = client().prepareSearch("decimal_values")
             .addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         Histogram histogram = r.getAggregations().get("histo");
         List<? extends Bucket> buckets = histogram.getBuckets();
@@ -1157,7 +1157,7 @@ public class HistogramIT extends ESIntegTestCase {
                     .offset(0.05)
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1178,7 +1178,7 @@ public class HistogramIT extends ESIntegTestCase {
                     .offset(0.05)
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1194,7 +1194,7 @@ public class HistogramIT extends ESIntegTestCase {
             .setSize(0)
             .addAggregation(histogram("histo").field("d").interval(0.7).offset(0.05))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1280,7 +1280,7 @@ public class HistogramIT extends ESIntegTestCase {
         SearchResponse r = client().prepareSearch("test")
             .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, null)))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         Histogram histogram = r.getAggregations().get("histo");
         List<? extends Bucket> buckets = histogram.getBuckets();
@@ -1291,7 +1291,7 @@ public class HistogramIT extends ESIntegTestCase {
         r = client().prepareSearch("test")
             .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(null, 0.0)))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         histogram = r.getAggregations().get("histo");
         buckets = histogram.getBuckets();
@@ -1301,7 +1301,7 @@ public class HistogramIT extends ESIntegTestCase {
         r = client().prepareSearch("test")
             .addAggregation(histogram("histo").field("d").interval(0.1).hardBounds(new DoubleBounds(0.0, 0.3)))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         histogram = r.getAggregations().get("histo");
         buckets = histogram.getBuckets();
@@ -1321,7 +1321,7 @@ public class HistogramIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histogram = response.getAggregations().get("histo");
         assertThat(histogram, notNullValue());

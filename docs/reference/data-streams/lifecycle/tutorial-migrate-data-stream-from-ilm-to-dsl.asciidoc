@@ -68,7 +68,11 @@ POST dsl-data-stream/_doc?
   "@timestamp": "2023-10-18T16:21:15.000Z",
   "message": "192.0.2.42 - - [06/May/2099:16:21:15 +0000] \"GET /images/bg.jpg HTTP/1.0\" 200 24736"
 }
+----
+// TEST[continued]
 
+[source,console]
+----
 POST dsl-data-stream/_rollover
 ----
 // TEST[continued]
@@ -124,9 +128,9 @@ and that the next generation index will also be managed by {ilm-init}:
   ]
 }
 ----
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
@@ -255,9 +259,9 @@ GET _data_stream/dsl-data-stream
   ]
 }
 ----
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
@@ -273,11 +277,14 @@ data stream lifecycle:
 [source,console]
 ----
 POST dsl-data-stream/_rollover
+----
+// TEST[continued]
 
+[source,console]
+----
 GET _data_stream/dsl-data-stream
 ----
 // TEST[continued]
-// TEST[teardown:data_stream_cleanup]
 
 [source,console-result]
 ----
@@ -329,11 +336,11 @@ GET _data_stream/dsl-data-stream
   ]
 }
 ----
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
+// TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
@@ -343,4 +350,14 @@ GET _data_stream/dsl-data-stream
 in the index template
 <4> The new write index is managed by `Data stream lifecycle`
 
+//////////////////////////
+[source,console]
+--------------------------------------------------
+DELETE _data_stream/dsl-data-stream
+DELETE _index_template/dsl-data-stream-template
+DELETE _ilm/policy/pre-dsl-ilm-policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
 

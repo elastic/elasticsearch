@@ -104,7 +104,7 @@ public class RemoteClusterNodesAction {
             executeWithSystemContext(
                 request,
                 threadContext,
-                new ContextPreservingActionListener<>(threadContext.newRestorableContext(true), listener)
+                ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
             );
         }
 

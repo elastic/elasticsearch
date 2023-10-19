@@ -55,7 +55,11 @@ public class DateDiffProcessor extends ThreeArgsDateTimeProcessor {
             if (similar.isEmpty()) {
                 throw new InvalidArgumentException("A value of {} or their aliases is required; received [{}]", Part.values(), unit);
             } else {
-                throw new InvalidArgumentException("Received value [{}] is not valid date part to add; " + "did you mean {}?", unit, similar);
+                throw new InvalidArgumentException(
+                    "Received value [{}] is not valid date part to add; " + "did you mean {}?",
+                    unit,
+                    similar
+                );
             }
         }
 

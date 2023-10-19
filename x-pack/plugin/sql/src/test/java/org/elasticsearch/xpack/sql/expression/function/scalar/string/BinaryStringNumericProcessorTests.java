@@ -69,7 +69,10 @@ public class BinaryStringNumericProcessorTests extends AbstractWireSerializingTe
         );
         assertEquals("A string/char is required; received [5]", e.getMessage());
 
-        e = expectThrows(InvalidArgumentException.class, () -> new Left(EMPTY, l("foo bar"), l("baz")).makePipe().asProcessor().process(null));
+        e = expectThrows(
+            InvalidArgumentException.class,
+            () -> new Left(EMPTY, l("foo bar"), l("baz")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A fixed point number is required for [count]; received [java.lang.String]", e.getMessage());
 
         e = expectThrows(

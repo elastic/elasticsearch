@@ -148,5 +148,5 @@ teardown:
 
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507}
-  - match: {hits.hits.0.fields._tsid: [{ _tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g" }]}
+  - match: {hits.hits.0.fields._tsid: [{ _tsid: "jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAB12oDh--qoyMMN4bdnT8ZqELp_jWAw25g" }]}
 

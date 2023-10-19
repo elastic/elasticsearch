@@ -84,9 +84,9 @@ search an alias:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyP6Vt9ULEHW_gNYfd2t0r5Rnf6-L1KQ"}}
+  - match: {aggregations.tsids.buckets.0.key: {_tsid: "jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyHW_gNYfd2t0r5Rnf6-L1KQ"}}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g"}}
+  - match: {aggregations.tsids.buckets.1.key: {_tsid: "jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAB12oDh--qoyMMN4bdnT8ZqELp_jWAw25g"}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -128,10 +128,10 @@ index into alias:
                   _key: asc
 
   - match: {hits.total.value: 12}
-  - match: {aggregations.tsids.buckets.0.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyP6Vt9ULEHW_gNYfd2t0r5Rnf6-L1KQ"}}
+  - match: {aggregations.tsids.buckets.0.key: {_tsid: "jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyHW_gNYfd2t0r5Rnf6-L1KQ"}}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAB12oDh--qoyP6Vt9ULEMMN4bdnT8ZqELp_jWAw25g"}}
+  - match: {aggregations.tsids.buckets.1.key: {_tsid: "jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAB12oDh--qoyMMN4bdnT8ZqELp_jWAw25g"}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
-  - match: {aggregations.tsids.buckets.2.key: {_tsid: "_pW31QsQjsPn2w3PUBDHCdUJaEUx2v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAC-lKWy--qoyP6Vt9ULEMwq1RsoCo9dtDZzvUhI5TA"}}
+  - match: {aggregations.tsids.buckets.2.key: {_tsid: "jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAC-lKWy--qoyMwq1RsoCo9dtDZzvUhI5TA"}}
   - match: {aggregations.tsids.buckets.2.doc_count: 4}
 

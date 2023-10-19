@@ -48,7 +48,7 @@ add dimensions with put_mapping:
             - field: "@timestamp"
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { _tsid: "_pW31QsQ95YnAT0C6QOgFs_zuty0ZP6Vt9ULEAAAAAAAAAAAAAAAAAAAAAAGlT_5_pW31QsQlhR27Th3c0p1ZhIq1uAyqA" } ] }
+  - match: {hits.hits.0.fields._tsid: [ { _tsid: "95YnAT0C6QOgFs_zuty0ZAAAAAAAAAAAAAAAAAAAAAAGlT_5lhR27Th3c0p1ZhIq1uAyqA" } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -96,7 +96,7 @@ add dimensions to no dims with dynamic_template over index:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { _tsid:  "_pW31QsQ95YnAT0C6QOgFs_zuty0ZP6Vt9ULEAAAAAAAAAAAAAAAAAAAAAAGlT_5_pW31QsQlhR27Th3c0p1ZhIq1uAyqA" } ] }
+  - match: {hits.hits.0.fields._tsid: [ { _tsid:  "95YnAT0C6QOgFs_zuty0ZAAAAAAAAAAAAAAAAAAAAAAGlT_5lhR27Th3c0p1ZhIq1uAyqA" } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -144,7 +144,7 @@ add dimensions to no dims with dynamic_template over bulk:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { _tsid: "_pW31QsQ95YnAT0C6QOgFs_zuty0ZP6Vt9ULEAAAAAAAAAAAAAAAAAAAAAAGlT_5_pW31QsQlhR27Th3c0p1ZhIq1uAyqA" } ] }
+  - match: {hits.hits.0.fields._tsid: [ { _tsid: "95YnAT0C6QOgFs_zuty0ZAAAAAAAAAAAAAAAAAAAAAAGlT_5lhR27Th3c0p1ZhIq1uAyqA" } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -196,7 +196,7 @@ add dimensions to some dims with dynamic_template over index:
            - field: _tsid
            - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { _tsid: "_pW31QsQxhgWVhgKGfmIwHt-7D2B_v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAAGlT_5BpU_-f6Vt9ULEHp7bXIK5rruMAWHvhNmhYw"} ] }
+  - match: {hits.hits.0.fields._tsid: [ { _tsid: "xhgWVhgKGfmIwHt-7D2B_gAAAAAAAAAAAAAAAAAAAAAGlT_5BpU_-Xp7bXIK5rruMAWHvhNmhYw"} ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
@@ -247,5 +247,5 @@ add dimensions to some dims with dynamic_template over bulk:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { _tsid: "_pW31QsQxhgWVhgKGfmIwHt-7D2B_v6Vt9ULEAAAAAAAAAAAAAAAAAAAAAAGlT_5BpU_-f6Vt9ULEHp7bXIK5rruMAWHvhNmhYw" } ] }
+  - match: {hits.hits.0.fields._tsid: [ { _tsid: "xhgWVhgKGfmIwHt-7D2B_gAAAAAAAAAAAAAAAAAAAAAGlT_5BpU_-Xp7bXIK5rruMAWHvhNmhYw" } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}

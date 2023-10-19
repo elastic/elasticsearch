@@ -1010,8 +1010,17 @@ class NodeConstruction {
         List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
 
-        modules.add(loadDiagnosticServices(settings, clusterModule, discoveryModule.getCoordinator(), clusterService,
-            transportService, systemIndices, threadPool));
+        modules.add(
+            loadDiagnosticServices(
+                settings,
+                clusterModule,
+                discoveryModule.getCoordinator(),
+                clusterService,
+                transportService,
+                systemIndices,
+                threadPool
+            )
+        );
 
         modules.add(b -> {
             RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
@@ -1025,10 +1034,7 @@ class NodeConstruction {
                 recoveryPlannerService
             );
             resourcesToClose.add(peerRecovery);
-            b.bind(PeerRecoverySourceService.class)
-                .toInstance(
-                    peerRecovery
-                );
+            b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
             b.bind(PeerRecoveryTargetService.class)
                 .toInstance(
                     new PeerRecoveryTargetService(
@@ -1118,12 +1124,18 @@ class NodeConstruction {
 
         injector = modules.createInjector();
 
-        postInjection(clusterModule, actionModule, clusterService, transportService, pluginComponents);
+        postInjection(clusterModule, actionModule, clusterService, transportService);
     }
 
-    private Module loadDiagnosticServices(Settings settings, ClusterModule clusterModule, Coordinator coordinator,
-                                          ClusterService clusterService, TransportService transportService,
-                                          SystemIndices systemIndices, ThreadPool threadPool) {
+    private Module loadDiagnosticServices(
+        Settings settings,
+        ClusterModule clusterModule,
+        Coordinator coordinator,
+        ClusterService clusterService,
+        TransportService transportService,
+        SystemIndices systemIndices,
+        ThreadPool threadPool
+    ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
         CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
@@ -1146,7 +1158,8 @@ class NodeConstruction {
 
         HealthService healthService = new HealthService(
             Stream.concat(serverHealthIndicatorServices, pluginHealthIndicatorServices).toList(),
-            threadPool);
+            threadPool
+        );
         HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(settings, clusterService, client, healthService);
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
         LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
@@ -1174,22 +1187,25 @@ class NodeConstruction {
         resourcesToClose.addAll(pluginLifecycleComponents);
         this.pluginLifecycleComponents = pluginLifecycleComponents;
 
-        return b ->
-            pluginComponents.forEach(p -> {
-                if (p instanceof PluginComponentBinding<?, ?> pcb) {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> clazz = (Class<Object>) pcb.inter();
-                    b.bind(clazz).toInstance(pcb.impl());
-                } else {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> clazz = (Class<Object>) p.getClass();
-                    b.bind(clazz).toInstance(p);
-                }
-            });
+        return b -> pluginComponents.forEach(p -> {
+            if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                @SuppressWarnings("unchecked")
+                Class<Object> clazz = (Class<Object>) pcb.inter();
+                b.bind(clazz).toInstance(pcb.impl());
+            } else {
+                @SuppressWarnings("unchecked")
+                Class<Object> clazz = (Class<Object>) p.getClass();
+                b.bind(clazz).toInstance(p);
+            }
+        });
     }
 
-    private void postInjection(ClusterModule clusterModule, ActionModule actionModule,
-                               ClusterService clusterService, TransportService transportService, Collection<Object> pluginComponents) {
+    private void postInjection(
+        ClusterModule clusterModule,
+        ActionModule actionModule,
+        ClusterService clusterService,
+        TransportService transportService
+    ) {
         // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
         // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
         // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation

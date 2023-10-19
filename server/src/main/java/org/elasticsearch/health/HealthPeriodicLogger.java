@@ -90,7 +90,12 @@ public class HealthPeriodicLogger implements ClusterStateListener, Closeable, Sc
      * @param client the client used to call the Health Service.
      * @param healthService the Health Service, where the actual Health API logic lives.
      */
-    public static HealthPeriodicLogger create(Settings settings, ClusterService clusterService, Client client, HealthService healthService) {
+    public static HealthPeriodicLogger create(
+        Settings settings,
+        ClusterService clusterService,
+        Client client,
+        HealthService healthService
+    ) {
         HealthPeriodicLogger logger = new HealthPeriodicLogger(settings, clusterService, client, healthService);
         logger.registerListeners();
         return logger;

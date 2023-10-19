@@ -36,7 +36,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.cluster.action;
     exports org.elasticsearch.xpack.cluster.routing.allocation.mapper;
     exports org.elasticsearch.xpack.cluster.routing.allocation;
-    exports org.elasticsearch.xpack.cluster.routing.allocation.stats;
     exports org.elasticsearch.xpack.core;
     exports org.elasticsearch.xpack.core.action.util;
     exports org.elasticsearch.xpack.core.action;
@@ -58,6 +57,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.common.validation;
     exports org.elasticsearch.xpack.core.common;
     exports org.elasticsearch.xpack.core.datastreams;
+    exports org.elasticsearch.xpack.core.datatiers.usage;
     exports org.elasticsearch.xpack.core.deprecation;
     exports org.elasticsearch.xpack.core.downsample;
     exports org.elasticsearch.xpack.core.enrich.action;

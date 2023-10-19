@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core;
+package org.elasticsearch.xpack.core.datatiers.usage;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -22,8 +22,6 @@ import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.cluster.routing.allocation.stats.NodeDataTiersUsage;
-import org.elasticsearch.xpack.cluster.routing.allocation.stats.NodesDataTiersUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
@@ -71,8 +69,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         new ParentTaskAssigningClient(client, clusterService.localNode(), task).admin()
             .cluster()
             .execute(
-                NodesDataTiersUsageAction.INSTANCE,
-                new NodesDataTiersUsageAction.NodesRequest(),
+                NodesDataTiersUsageTransportAction.TYPE,
+                new NodesDataTiersUsageTransportAction.NodesRequest(),
                 listener.delegateFailureAndWrap((delegate, response) -> {
                     // Generate tier specific stats for the nodes and indices
                     delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(aggregateStats(response.getNodes()))));

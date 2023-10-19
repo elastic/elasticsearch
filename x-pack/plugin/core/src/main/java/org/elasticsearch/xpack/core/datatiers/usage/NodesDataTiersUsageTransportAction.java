@@ -5,13 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.cluster.routing.allocation.stats;
+package org.elasticsearch.xpack.core.datatiers.usage;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,13 +27,16 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -44,10 +51,12 @@ import java.util.stream.StreamSupport;
  * Sources locally data tier usage stats mainly indices and shard sizes grouped by preferred data tier.
  */
 public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
-    NodesDataTiersUsageAction.NodesRequest,
-    NodesDataTiersUsageAction.NodesResponse,
-    NodesDataTiersUsageAction.NodeRequest,
+    NodesDataTiersUsageTransportAction.NodesRequest,
+    NodesDataTiersUsageTransportAction.NodesResponse,
+    NodesDataTiersUsageTransportAction.NodeRequest,
     NodeDataTiersUsage> {
+
+    public static final ActionType<NodesResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/data_tier_usage");
 
     private final IndicesService indicesService;
 
@@ -60,28 +69,24 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesDataTiersUsageAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            NodesDataTiersUsageAction.NodeRequest::new,
+            NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indicesService;
     }
 
     @Override
-    protected NodesDataTiersUsageAction.NodesResponse newResponse(
-        NodesDataTiersUsageAction.NodesRequest request,
-        List<NodeDataTiersUsage> responses,
-        List<FailedNodeException> failures
-    ) {
-        return new NodesDataTiersUsageAction.NodesResponse(clusterService.getClusterName(), responses, failures);
+    protected NodesResponse newResponse(NodesRequest request, List<NodeDataTiersUsage> responses, List<FailedNodeException> failures) {
+        return new NodesResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
-    protected NodesDataTiersUsageAction.NodeRequest newNodeRequest(NodesDataTiersUsageAction.NodesRequest request) {
-        return NodesDataTiersUsageAction.NodeRequest.INSTANCE;
+    protected NodeRequest newNodeRequest(NodesRequest request) {
+        return NodeRequest.INSTANCE;
     }
 
     @Override
@@ -90,7 +95,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     }
 
     @Override
-    protected NodeDataTiersUsage nodeOperation(NodesDataTiersUsageAction.NodeRequest nodeRequest, Task task) {
+    protected NodeDataTiersUsage nodeOperation(NodeRequest nodeRequest, Task task) {
         assert task instanceof CancellableTask;
 
         DiscoveryNode localNode = clusterService.localNode();
@@ -157,5 +162,78 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             return tierPref.get(0);
         }
         return null;
+    }
+
+    public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
+
+        public NodesRequest() {
+            super((String[]) null);
+        }
+
+        public NodesRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        /**
+         * Get stats from nodes based on the nodes ids specified. If none are passed, stats
+         * for all nodes will be returned.
+         */
+        public NodesRequest(String... nodesIds) {
+            super(nodesIds);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+        }
+    }
+
+    public static class NodeRequest extends TransportRequest {
+
+        static final NodeRequest INSTANCE = new NodeRequest();
+
+        public NodeRequest(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public NodeRequest() {
+
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+        }
+    }
+
+    public static class NodesResponse extends BaseNodesResponse<NodeDataTiersUsage> {
+
+        public NodesResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public NodesResponse(ClusterName clusterName, List<NodeDataTiersUsage> nodes, List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
+        }
+
+        @Override
+        protected List<NodeDataTiersUsage> readNodesFrom(StreamInput in) throws IOException {
+            return in.readCollectionAsList(NodeDataTiersUsage::new);
+        }
+
+        @Override
+        protected void writeNodesTo(StreamOutput out, List<NodeDataTiersUsage> nodes) throws IOException {
+            out.writeCollection(nodes);
+        }
     }
 }

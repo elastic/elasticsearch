@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core;
+package org.elasticsearch.xpack.core.datatiers.usage;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.cluster.routing.allocation.stats.NodeDataTiersUsage;
 import org.junit.Before;
 
 import java.util.List;

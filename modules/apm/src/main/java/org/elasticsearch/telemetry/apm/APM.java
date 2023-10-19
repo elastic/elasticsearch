@@ -26,9 +26,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
-import org.elasticsearch.telemetry.apm.internal.metrics.APMMeter;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
+import org.elasticsearch.telemetry.metric.MeterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -98,7 +97,7 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         apmAgentSettings.syncAgentSystemProperties(settings);
         apmAgentSettings.addClusterSettingsListeners(clusterService, telemetryProvider.get());
 
-        final APMMeter apmMeter = telemetryProvider.get().getMeter();
+        final MeterService apmMeter = telemetryProvider.get().getMeterService();
 
         return List.of(apmTracer, apmMeter);
     }

@@ -63,6 +63,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
@@ -221,6 +222,12 @@ public class ClusterStateTests extends ESTestCase {
                                   "hash" : 1
                                 }
                               }
+                            }
+                          ],
+                          "nodes_features" : [
+                            {
+                              "node_id" : "nodeId1",
+                              "features" : [ "f1", "f2" ]
                             }
                           ],
                           "metadata": {
@@ -484,6 +491,15 @@ public class ClusterStateTests extends ESTestCase {
                           }
                         }
                       ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
+                        }
+                      ],
                       "metadata" : {
                         "cluster_uuid" : "clusterUUID",
                         "cluster_uuid_committed" : false,
@@ -741,6 +757,15 @@ public class ClusterStateTests extends ESTestCase {
                           }
                         }
                       ],
+                      "nodes_features" : [
+                        {
+                          "node_id" : "nodeId1",
+                          "features" : [
+                            "f1",
+                            "f2"
+                          ]
+                        }
+                      ],
                       "metadata" : {
                         "cluster_uuid" : "clusterUUID",
                         "cluster_uuid_committed" : false,
@@ -954,6 +979,7 @@ public class ClusterStateTests extends ESTestCase {
               "blocks" : { },
               "nodes" : { },
               "nodes_versions" : [ ],
+              "nodes_features" : [ ],
               "metadata" : {
                 "cluster_uuid" : "clusterUUID",
                 "cluster_uuid_committed" : false,
@@ -1056,6 +1082,7 @@ public class ClusterStateTests extends ESTestCase {
                     new CompatibilityVersions(TransportVersion.current(), Map.of(".tasks", new SystemIndexDescriptor.MappingsVersion(1, 1)))
                 )
             )
+            .nodeFeatures(Map.of("nodeId1", Set.of("f1", "f2")))
             .blocks(
                 ClusterBlocks.builder()
                     .addGlobalBlock(
@@ -1258,7 +1285,7 @@ public class ClusterStateTests extends ESTestCase {
 
         // nodes, nodes_versions
         if (metrics.contains(ClusterState.Metric.NODES)) {
-            chunkCount += 4 + clusterState.nodes().size() + clusterState.compatibilityVersions().size();
+            chunkCount += 6 + clusterState.nodes().size() + clusterState.compatibilityVersions().size() + clusterState.clusterFeatures().nodeFeatures().size();
         }
 
         // metadata

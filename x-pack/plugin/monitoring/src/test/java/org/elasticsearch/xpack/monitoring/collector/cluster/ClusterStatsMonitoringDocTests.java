@@ -768,7 +768,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                     "max_index_version":%s
                   }
                 },
-                "nodes_versions": []
+                "nodes_versions": [],
+                "nodes_features": []
               },
               "cluster_settings": {
                 "cluster": {

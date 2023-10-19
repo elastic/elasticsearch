@@ -13,23 +13,21 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
-import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 abstract class GenerateProviderManifest extends DefaultTask {
 
     @Inject
-    public GenerateProviderManifest() {
-    }
+    public GenerateProviderManifest() {}
 
     @Classpath
     @InputFiles
@@ -37,6 +35,7 @@ abstract class GenerateProviderManifest extends DefaultTask {
 
     @Input
     abstract public Property<String> getManifestName();
+
     @OutputDirectory
     abstract DirectoryProperty getOutputDir();
 

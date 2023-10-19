@@ -1952,8 +1952,3 @@ coming::[8.11.0]
 === Tutorial: Natural language processing (NLP)
 
 coming::[8.11.0]
-
-[role="exclude",id="manage-enrich-policies"]
-=== Manage enrich policies
-
-coming::[8.11.0]

@@ -277,6 +277,7 @@ POST dsl-data-stream/_rollover
 GET _data_stream/dsl-data-stream
 ----
 // TEST[continued]
+// TEST[teardown:data_stream_cleanup]
 
 [source,console-result]
 ----
@@ -332,8 +333,8 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
-// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.1.index_name/]
-// TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
+// TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]
 
 <1> The backing indices that existed before rollover will continue to be managed by {ilm-init}

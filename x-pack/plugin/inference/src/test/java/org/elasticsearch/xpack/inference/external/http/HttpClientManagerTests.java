@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpHeaders;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -23,24 +22,19 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterService;
+import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 public class HttpClientManagerTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
@@ -74,7 +68,7 @@ public class HttpClientManagerTests extends ESTestCase {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
-            httpClient.send(httpPost, listener);
+            httpClient.send(httpPost, HttpClientContext.create(), listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -96,7 +90,7 @@ public class HttpClientManagerTests extends ESTestCase {
         verify(threadPool).scheduleWithFixedDelay(any(Runnable.class), eq(evictionInterval), any());
     }
 
-    public void testStartsANewEvictor_WithNewEvictionMaxIdle() throws InterruptedException {
+    public void test_DoesNotStartANewEvictor_WithNewEvictionMaxIdle() {
         var mockConnectionManager = mock(PoolingNHttpClientConnectionManager.class);
 
         Settings settings = Settings.builder()
@@ -104,33 +98,9 @@ public class HttpClientManagerTests extends ESTestCase {
             .build();
         var manager = new HttpClientManager(settings, mockConnectionManager, threadPool, mockClusterService(settings));
 
-        CountDownLatch runLatch = new CountDownLatch(1);
-        doAnswer(invocation -> {
-            manager.close();
-            runLatch.countDown();
-            return Void.TYPE;
-        }).when(mockConnectionManager).closeIdleConnections(anyLong(), any());
-
         var evictionMaxIdle = TimeValue.timeValueSeconds(1);
         manager.setEvictionMaxIdle(evictionMaxIdle);
-        runLatch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
 
-        verify(mockConnectionManager, times(1)).closeIdleConnections(eq(evictionMaxIdle.millis()), eq(TimeUnit.MILLISECONDS));
-    }
-
-    private static ClusterService mockClusterServiceEmpty() {
-        return mockClusterService(Settings.EMPTY);
-    }
-
-    private static ClusterService mockClusterService(Settings settings) {
-        var clusterService = mock(ClusterService.class);
-
-        var registeredSettings = Stream.concat(HttpClientManager.getSettings().stream(), HttpSettings.getSettings().stream())
-            .collect(Collectors.toSet());
-
-        var cSettings = new ClusterSettings(settings, registeredSettings);
-        when(clusterService.getClusterSettings()).thenReturn(cSettings);
-
-        return clusterService;
+        assertFalse(manager.isEvictionThreadRunning());
     }
 }

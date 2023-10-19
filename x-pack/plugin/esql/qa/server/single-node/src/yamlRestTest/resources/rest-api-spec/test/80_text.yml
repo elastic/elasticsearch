@@ -1,6 +1,7 @@
 ---
 setup:
-
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -32,6 +33,8 @@ setup:
 ---
 "all":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | sort emp_no'
@@ -55,6 +58,8 @@ setup:
 ---
 "filter by text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where tag == "baz" | keep emp_no, name, job, tag'
@@ -74,6 +79,8 @@ setup:
 ---
 "like by text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where tag LIKE "*az" | keep emp_no, name, job, tag'
@@ -93,6 +100,8 @@ setup:
 ---
 "rlike by text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where tag RLIKE ".*az" | keep emp_no, name, job, tag'
@@ -112,6 +121,8 @@ setup:
 ---
 "eval and filter text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval x = tag | where x == "baz" | keep emp_no, name, job, x'
@@ -131,6 +142,8 @@ setup:
 ---
 "filter on text multi-field":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test |  where job == "IT Director" | keep emp_no, name, job, tag'
@@ -150,6 +163,8 @@ setup:
 ---
 "like by multi-field text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where job LIKE "*Specialist" | keep emp_no, name, job, tag'
@@ -169,6 +184,8 @@ setup:
 ---
 "rlike by multi-field text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where job RLIKE ".*Specialist" | keep emp_no, name, job, tag'
@@ -189,6 +206,8 @@ setup:
 ---
 "sort by text":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | sort tag | keep emp_no, name, job, tag'
@@ -210,6 +229,8 @@ setup:
 ---
 "sort by text multi-field":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | sort job | keep emp_no, name, job, tag'
@@ -230,6 +251,8 @@ setup:
 ---
 "sort by text multi-field desc":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | sort job desc | keep emp_no, name, job, tag'
@@ -251,6 +274,8 @@ setup:
 ---
 "text in functions":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | sort name | eval description = concat(name, " - ", job) | keep description'
@@ -266,6 +291,8 @@ setup:
 ---
 "stats text with raw":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats jobs = count(job) | keep jobs'
@@ -280,6 +307,8 @@ setup:
 ---
 "stats text no raw":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats tags = count(tag) | keep tags'
@@ -294,6 +323,8 @@ setup:
 ---
 "stats by text with raw":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats names = count(name) by job | keep names'
@@ -309,6 +340,8 @@ setup:
 ---
 "stats by text no raw":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats names = count(name) by tag | keep names'
@@ -351,6 +384,8 @@ setup:
           - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'
@@ -392,6 +427,8 @@ setup:
           - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test2 | sort emp_no | keep job'

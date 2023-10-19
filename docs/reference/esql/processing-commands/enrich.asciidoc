@@ -43,6 +43,7 @@ and execute an enrich policy>>.
 
 *Examples*
 
+// tag::examples[]
 The following example uses the `languages_policy` enrich policy to add a new
 column for each enrich field defined in the policy. The match is performed using
 the `match_field` defined in the <<esql-enrich-policy,enrich policy>> and
@@ -97,3 +98,4 @@ include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_rename-result]
 
 In case of name collisions, the newly created columns will override existing
 columns.
+// end::examples[]

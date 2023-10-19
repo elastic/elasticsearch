@@ -37,9 +37,9 @@ import java.util.ServiceLoader;
  * resulting in the same index version being used across multiple commits,
  * causing problems when you try to upgrade between those two merged commits.
  * <h2>Version compatibility</h2>
- * The earliest compatible version is hardcoded in the {@link IndexVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically calculated
- * from the major/minor versions of {@link Version}, but {@code IndexVersion} does not have separate major/minor version numbers.
- * So the minimum compatible version is hard-coded as the index version used by the first version of the previous major release.
+ * The earliest compatible version is hardcoded in the {@link IndexVersions#MINIMUM_COMPATIBLE} field. Previously, this was dynamically
+ * calculated from the major/minor versions of {@link Version}, but {@code IndexVersion} does not have separate major/minor version
+ * numbers. So the minimum compatible version is hard-coded as the index version used by the first version of the previous major release.
  * {@link IndexVersions#MINIMUM_COMPATIBLE} should be updated appropriately whenever a major release happens.
  * <h2>Adding a new version</h2>
  * A new index version should be added <em>every time</em> a change is made to the serialization protocol of one or more classes.

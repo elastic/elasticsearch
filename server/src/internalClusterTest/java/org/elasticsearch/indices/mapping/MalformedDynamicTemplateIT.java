@@ -59,7 +59,7 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
         );
         client().prepareIndex(indexName).setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         assertNoFailures((indicesAdmin().prepareRefresh(indexName)).get());
-        assertHitCount(client().prepareSearch(indexName).get(), 1);
+        assertHitCount(client().prepareSearch(indexName), 1);
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -59,7 +58,10 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(NodesInfoAction.INSTANCE.name(), new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class))
+            hasEntry(
+                TransportNodesInfoAction.TYPE.name(),
+                new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class)
+            )
         );
     }
 
@@ -67,11 +69,11 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class));
+                return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
-        assertEquals("action for name [" + NodesInfoAction.NAME + "] already registered", e.getMessage());
+        assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 
     public void testPluginCanRegisterAction() {
@@ -89,12 +91,7 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
         }
-        class FakeAction extends ActionType<ActionResponse> {
-            protected FakeAction() {
-                super("fake", null);
-            }
-        }
-        FakeAction action = new FakeAction();
+        final var action = new ActionType<>("fake", null);
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

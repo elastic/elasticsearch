@@ -317,14 +317,12 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
             client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomInt()).setField(SeqNoFieldMapper.NAME)))
-                .get()
         );
 
         assertNoFailures(
             client().prepareSearch()
                 .setSize(docCount) // get all docs otherwise we are prone to tie-breaking
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction().seed(randomLong()).setField(SeqNoFieldMapper.NAME)))
-                .get()
         );
 
         assertNoFailures(
@@ -336,7 +334,6 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                         randomFunction().seed(randomRealisticUnicodeOfLengthBetween(10, 20)).setField(SeqNoFieldMapper.NAME)
                     )
                 )
-                .get()
         );
     }
 

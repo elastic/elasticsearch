@@ -52,7 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -922,17 +922,17 @@ public class InnerHitsIT extends ESIntegTestCase {
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(
-                boolQuery().should(
-                    nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
-                ).should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("index1", "index2")
+                .setQuery(
+                    boolQuery().should(
+                        nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                            .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
+                    ).should(termQuery("key", "value"))
+                ),
+            "1",
+            "3"
+        );
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
@@ -1006,22 +1006,22 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
 
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index2");
-        response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
+        assertNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
+                    )
                 )
-            )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
+        );
+        assertNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
+                    )
                 )
-            )
-            .get();
-        assertNoFailures(response);
+        );
     }
 
 }

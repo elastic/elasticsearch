@@ -10,6 +10,8 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -52,13 +54,18 @@ import static java.util.Collections.singletonList;
 public class ReindexPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "reindex";
 
+    public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>(
+        "cluster:admin/reindex/rethrottle",
+        ListTasksResponse::new
+    );
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
             new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
             new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-            new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class)
+            new ActionHandler<>(RETHROTTLE_ACTION, TransportRethrottleAction.class)
         );
     }
 

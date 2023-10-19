@@ -440,8 +440,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         HealthService testHealthService,
         boolean enabled
     ) {
-        testHealthPeriodicLogger = new HealthPeriodicLogger(Settings.EMPTY, clusterService, this.client, testHealthService);
-        testHealthPeriodicLogger.init();
+        testHealthPeriodicLogger = HealthPeriodicLogger.create(Settings.EMPTY, clusterService, this.client, testHealthService);
         if (enabled) {
             clusterSettings.applySettings(Settings.builder().put(HealthPeriodicLogger.ENABLED_SETTING.getKey(), true).build());
         }

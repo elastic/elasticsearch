@@ -49,7 +49,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -157,12 +159,14 @@ public class PlanNamedTypesTests extends ESTestCase {
     public static final List<Class<? extends LogicalPlan>> LOGICAL_PLAN_NODE_CLS = List.of(
         Aggregate.class,
         Dissect.class,
-        EsRelation.class,
-        Eval.class,
         Enrich.class,
+        EsRelation.class,
+        EsqlProject.class,
+        Eval.class,
         Filter.class,
         Grok.class,
         Limit.class,
+        MvExpand.class,
         OrderBy.class,
         Project.class,
         TopN.class
@@ -175,6 +179,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             .stream()
             .filter(e -> e.categoryClass().isAssignableFrom(LogicalPlan.class))
             .map(PlanNameRegistry.Entry::name)
+            .sorted()
             .toList();
         assertThat(actual, equalTo(expected));
     }
@@ -459,6 +464,38 @@ public class PlanNamedTypesTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
     }
 
+    public void testEsRelation() throws IOException {
+        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeEsRelation(out, orig);
+        var deser = PlanNamedTypes.readEsRelation(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testEsqlProject() throws IOException {
+        var orig = new EsqlProject(
+            Source.EMPTY,
+            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean()),
+            List.of(randomFieldAttribute())
+        );
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeEsqlProject(out, orig);
+        var deser = PlanNamedTypes.readEsqlProject(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
+    public void testMvExpand() throws IOException {
+        var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
+        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute());
+        BytesStreamOutput bso = new BytesStreamOutput();
+        PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
+        PlanNamedTypes.writeMvExpand(out, orig);
+        var deser = PlanNamedTypes.readMvExpand(planStreamInput(bso));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(orig, unused -> deser);
+    }
+
     private static void assertNamedExpression(NamedExpression origObj) {
         var deserObj = serializeDeserialize(origObj, PlanStreamOutput::writeExpression, PlanStreamInput::readNamedExpression);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
@@ -472,6 +509,14 @@ public class PlanNamedTypesTests extends ESTestCase {
     private static void assertNamedEsField(EsField origObj) {
         var deserObj = serializeDeserialize(origObj, (o, v) -> o.writeNamed(EsField.class, v), PlanStreamInput::readEsFieldNamed);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(origObj, unused -> deserObj);
+    }
+
+    static EsIndex randomEsIndex() {
+        return new EsIndex(
+            randomAlphaOfLength(randomIntBetween(1, 25)),
+            Map.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomKeywordEsField()),
+            Set.of(randomAlphaOfLength(randomIntBetween(1, 25)), randomAlphaOfLength(randomIntBetween(1, 25)))
+        );
     }
 
     static UnsupportedAttribute randomUnsupportedAttribute() {

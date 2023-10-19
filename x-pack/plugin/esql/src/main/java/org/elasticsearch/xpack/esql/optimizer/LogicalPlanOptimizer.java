@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -55,8 +58,10 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -93,13 +98,14 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
             new ReplaceAliasingEvalWithProject()
-            // new ReplaceTextFieldAttributesWithTheKeywordSubfield()
+            // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
 
         var operators = new Batch<>(
             "Operator Optimization",
             new CombineProjections(),
             new CombineEvals(),
+            new ReplaceDuplicateAggWithEval(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
@@ -501,18 +507,26 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private static LocalSupplier aggsFromEmpty(List<? extends NamedExpression> aggs) {
-            var result = new ArrayList<>(aggs.size());
+            Block[] blocks = new Block[aggs.size()];
+            var blockFactory = BlockFactory.getNonBreakingInstance();
+            int i = 0;
             for (var agg : aggs) {
                 // there needs to be an alias
                 if (agg instanceof Alias a && a.child() instanceof AggregateFunction aggFunc) {
-                    result.add(aggFunc instanceof Count ? 0L : null);
+                    // look for count(literal) with literal != null
+                    Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null) ? 0L : null;
+                    var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(aggFunc.dataType()), 1);
+                    wrapper.accept(value);
+                    blocks[i++] = wrapper.builder().build();
+                    BlockUtils.constantBlock(blockFactory, value, 1);
                 } else {
                     throw new EsqlIllegalArgumentException("Did not expect a non-aliased aggregation {}", agg);
                 }
             }
-            var blocks = BlockUtils.fromListRow(BlockFactory.getNonBreakingInstance(), result);
+
             return LocalSupplier.of(blocks);
         }
+
     }
 
     private static LogicalPlan skipPlan(UnaryPlan plan) {
@@ -936,5 +950,128 @@ public class LogicalPlanOptimizer extends RuleExecutor<LogicalPlan> {
             return plan;
         }
 
+    }
+
+    /**
+     * Normalize aggregation functions by:
+     * 1. replaces reference to field attributes with their source
+     * 2. in case of Count, aligns the various forms (Count(1), Count(0), Count(), Count(*)) to Count(*)
+     */
+    // TODO waiting on https://github.com/elastic/elasticsearch/issues/100634
+    static class NormalizeAggregate extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            AttributeMap<Expression> aliases = new AttributeMap<>();
+
+            // traverse the tree bottom-up
+            // 1. if it's Aggregate, normalize the aggregates
+            // regardless, collect the attributes but only if they refer to an attribute or literal
+            plan = plan.transformUp(p -> {
+                if (p instanceof Aggregate agg) {
+                    p = normalize(agg, aliases);
+                }
+                p.forEachExpression(Alias.class, a -> {
+                    var child = a.child();
+                    if (child.foldable() || child instanceof NamedExpression) {
+                        aliases.putIfAbsent(a.toAttribute(), child);
+                    }
+                });
+
+                return p;
+            });
+            return plan;
+        }
+
+        private static LogicalPlan normalize(Aggregate aggregate, AttributeMap<Expression> aliases) {
+            var aggs = aggregate.aggregates();
+            List<NamedExpression> newAggs = new ArrayList<>(aggs.size());
+            boolean changed = false;
+
+            for (NamedExpression agg : aggs) {
+                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                    // replace field reference
+                    if (af.field() instanceof NamedExpression ne) {
+                        Attribute attr = ne.toAttribute();
+                        var resolved = aliases.resolve(attr, attr);
+                        if (resolved != attr) {
+                            changed = true;
+                            var newChildren = CollectionUtils.combine(Collections.singletonList(resolved), af.parameters());
+                            // update the reference so Count can pick it up
+                            af = (AggregateFunction) af.replaceChildren(newChildren);
+                            agg = as.replaceChild(af);
+                        }
+                    }
+                    // handle Count(*)
+                    if (af instanceof Count count) {
+                        var field = af.field();
+                        if (field.foldable()) {
+                            var fold = field.fold();
+                            if (fold != null && StringUtils.WILDCARD.equals(fold) == false) {
+                                changed = true;
+                                var source = count.source();
+                                agg = as.replaceChild(new Count(source, new Literal(source, StringUtils.WILDCARD, DataTypes.KEYWORD)));
+                            }
+                        }
+                    }
+                }
+                newAggs.add(agg);
+            }
+            return changed ? new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), newAggs) : aggregate;
+        }
+    }
+
+    /**
+     * Replace aggregations that are duplicated inside an Aggregate with an Eval to avoid duplicated compute.
+     * stats a = min(x), b = min(x), c = count(*), d = count() by g
+     * becomes
+     * stats a = min(x), c = count(*) by g
+     * eval b = a, d = c
+     * keep a, b, c, d, g
+     */
+    static class ReplaceDuplicateAggWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+
+        ReplaceDuplicateAggWithEval() {
+            super(TransformDirection.UP);
+        }
+
+        @Override
+        protected LogicalPlan rule(Aggregate aggregate) {
+            LogicalPlan plan = aggregate;
+
+            boolean foundDuplicate = false;
+            var aggs = aggregate.aggregates();
+            Map<AggregateFunction, Attribute> seenAggs = Maps.newMapWithExpectedSize(aggs.size());
+            List<NamedExpression> projections = new ArrayList<>();
+            List<NamedExpression> keptAggs = new ArrayList<>(aggs.size());
+
+            for (NamedExpression agg : aggs) {
+                var attr = agg.toAttribute();
+                if (agg instanceof Alias as && as.child() instanceof AggregateFunction af) {
+                    var seen = seenAggs.putIfAbsent(af, attr);
+                    if (seen != null) {
+                        foundDuplicate = true;
+                        projections.add(as.replaceChild(seen));
+                    }
+                    // otherwise keep the agg in place
+                    else {
+                        keptAggs.add(agg);
+                        projections.add(attr);
+                    }
+                } else {
+                    keptAggs.add(agg);
+                    projections.add(attr);
+                }
+            }
+
+            // at least one duplicate found - add the projection (to keep the output in place)
+            if (foundDuplicate) {
+                var source = aggregate.source();
+                var newAggregate = new Aggregate(source, aggregate.child(), aggregate.groupings(), keptAggs);
+                plan = new Project(source, newAggregate, projections);
+            }
+
+            return plan;
+        }
     }
 }

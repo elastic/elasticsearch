@@ -341,12 +341,18 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             analyseRepository(request);
             assertFalse(sawSpuriousValue.get());
         } catch (RepositoryVerificationException e) {
-            assertTrue(sawSpuriousValue.get());
+            if (sawSpuriousValue.get() == false) {
+                fail(e, "did not see spurious value, so why did the verification fail?");
+            }
         }
     }
 
     private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
         return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+    }
+
+    private static void assertPurpose(OperationPurpose purpose) {
+        assertEquals(OperationPurpose.REPOSITORY_ANALYSIS, purpose);
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
@@ -420,7 +426,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {}
+        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+            assertPurpose(purpose);
+        }
 
         private void deleteContainer(DisruptableBlobContainer container) {
             blobContainer = null;
@@ -482,11 +490,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public boolean blobExists(OperationPurpose purpose, String blobName) {
+            assertPurpose(purpose);
             return blobs.containsKey(blobName);
         }
 
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+            assertPurpose(purpose);
             final byte[] actualContents = blobs.get(blobName);
             final byte[] disruptedContents = disruption.onRead(actualContents, 0L, actualContents == null ? 0L : actualContents.length);
             if (disruptedContents == null) {
@@ -497,6 +507,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            assertPurpose(purpose);
             final byte[] actualContents = blobs.get(blobName);
             final byte[] disruptedContents = disruption.onRead(actualContents, position, length);
             if (disruptedContents == null) {
@@ -514,13 +525,15 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             long blobSize,
             boolean failIfAlreadyExists
         ) throws IOException {
+            assertPurpose(purpose);
             writeBlobAtomic(blobName, inputStream, failIfAlreadyExists);
         }
 
         @Override
         public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
-            writeBlob(OperationPurpose.SNAPSHOT, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+            assertPurpose(purpose);
+            writeBlob(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
         @Override
@@ -531,18 +544,20 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             boolean atomic,
             CheckedConsumer<OutputStream, IOException> writer
         ) throws IOException {
+            assertPurpose(purpose);
             final BytesStreamOutput out = new BytesStreamOutput();
             writer.accept(out);
             if (atomic) {
-                writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
+                writeBlobAtomic(purpose, blobName, out.bytes(), failIfAlreadyExists);
             } else {
-                writeBlob(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
+                writeBlob(purpose, blobName, out.bytes(), failIfAlreadyExists);
             }
         }
 
         @Override
         public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
             throws IOException {
+            assertPurpose(purpose);
             final StreamInput inputStream;
             try {
                 inputStream = bytes.streamInput();
@@ -575,6 +590,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public DeleteResult delete(OperationPurpose purpose) throws IOException {
+            assertPurpose(purpose);
             disruption.onDelete();
             deleteContainer.accept(this);
             final DeleteResult deleteResult = new DeleteResult(blobs.size(), blobs.values().stream().mapToLong(b -> b.length).sum());
@@ -584,11 +600,13 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
+            assertPurpose(purpose);
             blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) throws IOException {
+            assertPurpose(purpose);
             return disruption.onList(
                 blobs.entrySet()
                     .stream()
@@ -598,12 +616,14 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Map<String, BlobContainer> children(OperationPurpose purpose) {
+            assertPurpose(purpose);
             return Map.of();
         }
 
         @Override
         public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) throws IOException {
-            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(OperationPurpose.SNAPSHOT);
+            assertPurpose(purpose);
+            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
         }
@@ -616,6 +636,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             BytesReference updated,
             ActionListener<OptionalBytesReference> listener
         ) {
+            assertPurpose(purpose);
             final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
             listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
         }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_median]]
 === `MV_MEDIAN`
 Converts a multivalued field into a single valued field containing the median value. For example:

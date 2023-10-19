@@ -167,7 +167,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NotCopyableOnResize
     );
     public static final Setting<String> SNAPSHOT_INDEX_NAME_SETTING = Setting.simpleString(
-        "index.store.snapshot.index_name",
+        SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize

@@ -995,28 +995,29 @@ public class TopHitsIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), ArrayUtil.MAX_ARRAY_LENGTH),
             "idx"
         );
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").executionHint(randomExecutionHint())
-                    .field(TERMS_AGGS_FIELD)
-                    .subAggregation(
-                        topHits("hits").size(ArrayUtil.MAX_ARRAY_LENGTH - 1).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
-                    )
-            )
-            .get();
-        assertNoFailures(response);
+        assertNoFailures(
+            client().prepareSearch("idx")
+                .addAggregation(
+                    terms("terms").executionHint(randomExecutionHint())
+                        .field(TERMS_AGGS_FIELD)
+                        .subAggregation(
+                            topHits("hits").size(ArrayUtil.MAX_ARRAY_LENGTH - 1)
+                                .sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))
+                        )
+                )
+        );
         updateIndexSettings(Settings.builder().putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()), "idx");
     }
 
     public void testTooHighResultWindow() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").executionHint(randomExecutionHint())
-                    .field(TERMS_AGGS_FIELD)
-                    .subAggregation(topHits("hits").from(50).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
-            )
-            .get();
-        assertNoFailures(response);
+        assertNoFailures(
+            client().prepareSearch("idx")
+                .addAggregation(
+                    terms("terms").executionHint(randomExecutionHint())
+                        .field(TERMS_AGGS_FIELD)
+                        .subAggregation(topHits("hits").from(50).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
+                )
+        );
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
@@ -1048,22 +1049,22 @@ public class TopHitsIT extends ESIntegTestCase {
         );
 
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "idx");
-        response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").executionHint(randomExecutionHint())
-                    .field(TERMS_AGGS_FIELD)
-                    .subAggregation(topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
-            )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").executionHint(randomExecutionHint())
-                    .field(TERMS_AGGS_FIELD)
-                    .subAggregation(topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
-            )
-            .get();
-        assertNoFailures(response);
+        assertNoFailures(
+            client().prepareSearch("idx")
+                .addAggregation(
+                    terms("terms").executionHint(randomExecutionHint())
+                        .field(TERMS_AGGS_FIELD)
+                        .subAggregation(topHits("hits").from(100).size(10).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
+                )
+        );
+        assertNoFailures(
+            client().prepareSearch("idx")
+                .addAggregation(
+                    terms("terms").executionHint(randomExecutionHint())
+                        .field(TERMS_AGGS_FIELD)
+                        .subAggregation(topHits("hits").from(10).size(100).sort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC)))
+                )
+        );
         updateIndexSettings(Settings.builder().putNull(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()), "idx");
     }
 

@@ -251,6 +251,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(true),
                 eq(false),
                 eq(false),
@@ -386,6 +387,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(true),
                 eq(false),
                 eq(false),
@@ -409,6 +411,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
                 eq(false),
                 eq(false),
                 eq(false),
+                eq(false),
                 eq(true),
                 eq(false),
                 eq(false),
@@ -428,6 +431,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         when(
             nodeService.stats(
                 eq(CommonStatsFlags.NONE),
+                eq(false),
                 eq(false),
                 eq(false),
                 eq(false),

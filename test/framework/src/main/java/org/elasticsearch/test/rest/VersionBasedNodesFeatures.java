@@ -49,7 +49,10 @@ class VersionBasedNodesFeatures {
             var commonFeatures = new HashMap<String, Boolean>();
             for (int i = 0; i < historicalFeatures.size(); ++i) {
                 final int featureIndex = i;
-                commonFeatures.put(historicalFeatures.get(i).v2(), nodesFeaturesBitmap.stream().allMatch(nodeFeatures -> nodeFeatures.get(featureIndex)));
+                commonFeatures.put(
+                    historicalFeatures.get(i).v2(),
+                    nodesFeaturesBitmap.stream().allMatch(nodeFeatures -> nodeFeatures.get(featureIndex))
+                );
             }
 
             return featureName -> {

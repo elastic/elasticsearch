@@ -40,6 +40,10 @@ public class ParentTaskAssigningClient extends FilterClient {
         this(in, new TaskId(localNode.getId(), parentTask.getId()));
     }
 
+    public TaskId getParentTask() {
+        return parentTask;
+    }
+
     /**
      * Fetch the wrapped client. Use this to make calls that don't set {@link ActionRequest#setParentTask(TaskId)}.
      */
@@ -55,11 +59,5 @@ public class ParentTaskAssigningClient extends FilterClient {
     ) {
         request.setParentTask(parentTask);
         super.doExecute(action, request, listener);
-    }
-
-    @Override
-    public ParentTaskAssigningClient getRemoteClusterClient(String clusterAlias, Executor responseExecutor) {
-        Client remoteClient = super.getRemoteClusterClient(clusterAlias, responseExecutor);
-        return new ParentTaskAssigningClient(remoteClient, parentTask);
     }
 }

@@ -581,5 +581,19 @@ public class GeoUtils {
         return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat));
     }
 
+    /**
+     * Transforms the provided longitude to the previous longitude in lucene quantize space.
+     */
+    public static double quantizeLonDown(double lon) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(lon) - 1);
+    }
+
+    /**
+     * Transforms the provided latitude to the next latitude in lucene quantize space.
+     */
+    public static double quantizeLatUp(double lat) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(lat) + 1);
+    }
+
     private GeoUtils() {}
 }

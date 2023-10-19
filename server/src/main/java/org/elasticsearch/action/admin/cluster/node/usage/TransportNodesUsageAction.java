@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -33,6 +34,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
     TransportNodesUsageAction.NodeUsageRequest,
     NodeUsage> {
 
+    public static final ActionType<NodesUsageResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/usage");
     private final UsageService restUsageService;
     private final AggregationUsageService aggregationUsageService;
     private final long sinceTime;
@@ -47,7 +49,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         AggregationUsageService aggregationUsageService
     ) {
         super(
-            NodesUsageAction.NAME,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,

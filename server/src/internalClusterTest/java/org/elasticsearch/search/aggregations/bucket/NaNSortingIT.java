@@ -28,7 +28,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.extended
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -154,7 +154,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
         final Terms terms = response.getAggregations().get("terms");
         assertCorrectlySorted(terms, asc, agg);
     }
@@ -183,7 +183,7 @@ public class NaNSortingIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
         final Histogram histo = response.getAggregations().get("histo");
         assertCorrectlySorted(histo, asc, agg);
     }

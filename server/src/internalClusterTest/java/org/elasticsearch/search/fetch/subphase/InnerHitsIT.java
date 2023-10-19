@@ -50,9 +50,10 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -922,17 +923,17 @@ public class InnerHitsIT extends ESIntegTestCase {
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(
-                boolQuery().should(
-                    nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
-                ).should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("index1", "index2")
+                .setQuery(
+                    boolQuery().should(
+                        nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                            .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
+                    ).should(termQuery("key", "value"))
+                ),
+            "1",
+            "3"
+        );
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
@@ -952,9 +953,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
-        SearchResponse response = client().prepareSearch("index2").setQuery(query).get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(client().prepareSearch("index2").setQuery(query), 1);
     }
 
     public void testTooHighResultWindow() throws Exception {
@@ -966,15 +965,15 @@ public class InnerHitsIT extends ESIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        SearchResponse response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(50).setSize(10).setName("_name")
-                )
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(50).setSize(10).setName("_name")
+                    )
+                ),
+            1
+        );
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
@@ -1006,22 +1005,22 @@ public class InnerHitsIT extends ESIntegTestCase {
         );
 
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index2");
-        response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
+        assertNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(100).setSize(10).setName("_name")
+                    )
                 )
-            )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
+        );
+        assertNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(10).setSize(100).setName("_name")
+                    )
                 )
-            )
-            .get();
-        assertNoFailures(response);
+        );
     }
 
 }

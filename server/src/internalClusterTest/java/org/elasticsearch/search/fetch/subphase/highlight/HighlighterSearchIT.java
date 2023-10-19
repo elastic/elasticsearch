@@ -93,7 +93,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHigh
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1539,11 +1538,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchPhraseQuery("title", "this is a test"))
-            .highlighter(new HighlightBuilder().field("title", 50, 1, 10))
-            .get();
-        assertNoFailures(search);
+        assertNoFailures(
+            client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .highlighter(new HighlightBuilder().field("title", 50, 1, 10))
+        );
 
         assertFailures(
             client().prepareSearch()
@@ -1560,7 +1559,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
                 .highlighter(new HighlightBuilder().field("tit*", 50, 1, 10).highlighterType("fvh"))
-                .get()
         );
     }
 
@@ -2656,11 +2654,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchQuery("title", "this is a test"))
-            .highlighter(new HighlightBuilder().field("title"))
-            .get();
-        assertNoFailures(search);
+        assertNoFailures(
+            client().prepareSearch().setQuery(matchQuery("title", "this is a test")).highlighter(new HighlightBuilder().field("title"))
+        );
     }
 
     public void testPostingsHighlighterBoostingQuery() throws IOException {
@@ -3352,7 +3348,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 )
                 .get();
 
-            assertSearchResponse(r1);
+            assertNoFailures(r1);
             assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1, equalTo("<x>hello</x> world"));
         }

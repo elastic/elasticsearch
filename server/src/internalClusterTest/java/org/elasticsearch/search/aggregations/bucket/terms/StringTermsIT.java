@@ -58,7 +58,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -305,7 +305,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                 new TermsAggregationBuilder("terms").field(field).size(10000).collectMode(randomFrom(SubAggCollectionMode.values()))
             )
             .get();
-        assertSearchResponse(allResponse);
+        assertNoFailures(allResponse);
         StringTerms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
@@ -322,7 +322,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                 )
                 .get();
-            assertSearchResponse(response);
+            assertNoFailures(response);
             terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
             assertThat(terms.getName(), equalTo("terms"));
@@ -343,7 +343,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -368,7 +368,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -397,7 +397,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -426,7 +426,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -473,7 +473,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -504,7 +504,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -536,7 +536,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -564,7 +564,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -655,7 +655,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms tags = response.getAggregations().get("tags");
         assertThat(tags, notNullValue());
@@ -697,7 +697,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms tags = response.getAggregations().get("tags");
         assertThat(tags, notNullValue());
@@ -760,7 +760,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms tags = response.getAggregations().get("tags");
         assertThat(tags, notNullValue());
@@ -823,7 +823,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms tags = response.getAggregations().get("tags");
         assertThat(tags, notNullValue());
@@ -972,7 +972,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1004,7 +1004,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1037,7 +1037,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1073,7 +1073,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1157,7 +1157,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1188,7 +1188,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
@@ -1241,7 +1241,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1260,7 +1260,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "'foo_' + _value", Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1273,7 +1273,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
 
         // Ensure that non-scripted requests are cached as normal
         r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(new TermsAggregationBuilder("terms").field("d")).get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -1297,7 +1297,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             SearchResponse response = client().prepareSearch("idx").setSource(new SearchSourceBuilder().parseXContent(parser, true)).get();
 
-            assertSearchResponse(response);
+            assertNoFailures(response);
             LongTerms terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
             assertThat(terms.getName(), equalTo("terms"));

@@ -30,14 +30,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsAction.Response> {
+public class GeoIpDownloaderStatsAction {
 
-    public static final GeoIpDownloaderStatsAction INSTANCE = new GeoIpDownloaderStatsAction();
-    public static final String NAME = "cluster:monitor/ingest/geoip/stats";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/ingest/geoip/stats", Response::new);
 
-    public GeoIpDownloaderStatsAction() {
-        super(NAME, Response::new);
-    }
+    private GeoIpDownloaderStatsAction() {/* no instances */}
 
     public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
 
@@ -55,7 +52,7 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         @Override
         public int hashCode() {
             // Nothing to hash atm, so just use the action name
-            return Objects.hashCode(NAME);
+            return Objects.hashCode(INSTANCE.name());
         }
 
         @Override

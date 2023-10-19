@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
@@ -38,21 +35,23 @@ import java.io.IOException;
  * -----------------------------------------
  * -----------------------------------------
  */
-public class GeometryDocValueReader implements Writeable {
-    private final GeometryByteArrayReader input;
+public class GeometryDocValueReader {
+    private final ByteArrayStreamInput input;
     private final Extent extent;
     private int treeOffset;
     private int docValueOffset;
+    private BytesRef bytesRef;
 
     public GeometryDocValueReader() {
         this.extent = new Extent();
-        this.input = new GeometryByteArrayReader();
+        this.input = new ByteArrayStreamInput();
     }
 
     /**
      * reset the geometry.
      */
     public void reset(BytesRef bytesRef) throws IOException {
+        this.bytesRef = bytesRef; // Needed only for supporting Writable, maintaining original offset, not adjusted on from input
         this.input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         docValueOffset = bytesRef.offset;
         treeOffset = 0;
@@ -112,17 +111,7 @@ public class GeometryDocValueReader implements Writeable {
         }
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        input.writeTo(out);
+    public BytesRef getBytesRef() {
+        return bytesRef;
     }
-
-    private static class GeometryByteArrayReader extends ByteArrayStreamInput implements Writeable {
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(new BytesArray(bytes));
-        }
-    }
-
 }

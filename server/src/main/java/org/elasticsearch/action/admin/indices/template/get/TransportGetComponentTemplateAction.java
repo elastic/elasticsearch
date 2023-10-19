@@ -81,7 +81,8 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             String name = request.name();
             if (Regex.isSimpleMatchPattern(name)) {
                 for (Map.Entry<String, ComponentTemplate> entry : allTemplates.entrySet()) {
-                    if (Regex.simpleMatch(name, entry.getKey())) {
+                    if (Regex.simpleMatch(name, entry.getKey())
+                        && (/* TODO request.expandWildcardsToDeprecated() ||*/ entry.getValue().deprecated() == false)) {
                         results.put(entry.getKey(), entry.getValue());
                     }
                 }

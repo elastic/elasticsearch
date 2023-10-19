@@ -35,18 +35,20 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
+    private static final ParseField DEPRECATED = new ParseField("deprecated");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "component_template",
         false,
-        a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2])
+        a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2], (Boolean) a[3])
     );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Template.PARSER, TEMPLATE);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
     }
 
     private final Template template;
@@ -54,6 +56,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private final Long version;
     @Nullable
     private final Map<String, Object> metadata;
+    private final boolean deprecated;
 
     static Diff<ComponentTemplate> readComponentTemplateDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComponentTemplate::new, in);
@@ -64,9 +67,14 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata) {
+        this(template, version, metadata, Boolean.TRUE);
+    }
+
+    public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata, Boolean deprecated) {
         this.template = template;
         this.version = version;
         this.metadata = metadata;
+        this.deprecated = deprecated == Boolean.TRUE;
     }
 
     public ComponentTemplate(StreamInput in) throws IOException {
@@ -77,6 +85,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         } else {
             this.metadata = null;
         }
+        this.deprecated = in.available() > 0 && in.readBoolean();
     }
 
     public Template template() {
@@ -93,6 +102,10 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return metadata;
     }
 
+    public boolean deprecated() {
+        return deprecated;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         this.template.writeTo(out);
@@ -103,11 +116,12 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeBoolean(true);
             out.writeGenericMap(this.metadata);
         }
+        out.writeBoolean(deprecated);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(template, version, metadata);
+        return Objects.hash(template, version, metadata, deprecated);
     }
 
     @Override
@@ -121,7 +135,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         ComponentTemplate other = (ComponentTemplate) obj;
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
-            && Objects.equals(metadata, other.metadata);
+            && Objects.equals(metadata, other.metadata)
+            && deprecated == other.deprecated;
     }
 
     @Override
@@ -147,6 +162,9 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         }
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), this.metadata);
+        }
+        if (this.deprecated) {
+            builder.field(DEPRECATED.getPreferredName(), true);
         }
         builder.endObject();
         return builder;

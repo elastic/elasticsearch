@@ -171,3 +171,32 @@
   - match: {component_templates.0.component_template.template.lifecycle.enabled: true}
   - match: {component_templates.0.component_template.template.lifecycle.data_retention: "10d"}
   - is_true: component_templates.0.component_template.template.lifecycle.rollover
+
+---
+"Deprecated component templates":
+  - skip:
+      version: " - 8.11.99"
+      reason: "The ability to mark component templates as deprecated has been added in 8.12"
+
+  - do:
+      cluster.put_component_template:
+        name: deprecated-component-template
+        body:
+          template:
+            mappings:
+              properties:
+                field:
+                  type: keyword
+          version: 1
+          deprecated: true
+
+  - do:
+      cluster.get_component_template:
+        name: deprecated-component-template
+
+  - match: {component_templates.0.name: deprecated-component-template}
+
+  - do:
+      catch: missing
+      cluster.get_component_template:
+        name: deprecated-*

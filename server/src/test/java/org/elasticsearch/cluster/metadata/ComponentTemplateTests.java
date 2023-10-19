@@ -88,7 +88,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             meta = randomMeta();
         }
-        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta);
+        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, randomBoolean());
     }
 
     public static Map<String, AliasMetadata> randomAliases() {

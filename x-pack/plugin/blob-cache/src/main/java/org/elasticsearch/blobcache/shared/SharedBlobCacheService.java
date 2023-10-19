@@ -346,7 +346,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.evictedCountNonZeroFrequency = meter.registerLongCounter(
-            "elasticsearch.blob_cache.evicted_count_non_zero_frequency",
+            "elasticsearch.blob_cache.count_of_evicted_used_regions",
             "The number of times a cache entry was evicted where the frequency was not zero",
             "entries"
         );

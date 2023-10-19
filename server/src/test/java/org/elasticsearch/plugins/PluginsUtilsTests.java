@@ -34,8 +34,6 @@ import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsUtilsTests extends ESTestCase {
@@ -384,19 +382,16 @@ public class PluginsUtilsTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("DummyClass1"));
     }
 
-    public void testStableNonSemanticVersions() throws Exception {
-        // TODO[wrb]: stop using mock once https://github.com/elastic/elasticsearch/pull/100713 is merged
-        PluginDescriptor info = mock(PluginDescriptor.class);
-        String pluginEsBuildVersion = randomAlphaOfLength(10);
-        when(info.getElasticsearchVersion()).thenReturn(pluginEsBuildVersion);
-        when(info.isStable()).thenReturn(true);
+    public void testInternalNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "was built for non-semantic Elasticsearch version " + pluginEsBuildVersion + " and cannot run on version " + Version.CURRENT
-            )
-        );
+        assertThat(e.getMessage(), containsString("Plugin [my_plugin] was built for Elasticsearch version"));
+    }
+
+    public void testStableNonSemanticVersions() throws Exception {
+        PluginDescriptor info = getPluginDescriptorForVersion(randomAlphaOfLengthBetween(6, 32), "1.8", true);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsUtils.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("Expected semantic version for plugin [my_plugin] but was"));
     }
 
     public void testStableEarlierElasticsearchVersion() throws Exception {

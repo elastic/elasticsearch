@@ -221,7 +221,7 @@ create operation on top of old document fails over bulk:
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
-  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{_tsid=jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyHW_gNYfd2t0r5Rnf6-L1KQ}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
+  - match: { items.0.create.error.reason: "[cn4exTOUtxytuLkQAAABeRnR_mY][{_tsid=jsPn2w3PUBDHCdUJaEUx2gAAAAAAAAAAAAAAAAAAAAA5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ}@2021-04-28T18:51:03.142Z]: version conflict, document already exists (current version [1])" }
 
 ---
 ids query:
@@ -240,9 +240,9 @@ ids query:
               values: ["cn4exTOUtxytuLkQAAABeRnR_mY", "cZZNs4NdV58ePSPIAAABeRnSA5M"]
           sort: ["@timestamp"]
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0._id: "cn4exQbLKJ5tiyPoAAABeRnR_mY"}
+  - match: {hits.hits.0._id: "cn4exafToJ7Wv1jaAAABeRnR_mY"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [1434595272]}
-  - match: {hits.hits.1._id: "cZZNs9n0oXE_CDYsAAABeRnSA5M"}
+  - match: {hits.hits.1._id: "cZZNs8_QMMcY0B43AAABeRnSA5M"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2012916202]}
 
 ---

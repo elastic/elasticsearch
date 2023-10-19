@@ -15,6 +15,7 @@ import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Collections;
@@ -189,6 +191,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         private record DimensionDataHolder(String name, BytesReference value) {}
 
+        private static final int SEED = 0;
+
+        private final Murmur3Hasher hasher = new Murmur3Hasher(SEED);
+
         /**
          * A sorted set of the serialized values of dimension fields that will be used
          * for generating the _tsid field. The map will be used by {@link TimeSeriesIdFieldMapper}
@@ -239,46 +245,33 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             int tsidHashIndex = 0;
             byte[] tsidHash = new byte[16 + 16 + 16 + 4 * numberOfDimensions];
 
-            int dimensionValuesLength = 0;
-            final StringBuilder sb = new StringBuilder();
+            hasher.reset();
             for (final DimensionDataHolder dimension : dimensions) {
-                final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
-                dimensionValuesLength += (dimensionValueBytesRef.length - dimensionValueBytesRef.offset);
-                sb.append(dimension.name);
+                hasher.update(dimension.name.getBytes(StandardCharsets.UTF_8));
             }
-            tsidHashIndex += hash128(new BytesRef(sb.toString()), tsidHash, tsidHashIndex);
+            tsidHashIndex = hash128(tsidHash, tsidHashIndex);
 
             // NOTE: hash all metric field names
-            sb.setLength(0);
+            hasher.reset();
             for (final String metric : metrics) {
-                sb.append(metric);
+                hasher.update(metric.getBytes(StandardCharsets.UTF_8));
             }
-            tsidHashIndex += hash128(new BytesRef(sb.toString()), tsidHash, tsidHashIndex);
+            tsidHashIndex = hash128(tsidHash, tsidHashIndex);
 
             // NOTE: catenate all dimension value hashes up to names certain number of dimensions
             int tsidHashStartIndex = tsidHashIndex;
             for (final DimensionDataHolder dimension : dimensions) {
                 if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) break;
-                final BytesRef dimensionValueBytesRef = dimension.value().toBytesRef();
-                ByteUtils.writeIntLE(StringHelper.murmurhash3_x86_32(dimensionValueBytesRef, 0), tsidHash, tsidHashIndex);
+                ByteUtils.writeIntLE(StringHelper.murmurhash3_x86_32(dimension.value.toBytesRef(), SEED), tsidHash, tsidHashIndex);
                 tsidHashIndex += 4;
             }
 
             // NOTE: hash all dimension field allValues
-            int buf2Index = 0;
-            final byte[] buf2 = new byte[dimensionValuesLength];
+            hasher.reset();
             for (final DimensionDataHolder dimension : dimensions) {
-                final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
-                System.arraycopy(
-                    dimensionValueBytesRef.bytes,
-                    dimensionValueBytesRef.offset,
-                    buf2,
-                    buf2Index,
-                    dimensionValueBytesRef.length - dimensionValueBytesRef.offset
-                );
-                buf2Index += (dimensionValueBytesRef.length - dimensionValueBytesRef.offset);
+                hasher.update(dimension.value.array());
             }
-            tsidHashIndex += hash128(new BytesRef(buf2, 0, buf2.length), tsidHash, tsidHashIndex);
+            tsidHashIndex += hash128(tsidHash, tsidHashIndex);
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(TSID_HASH_SENTINEL);
@@ -287,12 +280,13 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
         }
 
-        private int hash128(final BytesRef value, final byte[] buffer, int bufferIndex) throws IOException {
-            final MurmurHash3.Hash128 hash128 = new MurmurHash3.Hash128();
-            MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash128);
-            ByteUtils.writeLongLE(hash128.h1, buffer, bufferIndex);
-            ByteUtils.writeLongLE(hash128.h2, buffer, bufferIndex + 8);
-            return 16;
+        private int hash128(byte[] tsidHash, int tsidHashIndex) {
+            MurmurHash3.Hash128 namesHash = Murmur3Hasher.toHash128(hasher.digest());
+            ByteUtils.writeLongLE(namesHash.h1, tsidHash, tsidHashIndex);
+            tsidHashIndex += 8;
+            ByteUtils.writeLongLE(namesHash.h2, tsidHash, tsidHashIndex);
+            tsidHashIndex += 8;
+            return tsidHashIndex;
         }
 
         @Override

@@ -398,10 +398,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(
-                source(b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH - 100, IndexWriter.MAX_TERM_LENGTH)))
+                source(b -> b.field("field", randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH, IndexWriter.MAX_TERM_LENGTH + 100)))
             )
         );
-        assertThat(e.getCause().getMessage(), equalTo("data stream timestamp field [@timestamp] is missing"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "Document contains at least one immense term in field=\"field\" (whose UTF8 encoding is longer than the max length 32766"
+            )
+        );
     }
 
     public void testConfigureSimilarity() throws IOException {

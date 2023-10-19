@@ -126,6 +126,7 @@ public class ProcessWorkerExecutorServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101144")
     public void testAutodetectWorkerExecutorServiceDoesNotSwallowErrors() {
         ProcessWorkerExecutorService executor = createExecutorService();
         if (randomBoolean()) {

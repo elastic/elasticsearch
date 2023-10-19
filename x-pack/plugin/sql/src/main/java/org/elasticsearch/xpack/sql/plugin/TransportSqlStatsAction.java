@@ -43,11 +43,9 @@ public class TransportSqlStatsAction extends TransportNodesAction<
     ) {
         super(
             SqlStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            SqlStatsRequest::new,
             SqlStatsRequest.NodeStatsRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

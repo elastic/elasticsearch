@@ -43,11 +43,9 @@ public final class TransportClearRepositoriesStatsArchiveAction extends Transpor
     ) {
         super(
             ClearRepositoriesMeteringArchiveAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRepositoriesMeteringArchiveRequest::new,
             ClearRepositoriesStatsArchiveNodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );

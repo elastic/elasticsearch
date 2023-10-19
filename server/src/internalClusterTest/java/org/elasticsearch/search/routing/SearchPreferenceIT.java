@@ -15,11 +15,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -245,7 +245,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(
                     IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                    internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                    internalCluster().getNodeNameThat(DiscoveryNode::canContainData)
                 ),
             "test2"
         );

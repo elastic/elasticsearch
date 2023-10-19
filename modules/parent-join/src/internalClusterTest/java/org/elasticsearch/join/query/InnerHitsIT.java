@@ -54,7 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -612,18 +612,17 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("index1", "child_type", "2", "1").get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(
-                boolQuery().should(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
-                ).should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("index1", "index2")
+                .setQuery(
+                    boolQuery().should(
+                        hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                            .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
+                    ).should(termQuery("key", "value"))
+                ),
+            "1",
+            "3"
+        );
     }
 
     public void testTooHighResultWindow() {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.script.LongFieldScript;
@@ -27,7 +25,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-@Seed("E4A92E72A82EE198:1A4787AC631219CA")
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override

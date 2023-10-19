@@ -69,6 +69,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -938,12 +939,9 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
             if (syntheticSourceDelegate != null) {
-                return syntheticSourceDelegate.blockLoader(loadFieldData, sourcePathsLookup);
+                return syntheticSourceDelegate.blockLoader(lookup, sourcePathsLookup);
             }
             if (isSyntheticSource) {
                 if (isStored()) {

@@ -54,6 +54,7 @@ import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -73,6 +74,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1239,12 +1241,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
-    @Repeat(iterations = 100)
+    @Repeat(iterations = 1000)
     public final void testBlockLoaderReadValues() throws IOException {
         testBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
     }
 
-    @Repeat(iterations = 100)
+    @Repeat(iterations = 1000)
     public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
         testBlockLoader(blockReader -> {
             TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
@@ -1286,11 +1288,29 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
                 Object expected = loader instanceof BlockSourceReader ? example.expectedParsed() : example.expectedParsedBlockLoader();
                 if (List.of().equals(expected)) {
-                    expected = null;
+                    assertThat(inBlock, nullValue());
+                    return;
                 }
-                assertEquals(expected, inBlock);
+                if (expected instanceof List<?> l) {
+                    ListMatcher m = ListMatcher.matchesList();
+                    for (Object v : l) {
+                        m = m.item(blockItemMatcher(v));
+                    }
+                    assertMap((List<?>) inBlock, m);
+                    return;
+                }
+                @SuppressWarnings("unchecked")
+                Matcher<Object> e = (Matcher<Object>) blockItemMatcher(expected);
+                assertThat(inBlock, e);
             }
         }
+    }
+
+    /**
+     * Matcher for {@link #testBlockLoaderReadValues} and {@link #testBlockLoaderReadValuesFromSingleDoc}.
+     */
+    protected Matcher<?> blockItemMatcher(Object expected) {
+        return equalTo(expected);
     }
 
     /**

@@ -36,6 +36,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -120,10 +121,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
             return BlockStoredFieldsReader.id();
         }
 

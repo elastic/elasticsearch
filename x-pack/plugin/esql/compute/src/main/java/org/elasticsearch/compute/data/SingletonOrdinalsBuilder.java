@@ -59,9 +59,9 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     @Override
     public BytesRefBlock build() {
-        // Increment breaker for sorted ords.
         try {
             long breakerSize = ordsSize(ords.length);
+            // Increment breaker for sorted ords.
             blockFactory.adjustBreaker(breakerSize, false);
             try {
                 int[] sortedOrds = ords.clone();

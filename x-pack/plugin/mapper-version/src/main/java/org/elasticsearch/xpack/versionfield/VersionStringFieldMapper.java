@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
@@ -295,10 +296,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
             failIfNoDocValues();
             return BlockDocValuesReader.bytesRefsFromOrds(name());
         }

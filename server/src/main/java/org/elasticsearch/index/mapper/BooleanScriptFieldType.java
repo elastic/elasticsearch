@@ -17,8 +17,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -114,11 +112,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public BlockLoader blockLoader(
-        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-        Function<String, Set<String>> sourcePathsLookup
-    ) {
-        return BlockDocValuesReader.booleanFromFieldData((IndexNumericFieldData) loadFieldData.apply(this));
+    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        return BooleanScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
     }
 
     @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -42,7 +45,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notANumber;
 
+@Seed("F7CB6E6316E647E2:1E90F5FED66C2B0B")
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -369,13 +374,13 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<Double, Double> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), roundDocValues(v.v1()), this::mapping);
+                return new SyntheticSourceExample(v.v1(), v.v2(), roundDocValues(v.v2()), this::mapping);
             }
             List<Tuple<Double, Double>> values = randomList(1, maxValues, this::generateValue);
             List<Double> in = values.stream().map(Tuple::v1).toList();
             List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            List<Double> outBlockList = values.stream().map(v -> roundDocValues(v.v1())).sorted().toList();
+            List<Double> outBlockList = values.stream().map(v -> roundDocValues(v.v2())).sorted().toList();
             Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
             return new SyntheticSourceExample(in, out, outBlock, this::mapping);
         }
@@ -438,6 +443,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     @Override
     protected Function<Object, Object> loadBlockExpected() {
         return v -> (Number) v;
+    }
+
+    @Override
+    protected Matcher<?> blockItemMatcher(Object expected) {
+        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
     }
 
     @Override

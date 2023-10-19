@@ -42,10 +42,7 @@ public final class BlockReaderFactories {
                 factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));
                 continue;
             }
-            BlockLoader loader = fieldType.blockLoader(
-                ft -> ctx.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                ctx::sourcePath
-            );
+            BlockLoader loader = fieldType.blockLoader(ctx.lookup(), ctx::sourcePath);
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
                 factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));

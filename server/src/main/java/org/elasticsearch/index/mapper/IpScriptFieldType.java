@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
@@ -207,5 +208,10 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));
         BytesRef upperBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(upper)));
         return new IpScriptFieldRangeQuery(script, leafFactory(context), name(), lowerBytes, upperBytes);
+    }
+
+    @Override
+    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        return IpScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
     }
 }

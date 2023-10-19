@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
@@ -138,13 +139,37 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
-            // TODO load a constant - we shouldn't need BlockDocValuesReader at all - some higher level abstraction would be nice
-            IndexFieldData<?> ifd = loadFieldData.apply(this);
-            return BlockDocValuesReader.bytesRefsFromDocValues(context -> ifd.load(context).getBytesValues());
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+            // TODO build a constant block directly
+            BytesRef bytes = new BytesRef(value);
+            return context -> new BlockDocValuesReader() {
+                private int docId;
+
+                @Override
+                public int docID() {
+                    return docId;
+                }
+
+                @Override
+                public BlockLoader.BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+
+                @Override
+                public BlockLoader.Builder readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+                    BlockLoader.BytesRefBuilder builder = builder(factory, docs.count());
+                    for (int i = 0; i < docs.count(); i++) {
+                        builder.appendBytesRef(bytes);
+                    }
+                    return builder;
+                }
+
+                @Override
+                public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
+                    this.docId = docId;
+                    ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(bytes);
+                }
+            };
         }
 
         @Override

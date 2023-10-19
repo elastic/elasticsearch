@@ -73,6 +73,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
@@ -854,10 +855,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
             if (hasDocValues()) {
                 // TODO it'd almost certainly be faster to drop directly to doc values like we do with keyword but this'll do for now
                 IndexFieldData<?> fd = new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD, null);

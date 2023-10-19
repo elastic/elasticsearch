@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -90,10 +91,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
             return BlockStoredFieldsReader.id();
         }
 

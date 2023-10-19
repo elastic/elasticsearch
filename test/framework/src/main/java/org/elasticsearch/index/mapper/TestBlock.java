@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Nullable;
@@ -104,6 +105,20 @@ public class TestBlock
         };
     }
 
+    public static final BlockLoader.Docs docs(LeafReaderContext ctx) {
+        return new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return ctx.reader().numDocs();
+            }
+
+            @Override
+            public int get(int i) {
+                return i;
+            }
+        };
+    }
+
     private final SortedDocValues sortedDocValues;
     private final List<Object> values = new ArrayList<>();
 
@@ -115,6 +130,10 @@ public class TestBlock
 
     public Object get(int i) {
         return values.get(i);
+    }
+
+    public int size() {
+        return values.size();
     }
 
     @Override

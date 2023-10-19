@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -635,10 +636,7 @@ public abstract class MappedFieldType {
      * Returns a loader for ESQL or {@code null} if the field doesn't support
      * ESQL.
      */
-    public BlockLoader blockLoader(
-        Function<MappedFieldType, IndexFieldData<?>> loadFieldData,  // NOCOMMIT "go around". scripts have trouble with that!
-        Function<String, Set<String>> sourcePathsLookup
-    ) {
+    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
         return null;
     }
 }

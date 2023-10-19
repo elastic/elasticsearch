@@ -580,10 +580,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(
-            Function<MappedFieldType, IndexFieldData<?>> loadFieldData,
-            Function<String, Set<String>> sourcePathsLookup
-        ) {
+        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
             if (hasDocValues()) {
                 return BlockDocValuesReader.bytesRefsFromOrds(name());
             }

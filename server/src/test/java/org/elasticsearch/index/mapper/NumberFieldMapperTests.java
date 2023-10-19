@@ -23,6 +23,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.notANumber;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -382,6 +384,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @Override
     protected Function<Object, Object> loadBlockExpected() {
         return n -> ((Number) n); // Just assert it's a number
+    }
+
+    @Override
+    protected Matcher<?> blockItemMatcher(Object expected) {
+        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
     }
 
     protected abstract Number randomNumber();

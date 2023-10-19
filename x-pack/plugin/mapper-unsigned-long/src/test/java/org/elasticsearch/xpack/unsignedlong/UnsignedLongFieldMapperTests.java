@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -30,6 +32,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -37,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 
+@Seed("547006EFE4A1444A:1A1E8BB1AAA83CB8")
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -363,6 +367,20 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> {
+            // Numbers are in the block as a long but the test needs to compare them to their BigInteger value parsed from xcontent.
+            if (v instanceof BigInteger ul) {
+                if (ul.bitLength() < Long.SIZE) {
+                    return ul.longValue() ^ Long.MIN_VALUE;
+                }
+                return ul.subtract(BigInteger.ONE.shiftLeft(Long.SIZE - 1)).longValue();
+            }
+            return ((Long) v).longValue() ^ Long.MIN_VALUE;
+        };
     }
 
     final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {

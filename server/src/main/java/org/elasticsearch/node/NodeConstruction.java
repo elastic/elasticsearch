@@ -62,6 +62,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -200,7 +201,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -532,8 +532,8 @@ class NodeConstruction {
             SystemIndexMigrationExecutor.getNamedWriteables().stream(),
             inferenceServiceRegistry.getNamedWriteables().stream()
         ).flatMap(Function.identity()).toList();
-        final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-        NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
+        namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        xContentRegistry = new NamedXContentRegistry(
             Stream.of(
                 NetworkModule.getNamedXContents().stream(),
                 IndicesModule.getNamedXContents().stream(),
@@ -1007,32 +1007,42 @@ class NodeConstruction {
         final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);
         clusterService.addListener(pluginShutdownService);
 
-        final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
-        final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator();
-
-        final MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
-        final CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
-            clusterService,
-            transportService,
-            discoveryModule.getCoordinator(),
-            masterHistoryService
-        );
-        final HealthService healthService = createHealthService(
-            clusterService,
-            clusterModule,
-            coordinationDiagnosticsService,
-            threadPool,
-            systemIndices
-        );
-        HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
-        healthPeriodicLogger.init();
-        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
-        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
-        HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
-        HealthApiStats healthApiStats = new HealthApiStats();
-
         List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
+
+        modules.add(loadDiagnosticServices(settings, clusterModule, discoveryModule.getCoordinator(), clusterService,
+            transportService, systemIndices, threadPool));
+
+        modules.add(b -> {
+            RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+            serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
+            SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
+            var peerRecovery = new PeerRecoverySourceService(
+                transportService,
+                indicesService,
+                clusterService,
+                recoverySettings,
+                recoveryPlannerService
+            );
+            resourcesToClose.add(peerRecovery);
+            b.bind(PeerRecoverySourceService.class)
+                .toInstance(
+                    peerRecovery
+                );
+            b.bind(PeerRecoveryTargetService.class)
+                .toInstance(
+                    new PeerRecoveryTargetService(
+                        client,
+                        threadPool,
+                        transportService,
+                        recoverySettings,
+                        clusterService,
+                        snapshotFilesProvider
+                    )
+                );
+        });
+
+        modules.add(loadPluginComponents(pluginComponents));
 
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
@@ -1075,44 +1085,7 @@ class NodeConstruction {
             b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
             b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
             b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
-            {
-                serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
-                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoryService);
-                b.bind(PeerRecoverySourceService.class)
-                    .toInstance(
-                        new PeerRecoverySourceService(
-                            transportService,
-                            indicesService,
-                            clusterService,
-                            recoverySettings,
-                            recoveryPlannerService
-                        )
-                    );
-                b.bind(PeerRecoveryTargetService.class)
-                    .toInstance(
-                        new PeerRecoveryTargetService(
-                            client,
-                            threadPool,
-                            transportService,
-                            recoverySettings,
-                            clusterService,
-                            snapshotFilesProvider
-                        )
-                    );
-            }
             b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
-            pluginComponents.forEach(p -> {
-                if (p instanceof PluginComponentBinding<?, ?> pcb) {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> clazz = (Class<Object>) pcb.inter();
-                    b.bind(clazz).toInstance(pcb.impl());
-
-                } else {
-                    @SuppressWarnings("unchecked")
-                    Class<Object> clazz = (Class<Object>) p.getClass();
-                    b.bind(clazz).toInstance(p);
-                }
-            });
             b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
             b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
             b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
@@ -1127,19 +1100,11 @@ class NodeConstruction {
             b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
             b.bind(ExecutorSelector.class).toInstance(executorSelector);
             b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
-            b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
-            b.bind(HealthService.class).toInstance(healthService);
-            b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
-            b.bind(CoordinationDiagnosticsService.class).toInstance(coordinationDiagnosticsService);
+            b.bind(DesiredNodesSettingsValidator.class).toInstance(new DesiredNodesSettingsValidator());
             b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
-            b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
-            b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
-            b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
-            b.bind(HealthApiStats.class).toInstance(healthApiStats);
             b.bind(Tracer.class).toInstance(tracer);
             b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             b.bind(WriteLoadForecaster.class).toInstance(writeLoadForecaster);
-            b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
             b.bind(CompatibilityVersions.class).toInstance(compatibilityVersions);
             b.bind(InferenceServiceRegistry.class).toInstance(inferenceServiceRegistry);
         });
@@ -1153,13 +1118,53 @@ class NodeConstruction {
 
         injector = modules.createInjector();
 
-        // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
-        // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
-        // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
-        // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
-        // reroute, which needs to call into the allocation service. We close the loop here:
-        clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
+        postInjection(clusterModule, actionModule, clusterService, transportService, pluginComponents);
+    }
 
+    private Module loadDiagnosticServices(Settings settings, ClusterModule clusterModule, Coordinator coordinator,
+                                          ClusterService clusterService, TransportService transportService,
+                                          SystemIndices systemIndices, ThreadPool threadPool) {
+
+        MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
+        CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            clusterService,
+            transportService,
+            coordinator,
+            masterHistoryService
+        );
+
+        var serverHealthIndicatorServices = Stream.of(
+            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
+            new DiskHealthIndicatorService(clusterService),
+            new ShardsCapacityHealthIndicatorService(clusterService)
+        );
+        var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
+            .stream()
+            .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());
+
+        HealthService healthService = new HealthService(
+            Stream.concat(serverHealthIndicatorServices, pluginHealthIndicatorServices).toList(),
+            threadPool);
+        HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(settings, clusterService, client, healthService);
+        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
+        HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
+
+        return b -> {
+            b.bind(HealthService.class).toInstance(healthService);
+            b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
+            b.bind(CoordinationDiagnosticsService.class).toInstance(coordinationDiagnosticsService);
+            b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
+            b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
+            b.bind(HealthInfoCache.class).toInstance(nodeHealthOverview);
+            b.bind(HealthApiStats.class).toInstance(new HealthApiStats());
+            b.bind(HealthPeriodicLogger.class).toInstance(healthPeriodicLogger);
+        };
+    }
+
+    private Module loadPluginComponents(Collection<Object> pluginComponents) {
         List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream().map(p -> {
             if (p instanceof PluginComponentBinding<?, ?> pcb) {
                 return pcb.impl();
@@ -1167,8 +1172,30 @@ class NodeConstruction {
             return p;
         }).filter(p -> p instanceof LifecycleComponent).map(p -> (LifecycleComponent) p).toList();
         resourcesToClose.addAll(pluginLifecycleComponents);
-        resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
-        this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
+        this.pluginLifecycleComponents = pluginLifecycleComponents;
+
+        return b ->
+            pluginComponents.forEach(p -> {
+                if (p instanceof PluginComponentBinding<?, ?> pcb) {
+                    @SuppressWarnings("unchecked")
+                    Class<Object> clazz = (Class<Object>) pcb.inter();
+                    b.bind(clazz).toInstance(pcb.impl());
+                } else {
+                    @SuppressWarnings("unchecked")
+                    Class<Object> clazz = (Class<Object>) p.getClass();
+                    b.bind(clazz).toInstance(p);
+                }
+            });
+    }
+
+    private void postInjection(ClusterModule clusterModule, ActionModule actionModule,
+                               ClusterService clusterService, TransportService transportService, Collection<Object> pluginComponents) {
+        // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
+        // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it
+        // completes we trigger another reroute to try the allocation again. This means there is a circular dependency: the allocation
+        // service needs access to the existing shards allocators (e.g. the GatewayAllocator) which need to be able to trigger a
+        // reroute, which needs to call into the allocation service. We close the loop here:
+        clusterModule.setExistingShardsAllocators(injector.getInstance(GatewayAllocator.class));
 
         // Due to Java's type erasure with generics, the injector can't give us exactly what we need, and we have
         // to resort to some evil casting.
@@ -1185,8 +1212,6 @@ class NodeConstruction {
             transportService.getRemoteClusterService(),
             namedWriteableRegistry
         );
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.xContentRegistry = xContentRegistry;
 
         logger.debug("initializing HTTP handlers ...");
         actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
@@ -1248,36 +1273,6 @@ class NodeConstruction {
         }
 
         return telemetryPlugins.isEmpty() ? TelemetryProvider.NOOP : telemetryPlugins.get(0).getTelemetryProvider(settings);
-    }
-
-    private HealthService createHealthService(
-        ClusterService clusterService,
-        ClusterModule clusterModule,
-        CoordinationDiagnosticsService coordinationDiagnosticsService,
-        ThreadPool threadPool,
-        SystemIndices systemIndices
-    ) {
-        var serverHealthIndicatorServices = List.of(
-            new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
-            new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(clusterService, clusterModule.getAllocationService(), systemIndices),
-            new DiskHealthIndicatorService(clusterService),
-            new ShardsCapacityHealthIndicatorService(clusterService)
-        );
-        var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
-            .stream()
-            .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
-            .toList();
-        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices), threadPool);
-    }
-
-    private static HealthPeriodicLogger createHealthPeriodicLogger(
-        ClusterService clusterService,
-        Settings settings,
-        NodeClient client,
-        HealthService healthService
-    ) {
-        return new HealthPeriodicLogger(settings, clusterService, client, healthService);
     }
 
     private RecoveryPlannerService getRecoveryPlannerService(

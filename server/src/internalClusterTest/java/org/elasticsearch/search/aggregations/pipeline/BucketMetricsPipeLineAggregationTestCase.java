@@ -37,7 +37,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -134,7 +134,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count"))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get(histoName);
         assertThat(histo, notNullValue());
@@ -170,7 +170,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -208,7 +208,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -250,7 +250,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -308,7 +308,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -355,7 +355,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -385,7 +385,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
             .addAggregation(BucketMetricsPipelineAgg("nested_terms_bucket", termsName + ">nested_histo_bucket." + nestedMetric()))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());

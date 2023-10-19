@@ -96,7 +96,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -541,14 +540,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse result = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
         ).prepareSearch("query_index").setQuery(new PercolateQueryBuilder("query", "doc_index", "1", null, null, null)).get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 can access the query_index itself (without performing percolate search)
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 cannot access doc#1 of the doc_index so the percolate search fails because doc#1 cannot be found
         ResourceNotFoundException e = expectThrows(
@@ -596,14 +595,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             requestBuilder.setQuery(shapeQuery);
         }
         result = requestBuilder.get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 does not have access to doc#1 of the shape_index
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("search_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         IllegalArgumentException e;
         if (randomBoolean()) {

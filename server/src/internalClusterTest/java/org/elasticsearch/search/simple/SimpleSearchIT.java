@@ -46,6 +46,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -190,29 +191,25 @@ public class SimpleSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field", "1967-01-01T00:00").get();
         ensureGreen();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d"))
-            .get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2L);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d")),
+            2L
+        );
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lte("2010-01-06T02:00"))
-            .get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2L);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lte("2010-01-06T02:00")),
+            2L
+        );
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lt("2010-01-06T02:00"))
-            .get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1L);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lt("2010-01-06T02:00")),
+            1L
+        );
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("field").gt("2010-01-05T02:00").lt("2010-01-06T02:00"))
-            .get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 0L);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("2010-01-05T02:00").lt("2010-01-06T02:00")),
+            0L
+        );
 
         assertHitCount(
             client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")),
@@ -220,12 +217,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
 
         // a string value of "1000" should be parsed as the year 1000 and return all three docs
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("1000")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 3L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("1000")), 3L);
 
         // a numeric value of 1000 should be parsed as 1000 millis since epoch and return only docs after 1970
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(1000)).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(1000)).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2L);
         String[] expectedIds = new String[] { "1", "2" };
@@ -245,37 +240,14 @@ public class SimpleSearchIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lte("B")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("A").lte("B")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lt("B")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 3L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 2L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 4L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 4L);
-
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 3L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lte("B")), 2L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("A").lte("B")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lt("B")), 1L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")), 3L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)), 2L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)), 4L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)), 4L);
+        assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)), 3L);
     }
 
     public void testSimpleTerminateAfterCount() throws Exception {

@@ -35,7 +35,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,7 +102,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             .addAggregation(adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         AdjacencyMatrix matrix = response.getAggregations().get("tags");
         assertThat(matrix, notNullValue());
@@ -134,7 +134,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             .addAggregation(adjacencyMatrix("tags", "\t", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         AdjacencyMatrix matrix = response.getAggregations().get("tags");
         assertThat(matrix, notNullValue());
@@ -157,7 +157,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             .addAggregation(adjacencyMatrix("tags", newMap("all", emptyFilter).add("tag1", termQuery("tag", "tag1"))))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         AdjacencyMatrix filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -180,7 +180,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         AdjacencyMatrix matrix = response.getAggregations().get("tags");
         assertThat(matrix, notNullValue());
@@ -309,7 +309,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());

@@ -36,7 +36,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -50,7 +49,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             .addAggregation(children("to_comment", "comment"));
         final SearchResponse searchResponse = searchRequest.get();
         long count = categoryToControl.values().stream().mapToLong(control -> control.commentIds.size()).sum();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         Children childrenAgg = searchResponse.getAggregations().get("to_comment");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n", childrenAgg.getDocCount(), equalTo(count));
     }
@@ -68,7 +67,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                     )
             )
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
@@ -107,7 +106,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                     .subAggregation(children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC)))
             )
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
@@ -204,7 +203,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testNonExistingChildType() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test").addAggregation(children("non-existing", "xyz")).get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         Children children = searchResponse.getAggregations().get("non-existing");
         assertThat(children.getName(), equalTo("non-existing"));

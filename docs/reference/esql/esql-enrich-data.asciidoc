@@ -13,12 +13,11 @@ For example, you can use `ENRICH` to:
 * Identify web services or vendors based on known IP addresses
 * Add product information to retail orders based on product IDs
 * Supplement contact information based on an email address
-* Add postal codes based on user coordinates
 
 [[esql-how-enrich-works]]
 ==== How the `ENRICH` command works
 
-The `ENRICH` commands adds new columns to a table, with data from {es} indices.
+The `ENRICH` command adds new columns to a table, with data from {es} indices.
 It requires a few special components:
 
 image::images/esql/esql-enrich.png[align="center"]

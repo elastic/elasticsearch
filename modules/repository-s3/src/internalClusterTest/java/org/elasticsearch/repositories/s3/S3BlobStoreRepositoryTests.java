@@ -54,7 +54,6 @@ import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.telemetry.DelegatingMeter;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.metric.MeterService;
 import org.elasticsearch.telemetry.tracing.Tracer;

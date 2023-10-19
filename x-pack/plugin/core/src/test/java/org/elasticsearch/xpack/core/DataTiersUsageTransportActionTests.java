@@ -59,7 +59,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(leader, Map.of()),
             new NodeDataTiersUsage(dataNode1, Map.of())
         );
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
             nodeDataTiersUsages
         );
 
@@ -85,7 +85,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(frozenNode1, Map.of())
         );
 
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
             nodeDataTiersUsages
         );
 
@@ -149,6 +149,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         DiscoveryNode dataNode2 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
         DiscoveryNode dataNode3 = newNode(nodeId, DiscoveryNodeRole.DATA_ROLE);
 
+        // Indices:
+        // 1 Hot index: 3 primaries, 3 replicas one on each node
+        // 2 Warm indices, each index 1 primary one replica
+        // 3 Cold indices, each index 1 primary on a different node
         String hotIndex = "hot_index_1";
         String warmIndex1 = "warm_index_1";
         String warmIndex2 = "warm_index_2";
@@ -193,7 +197,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             )
         );
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
             nodeDataTiersUsages
         );
 
@@ -251,6 +255,10 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         DiscoveryNode warmNode5 = newNode(nodeId++, DiscoveryNodeRole.DATA_WARM_NODE_ROLE);
         DiscoveryNode coldNode1 = newNode(nodeId, DiscoveryNodeRole.DATA_COLD_NODE_ROLE);
 
+        // Indices:
+        // 1 Hot index: 3 primaries, 3 replicas one on each node
+        // 2 Warm indices: each index has 1 primary and 1 replica residing in 4 nodes
+        // 3 Cold indices: 1 primary each on the cold node
         String hotIndex1 = "hot_index_1";
         String warmIndex1 = "warm_index_1";
         String warmIndex2 = "warm_index_2";
@@ -275,7 +283,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         );
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
             nodeDataTiersUsages
         );
 
@@ -332,6 +340,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         String warmIndex1 = "warm_index_1";
         String warmIndex2 = "warm_index_2";
 
+        // Indices: 1 Hot index, 2 Warm indices
         List<NodeDataTiersUsage> nodeDataTiersUsages = List.of(
             new NodeDataTiersUsage(leader, Map.of()),
             new NodeDataTiersUsage(
@@ -364,7 +373,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
             nodeDataTiersUsages
         );
 
@@ -432,7 +441,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.calculateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
             nodeDataTiersUsages
         );
 

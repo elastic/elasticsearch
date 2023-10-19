@@ -35,7 +35,7 @@ public class NodeDataTiersUsage extends BaseNodeResponse {
         private long docCount;
         private long totalSize;
 
-        UsageStats() {
+        public UsageStats() {
             this.indices = new HashSet<>();
             this.primaryShardSizes = new ArrayList<>();
             this.totalShardCount = 0;

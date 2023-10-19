@@ -23,6 +23,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * This action requires every node to calculate data tier usage statistics, with the sole purpose to be aggregated
+ * by {@link org.elasticsearch.xpack.core.DataTiersUsageTransportAction}.
+ */
 public class NodesDataTiersUsageAction extends ActionType<NodesDataTiersUsageAction.NodesResponse> {
 
     public static final NodesDataTiersUsageAction INSTANCE = new NodesDataTiersUsageAction();

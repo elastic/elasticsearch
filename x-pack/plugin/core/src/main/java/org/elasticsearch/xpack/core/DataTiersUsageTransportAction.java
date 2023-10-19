@@ -75,7 +75,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 new NodesDataTiersUsageAction.NodesRequest(),
                 listener.delegateFailureAndWrap((delegate, response) -> {
                     // Generate tier specific stats for the nodes and indices
-                    delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(calculateStats(response.getNodes()))));
+                    delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(aggregateStats(response.getNodes()))));
                 })
             );
     }
@@ -95,21 +95,22 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     // Visible for testing
-    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(List<NodeDataTiersUsage> nodeDataTiersUsages) {
+    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> aggregateStats(List<NodeDataTiersUsage> nodeDataTiersUsages) {
         Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
         for (NodeDataTiersUsage nodeDataTiersUsage : nodeDataTiersUsages) {
+            // This ensures we only count the nodes that responded
             aggregateDataTierNodeCounts(nodeDataTiersUsage, statsAccumulators);
             aggregateDataTierIndexStats(nodeDataTiersUsage, statsAccumulators);
         }
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> results = new HashMap<>();
         for (Map.Entry<String, TierStatsAccumulator> entry : statsAccumulators.entrySet()) {
-            results.put(entry.getKey(), calculateFinalTierStats(entry.getValue()));
+            results.put(entry.getKey(), aggregateFinalTierStats(entry.getValue()));
         }
         return results;
     }
 
     /**
-     * Determine which data tiers this node belongs to (if any), and increment the node counts for those tiers.
+     * Determine which data tiers each node belongs to (if any), and increment the node counts for those tiers.
      */
     private static void aggregateDataTierNodeCounts(NodeDataTiersUsage nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
         nodeStats.getNode()
@@ -121,7 +122,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     /**
-     * Locate which indices are hosted on the node specified by the NodeStats, then group and aggregate the available index stats by tier.
+     * Iterate the preferred tiers of the indices for a node and aggregate their stats.
      */
     private static void aggregateDataTierIndexStats(NodeDataTiersUsage nodeDataTiersUsage, Map<String, TierStatsAccumulator> accumulators) {
         for (Map.Entry<String, NodeDataTiersUsage.UsageStats> entry : nodeDataTiersUsage.getUsageStatsByTier().entrySet()) {
@@ -142,7 +143,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         }
     }
 
-    private static DataTiersFeatureSetUsage.TierSpecificStats calculateFinalTierStats(TierStatsAccumulator accumulator) {
+    private static DataTiersFeatureSetUsage.TierSpecificStats aggregateFinalTierStats(TierStatsAccumulator accumulator) {
         long primaryShardSizeMedian = (long) accumulator.valueSketch.quantile(0.5);
         long primaryShardSizeMAD = computeMedianAbsoluteDeviation(accumulator.valueSketch);
         return new DataTiersFeatureSetUsage.TierSpecificStats(

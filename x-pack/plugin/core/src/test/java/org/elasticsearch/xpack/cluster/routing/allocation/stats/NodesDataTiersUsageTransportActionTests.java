@@ -163,18 +163,18 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testCalculateStatsTieredIndicesOnly() {
-        // Nodes: 3 Data, 0 Tiered - Only hosting indices on generic data nodes
+        // Nodes: 2 Data, 0 Tiered - Only hosting indices on generic data nodes
         int nodeId = 0;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
 
         DiscoveryNode dataNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
         discoBuilder.add(dataNode1);
-        DiscoveryNode dataNode2 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
+        DiscoveryNode dataNode2 = newNode(nodeId, DiscoveryNodeRole.DATA_ROLE);
         discoBuilder.add(dataNode2);
 
         discoBuilder.localNodeId(dataNode1.getId());
 
-        // Indices: 1 Hot index, 2 Warm indices, 3 Cold indices
+        // Indices: 1 Hot index, 2 Warm indices, 1 Cold indices
         Metadata.Builder metadataBuilder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
@@ -229,7 +229,7 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
             nodeIndicesStats
         );
 
-        // Verify - Index stats exist for the tiers, but no tiered nodes are found
+        // Verify - Index stats exist for the tiers
         assertThat(usageStats.size(), is(3));
 
         NodeDataTiersUsage.UsageStats hotStats = usageStats.get(DataTier.DATA_HOT);

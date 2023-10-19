@@ -157,7 +157,7 @@ public final class StringUtils {
                     case '*' -> regex.append(escaped ? "\\*" : ".*");
                     case '?' -> regex.append(escaped ? "\\?" : ".");
                     default -> {
-                        if (escaped) {
+                        if (escaped && escape != curr) {
                             throw new QlIllegalArgumentException(
                                 "Invalid sequence - escape character is not followed by special wildcard char"
                             );

@@ -258,7 +258,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             }
             tsidHashIndex = hash128(tsidHash, tsidHashIndex);
 
-            // NOTE: catenate all dimension value hashes up to names certain number of dimensions
+            // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
             int tsidHashStartIndex = tsidHashIndex;
             for (final DimensionDataHolder dimension : dimensions) {
                 if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) break;

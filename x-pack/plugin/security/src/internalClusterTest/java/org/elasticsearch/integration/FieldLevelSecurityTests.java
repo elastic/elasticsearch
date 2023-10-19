@@ -82,7 +82,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -485,33 +484,33 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse result = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user7", USERS_PASSWD))
         ).prepareSearch("query_index").setQuery(percolateQuery).get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user 3 can see the fields of the percolated document, but not the "query" field of the indexed query
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(percolateQuery)
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 0);
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user 9 can see the fields of the index query, but not the field of the indexed document to be percolated
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user9", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(percolateQuery)
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 0);
     }
 
@@ -573,7 +572,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             requestBuilder.setQuery(shapeQuery1);
         }
         result = requestBuilder.get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user sees the queried point but not the querying shape
         final ShapeQueryBuilder shapeQuery2 = new ShapeQueryBuilder("field", "2").relation(ShapeRelation.WITHIN)
@@ -611,7 +610,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
             requestBuilder.setQuery(shapeQuery3);
         }
         result = requestBuilder.get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 0);
     }
 

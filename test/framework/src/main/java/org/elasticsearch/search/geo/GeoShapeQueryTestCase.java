@@ -36,8 +36,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoShapeQueryBuilder> {
@@ -160,11 +159,10 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
 
         Point filterShape = new Point(179, 0);
 
-        SearchResponse result = client().prepareSearch(defaultIndexName)
-            .setQuery(queryBuilder().intersectionQuery(defaultFieldName, filterShape))
-            .get();
-        assertSearchResponse(result);
-        assertHitCount(result, 1);
+        assertHitCountAndNoFailures(
+            client().prepareSearch(defaultIndexName).setQuery(queryBuilder().intersectionQuery(defaultFieldName, filterShape)),
+            1
+        );
     }
 
     protected Line makeRandomLine() {

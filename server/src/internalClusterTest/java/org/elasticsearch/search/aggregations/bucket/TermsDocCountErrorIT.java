@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -278,7 +278,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx")
             .addAggregation(
@@ -291,7 +291,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertDocCountErrorWithinBounds(size, accurateResponse, testResponse);
     }
@@ -310,7 +310,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -323,7 +323,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -344,7 +344,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountErrorSingleResponse(size, testResponse);
     }
@@ -364,7 +364,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -378,7 +378,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -398,7 +398,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -412,7 +412,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -432,7 +432,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -446,7 +446,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -467,7 +467,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -482,7 +482,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -503,7 +503,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -518,7 +518,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -537,7 +537,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx")
             .addAggregation(
@@ -550,7 +550,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertDocCountErrorWithinBounds(size, accurateResponse, testResponse);
     }
@@ -569,7 +569,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -582,7 +582,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -603,7 +603,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountErrorSingleResponse(size, testResponse);
     }
@@ -623,7 +623,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -637,7 +637,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -657,7 +657,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -671,7 +671,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -691,7 +691,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -705,7 +705,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -726,7 +726,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -741,7 +741,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -762,7 +762,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -777,7 +777,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -796,7 +796,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx")
             .addAggregation(
@@ -809,7 +809,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertDocCountErrorWithinBounds(size, accurateResponse, testResponse);
     }
@@ -828,7 +828,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -841,7 +841,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -862,7 +862,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountErrorSingleResponse(size, testResponse);
     }
@@ -882,7 +882,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -896,7 +896,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -916,7 +916,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -930,7 +930,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -950,7 +950,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -964,7 +964,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertNoDocCountError(size, accurateResponse, testResponse);
     }
@@ -985,7 +985,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -1000,7 +1000,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -1021,7 +1021,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(accurateResponse);
+        assertNoFailures(accurateResponse);
 
         SearchResponse testResponse = client().prepareSearch("idx_single_shard")
             .addAggregation(
@@ -1036,7 +1036,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(testResponse);
+        assertNoFailures(testResponse);
 
         assertUnboundedDocCountError(size, accurateResponse, testResponse);
     }
@@ -1057,7 +1057,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .collectMode(randomFrom(SubAggCollectionMode.values()))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -1112,7 +1112,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                     .collectMode(randomFrom(SubAggCollectionMode.values()))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms.getDocCountError(), equalTo(0L));
     }

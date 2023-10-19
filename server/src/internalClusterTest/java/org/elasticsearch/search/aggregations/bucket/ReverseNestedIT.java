@@ -35,7 +35,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -157,7 +156,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested, notNullValue());
@@ -339,7 +338,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested.getName(), equalTo("nested1"));
         assertThat(nested.getDocCount(), equalTo(9L));
@@ -371,7 +370,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested, notNullValue());
@@ -714,7 +713,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested1");
         Terms nestedTerms = nested.getAggregations().get("field2");

@@ -50,6 +50,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
@@ -952,9 +953,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         QueryBuilder query = nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
-        SearchResponse response = client().prepareSearch("index2").setQuery(query).get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(client().prepareSearch("index2").setQuery(query), 1);
     }
 
     public void testTooHighResultWindow() throws Exception {
@@ -966,15 +965,15 @@ public class InnerHitsIT extends ESIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        SearchResponse response = client().prepareSearch("index2")
-            .setQuery(
-                nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFrom(50).setSize(10).setName("_name")
-                )
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("index2")
+                .setQuery(
+                    nestedQuery("nested", matchQuery("nested.field", "value1"), ScoreMode.Avg).innerHit(
+                        new InnerHitBuilder().setFrom(50).setSize(10).setName("_name")
+                    )
+                ),
+            1
+        );
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,

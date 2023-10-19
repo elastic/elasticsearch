@@ -223,6 +223,15 @@ public class ElasticsearchAssertions {
         return msg.toString();
     }
 
+    public static void assertNoSearchHits(SearchRequestBuilder searchRequestBuilder) {
+        var searchResponse = searchRequestBuilder.get();
+        try {
+            assertNoSearchHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
     public static void assertNoSearchHits(SearchResponse searchResponse) {
         assertThat(searchResponse.getHits().getHits(), emptyArray());
     }
@@ -242,6 +251,17 @@ public class ElasticsearchAssertions {
             searchResponse.getHits(),
             transformedItemsMatch(SearchHit::getId, containsInAnyOrder(ids))
         );
+    }
+
+    public static void assertSearchHitsWithoutFailures(SearchRequestBuilder requestBuilder, String... ids) {
+        var res = requestBuilder.get();
+        try {
+            assertNoFailures(res);
+            assertHitCount(res, ids.length);
+            assertSearchHits(res, ids);
+        } finally {
+            res.decRef();
+        }
     }
 
     public static void assertSortValues(SearchRequestBuilder searchRequestBuilder, Object[]... sortValues) {

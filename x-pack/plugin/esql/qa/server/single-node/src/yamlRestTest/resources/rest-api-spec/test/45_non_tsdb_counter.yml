@@ -1,4 +1,6 @@
 setup:
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -57,6 +59,8 @@ setup:
 ---
 load everything:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
@@ -80,6 +84,8 @@ load everything:
 ---
 load a document:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'
@@ -97,6 +103,8 @@ load a document:
 ---
 filter on counter:
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where k8s.pod.network.tx == 1434577921'

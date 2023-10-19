@@ -121,7 +121,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
                             protected void doRun() {
                                 if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
                                     blobContainer.compareAndExchangeRegister(
-                                        OperationPurpose.SNAPSHOT,
+                                        OperationPurpose.REPOSITORY_ANALYSIS,
                                         registerName,
                                         bytesFromLong(currentValue),
                                         bytesFromLong(currentValue + 1L),
@@ -169,10 +169,10 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
             };
 
             if (request.getInitialRead() > request.getRequestCount()) {
-                blobContainer.getRegister(OperationPurpose.SNAPSHOT, registerName, initialValueListener);
+                blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener);
             } else {
                 blobContainer.compareAndExchangeRegister(
-                    OperationPurpose.SNAPSHOT,
+                    OperationPurpose.REPOSITORY_ANALYSIS,
                     registerName,
                     bytesFromLong(request.getInitialRead()),
                     bytesFromLong(

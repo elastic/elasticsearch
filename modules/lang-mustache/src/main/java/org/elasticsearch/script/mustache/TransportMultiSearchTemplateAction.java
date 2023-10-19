@@ -46,7 +46,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         UsageService usageService
     ) {
         super(
-            MultiSearchTemplateAction.NAME,
+            MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION.name(),
             transportService,
             actionFilters,
             MultiSearchTemplateRequest::new,

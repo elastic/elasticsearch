@@ -98,12 +98,15 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
-                    getCheckpointNodeAction.execute(null, (GetCheckpointNodeAction.Request) request, ActionListener.wrap(r -> {
-                        this.handleResponse(requestId, r);
-                    }, e -> {
-                        this.handleError(requestId, new TransportException(e.getMessage(), e));
-
-                    }));
+                    GetCheckpointNodeAction.Request getCheckpointNodeActionRequest = (GetCheckpointNodeAction.Request) request;
+                    Task task = getCheckpointNodeActionRequest.createTask(123, "type", "action", null, Map.of());
+                    getCheckpointNodeAction.execute(
+                        task,
+                        getCheckpointNodeActionRequest,
+                        ActionListener.wrap(r -> { this.handleResponse(requestId, r); }, e -> {
+                            this.handleError(requestId, new TransportException(e.getMessage(), e));
+                        })
+                    );
                 }
             }
         };
@@ -153,13 +156,12 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             Strings.EMPTY_ARRAY,
             IndicesOptions.LENIENT_EXPAND_OPEN,
-            TimeValue.ZERO
+            TimeValue.timeValueSeconds(5)
         );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
             Map<String, long[]> checkpoints = response.getCheckpoints();
             assertTrue(checkpoints.isEmpty());
-
         });
     }
 
@@ -167,7 +169,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePattern + "0" },
             IndicesOptions.LENIENT_EXPAND_OPEN,
-            TimeValue.ZERO
+            TimeValue.timeValueSeconds(5)
         );
 
         assertCheckpointAction(request, response -> {
@@ -179,7 +181,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                 assertEquals(42 + i, checkpoints.get(indexNamePattern + "0")[i]);
             }
             assertEquals(numberOfNodes, getCheckpointNodeAction.getCalls());
-
         });
     }
 
@@ -187,7 +188,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             testIndices,
             IndicesOptions.LENIENT_EXPAND_OPEN,
-            TimeValue.ZERO
+            TimeValue.timeValueSeconds(5)
         );
         assertCheckpointAction(request, response -> {
             assertNotNull(response.getCheckpoints());
@@ -213,7 +214,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             resolveIndicesAndGetCheckpoint(task, request, listener, clusterStateWithIndex);
         }
-
     }
 
     class TestTransportGetCheckpointNodeAction extends TransportGetCheckpointNodeAction {

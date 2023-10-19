@@ -2,4 +2,5 @@ pr: 101128
 summary: Move data tier usage calculation to node level
 area: ILM+SLM
 type: bug
-issues: []
+issues: 
+  - 100230

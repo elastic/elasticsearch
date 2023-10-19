@@ -88,7 +88,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
         AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
-        assertNoSearchHits(client().prepareSearch().get());
+        assertNoSearchHits(client().prepareSearch());
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);

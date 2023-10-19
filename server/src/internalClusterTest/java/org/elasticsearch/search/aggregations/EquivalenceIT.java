@@ -57,7 +57,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -367,7 +366,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1))
             .get();
 
-        assertSearchResponse(resp);
+        assertNoFailures(resp);
 
         Terms terms = resp.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -427,7 +426,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filter filter = response.getAggregations().get("filter");
         assertNotNull(filter);
@@ -493,7 +492,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(r1);
+        assertNoFailures(r1);
         final SearchResponse r2 = client().prepareSearch("idx")
             .addAggregation(
                 terms("f1").field("f1")
@@ -505,7 +504,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(r2);
+        assertNoFailures(r2);
 
         final Terms t1 = r1.getAggregations().get("f1");
         final Terms t2 = r2.getAggregations().get("f1");

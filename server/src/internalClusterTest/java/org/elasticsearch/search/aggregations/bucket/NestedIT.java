@@ -48,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -182,7 +181,7 @@ public class NestedIT extends ESIntegTestCase {
             .addAggregation(nested("nested", "nested").subAggregation(stats("nested_value_stats").field("nested.value")))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -231,7 +230,7 @@ public class NestedIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         long docCount = 0;
         long[] counts = new long[numParents + 6];
@@ -284,7 +283,7 @@ public class NestedIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         LongTerms values = response.getAggregations().get("top_values");
         assertThat(values, notNullValue());
@@ -313,7 +312,7 @@ public class NestedIT extends ESIntegTestCase {
                 )
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested level1 = response.getAggregations().get("level1");
         assertThat(level1, notNullValue());

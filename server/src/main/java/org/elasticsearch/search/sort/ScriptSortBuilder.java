@@ -25,11 +25,9 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesScriptComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -333,34 +331,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             }
             case NUMBER -> {
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
-                // searchLookup is unnecessary here, as it's just used for expressions
-                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
-                return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    NumberSortScript leafScript;
-
-                    @Override
-                    protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        final NumericDoubleValues values = new NumericDoubleValues() {
-                            @Override
-                            public boolean advanceExact(int doc) throws IOException {
-                                leafScript.setDocument(doc);
-                                return true;
-                            }
-
-                            @Override
-                            public double doubleValue() {
-                                return leafScript.execute();
-                            }
-                        };
-                        return FieldData.singleton(values);
-                    }
-
-                    @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
-                    }
-                };
+                return new DoubleValuesScriptComparatorSource(
+                    Double.MAX_VALUE,
+                    valueMode,
+                    nested,
+                    numberSortFactory.newFactory(script.getParams(), searchLookup),
+                    searchLookup // searchLookup is unnecessary here, as it's just used for expressions
+                );
             }
             case VERSION -> {
                 final BytesRefSortScript.Factory factory = context.compile(script, BytesRefSortScript.CONTEXT);
@@ -501,10 +478,5 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             return this;
         }
         return new ScriptSortBuilder(this).setNestedSort(rewrite);
-    }
-
-    @Override
-    public boolean supportsParallelCollection() {
-        return false;
     }
 }

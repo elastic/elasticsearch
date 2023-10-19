@@ -1,3 +1,4 @@
+[discrete]
 [[esql-replace]]
 === `REPLACE`
 The function substitutes in the string (1st argument) any match of the regular expression (2nd argument) with the replacement string (3rd argument).

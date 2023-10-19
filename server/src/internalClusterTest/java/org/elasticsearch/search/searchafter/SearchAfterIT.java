@@ -269,7 +269,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             .addSort(SortBuilders.fieldSort("end_date").setFormat("epoch_millis"))
             .searchAfter(new Object[] { "21/02/2016", 1748390400000L })
             .setSize(2);
-        assertNoFailures(searchRequest.get());
+        assertNoFailures(searchRequest);
 
         searchRequest = client().prepareSearch("test")
             .addSort(SortBuilders.fieldSort("start_date").setFormat("dd/MM/yyyy"))

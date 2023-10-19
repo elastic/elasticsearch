@@ -63,7 +63,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -1033,7 +1032,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             );
         }
         SearchResponse resp = req.get();
-        assertSearchResponse(resp);
+        assertNoFailures(resp);
         for (SearchHit hit : resp.getHits().getHits()) {
             final int id = Integer.parseInt(hit.getId());
             Map<String, DocumentField> fields = hit.getFields();
@@ -1271,7 +1270,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         );
 
         SearchResponse response = client().prepareSearch("test").addStoredField("field1").get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertHitCount(response, 1);
 
         Map<String, DocumentField> fields = response.getHits().getAt(0).getMetadataFields();

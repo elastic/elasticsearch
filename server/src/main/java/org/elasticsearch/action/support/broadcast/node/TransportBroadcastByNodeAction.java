@@ -95,6 +95,7 @@ public abstract class TransportBroadcastByNodeAction<
         this(actionName, clusterService, transportService, actionFilters, indexNameExpressionResolver, request, executor, true);
     }
 
+    @SuppressWarnings("this-escape")
     public TransportBroadcastByNodeAction(
         String actionName,
         ClusterService clusterService,

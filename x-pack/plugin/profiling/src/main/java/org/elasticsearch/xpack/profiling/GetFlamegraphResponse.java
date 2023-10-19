@@ -23,6 +23,9 @@ import java.util.Map;
 public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXContentObject {
     private final int size;
     private final double samplingRate;
+    private final int selfCPU;
+    private final int totalCPU;
+    private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
     private final List<Integer> frameTypes;
@@ -51,6 +54,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.sourceLines = in.readCollectionAsList(StreamInput::readInt);
         this.countInclusive = in.readCollectionAsList(StreamInput::readInt);
         this.countExclusive = in.readCollectionAsList(StreamInput::readInt);
+        this.selfCPU = in.readInt();
+        this.totalCPU = in.readInt();
+        this.totalSamples = in.readLong();
     }
 
     public GetFlamegraphResponse(
@@ -67,7 +73,10 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         List<String> sourceFileNames,
         List<Integer> sourceLines,
         List<Integer> countInclusive,
-        List<Integer> countExclusive
+        List<Integer> countExclusive,
+        int selfCPU,
+        int totalCPU,
+        long totalSamples
     ) {
         this.size = size;
         this.samplingRate = samplingRate;
@@ -83,6 +92,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         this.sourceLines = sourceLines;
         this.countInclusive = countInclusive;
         this.countExclusive = countExclusive;
+        this.selfCPU = selfCPU;
+        this.totalCPU = totalCPU;
+        this.totalSamples = totalSamples;
     }
 
     @Override
@@ -101,6 +113,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         out.writeCollection(this.sourceLines, StreamOutput::writeInt);
         out.writeCollection(this.countInclusive, StreamOutput::writeInt);
         out.writeCollection(this.countExclusive, StreamOutput::writeInt);
+        out.writeInt(this.selfCPU);
+        out.writeInt(this.totalCPU);
+        out.writeLong(this.totalSamples);
     }
 
     public int getSize() {
@@ -117,6 +132,58 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
 
     public List<Integer> getCountExclusive() {
         return countExclusive;
+    }
+
+    public List<Map<String, Integer>> getEdges() {
+        return edges;
+    }
+
+    public List<String> getFileIds() {
+        return fileIds;
+    }
+
+    public List<Integer> getFrameTypes() {
+        return frameTypes;
+    }
+
+    public List<Boolean> getInlineFrames() {
+        return inlineFrames;
+    }
+
+    public List<String> getFileNames() {
+        return fileNames;
+    }
+
+    public List<Integer> getAddressOrLines() {
+        return addressOrLines;
+    }
+
+    public List<String> getFunctionNames() {
+        return functionNames;
+    }
+
+    public List<Integer> getFunctionOffsets() {
+        return functionOffsets;
+    }
+
+    public List<String> getSourceFileNames() {
+        return sourceFileNames;
+    }
+
+    public List<Integer> getSourceLines() {
+        return sourceLines;
+    }
+
+    public int getSelfCPU() {
+        return selfCPU;
+    }
+
+    public int getTotalCPU() {
+        return totalCPU;
+    }
+
+    public long getTotalSamples() {
+        return totalSamples;
     }
 
     @Override
@@ -147,6 +214,9 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
             ChunkedToXContentHelper.array("CountExclusive", Iterators.map(countExclusive.iterator(), e -> (b, p) -> b.value(e))),
             Iterators.single((b, p) -> b.field("Size", size)),
             Iterators.single((b, p) -> b.field("SamplingRate", samplingRate)),
+            Iterators.single((b, p) -> b.field("SelfCPU", selfCPU)),
+            Iterators.single((b, p) -> b.field("TotalCPU", totalCPU)),
+            Iterators.single((b, p) -> b.field("TotalSamples", totalSamples)),
             ChunkedToXContentHelper.endObject()
         );
     }

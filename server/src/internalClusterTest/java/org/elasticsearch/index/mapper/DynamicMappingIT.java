@@ -13,7 +13,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -372,14 +371,18 @@ public class DynamicMappingIT extends ESIntegTestCase {
         final BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkResponse.hasFailures());
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74)))
-            .get();
-        assertSearchHits(searchResponse, "1", "2", "4");
-        searchResponse = client().prepareSearch("test")
-            .setQuery(new GeoBoundingBoxQueryBuilder("address.location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74)))
-            .get();
-        assertSearchHits(searchResponse, "3");
+        assertSearchHits(
+            client().prepareSearch("test")
+                .setQuery(new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))),
+            "1",
+            "2",
+            "4"
+        );
+        assertSearchHits(
+            client().prepareSearch("test")
+                .setQuery(new GeoBoundingBoxQueryBuilder("address.location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))),
+            "3"
+        );
     }
 
     public void testBulkRequestWithNotFoundDynamicTemplate() throws Exception {
@@ -601,7 +604,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         IndexRequest request = new IndexRequest("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source("host.name", "localhost", "host.id", 111, "time", 100, "time.max", 1000);
-        IndexResponse indexResponse = client().index(request).actionGet();
+        DocWriteResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
@@ -646,7 +649,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 "foo.metrics.time.max",
                 1000
             );
-        IndexResponse indexResponse = client().index(request).actionGet();
+        DocWriteResponse indexResponse = client().index(request).actionGet();
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {

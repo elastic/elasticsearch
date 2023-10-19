@@ -7,15 +7,20 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -23,15 +28,19 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
+import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
 import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -48,6 +57,7 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.util.Queries;
 import org.elasticsearch.xpack.ql.util.Queries.Clause;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,8 +66,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType.COUNT;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP;
 
@@ -90,6 +104,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
+            esSourceRules.add(new PushStatsToSource());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
@@ -247,8 +262,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
      * this method is supposed to be used to define if a field can be used for exact push down (eg. sort or filter).
      * "aggregatable" is the most accurate information we can have from field_caps as of now.
      * Pushing down operations on fields that are not aggregatable would result in an error.
-     * @param f
-     * @return
      */
     private static boolean isAggregatable(FieldAttribute f) {
         return f.exactAttribute().field().isAggregatable();
@@ -301,6 +314,93 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
             }
             return sorts;
+        }
+    }
+
+    /**
+     * Looks for the case where certain stats exist right before the query and thus can be pushed down.
+     */
+    private static class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
+        AggregateExec,
+        LocalPhysicalOptimizerContext> {
+
+        @Override
+        protected PhysicalPlan rule(AggregateExec aggregateExec, LocalPhysicalOptimizerContext context) {
+            PhysicalPlan plan = aggregateExec;
+            if (aggregateExec.child() instanceof EsQueryExec queryExec) {
+                var tuple = pushableStats(aggregateExec, context);
+
+                // for the moment support pushing count just for one field
+                List<Stat> stats = tuple.v2();
+                if (stats.size() > 1) {
+                    if (stats.stream().map(Stat::name).collect(Collectors.toSet()).size() > 1) {
+                        return aggregateExec;
+                    }
+                }
+
+                // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
+                // use the stats since the attributes are larger in size (due to seen)
+                if (tuple.v2().size() == aggregateExec.aggregates().size()) {
+                    plan = new EsStatsQueryExec(
+                        aggregateExec.source(),
+                        queryExec.index(),
+                        queryExec.query(),
+                        queryExec.limit(),
+                        tuple.v1(),
+                        tuple.v2()
+                    );
+                }
+            }
+            return plan;
+        }
+
+        private Tuple<List<Attribute>, List<Stat>> pushableStats(AggregateExec aggregate, LocalPhysicalOptimizerContext context) {
+            AttributeMap<Stat> stats = new AttributeMap<>();
+            Tuple<List<Attribute>, List<Stat>> tuple = new Tuple<>(new ArrayList<>(), new ArrayList<>());
+
+            if (aggregate.groupings().isEmpty()) {
+                for (NamedExpression agg : aggregate.aggregates()) {
+                    var attribute = agg.toAttribute();
+                    Stat stat = stats.computeIfAbsent(attribute, a -> {
+                        if (agg instanceof Alias as) {
+                            Expression child = as.child();
+                            if (child instanceof Count count) {
+                                var target = count.field();
+                                String fieldName = null;
+                                QueryBuilder query = null;
+                                // TODO: add count over field (has to be field attribute)
+                                if (target.foldable()) {
+                                    fieldName = StringUtils.WILDCARD;
+                                }
+                                // check if regular field
+                                else {
+                                    if (target instanceof FieldAttribute fa) {
+                                        var fName = fa.name();
+                                        if (context.searchStats().isSingleValue(fName)) {
+                                            fieldName = fa.name();
+                                            query = QueryBuilders.existsQuery(fieldName);
+                                        }
+                                    }
+                                }
+                                if (fieldName != null) {
+                                    return new Stat(fieldName, COUNT, query);
+                                }
+                            }
+                        }
+                        return null;
+                    });
+                    if (stat != null) {
+                        List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
+                            singletonList(agg),
+                            emptyList()
+                        );
+                        tuple.v1().addAll(intermediateAttributes);
+                        tuple.v2().add(stat);
+                    }
+                }
+            }
+
+            return tuple;
         }
     }
 

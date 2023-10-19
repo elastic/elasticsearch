@@ -382,7 +382,7 @@ public class TextFieldMapper extends FieldMapper {
             return ft;
         }
 
-        private KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
+        private static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
             if (fieldType.stored()) {
                 return null;
             }
@@ -1130,6 +1130,7 @@ public class TextFieldMapper extends FieldMapper {
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
 
+    @SuppressWarnings("this-escape")
     protected TextFieldMapper(
         String simpleName,
         FieldType fieldType,

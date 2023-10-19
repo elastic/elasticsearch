@@ -9,11 +9,15 @@ package org.elasticsearch.compute.data;
 
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
 
 $else$
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+
 import java.util.Arrays;
 $endif$
 
@@ -41,7 +45,7 @@ $else$
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(initialSize);
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
         values = new $type$[initialSize];
     }
 $endif$
@@ -244,29 +248,73 @@ $endif$
 
     @Override
     public $Type$Block build() {
-        finish();
-        $Type$Block block;
-        if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-$if(BytesRef)$
-            block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
-            Releasables.closeExpectNoException(values);
-        } else {
-            estimatedBytes += values.ramBytesUsed();
-$else$
-            block = new Constant$Type$Vector(values[0], 1, blockFactory).asBlock();
-        } else {
-            if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
-                values = Arrays.copyOf(values, valueCount);
-            }
-$endif$
-            if (isDense() && singleValued()) {
-                block = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
+        try {
+            finish();
+            $Type$Block theBlock;
+    $if(BytesRef)$
+            assert estimatedBytes == 0 || firstValueIndexes != null;
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+                /*
+                 * Update the breaker with the actual bytes used.
+                 * We pass false below even though we've used the bytes. That's weird,
+                 * but if we break here we will throw away the used memory, letting
+                 * it be deallocated. The exception will bubble up and the builder will
+                 * still technically be open, meaning the calling code should close it
+                 * which will return all used memory to the breaker.
+                 */
+                blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes, false);
+                Releasables.closeExpectNoException(values);
             } else {
-                block = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                if (isDense() && singleValued()) {
+                    theBlock = new $Type$ArrayVector(values, positionCount, blockFactory).asBlock();
+                } else {
+                    theBlock = new $Type$ArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                }
+                /*
+                 * Update the breaker with the actual bytes used.
+                 * We pass false below even though we've used the bytes. That's weird,
+                 * but if we break here we will throw away the used memory, letting
+                 * it be deallocated. The exception will bubble up and the builder will
+                 * still technically be open, meaning the calling code should close it
+                 * which will return all used memory to the breaker.
+                 */
+                blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed(), false);
             }
+            values = null;
+    $else$
+            if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
+                theBlock = blockFactory.newConstant$Type$BlockWith(values[0], 1, estimatedBytes);
+            } else {
+                if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
+                    values = Arrays.copyOf(values, valueCount);
+                }
+                if (isDense() && singleValued()) {
+                    theBlock = blockFactory.new$Type$ArrayVector(values, positionCount, estimatedBytes).asBlock();
+                } else {
+                    theBlock = blockFactory.new$Type$ArrayBlock(
+                        values,
+                        positionCount,
+                        firstValueIndexes,
+                        nullsMask,
+                        mvOrdering,
+                        estimatedBytes
+                    );
+                }
+            }
+    $endif$
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
-        return block;
     }
+$if(BytesRef)$
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
+    }
+$endif$
 }

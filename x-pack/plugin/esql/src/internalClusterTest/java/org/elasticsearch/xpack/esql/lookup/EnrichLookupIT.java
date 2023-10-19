@@ -141,12 +141,12 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
         DateFormatter dateFmt = DateFormatter.forPattern("yyyy-MM-dd");
 
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             final Executor executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
 
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(executor, driver, between(1, 1000), listener);
+                Driver.start(transportService.getThreadPool().getThreadContext(), executor, driver, between(1, 1000), listener);
             }
         };
         Driver driver = new Driver(driverContext(), sourceOperator, List.of(enrichOperator), outputOperator, () -> {});
@@ -232,7 +232,7 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
     static DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            BlockFactory.getGlobalInstance()
+            BlockFactory.getNonBreakingInstance()
         );
     }
 }

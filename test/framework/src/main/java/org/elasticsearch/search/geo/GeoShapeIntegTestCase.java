@@ -72,12 +72,10 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
 
     /** The testBulk method uses this only for Geo-specific tests */
     protected void doDistanceAndBoundingBoxTest(String key) {
-        SearchResponse world = client().prepareSearch()
-            .addStoredField("pin")
-            .setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999))
-            .get();
-
-        assertHitCount(world, 53);
+        assertHitCount(
+            client().prepareSearch().addStoredField("pin").setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)),
+            53
+        );
 
         SearchResponse distance = client().prepareSearch()
             .addStoredField("pin")
@@ -99,7 +97,7 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
         }
     }
 
-    private double distance(double lat1, double lon1, double lat2, double lon2) {
+    private static double distance(double lat1, double lon1, double lat2, double lon2) {
         return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
     }
 }

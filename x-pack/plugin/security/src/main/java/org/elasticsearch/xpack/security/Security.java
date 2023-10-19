@@ -1824,7 +1824,6 @@ public class Security extends Plugin
             threadContext,
             secondayAuthc.get(),
             auditTrailService.get(),
-            workflowService.get(),
             handler,
             operatorPrivilegesService.get()
         );

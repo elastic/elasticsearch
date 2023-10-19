@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -17,16 +18,17 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.SecureSetting;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -34,6 +36,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -46,8 +50,10 @@ import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceModelAct
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.HttpSettings;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ServiceRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
@@ -55,15 +61,23 @@ import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeService;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
 
     public static final String NAME = "inference";
+    public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
+    private final Settings settings;
+    private final SetOnce<HttpRequestSenderFactory> httpRequestSenderFactory = new SetOnce<>();
+    // We'll keep a reference to the http manager just in case the inference services don't get closed individually
+    private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
 
-    public static final Setting<SecureString> ENCRYPTION_KEY_SETTING = SecureSetting.secureString("xpack.inference.encryption_key", null);
+    public InferencePlugin(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -73,16 +87,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(DeleteInferenceModelAction.INSTANCE, TransportDeleteInferenceModelAction.class)
         );
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return InferenceNamedWriteablesProvider.getNamedWriteables();
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return Collections.emptyList();
     }
 
     @Override
@@ -120,14 +124,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
         AllocationService allocationService,
         IndicesService indicesService
     ) {
+        httpManager.set(HttpClientManager.create(settings, threadPool, clusterService));
+        httpRequestSenderFactory.set(new HttpRequestSenderFactory(threadPool, httpManager.get(), clusterService, settings));
         ModelRegistry modelRegistry = new ModelRegistry(client);
-        ServiceRegistry serviceRegistry = new ServiceRegistry(new ElserMlNodeService(client));
-        return List.of(modelRegistry, serviceRegistry);
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return List.of(ENCRYPTION_KEY_SETTING);
+        return List.of(modelRegistry);
     }
 
     @Override
@@ -142,8 +142,42 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
                 .setSettings(InferenceIndex.settings())
                 .setVersionMetaKey("version")
                 .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .build(),
+            SystemIndexDescriptor.builder()
+                .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                .setIndexPattern(InferenceSecretsIndex.INDEX_PATTERN)
+                .setPrimaryIndex(InferenceSecretsIndex.INDEX_NAME)
+                .setDescription("Contains inference service secrets")
+                .setMappings(InferenceSecretsIndex.mappings())
+                .setSettings(InferenceSecretsIndex.settings())
+                .setVersionMetaKey("version")
+                .setOrigin(ClientHelper.INFERENCE_ORIGIN)
+                .setNetNew()
                 .build()
         );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
+        return List.of(
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                0,
+                1,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            )
+        );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Stream.of(
+            HttpSettings.getSettings(),
+            HttpClientManager.getSettings(),
+            HttpRequestSenderFactory.HttpRequestSender.getSettings()
+        ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
     @Override
@@ -154,5 +188,22 @@ public class InferencePlugin extends Plugin implements ActionPlugin, SystemIndex
     @Override
     public String getFeatureDescription() {
         return "Inference plugin for managing inference services and inference";
+    }
+
+    @Override
+    public List<Factory> getInferenceServiceFactories() {
+        return List.of(ElserMlNodeService::new);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
+        return InferenceNamedWriteablesProvider.getNamedWriteables();
+    }
+
+    @Override
+    public void close() {
+        if (httpManager.get() != null) {
+            IOUtils.closeWhileHandlingException(httpManager.get());
+        }
     }
 }

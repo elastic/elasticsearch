@@ -156,40 +156,44 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginDescriptor> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 plugins.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        VersionUtils.randomVersion(random()),
+                        randomAlphaOfLengthBetween(6, 32),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginDescriptor> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 modules.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        VersionUtils.randomVersion(random()),
+                        randomAlphaOfLengthBetween(6, 32),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }

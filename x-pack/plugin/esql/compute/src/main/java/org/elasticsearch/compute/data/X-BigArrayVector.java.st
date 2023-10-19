@@ -21,6 +21,8 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     private final $if(boolean)$Bit$else$$Type$$endif$Array values;
 
+    private final $Type$Block block;
+
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -28,11 +30,12 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
     public $Type$BigArrayVector($if(boolean)$Bit$else$$Type$$endif$Array values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
     @Override
@@ -57,11 +60,28 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Filter$Type$Vector(this, positions);
+   $if(boolean)$
+        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        for (int i = 0; i < positions.length; i++) {
+            if (values.get(positions[i])) {
+                filtered.set(i);
+            }
+        }
+   $else$
+        final $Type$Array filtered = blockFactory.bigArrays().new$Type$Array(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+   $endif$
+        return new $Type$BigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         values.close();
     }
 

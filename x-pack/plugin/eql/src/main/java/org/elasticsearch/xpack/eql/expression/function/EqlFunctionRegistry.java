@@ -42,6 +42,7 @@ import static java.util.Collections.unmodifiableList;
 
 public class EqlFunctionRegistry extends FunctionRegistry {
 
+    @SuppressWarnings("this-escape")
     public EqlFunctionRegistry() {
         register(functions());
     }

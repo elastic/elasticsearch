@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -140,8 +139,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
-        SearchResponse searchResponse = client().prepareSearch(indexName).get();
-        assertHitCount(searchResponse, numDocs);
+        assertHitCount(client().prepareSearch(indexName), numDocs);
 
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
 
@@ -196,8 +194,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             if (recoveryActionToBlock.equals(PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT)) {
                 assertThat(handlingBehavior.blocksRemaining.get(), is(equalTo(0)));
             }
-            searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
-            assertHitCount(searchResponse, numDocs);
+            assertHitCount(client(redNodeName).prepareSearch(indexName).setPreference("_local"), numDocs);
         } finally {
             blueTransportService.clearAllRules();
             redTransportService.clearAllRules();
@@ -244,8 +241,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
-        SearchResponse searchResponse = client().prepareSearch(indexName).get();
-        assertHitCount(searchResponse, numDocs);
+        assertHitCount(client().prepareSearch(indexName), numDocs);
 
         final boolean dropRequests = randomBoolean();
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
@@ -309,8 +305,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         redMockTransportService.clearAllRules();
 
         ensureGreen();
-        searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
-        assertHitCount(searchResponse, numDocs);
+        assertHitCount(client(redNodeName).prepareSearch(indexName).setPreference("_local"), numDocs);
     }
 
     public void checkDisconnectsDuringRecovery(boolean useSnapshotBasedRecoveries) throws Exception {
@@ -347,7 +342,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
-        assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+        assertHitCount(client().prepareSearch(indexName), numDocs);
 
         if (useSnapshotBasedRecoveries) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
@@ -462,13 +457,13 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch(indexName).get(), numDocs);
+            assertHitCount(client().prepareSearch(indexName), numDocs);
         }
     }
 
     // We only use this method in IndexRecoveryWithSnapshotsIT that's located in the x-pack plugin
     // that implements snapshot based recoveries.
-    private void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
+    private static void createSnapshotThatCanBeUsedDuringRecovery(String indexName) throws Exception {
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
             ShardStats stats = indicesAdmin().prepareStats(indexName)

@@ -22,6 +22,7 @@ public class IndexShardSnapshotException extends ElasticsearchException {
         this(shardId, msg, null);
     }
 
+    @SuppressWarnings("this-escape")
     public IndexShardSnapshotException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

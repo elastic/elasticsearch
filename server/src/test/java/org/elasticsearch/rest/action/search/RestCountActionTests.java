@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RestCountActionTests extends RestActionTestCase {
 
+    @SuppressWarnings("this-escape")
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     @Before

@@ -32,6 +32,7 @@ import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
+import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.transport.TcpTransport;
@@ -144,6 +145,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         super(LoggerMessageFormat.format(msg, args), cause);
     }
 
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(StreamInput in) throws IOException {
         super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
@@ -1853,6 +1855,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             RecoveryCommitTooNewException::new,
             172,
             TransportVersions.RECOVERY_COMMIT_TOO_NEW_EXCEPTION_ADDED
+        ),
+        TOO_MANY_SCROLL_CONTEXTS_NEW_EXCEPTION(
+            TooManyScrollContextsException.class,
+            TooManyScrollContextsException::new,
+            173,
+            TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

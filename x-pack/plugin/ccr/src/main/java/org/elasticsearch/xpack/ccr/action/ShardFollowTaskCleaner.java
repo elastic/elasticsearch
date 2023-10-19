@@ -45,6 +45,7 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
      */
     private final Set<ShardFollowTask> completing = Collections.synchronizedSet(new HashSet<>());
 
+    @SuppressWarnings("this-escape")
     public ShardFollowTaskCleaner(final ClusterService clusterService, final ThreadPool threadPool, final Client client) {
         this.threadPool = threadPool;
         this.client = client;

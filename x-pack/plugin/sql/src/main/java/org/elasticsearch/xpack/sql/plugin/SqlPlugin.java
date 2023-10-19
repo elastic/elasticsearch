@@ -58,6 +58,7 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
     private final LicensedFeature.Momentary JDBC_FEATURE = LicensedFeature.momentary("sql", "jdbc", License.OperationMode.PLATINUM);
     private final LicensedFeature.Momentary ODBC_FEATURE = LicensedFeature.momentary("sql", "odbc", License.OperationMode.PLATINUM);
 
+    @SuppressWarnings("this-escape")
     private final SqlLicenseChecker sqlLicenseChecker = new SqlLicenseChecker((mode) -> {
         XPackLicenseState licenseState = getLicenseState();
         switch (mode) {

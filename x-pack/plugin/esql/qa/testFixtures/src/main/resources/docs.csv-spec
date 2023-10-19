@@ -408,6 +408,64 @@ ROW date_string = "2022-05-06"
 // end::dateParse[]
 ;
 
+//tag::dateParse-result[]
 date_string:keyword | date:date
 2022-05-06          | 2022-05-06T00:00:00.000Z
+// end::dateParse-result[]
+;
+
+docsReplace
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+| KEEP str
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
+;
+
+docsCase
+// tag::case[]
+FROM employees
+| EVAL type = case(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| KEEP emp_no, languages, type
+// end::case[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::case-result[]
+emp_no:integer | languages:integer| type:keyword
+10001          | 2                |bilingual      
+10002          | 5                |polyglot       
+10003          | 4                |polyglot       
+10004          | 5                |polyglot       
+10005          | 1                |monolingual    
+// end::case-result[]
+;
+
+docsCountAll
+// tag::countAll[]
+FROM employees 
+| STATS count = COUNT(*) BY languages 
+| SORT languages DESC
+// end::countAll[]
+;
+
+// tag::countAll-result[]
+count:long | languages:integer
+10         |null
+21         |5 
+18         |4
+17         |3
+19         |2
+15         |1
+// end::countAll-result[]
 ;

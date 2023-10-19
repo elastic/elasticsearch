@@ -134,7 +134,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             );
             if (hasClusterCredentials) {
                 newService.registerRequestHandler(
-                    RemoteClusterNodesAction.NAME,
+                    RemoteClusterNodesAction.TYPE.name(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,
                     RemoteClusterNodesAction.Request::new,
                     (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(knownNodes))
@@ -849,17 +849,14 @@ public class SniffConnectionStrategyTests extends ESTestCase {
             DiscoveryNode discoverableNode = getLocalNode(unresponsive2);
 
             // Use the address for the node that will not respond
-            DiscoveryNode unaddressableSeedNode = new DiscoveryNode(
-                accessibleNode.getName(),
-                accessibleNode.getId(),
-                accessibleNode.getEphemeralId(),
-                accessibleNode.getHostName(),
-                accessibleNode.getHostAddress(),
-                getLocalNode(unresponsive1).getAddress(),
-                accessibleNode.getAttributes(),
-                accessibleNode.getRoles(),
-                accessibleNode.getVersionInformation()
-            );
+            DiscoveryNode unaddressableSeedNode = DiscoveryNodeUtils.builder(accessibleNode.getId())
+                .name(accessibleNode.getName())
+                .ephemeralId(accessibleNode.getEphemeralId())
+                .address(accessibleNode.getHostName(), accessibleNode.getHostAddress(), getLocalNode(unresponsive1).getAddress())
+                .attributes(accessibleNode.getAttributes())
+                .roles(accessibleNode.getRoles())
+                .version(accessibleNode.getVersionInformation())
+                .build();
 
             knownNodes.add(unaddressableSeedNode);
             knownNodes.add(discoverableNode);
@@ -1191,7 +1188,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
     private void addSendBehaviour(MockTransportService transportService) {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (hasClusterCredentials) {
-                assertThat(action, oneOf(RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, RemoteClusterNodesAction.NAME));
+                assertThat(action, oneOf(RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME, RemoteClusterNodesAction.TYPE.name()));
             } else {
                 assertThat(action, oneOf(TransportService.HANDSHAKE_ACTION_NAME, ClusterStateAction.NAME));
             }

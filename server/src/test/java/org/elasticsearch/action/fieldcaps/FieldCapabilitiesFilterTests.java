@@ -38,7 +38,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
         Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
-            new String[] { "*" },
+            s -> true,
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY,
             f -> true
@@ -64,7 +64,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         {
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
-                new String[] { "*" },
+                s -> true,
                 new String[] { "+metadata" },
                 Strings.EMPTY_ARRAY,
                 f -> true
@@ -75,7 +75,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         {
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
-                new String[] { "*" },
+                s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
                 f -> true
@@ -106,7 +106,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
         Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
-            new String[] { "*" },
+            s -> true,
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY,
             f -> true
@@ -135,7 +135,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
         Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
-            new String[] { "*" },
+            s -> true,
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY,
             f -> true
@@ -161,7 +161,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         {
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
-                new String[] { "*" },
+                s -> true,
                 Strings.EMPTY_ARRAY,
                 Strings.EMPTY_ARRAY,
                 securityFilter
@@ -175,7 +175,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         {
             Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
                 sec,
-                new String[] { "*" },
+                s -> true,
                 new String[] { "-metadata" },
                 Strings.EMPTY_ARRAY,
                 securityFilter
@@ -201,7 +201,7 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
 
         Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
             sec,
-            new String[] { "*" },
+            s -> true,
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" },
             f -> true

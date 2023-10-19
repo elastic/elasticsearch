@@ -39,7 +39,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -80,17 +80,17 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
             final Percentile percentile = percentileList.get(i);
-            assertThat(percentile.getValue(), equalTo(pcts[i]));
-            assertThat(percentile.getPercent(), greaterThanOrEqualTo(0.0));
-            assertThat(percentile.getPercent(), lessThanOrEqualTo(100.0));
+            assertThat(percentile.value(), equalTo(pcts[i]));
+            assertThat(percentile.percent(), greaterThanOrEqualTo(0.0));
+            assertThat(percentile.percent(), lessThanOrEqualTo(100.0));
 
-            if (percentile.getPercent() == 0) {
-                assertThat(percentile.getValue(), lessThanOrEqualTo((double) minValue));
+            if (percentile.percent() == 0) {
+                assertThat(percentile.value(), lessThanOrEqualTo((double) minValue));
             }
         }
 
         for (int i = 1; i < percentileList.size(); ++i) {
-            assertThat(percentileList.get(i).getValue(), greaterThanOrEqualTo(percentileList.get(i - 1).getValue()));
+            assertThat(percentileList.get(i).value(), greaterThanOrEqualTo(percentileList.get(i - 1).value()));
         }
     }
 
@@ -495,7 +495,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -514,7 +514,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -530,7 +530,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
             .setSize(0)
             .addAggregation(percentileRanks("foo", new double[] { 50.0 }).field("d"))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

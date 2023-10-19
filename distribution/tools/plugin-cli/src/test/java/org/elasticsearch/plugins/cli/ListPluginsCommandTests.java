@@ -215,7 +215,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
             "version",
             "1.0",
             "elasticsearch.version",
-            Version.fromString("1.0.0").toString(),
+            "1.0.0",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",

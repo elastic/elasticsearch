@@ -22,6 +22,7 @@ public class RoutingMissingException extends ElasticsearchException {
 
     private final String id;
 
+    @SuppressWarnings("this-escape")
     public RoutingMissingException(String index, String id) {
         super("routing is required for [" + index + "]/[" + id + "]");
         Objects.requireNonNull(index, "index must not be null");

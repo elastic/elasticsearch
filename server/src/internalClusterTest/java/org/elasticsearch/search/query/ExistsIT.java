@@ -30,17 +30,15 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class ExistsIT extends ESIntegTestCase {
 
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).get();
-        assertSearchResponse(resp);
-        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).get();
-        assertSearchResponse(resp);
+        assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")));
+        assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))));
     }
 
     public void testExists() throws Exception {
@@ -70,6 +68,9 @@ public class ExistsIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
+            .startObject("vec")
+            .field("type", "sparse_vector")
+            .endObject()
             .endObject()
             .endObject()
             .endObject();
@@ -85,6 +86,10 @@ public class ExistsIT extends ESIntegTestCase {
             // object fields
             singletonMap("bar", barObject),
             singletonMap("bar", singletonMap("baz", 42)),
+            // sparse_vector field empty
+            singletonMap("vec", emptyMap()),
+            // sparse_vector field non-empty
+            singletonMap("vec", singletonMap("1", 100)),
             // empty doc
             emptyMap() };
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -105,17 +110,18 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar", 1);
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
+        expected.put("vec", 2);
 
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
-        assertSearchResponse(allDocs);
+        assertNoFailures(allDocs);
         assertHitCount(allDocs, numDocs);
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(resp);
+            assertNoFailures(resp);
             try {
                 assertEquals(
                     String.format(
@@ -194,7 +200,7 @@ public class ExistsIT extends ESIntegTestCase {
             int expectedCount = entry.getValue();
 
             SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(response);
+            assertNoFailures(response);
             assertHitCount(response, expectedCount);
         }
     }
@@ -226,7 +232,7 @@ public class ExistsIT extends ESIntegTestCase {
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")).get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertHitCount(response, 2);
     }
 }

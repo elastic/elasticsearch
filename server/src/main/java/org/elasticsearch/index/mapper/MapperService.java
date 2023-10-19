@@ -157,6 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         );
     }
 
+    @SuppressWarnings("this-escape")
     public MapperService(
         Supplier<TransportVersion> clusterTransportVersion,
         IndexSettings indexSettings,

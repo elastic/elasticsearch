@@ -21,6 +21,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +112,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             expectThrows(NoSuchFileException.class, () -> {
-                try (InputStream is = container.readBlob("non-existing")) {
+                try (InputStream is = container.readBlob(OperationPurpose.SNAPSHOT, "non-existing")) {
                     is.read();
                 }
             });
@@ -128,7 +129,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
                 writeBlob(container, "foobar", new BytesArray(data), false);
             }
-            try (InputStream stream = container.readBlob("foobar")) {
+            try (InputStream stream = container.readBlob(OperationPurpose.SNAPSHOT, "foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
                     byte[] buffer = new byte[scaledRandomIntBetween(1, data.length - target.length())];
@@ -143,14 +144,14 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 assertEquals(data.length, target.length());
                 assertArrayEquals(data, Arrays.copyOfRange(target.bytes(), 0, target.length()));
             }
-            container.delete();
+            container.delete(OperationPurpose.SNAPSHOT);
         }
     }
 
     public void testList() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            assertThat(container.listBlobs().size(), CoreMatchers.equalTo(0));
+            assertThat(container.listBlobs(OperationPurpose.SNAPSHOT).size(), CoreMatchers.equalTo(0));
             int numberOfFooBlobs = randomIntBetween(0, 10);
             int numberOfBarBlobs = randomIntBetween(3, 20);
             Map<String, Long> generatedBlobs = new HashMap<>();
@@ -171,7 +172,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             generatedBlobs.put(name, (long) length);
             writeRandomBlob(container, name, length);
 
-            Map<String, BlobMetadata> blobs = container.listBlobs();
+            Map<String, BlobMetadata> blobs = container.listBlobs(OperationPurpose.SNAPSHOT);
             assertThat(blobs.size(), CoreMatchers.equalTo(numberOfFooBlobs + numberOfBarBlobs));
             for (Map.Entry<String, Long> generated : generatedBlobs.entrySet()) {
                 BlobMetadata blobMetadata = blobs.get(generated.getKey());
@@ -180,10 +181,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 assertThat(blobMetadata.length(), CoreMatchers.equalTo(blobLengthFromContentLength(generated.getValue())));
             }
 
-            assertThat(container.listBlobsByPrefix("foo-").size(), CoreMatchers.equalTo(numberOfFooBlobs));
-            assertThat(container.listBlobsByPrefix("bar-").size(), CoreMatchers.equalTo(numberOfBarBlobs));
-            assertThat(container.listBlobsByPrefix("baz-").size(), CoreMatchers.equalTo(0));
-            container.delete();
+            assertThat(container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "foo-").size(), CoreMatchers.equalTo(numberOfFooBlobs));
+            assertThat(container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "bar-").size(), CoreMatchers.equalTo(numberOfBarBlobs));
+            assertThat(container.listBlobsByPrefix(OperationPurpose.SNAPSHOT, "baz-").size(), CoreMatchers.equalTo(0));
+            container.delete(OperationPurpose.SNAPSHOT);
         }
     }
 
@@ -191,16 +192,18 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         try (BlobStore store = newBlobStore()) {
             final List<String> blobNames = Arrays.asList("foobar", "barfoo");
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            container.deleteBlobsIgnoringIfNotExists(blobNames.iterator()); // does not raise when blobs don't exist
+            container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames.iterator()); // does not raise when blobs
+            // don't exist
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
             for (String blobName : blobNames) {
                 writeBlob(container, blobName, bytesArray, randomBoolean());
             }
-            assertEquals(container.listBlobs().size(), 2);
-            container.deleteBlobsIgnoringIfNotExists(blobNames.iterator());
-            assertTrue(container.listBlobs().isEmpty());
-            container.deleteBlobsIgnoringIfNotExists(blobNames.iterator()); // does not raise when blobs don't exist
+            assertEquals(container.listBlobs(OperationPurpose.SNAPSHOT).size(), 2);
+            container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames.iterator());
+            assertTrue(container.listBlobs(OperationPurpose.SNAPSHOT).isEmpty());
+            container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobNames.iterator()); // does not raise when blobs
+            // don't exist
         }
     }
 
@@ -211,9 +214,9 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         boolean failIfAlreadyExists
     ) throws IOException {
         if (randomBoolean()) {
-            container.writeBlob(blobName, bytesArray, failIfAlreadyExists);
+            container.writeBlob(OperationPurpose.SNAPSHOT, blobName, bytesArray, failIfAlreadyExists);
         } else {
-            container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
+            container.writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, bytesArray, failIfAlreadyExists);
         }
     }
 
@@ -229,10 +232,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
             assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
 
-            assertTrue(containerFoo.blobExists("test"));
-            assertTrue(containerBar.blobExists("test"));
-            containerBar.delete();
-            containerFoo.delete();
+            assertTrue(containerFoo.blobExists(OperationPurpose.SNAPSHOT, "test"));
+            assertTrue(containerBar.blobExists(OperationPurpose.SNAPSHOT, "test"));
+            containerBar.delete(OperationPurpose.SNAPSHOT);
+            containerFoo.delete(OperationPurpose.SNAPSHOT);
         }
     }
 
@@ -244,7 +247,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
     public static byte[] readBlobFully(BlobContainer container, String name, int length) throws IOException {
         byte[] data = new byte[length];
-        try (InputStream inputStream = container.readBlob(name)) {
+        try (InputStream inputStream = container.readBlob(OperationPurpose.SNAPSHOT, name)) {
             assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }
@@ -260,7 +263,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
-        container.writeBlob(blobName, bytesArray, true);
+        container.writeBlob(OperationPurpose.SNAPSHOT, blobName, bytesArray, true);
     }
 
     protected BlobStore newBlobStore() {
@@ -292,7 +295,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             docCounts[i] = iterations(10, 1000);
             logger.info("-->  create random index {} with {} records", indexNames[i], docCounts[i]);
             addRandomDocuments(indexNames[i], docCounts[i]);
-            assertHitCount(client().prepareSearch(indexNames[i]).setSize(0).get(), docCounts[i]);
+            assertHitCount(client().prepareSearch(indexNames[i]).setSize(0), docCounts[i]);
         }
 
         final String snapshotName = randomName();
@@ -345,7 +348,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         ensureGreen(TimeValue.timeValueSeconds(120));
 
         for (int i = 0; i < indexCount; i++) {
-            assertHitCount(client().prepareSearch(indexNames[i]).setSize(0).get(), docCounts[i]);
+            assertHitCount(client().prepareSearch(indexNames[i]).setSize(0), docCounts[i]);
         }
 
         logger.info("-->  delete snapshot {}:{}", repoName, snapshotName);
@@ -412,7 +415,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             );
 
             ensureGreen();
-            assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCounts[iterationToRestore]);
+            assertHitCount(client().prepareSearch(indexName).setSize(0), docCounts[iterationToRestore]);
         }
 
         for (int i = 0; i < iterationCount; i++) {
@@ -476,7 +479,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         for (IndexId indexId : repositoryData.actionGet().getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
-                assertFalse(indicesBlobContainer.get().blobExists(indexId.getId())); // deleted index
+                assertFalse(indicesBlobContainer.get().blobExists(OperationPurpose.SNAPSHOT, indexId.getId())); // deleted index
             }
         }
 
@@ -495,7 +498,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 for (int j = 0; j < numberOfBlobsPerContainer; j++) {
                     byte[] bytes = randomBytes(randomInt(100));
                     String blobName = randomAlphaOfLength(10);
-                    container.writeBlob(blobName, new BytesArray(bytes), false);
+                    container.writeBlob(OperationPurpose.SNAPSHOT, blobName, new BytesArray(bytes), false);
                     if (randomBoolean()) {
                         blobsToDelete.add(containerPath.buildAsString() + blobName);
                     } else {
@@ -504,14 +507,14 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                 }
             }
 
-            store.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
+            store.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, blobsToDelete.iterator());
             for (var containerEntry : expectedBlobsPerContainer.entrySet()) {
                 BlobContainer blobContainer = store.blobContainer(containerEntry.getKey());
-                Map<String, BlobMetadata> blobsInContainer = blobContainer.listBlobs();
+                Map<String, BlobMetadata> blobsInContainer = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
                 for (String expectedBlob : containerEntry.getValue()) {
                     assertThat(blobsInContainer, hasKey(expectedBlob));
                 }
-                blobContainer.delete();
+                blobContainer.delete(OperationPurpose.SNAPSHOT);
             }
         }
     }

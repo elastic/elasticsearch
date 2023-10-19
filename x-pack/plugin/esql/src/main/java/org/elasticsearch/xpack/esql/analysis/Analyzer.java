@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -219,7 +220,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 )
                 : plan.policyName();
 
-            var matchField = plan.matchField() == null || plan.matchField() instanceof EmptyAttribute
+            var matchField = policy != null && (plan.matchField() == null || plan.matchField() instanceof EmptyAttribute)
                 ? new UnresolvedAttribute(plan.source(), policy.getMatchField())
                 : plan.matchField();
 
@@ -613,11 +614,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
-            return new Limit(
-                Source.EMPTY,
-                new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER),
-                logicalPlan
-            );
+            List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            int limit;
+            if (limits.isEmpty()) {
+                HeaderWarning.addWarning(
+                    "No limit defined, adding default limit of [{}]",
+                    context.configuration().resultTruncationDefaultSize()
+                );
+                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            } else {
+                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+            }
+            return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }
     }
 

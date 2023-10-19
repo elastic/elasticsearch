@@ -8,8 +8,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
@@ -181,7 +183,13 @@ public class Driver implements Releasable, Describable {
 
             if (op.isFinished() == false && nextOp.needsInput()) {
                 Page page = op.getOutput();
-                if (page != null && page.getPositionCount() != 0) {
+                if (page == null) {
+                    // No result, just move to the next iteration
+                } else if (page.getPositionCount() == 0) {
+                    // Empty result, release any memory it holds immediately and move to the next iteration
+                    page.releaseBlocks();
+                } else {
+                    // Non-empty result from the previous operation, move it to the next operation
                     nextOp.addInput(page);
                     movedPage = true;
                 }
@@ -246,9 +254,15 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    public static void start(Executor executor, Driver driver, int maxIterations, ActionListener<Void> listener) {
+    public static void start(
+        ThreadContext threadContext,
+        Executor executor,
+        Driver driver,
+        int maxIterations,
+        ActionListener<Void> listener
+    ) {
         driver.status.set(driver.updateStatus(DriverStatus.Status.STARTING));
-        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, executor, driver, listener);
+        schedule(DEFAULT_TIME_BEFORE_YIELDING, maxIterations, threadContext, executor, driver, listener);
     }
 
     // Drains all active operators and closes them.
@@ -268,8 +282,16 @@ public class Driver implements Releasable, Describable {
         Releasables.closeWhileHandlingException(releasable);
     }
 
-    private static void schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver, ActionListener<Void> listener) {
+    private static void schedule(
+        TimeValue maxTime,
+        int maxIterations,
+        ThreadContext threadContext,
+        Executor executor,
+        Driver driver,
+        ActionListener<Void> listener
+    ) {
         executor.execute(new AbstractRunnable() {
+
             @Override
             protected void doRun() {
                 if (driver.isFinished()) {
@@ -278,16 +300,18 @@ public class Driver implements Releasable, Describable {
                 }
                 SubscribableListener<Void> fut = driver.run(maxTime, maxIterations);
                 if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, executor, driver, listener);
+                    schedule(maxTime, maxIterations, threadContext, executor, driver, listener);
                 } else {
                     synchronized (driver) {
                         if (driver.isCancelled() == false) {
                             driver.blocked.set(fut);
                         }
                     }
-                    fut.addListener(
-                        ActionListener.wrap(ignored -> schedule(maxTime, maxIterations, executor, driver, listener), this::onFailure)
+                    ActionListener<Void> readyListener = ActionListener.wrap(
+                        ignored -> schedule(maxTime, maxIterations, threadContext, executor, driver, listener),
+                        this::onFailure
                     );
+                    fut.addListener(ContextPreservingActionListener.wrapPreservingContext(readyListener, threadContext));
                 }
             }
 

@@ -68,6 +68,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BytesRef apply(long ord) throws IOException;
     }
 
+    @SuppressWarnings("this-escape")
     public GlobalOrdinalsStringTermsAggregator(
         String name,
         AggregatorFactories factories,

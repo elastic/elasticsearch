@@ -234,6 +234,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
                 new ActionHandler<>(ExecuteSnapshotLifecycleAction.INSTANCE, TransportExecuteSnapshotLifecycleAction.class),
                 new ActionHandler<>(GetSnapshotLifecycleStatsAction.INSTANCE, TransportGetSnapshotLifecycleStatsAction.class),
                 new ActionHandler<>(ExecuteSnapshotRetentionAction.INSTANCE, TransportExecuteSnapshotRetentionAction.class),
+                new ActionHandler<>(SLMGetExpiredSnapshotsAction.INSTANCE, SLMGetExpiredSnapshotsAction.LocalAction.class),
                 new ActionHandler<>(StartSLMAction.INSTANCE, TransportStartSLMAction.class),
                 new ActionHandler<>(StopSLMAction.INSTANCE, TransportStopSLMAction.class),
                 new ActionHandler<>(GetSLMStatusAction.INSTANCE, TransportGetSLMStatusAction.class)

@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -37,9 +37,8 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            LocalStateCompositeXPackPlugin.class,
             DataStreamsPlugin.class,
-            ProfilingPlugin.class,
+            LocalStateProfilingXPackPlugin.class,
             IndexLifecycle.class,
             UnsignedLongMapperPlugin.class,
             VersionFieldPlugin.class,
@@ -58,6 +57,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // Disable ILM history index so that the tests don't have to clean it up
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
 
@@ -72,7 +72,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {
-        IndexResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
+        DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 

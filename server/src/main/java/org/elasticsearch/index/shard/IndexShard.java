@@ -288,6 +288,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
 
+    @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,

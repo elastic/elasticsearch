@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractSearchCancellationTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -51,6 +52,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
+
+    @Override
+    // TODO all tests need to be updated to work with concurrent search
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
 
     public void testCancellationDuringQueryPhase() throws Exception {
 
@@ -224,6 +231,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE," + "org.elasticsearch.tasks:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/99929"
+    )
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
         int numberOfShards = between(2, 5);
         createIndex("test", numberOfShards, 0);
@@ -252,11 +263,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 if (letOneShardProceed.compareAndSet(false, true)) {
                     // Let one shard continue.
                 } else {
-                    try {
-                        shardTaskLatch.await(); // Bock the other shards.
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(shardTaskLatch); // Block the other shards.
                 }
             });
         }

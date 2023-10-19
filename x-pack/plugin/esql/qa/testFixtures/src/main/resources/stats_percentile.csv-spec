@@ -142,3 +142,17 @@ MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
 47003                 | 10096.5
 // end::median-absolute-deviation-result[]
 ;
+
+medianViaExpression
+from employees | stats p50 = percentile(salary_change, 25*2);
+
+p50:double
+0.75
+;
+
+medianViaComplexExpression
+from employees | stats p50 = percentile(salary_change, -(50-1)+99);
+
+p50:double
+0.75
+;

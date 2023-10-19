@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -108,18 +107,18 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             SearchResponse.Clusters clusters = resp.getClusters();
             int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
             assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
-            assertThat(clusters.getSuccessful(), equalTo(expectedNumClusters));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(expectedNumClusters));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
 
             if (includeLocalIndex) {
-                AtomicReference<SearchResponse.Cluster> localClusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                assertNotNull(localClusterRef);
-                assertOneSuccessfulShard(localClusterRef.get());
+                SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                assertNotNull(localCluster);
+                assertOneSuccessfulShard(localCluster);
             }
 
-            AtomicReference<SearchResponse.Cluster> remoteClusterRef = clusters.getCluster(REMOTE_CLUSTER);
-            assertNotNull(remoteClusterRef);
-            assertOneSuccessfulShard(remoteClusterRef.get());
+            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteCluster);
+            assertOneSuccessfulShard(remoteCluster);
 
         } finally {
             closePointInTime(pitId);
@@ -163,17 +162,18 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
             SearchResponse.Clusters clusters = searchResponse.getClusters();
             int expectedNumClusters = 1 + (includeLocalIndex ? 1 : 0);
             assertThat(clusters.getTotal(), equalTo(expectedNumClusters));
-            assertThat(clusters.getSuccessful(), equalTo(expectedNumClusters));
-            assertThat(clusters.getSkipped(), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL), equalTo(expectedNumClusters));
 
             if (includeLocalIndex) {
-                AtomicReference<SearchResponse.Cluster> localClusterRef = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                assertNotNull(localClusterRef);
-                assertOneFailedShard(localClusterRef.get(), numShards);
+                SearchResponse.Cluster localCluster = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                assertNotNull(localCluster);
+                assertOneFailedShard(localCluster, numShards);
             }
-            AtomicReference<SearchResponse.Cluster> remoteClusterRef = clusters.getCluster(REMOTE_CLUSTER);
-            assertNotNull(remoteClusterRef);
-            assertOneFailedShard(remoteClusterRef.get(), numShards);
+            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteCluster);
+            assertOneFailedShard(remoteCluster, numShards);
 
         } finally {
             closePointInTime(pitId);

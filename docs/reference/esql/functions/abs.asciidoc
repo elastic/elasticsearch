@@ -1,3 +1,4 @@
+[discrete]
 [[esql-abs]]
 === `ABS`
 [.text-center]

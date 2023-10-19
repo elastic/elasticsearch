@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -87,6 +88,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     );
 
     private final NodeClient nodeClient;
+    private final ProfilingLicenseChecker licenseChecker;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Executor responseExecutor;
@@ -104,10 +106,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         TransportService transportService,
         ActionFilters actionFilters,
         NodeClient nodeClient,
+        ProfilingLicenseChecker licenseChecker,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new);
+        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
+        this.licenseChecker = licenseChecker;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
@@ -119,6 +123,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
+        licenseChecker.requireSupportedLicense();
         long start = System.nanoTime();
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
@@ -129,6 +134,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             .execute(ActionListener.wrap(searchResponse -> {
                 long sampleCount = searchResponse.getHits().getTotalHits().value;
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
+                log.debug(
+                    "User requested [{}] samples, [{}] samples matched in [{}]. Picking [{}]",
+                    request.getSampleSize(),
+                    sampleCount,
+                    mediumDownsampled,
+                    resampledIndex
+                );
                 log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
@@ -184,14 +196,24 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 // sort items lexicographically to access Lucene's term dictionary more efficiently when issuing an mget request.
                 // The term dictionary is lexicographically sorted and using the same order reduces the number of page faults
                 // needed to load it.
+                long totalFinalCount = 0;
                 Map<String, Integer> stackTraceEvents = new TreeMap<>();
                 for (StringTerms.Bucket bucket : stacktraces.getBuckets()) {
                     Sum count = bucket.getAggregations().get("count");
                     int finalCount = resampler.adjustSampleCount((int) count.value());
+                    totalFinalCount += finalCount;
                     if (finalCount > 0) {
                         stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
+                responseBuilder.setTotalSamples(totalFinalCount);
+                log.debug(
+                    "Found [{}] stacktrace events, resampled with sample rate [{}] to [{}] events ([{}] unique stack traces).",
+                    totalCount,
+                    eventsIndex.getSampleRate(),
+                    totalFinalCount,
+                    stackTraceEvents.size()
+                );
                 log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 if (stackTraceEvents.isEmpty() == false) {
                     responseBuilder.setStart(Instant.ofEpochMilli(minTime));
@@ -304,6 +326,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (this.remainingSlices.decrementAndGet() == 0) {
                 responseBuilder.setStackTraces(stackTracePerId);
                 responseBuilder.setTotalFrames(totalFrames.get());
+                log.debug(
+                    "retrieveStackTraces found [{}] stack traces, [{}] frames, [{}] executables.",
+                    stackTracePerId.size(),
+                    stackFrameIds.size(),
+                    executableIds.size()
+                );
                 log.debug("retrieveStackTraces took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 retrieveStackTraceDetails(
                     clusterState,
@@ -448,6 +476,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             if (expectedSlices.decrementAndGet() == 0) {
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
+                log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
                 log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
                 submitListener.onResponse(builder.build());
             }
@@ -472,6 +501,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private Map<String, String> executables;
         private Map<String, Integer> stackTraceEvents;
         private double samplingRate;
+        private long totalSamples;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -517,8 +547,20 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.samplingRate = rate;
         }
 
+        public void setTotalSamples(long totalSamples) {
+            this.totalSamples = totalSamples;
+        }
+
         public GetStackTracesResponse build() {
-            return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
+            return new GetStackTracesResponse(
+                stackTraces,
+                stackFrames,
+                executables,
+                stackTraceEvents,
+                totalFrames,
+                samplingRate,
+                totalSamples
+            );
         }
     }
 }

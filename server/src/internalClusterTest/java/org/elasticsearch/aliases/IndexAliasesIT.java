@@ -8,6 +8,7 @@
 
 package org.elasticsearch.aliases;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
@@ -64,7 +64,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -107,7 +107,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         });
 
         logger.info("--> indexing against [alias1], should work now");
-        IndexResponse indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON))
+        DocWriteResponse indexResponse = client().index(new IndexRequest("alias1").id("1").source(source("1", "test"), XContentType.JSON))
             .actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
@@ -288,7 +288,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .setQuery(QueryBuilders.matchQuery("name", "bar"))
             .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         Global global = searchResponse.getAggregations().get("global");
         Terms terms = global.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(4));
@@ -299,7 +299,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
             .addSort("_index", SortOrder.ASC)
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(4));
@@ -310,7 +310,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             .addAggregation(AggregationBuilders.terms("test").field("name"))
             .addSort("_index", SortOrder.ASC)
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         terms = searchResponse.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(2));
 
@@ -1141,11 +1141,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
             client().prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
-                SearchResponse response = client().prepareSearch("filter1").get();
-                assertHitCount(response, i);
-
-                response = client().prepareSearch("filter2").get();
-                assertHitCount(response, i);
+                assertHitCount(client().prepareSearch("filter1"), i);
+                assertHitCount(client().prepareSearch("filter2"), i);
             }
         }
     }
@@ -1242,7 +1239,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             "test_2",
             () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))
         );
-        assertHitCount(client().prepareSearch("test").get(), 1);
+        assertHitCount(client().prepareSearch("test"), 1);
     }
 
     public void testHiddenAliasesMustBeConsistent() {
@@ -1322,7 +1319,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         // Put a couple docs in each index directly
-        IndexResponse res = client().index(new IndexRequest(nonWriteIndex).id("1").source(source("1", "nonwrite"), XContentType.JSON))
+        DocWriteResponse res = client().index(new IndexRequest(nonWriteIndex).id("1").source(source("1", "nonwrite"), XContentType.JSON))
             .get();
         assertThat(res.status().getStatus(), equalTo(201));
         res = client().index(new IndexRequest(writeIndex).id("2").source(source("2", "writeindex"), XContentType.JSON)).get();

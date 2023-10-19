@@ -25,9 +25,9 @@
             - ^docs/.*
             - ^x-pack/docs/.*
           black-list-labels:
-            - '>test-mute'
-            - ':Delivery/Packaging'
-            - 'buildkite-opt-in'
+            - ">test-mute"
+            - ":Delivery/Packaging"
+            - "buildkite-opt-in"
     axes:
       - axis:
           type: label-expression
@@ -39,14 +39,14 @@
           type: user-defined
           name: PACKAGING_TASK
           values:
-            - 'destructiveDistroTest.docker'
-            - 'destructiveDistroTest.packages'
-            - 'destructiveDistroTest.archives'
+            - "destructiveDistroTest.docker"
+            - "destructiveDistroTest.packages"
+            - "destructiveDistroTest.archives"
     builders:
       - inject:
-          properties-file: '.ci/java-versions.properties'
+          properties-file: ".ci/java-versions.properties"
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ $PACKAGING_TASK
+          ./.ci/scripts/packaging-test.sh $PACKAGING_TASK

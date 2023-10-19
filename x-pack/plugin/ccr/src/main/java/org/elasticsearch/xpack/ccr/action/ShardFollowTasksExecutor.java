@@ -100,6 +100,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final TimeValue retentionLeaseRenewInterval;
     private volatile TimeValue waitForMetadataTimeOut;
 
+    @SuppressWarnings("this-escape")
     public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService, SettingsModule settingsModule) {
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;

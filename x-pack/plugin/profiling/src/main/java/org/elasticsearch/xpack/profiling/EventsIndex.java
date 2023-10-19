@@ -57,6 +57,11 @@ public final class EventsIndex {
         return EventsIndex.getSampledIndex(targetSampleSize, currentSampleSize, this.getExponent());
     }
 
+    @Override
+    public String toString() {
+        return name;
+    }
+
     // Return the index that has between targetSampleSize..targetSampleSize*samplingFactor entries.
     // The starting point is the number of entries from the profiling-events-5pow<initialExp> index.
     private static EventsIndex getSampledIndex(long targetSampleSize, long sampleCountFromInitialExp, int initialExp) {

@@ -142,7 +142,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         search5.setScriptParams(params5);
         multiRequest.add(search5);
 
-        MultiSearchTemplateResponse response = client().execute(MultiSearchTemplateAction.INSTANCE, multiRequest).get();
+        MultiSearchTemplateResponse response = client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, multiRequest).get();
         assertThat(response.getResponses(), arrayWithSize(5));
         assertThat(response.getTook().millis(), greaterThan(0L));
 
@@ -182,7 +182,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
     }
 
     /**
-    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+    * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before TransportVersion.current() works
     */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -195,7 +195,8 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         searchTemplateRequest.setRequest(new SearchRequest());
         MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
         request.add(searchTemplateRequest);
-        MultiSearchTemplateResponse multiSearchTemplateResponse = client().execute(MultiSearchTemplateAction.INSTANCE, request).get();
+        MultiSearchTemplateResponse multiSearchTemplateResponse = client().execute(MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION, request)
+            .get();
         Item response = multiSearchTemplateResponse.getResponses()[0];
         assertTrue(response.isFailure());
         Exception ex = response.getFailure();

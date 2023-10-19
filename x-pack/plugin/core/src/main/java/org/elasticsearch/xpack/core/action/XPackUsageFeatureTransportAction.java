@@ -35,7 +35,7 @@ public abstract class XPackUsageFeatureTransportAction extends TransportMasterNo
             XPackUsageRequest::new,
             indexNameExpressionResolver,
             XPackUsageFeatureResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 

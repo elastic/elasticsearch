@@ -41,7 +41,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -80,22 +80,22 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         assertEquals(pcts.length, percentileList.size());
         for (int i = 0; i < pcts.length; ++i) {
             final Percentile percentile = percentileList.get(i);
-            assertThat(percentile.getPercent(), equalTo(pcts[i]));
-            double value = percentile.getValue();
+            assertThat(percentile.percent(), equalTo(pcts[i]));
+            double value = percentile.value();
             double allowedError = value / Math.pow(10, numberSigDigits);
             assertThat(value, greaterThanOrEqualTo(minValue - allowedError));
             assertThat(value, lessThanOrEqualTo(maxValue + allowedError));
 
-            if (percentile.getPercent() == 0) {
+            if (percentile.percent() == 0) {
                 assertThat(value, closeTo(minValue, allowedError));
             }
-            if (percentile.getPercent() == 100) {
+            if (percentile.percent() == 100) {
                 assertThat(value, closeTo(maxValue, allowedError));
             }
         }
 
         for (int i = 1; i < percentileList.size(); ++i) {
-            assertThat(percentileList.get(i).getValue(), greaterThanOrEqualTo(percentileList.get(i - 1).getValue()));
+            assertThat(percentileList.get(i).value(), greaterThanOrEqualTo(percentileList.get(i - 1).value()));
         }
     }
 
@@ -554,7 +554,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -575,7 +575,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -591,7 +591,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
             .setSize(0)
             .addAggregation(percentiles("foo").method(PercentilesMethod.HDR).field("d").percentiles(50.0))
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

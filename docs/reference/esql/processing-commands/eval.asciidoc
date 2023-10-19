@@ -1,3 +1,4 @@
+[discrete]
 [[esql-eval]]
 === `EVAL`
 `EVAL` enables you to append new columns:

@@ -52,7 +52,7 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new Filter$Type$Vector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
@@ -79,7 +79,16 @@ $endif$
     }
 
     @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
     public void close() {
+        if (released || vector.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
         Releasables.closeExpectNoException(vector);
     }
 }

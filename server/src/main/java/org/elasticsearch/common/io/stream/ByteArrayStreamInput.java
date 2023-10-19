@@ -23,10 +23,12 @@ public class ByteArrayStreamInput extends StreamInput {
     private int pos;
     private int limit;
 
+    @SuppressWarnings("this-escape")
     public ByteArrayStreamInput() {
         reset(BytesRef.EMPTY_BYTES);
     }
 
+    @SuppressWarnings("this-escape")
     public ByteArrayStreamInput(byte[] bytes) {
         reset(bytes);
     }

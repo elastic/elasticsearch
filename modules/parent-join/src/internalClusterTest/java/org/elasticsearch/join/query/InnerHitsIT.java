@@ -52,9 +52,10 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -612,18 +613,17 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("index1", "child_type", "2", "1").get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(
-                boolQuery().should(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
-                ).should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("index1", "index2")
+                .setQuery(
+                    boolQuery().should(
+                        hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                            .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
+                    ).should(termQuery("key", "value"))
+                ),
+            "1",
+            "3"
+        );
     }
 
     public void testTooHighResultWindow() {
@@ -639,15 +639,14 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1")
-            .setQuery(
-                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                    .innerHit(new InnerHitBuilder().setFrom(50).setSize(10).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(
+            client().prepareSearch("index1")
+                .setQuery(
+                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setFrom(50).setSize(10).setName("_name"))
+                ),
+            1
+        );
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
@@ -676,19 +675,19 @@ public class InnerHitsIT extends ParentChildTestCase {
             containsString("the inner hit definition's [_name]'s from + size must be less than or equal to: [100] but was [110]")
         );
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index1");
-        response = client().prepareSearch("index1")
-            .setQuery(
-                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                    .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
-        response = client().prepareSearch("index1")
-            .setQuery(
-                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                    .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
+        assertNoFailures(
+            client().prepareSearch("index1")
+                .setQuery(
+                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
+                )
+        );
+        assertNoFailures(
+            client().prepareSearch("index1")
+                .setQuery(
+                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
+                )
+        );
     }
 }

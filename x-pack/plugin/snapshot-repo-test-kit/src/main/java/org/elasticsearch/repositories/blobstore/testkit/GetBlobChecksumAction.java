@@ -17,6 +17,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -97,9 +98,14 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
             final InputStream rawInputStream;
             try {
                 if (request.isWholeBlob()) {
-                    rawInputStream = blobContainer.readBlob(request.getBlobName());
+                    rawInputStream = blobContainer.readBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.getBlobName());
                 } else {
-                    rawInputStream = blobContainer.readBlob(request.getBlobName(), request.getRangeStart(), request.getRangeLength());
+                    rawInputStream = blobContainer.readBlob(
+                        OperationPurpose.REPOSITORY_ANALYSIS,
+                        request.getBlobName(),
+                        request.getRangeStart(),
+                        request.getRangeLength()
+                    );
                 }
             } catch (FileNotFoundException | NoSuchFileException e) {
                 logger.trace("blob not found for [{}]", request);

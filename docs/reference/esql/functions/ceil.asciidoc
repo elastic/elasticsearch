@@ -1,3 +1,4 @@
+[discrete]
 [[esql-ceil]]
 === `CEIL`
 [.text-center]

@@ -15,7 +15,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenerTimeouts;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
@@ -63,7 +62,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING };
 
-    private final ParentTaskAssigningClient parentTaskClient;
     private final TransformTaskParams transform;
     private final TransformScheduler transformScheduler;
     private final ThreadPool threadPool;
@@ -79,7 +77,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         String type,
         String action,
         TaskId parentTask,
-        Client client,
         TransformTaskParams transform,
         TransformState state,
         TransformScheduler transformScheduler,
@@ -88,7 +85,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         Map<String, String> headers
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
-        this.parentTaskClient = new ParentTaskAssigningClient(client, parentTask);
         this.transform = transform;
         this.transformScheduler = transformScheduler;
         this.threadPool = threadPool;
@@ -123,10 +119,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }
-    }
-
-    public ParentTaskAssigningClient getParentTaskClient() {
-        return parentTaskClient;
     }
 
     public String getTransformId() {
@@ -183,6 +175,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public void getCheckpointingInfo(
         TransformCheckpointService transformsCheckpointService,
+        ParentTaskAssigningClient parentTaskClient,
         ActionListener<TransformCheckpointingInfo> listener,
         TimeValue timeout
     ) {
@@ -217,7 +210,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             );
             return;
         }
-        transformIndexer.getCheckpointProvider()
+        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),

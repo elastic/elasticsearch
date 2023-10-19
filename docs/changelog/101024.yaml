@@ -1,0 +1,5 @@
+pr: 101024
+summary: More consistent logging messages for snapshot deletion
+area: Snapshot/Restore
+type: bug
+issues: []

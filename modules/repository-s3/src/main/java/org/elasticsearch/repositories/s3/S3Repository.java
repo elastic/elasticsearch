@@ -408,7 +408,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             metadata,
             bigArrays,
             threadPool,
-            meter
+            meterRegistry
         );
     }
 

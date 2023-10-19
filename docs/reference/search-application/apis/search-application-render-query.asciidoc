@@ -57,7 +57,7 @@ Search Application `<name>` does not exist.
 ==== {api-examples-title}
 
 The following example generates a query for a search application called `my-app` that uses the search template from
-the <<search-application-api-bm25-template, text search example>>:
+the {enterprise-search-ref}/search-applications-templates.html#search-applications-templates-bm25-template[text search example]:
 
 ////
 [source,console]

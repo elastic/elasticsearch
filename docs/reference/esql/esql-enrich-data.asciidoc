@@ -112,6 +112,8 @@ include::../ingest/enrich.asciidoc[tag=execute-enrich-policy2]
 After the policy has been executed, you can use the <<esql-enrich,`ENRICH`
 command>> to enrich your data.
 
+image::images/esql/esql-enrich-command.png[align="center",width=50%]
+
 include::processing-commands/enrich.asciidoc[tag=examples]
 
 [[esql-update-enrich-data]]

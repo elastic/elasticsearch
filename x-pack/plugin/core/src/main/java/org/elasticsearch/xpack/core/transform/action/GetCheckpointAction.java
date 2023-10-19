@@ -82,7 +82,7 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
             return indicesOptions;
         }
 
-        public TimeValue timeout() {
+        public TimeValue getTimeout() {
             return timeout;
         }
 

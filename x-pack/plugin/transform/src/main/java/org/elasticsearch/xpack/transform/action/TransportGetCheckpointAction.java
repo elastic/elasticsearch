@@ -90,7 +90,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             return;
         }
 
-        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), request.timeout(), listener)
+        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener)
             .start();
     }
 

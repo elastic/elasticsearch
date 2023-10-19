@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -79,7 +80,7 @@ import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachF
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
@@ -485,7 +486,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < searchThreads.length; i++) {
             searchThreads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
-                    assertNoFailures(client().prepareSearch("test").setRequestCache(false).get());
+                    assertNoFailures(client().prepareSearch("test").setRequestCache(false));
                 }
             });
             searchThreads[i].start();
@@ -522,9 +523,7 @@ public class RelocationIT extends ESIntegTestCase {
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
             logger.info(" --> checking iteration {}", i);
-            SearchResponse afterRelocation = client().prepareSearch().setSize(ids.size()).get();
-            assertNoFailures(afterRelocation);
-            assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
+            assertSearchHitsWithoutFailures(client().prepareSearch().setSize(ids.size()), ids.toArray(Strings.EMPTY_ARRAY));
         }
         stopped.set(true);
         for (Thread searchThread : searchThreads) {

@@ -348,18 +348,23 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                     };
                     if (atomic) {
                         try {
-                            blobContainer.writeBlobAtomic(OperationPurpose.SNAPSHOT, request.blobName, bytesReference, failIfExists);
+                            blobContainer.writeBlobAtomic(
+                                OperationPurpose.REPOSITORY_ANALYSIS,
+                                request.blobName,
+                                bytesReference,
+                                failIfExists
+                            );
                         } catch (BlobWriteAbortedException e) {
                             assert request.getAbortWrite() : "write unexpectedly aborted";
                         }
                     } else {
-                        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, request.blobName, bytesReference, failIfExists);
+                        blobContainer.writeBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName, bytesReference, failIfExists);
                     }
                 } else {
                     cancellableThreads.execute(() -> {
                         try {
                             blobContainer.writeBlob(
-                                OperationPurpose.SNAPSHOT,
+                                OperationPurpose.REPOSITORY_ANALYSIS,
                                 request.blobName,
                                 repository.maybeRateLimitSnapshots(
                                     new RandomBlobContentStream(content, request.getTargetLength()),
@@ -478,7 +483,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 logger.trace(() -> "analysis failed [" + request.getDescription() + "] cleaning up", exception);
             }
             try {
-                blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, Iterators.single(request.blobName));
+                blobContainer.deleteBlobsIgnoringIfNotExists(OperationPurpose.REPOSITORY_ANALYSIS, Iterators.single(request.blobName));
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(

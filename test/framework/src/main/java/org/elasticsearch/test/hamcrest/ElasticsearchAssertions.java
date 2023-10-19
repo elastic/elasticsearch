@@ -223,8 +223,26 @@ public class ElasticsearchAssertions {
         return msg.toString();
     }
 
+    public static void assertNoSearchHits(SearchRequestBuilder searchRequestBuilder) {
+        var searchResponse = searchRequestBuilder.get();
+        try {
+            assertNoSearchHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
     public static void assertNoSearchHits(SearchResponse searchResponse) {
         assertThat(searchResponse.getHits().getHits(), emptyArray());
+    }
+
+    public static void assertSearchHits(SearchRequestBuilder searchRequestBuilder, String... ids) {
+        var res = searchRequestBuilder.get();
+        try {
+            assertSearchHits(res, ids);
+        } finally {
+            res.decRef();
+        }
     }
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
@@ -235,13 +253,38 @@ public class ElasticsearchAssertions {
         );
     }
 
-    public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
-        assertSearchResponse(searchResponse);
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        assertEquals(sortValues.length, hits.length);
-        for (int i = 0; i < sortValues.length; ++i) {
-            final Object[] hitsSortValues = hits[i].getSortValues();
-            assertArrayEquals("Offset " + i + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
+    public static void assertSearchHitsWithoutFailures(SearchRequestBuilder requestBuilder, String... ids) {
+        var res = requestBuilder.get();
+        try {
+            assertNoFailures(res);
+            assertHitCount(res, ids.length);
+            assertSearchHits(res, ids);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertSortValues(SearchRequestBuilder searchRequestBuilder, Object[]... sortValues) {
+        var searchResponse = searchRequestBuilder.get();
+        try {
+            assertSearchResponse(searchResponse);
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            assertEquals(sortValues.length, hits.length);
+            for (int i = 0; i < sortValues.length; ++i) {
+                final Object[] hitsSortValues = hits[i].getSortValues();
+                assertArrayEquals("Offset " + i + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    public static void assertOrderedSearchHits(SearchRequestBuilder searchRequestBuilder, String... ids) {
+        var res = searchRequestBuilder.get();
+        try {
+            assertOrderedSearchHits(res, ids);
+        } finally {
+            res.decRef();
         }
     }
 
@@ -294,6 +337,15 @@ public class ElasticsearchAssertions {
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) number));
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
+    }
+
+    public static void assertNoFailures(SearchRequestBuilder searchRequestBuilder) {
+        var res = searchRequestBuilder.get();
+        try {
+            assertNoFailures(res);
+        } finally {
+            res.decRef();
+        }
     }
 
     public static void assertNoFailures(SearchResponse searchResponse) {

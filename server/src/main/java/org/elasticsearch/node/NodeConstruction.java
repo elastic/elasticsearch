@@ -327,7 +327,7 @@ class NodeConstruction {
         throws IOException {
         // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
         DeprecationLogger.initialize(initialEnvironment.settings());
-        Settings tmpSettings = Settings.builder()
+        Settings environmentSettings = Settings.builder()
             .put(initialEnvironment.settings())
             .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
             .build();
@@ -356,7 +356,7 @@ class NodeConstruction {
                 Build.current().qualifiedVersion()
             );
         }
-        if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
+        if (Environment.PATH_SHARED_DATA_SETTING.exists(environmentSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
             deprecationLogger.warn(
@@ -375,7 +375,7 @@ class NodeConstruction {
                     + "multiple disks. This feature will be removed in a future release."
             );
         }
-        if (Environment.dataPathUsesList(tmpSettings)) {
+        if (Environment.dataPathUsesList(environmentSettings)) {
             // already checked for multiple values above, so if this is a list it is a single valued list
             deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
@@ -399,8 +399,8 @@ class NodeConstruction {
             (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
         );
 
-        this.pluginsService = serviceProvider.pluginsServiceCtor(initialEnvironment).apply(tmpSettings);
-        final Settings settings = Node.mergePluginSettings(pluginsService.pluginMap(), tmpSettings);
+        pluginsService = serviceProvider.newPluginService(initialEnvironment, environmentSettings);
+        final Settings settings = Node.mergePluginSettings(pluginsService.pluginMap(), environmentSettings);
 
         /*
          * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -461,12 +461,12 @@ class NodeConstruction {
 
         // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
         // after settings validation.
-        nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+        nodeEnvironment = new NodeEnvironment(environmentSettings, environment);
         logger.info(
             "node name [{}], node ID [{}], cluster name [{}], roles {}",
-            Node.NODE_NAME_SETTING.get(tmpSettings),
+            Node.NODE_NAME_SETTING.get(environmentSettings),
             nodeEnvironment.nodeId(),
-            ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value(),
+            ClusterName.CLUSTER_NAME_SETTING.get(environmentSettings).value(),
             DiscoveryNode.getRolesFromSettings(settings)
                 .stream()
                 .map(DiscoveryNodeRole::roleName)

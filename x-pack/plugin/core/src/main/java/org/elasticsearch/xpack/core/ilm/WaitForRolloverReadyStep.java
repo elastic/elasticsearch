@@ -208,12 +208,11 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
         getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
             final var conditionStatus = response.getConditionStatus();
             final var conditionsMet = rolloverRequest.getConditions().areConditionsMet(conditionStatus);
-            logger.debug(
-                "index [{}] is {} for rollover, conditionStatus: [{}]",
-                index.getName(),
-                conditionsMet ? "ready" : "not ready",
-                conditionStatus
-            );
+            if (conditionsMet) {
+                logger.info("index [{}] is ready for rollover, conditionStatus: [{}]", index.getName(), conditionStatus);
+            } else {
+                logger.debug("index [{}] is not ready for rollover, conditionStatus: [{}]", index.getName(), conditionStatus);
+            }
             listener.onResponse(conditionsMet, EmptyInfo.INSTANCE);
         }, listener::onFailure));
     }

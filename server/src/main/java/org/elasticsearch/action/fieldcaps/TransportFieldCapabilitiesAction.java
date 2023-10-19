@@ -470,7 +470,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         void collect(String index, Exception e) {
-            Exception prev = failuresByIndex.putIfAbsent(index, e);
+            failuresByIndex.putIfAbsent(index, e);
         }
 
         void clear() {

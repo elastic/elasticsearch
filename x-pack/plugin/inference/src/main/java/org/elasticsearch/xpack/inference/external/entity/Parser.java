@@ -14,8 +14,9 @@ public class Parser {
     /**
      * It is expensive to construct the ObjectMapper so we'll do it once
      * <a href="https://github.com/FasterXML/jackson-docs/wiki/Presentation:-Jackson-Performance">See here for more details</a>
+     *
+     * ObjectMapper is threadsafe as long as it is not reconfigured across multiple threads.
      */
-    // TODO move this to the plugin
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private Parser() {}

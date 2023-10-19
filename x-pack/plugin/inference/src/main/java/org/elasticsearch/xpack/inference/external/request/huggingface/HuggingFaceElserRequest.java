@@ -31,7 +31,6 @@ public class HuggingFaceElserRequest implements Request {
         this.entity = Objects.requireNonNull(entity);
     }
 
-    // TODO pass in the request timeout somewhere
     public HttpRequestBase createRequest() {
         HttpPost httpPost = new HttpPost(account.url());
 
@@ -44,6 +43,6 @@ public class HuggingFaceElserRequest implements Request {
     }
 
     private Header apiKeyHeader() {
-        return new BasicHeader("Authorization", "Bearer " + account.apiKey().toString());
+        return new BasicHeader(HttpHeaders.AUTHORIZATION, "Bearer " + account.apiKey().toString());
     }
 }

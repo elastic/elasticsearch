@@ -75,7 +75,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         DeleteResponse delete = client().prepareDelete("test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(DocWriteResponse.Result.DELETED, delete.getResult());
         assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
-        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")));
     }
 
     public void testUpdate() throws InterruptedException, ExecutionException {
@@ -109,7 +109,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get());
+        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")));
     }
 
     public void testBulk() {
@@ -129,7 +129,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareDelete("test", "1"));
         assertBulkSuccess(bulk.get());
-        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")));
 
         // Update makes a noop
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);

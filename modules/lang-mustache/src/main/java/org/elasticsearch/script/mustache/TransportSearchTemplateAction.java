@@ -55,7 +55,13 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         NodeClient client,
         UsageService usageService
     ) {
-        super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            MustachePlugin.SEARCH_TEMPLATE_ACTION.name(),
+            transportService,
+            actionFilters,
+            SearchTemplateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

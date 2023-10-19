@@ -630,16 +630,16 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             }
                         }, ref), listener -> {
                             switch (random.nextInt(3)) {
-                                case 0 -> getBlobContainer().getRegister(OperationPurpose.SNAPSHOT, registerName, listener);
+                                case 0 -> getBlobContainer().getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, listener);
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
-                                    OperationPurpose.SNAPSHOT,
+                                    OperationPurpose.REPOSITORY_ANALYSIS,
                                     registerName,
                                     RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
-                                    OperationPurpose.SNAPSHOT,
+                                    OperationPurpose.REPOSITORY_ANALYSIS,
                                     registerName,
                                     RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
@@ -689,7 +689,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 try {
                     final BlobContainer blobContainer = getBlobContainer();
                     final Set<String> missingBlobs = new HashSet<>(expectedBlobs);
-                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
+                    final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.REPOSITORY_ANALYSIS);
                     missingBlobs.removeAll(blobsMap.keySet());
 
                     if (missingBlobs.isEmpty()) {
@@ -712,11 +712,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private void deleteContainer() {
             try {
                 final BlobContainer blobContainer = getBlobContainer();
-                blobContainer.delete(OperationPurpose.SNAPSHOT);
+                blobContainer.delete(OperationPurpose.REPOSITORY_ANALYSIS);
                 if (failure.get() != null) {
                     return;
                 }
-                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.SNAPSHOT);
+                final Map<String, BlobMetadata> blobsMap = blobContainer.listBlobs(OperationPurpose.REPOSITORY_ANALYSIS);
                 if (blobsMap.isEmpty() == false) {
                     final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                         request.repositoryName,

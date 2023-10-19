@@ -1596,7 +1596,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return this;
     }
 
-    private static void throwUnknownKey(XContentParser parser, XContentParser.Token token, String currentFieldName) throws ParsingException {
+    private static void throwUnknownKey(XContentParser parser, XContentParser.Token token, String currentFieldName)
+        throws ParsingException {
         throw new ParsingException(
             parser.getTokenLocation(),
             "Unknown key for a " + token + " in [" + currentFieldName + "].",

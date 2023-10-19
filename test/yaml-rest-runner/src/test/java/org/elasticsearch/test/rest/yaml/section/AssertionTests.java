@@ -199,7 +199,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         AssertionError e = expectThrows(
             AssertionError.class,
             () -> existnotExistsAssertion.doAssert(
-                randomFrom(1, "", "non-empty", List.of(), Map.of()),
+                randomFrom(1, "", "non-empty", List.of(), Map.of(), 0, false),
                 existnotExistsAssertion.getExpectedValue()
             )
         );

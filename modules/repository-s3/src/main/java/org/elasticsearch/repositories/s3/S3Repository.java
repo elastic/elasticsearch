@@ -37,6 +37,7 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -205,7 +206,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final Meter meter
+        final MeterRegistry meterRegistry
     ) {
         super(
             metadata,
@@ -215,7 +216,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             recoverySettings,
             buildBasePath(metadata),
             buildLocation(metadata),
-            meter
+            meterRegistry
         );
         this.service = service;
         this.snapshotExecutor = threadPool().executor(ThreadPool.Names.SNAPSHOT);

@@ -10,4 +10,6 @@ package org.elasticsearch.telemetry.metric;
 
 public interface MeterService {
     void setEnabled(boolean enabled);
+
+    MeterService NOOP = (enabled -> {});
 }

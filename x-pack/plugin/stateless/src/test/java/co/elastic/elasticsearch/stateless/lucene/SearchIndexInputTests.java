@@ -27,6 +27,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
@@ -67,7 +68,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     TestUtils.singleBlobContainer(fileName, input),
                     sharedBlobCacheService,
                     input.length,
-                    0
+                    0,
+                    LongCounter.NOOP
                 );
                 assertEquals(input.length, indexInput.length());
                 assertEquals(0, indexInput.getFilePointer());
@@ -106,7 +108,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 TestUtils.singleBlobContainer(fileName, input),
                 sharedBlobCacheService,
                 input.length,
-                0
+                0,
+                LongCounter.NOOP
             );
 
             indexInput.seek(randomLongBetween(0, input.length - 1));

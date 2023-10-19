@@ -42,6 +42,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -85,7 +86,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 ThreadPool.Names.GENERIC
             );
             FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
-            IndexDirectory indexDirectory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId)
+            IndexDirectory indexDirectory = new IndexDirectory(newFSDirectory(indexDataPath), sharedBlobCacheService, shardId, Meter.NOOP)
         ) {
             final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
             indexDirectory.getSearchDirectory().setBlobContainer(value -> blobContainer);

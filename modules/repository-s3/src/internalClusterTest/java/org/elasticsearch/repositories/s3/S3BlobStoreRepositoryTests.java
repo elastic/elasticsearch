@@ -51,7 +51,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
-import org.elasticsearch.telemetry.DelegatingMeter;
+import org.elasticsearch.telemetry.DelegatingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -585,7 +585,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         };
 
-        private final MeterRegistry meterRegistry = new DelegatingMeter(MeterRegistry.NOOP) {
+        private final MeterRegistry meterRegistry = new DelegatingMeterRegistry(MeterRegistry.NOOP) {
             @Override
             public LongCounter registerLongCounter(String name, String description, String unit) {
                 assertThat(name, equalTo(METRIC_REQUESTS_COUNT));

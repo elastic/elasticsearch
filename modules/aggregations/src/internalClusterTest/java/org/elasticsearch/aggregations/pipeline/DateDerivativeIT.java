@@ -39,7 +39,7 @@ import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,7 +125,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -170,7 +170,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -235,7 +235,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -293,7 +293,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -353,7 +353,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -421,7 +421,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -504,7 +504,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -562,7 +562,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -580,7 +580,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());

@@ -34,7 +34,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -107,7 +107,7 @@ public class FiltersIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -134,7 +134,7 @@ public class FiltersIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -156,7 +156,7 @@ public class FiltersIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -206,7 +206,7 @@ public class FiltersIT extends ESIntegTestCase {
             .addAggregation(histogram("histo").field("value").interval(2L).subAggregation(filters("filters", matchAllQuery())))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -273,7 +273,7 @@ public class FiltersIT extends ESIntegTestCase {
             .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2")))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -303,7 +303,7 @@ public class FiltersIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -334,7 +334,7 @@ public class FiltersIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -360,7 +360,7 @@ public class FiltersIT extends ESIntegTestCase {
             .addAggregation(filters("tags", termQuery("tag", "tag1"), termQuery("tag", "tag2")).otherBucket(true))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());
@@ -394,7 +394,7 @@ public class FiltersIT extends ESIntegTestCase {
             )
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filters filters = response.getAggregations().get("tags");
         assertThat(filters, notNullValue());

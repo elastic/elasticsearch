@@ -1933,11 +1933,7 @@ Refer to <<remote-clusters>>.
 
 Refer to <<remote-clusters>>.
 
-coming::[8.11.0]
-
 [id="ingest-pipeline-search-inference-update-mapping"]
 ==== Update mapping
 
 coming::[8.11.0]
-
-

@@ -95,7 +95,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -208,32 +208,29 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        )
-            .prepareSearch("test")
-            .setQuery(randomBoolean() ? QueryBuilders.termQuery("field1", "value1") : QueryBuilders.matchAllQuery())
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(randomBoolean() ? QueryBuilders.termQuery("field2", "value2") : QueryBuilders.matchAllQuery())
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "2");
-
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(randomBoolean() ? QueryBuilders.termQuery("field1", "value1") : QueryBuilders.matchAllQuery()),
+            "1"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(randomBoolean() ? QueryBuilders.termQuery("field2", "value2") : QueryBuilders.matchAllQuery()),
+            "2"
+        );
         QueryBuilder combined = QueryBuilders.boolQuery()
             .should(QueryBuilders.termQuery("field2", "value2"))
             .should(QueryBuilders.termQuery("field1", "value1"))
             .minimumShouldMatch(1);
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("test")
-            .setQuery(randomBoolean() ? combined : QueryBuilders.matchAllQuery())
-            .get();
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "2");
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("test")
+                .setQuery(randomBoolean() ? combined : QueryBuilders.matchAllQuery()),
+            "1",
+            "2"
+        );
     }
 
     public void testGetApi() throws Exception {
@@ -543,14 +540,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse result = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
         ).prepareSearch("query_index").setQuery(new PercolateQueryBuilder("query", "doc_index", "1", null, null, null)).get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 can access the query_index itself (without performing percolate search)
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 cannot access doc#1 of the doc_index so the percolate search fails because doc#1 cannot be found
         ResourceNotFoundException e = expectThrows(
@@ -598,14 +595,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             requestBuilder.setQuery(shapeQuery);
         }
         result = requestBuilder.get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 does not have access to doc#1 of the shape_index
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("search_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         IllegalArgumentException e;
         if (randomBoolean()) {
@@ -676,11 +673,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         // Lookup doc#1 is: visible to user1 and user3, but hidden from user2
         TermsQueryBuilder lookup = QueryBuilders.termsLookupQuery("search_field", new TermsLookup("lookup_index", "1", "lookup_field"));
-        SearchResponse response = client().filterWithHeader(
-            Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-        ).prepareSearch("search_index").setQuery(lookup).get();
-        assertHitCount(response, 3);
-        assertSearchHits(response, "1", "2", "3");
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "1",
+            "2",
+            "3"
+        );
 
         assertHitCount(
             client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
@@ -688,13 +688,16 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setQuery(lookup),
             0
         );
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 5);
-        assertSearchHits(response, "1", "2", "3", "4", "5");
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+        );
         // Lookup doc#2 is: hidden from user1, visible to user2 and user3
         lookup = QueryBuilders.termsLookupQuery("search_field", new TermsLookup("lookup_index", "2", "lookup_field"));
         assertHitCount(
@@ -704,20 +707,21 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .get(),
             0
         );
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 2);
-        assertSearchHits(response, "2", "5");
-
-        response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
-            .prepareSearch("search_index")
-            .setQuery(lookup)
-            .get();
-        assertHitCount(response, 3);
-        assertSearchHits(response, "1", "2", "5");
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "2",
+            "5"
+        );
+        assertSearchHitsWithoutFailures(
+            client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareSearch("search_index")
+                .setQuery(lookup),
+            "1",
+            "2",
+            "5"
+        );
     }
 
     public void testTVApi() throws Exception {

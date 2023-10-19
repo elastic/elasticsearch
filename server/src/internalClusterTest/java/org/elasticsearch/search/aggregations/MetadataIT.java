@@ -22,7 +22,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class MetadataIT extends ESIntegTestCase {
 
@@ -46,7 +46,7 @@ public class MetadataIT extends ESIntegTestCase {
             .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Aggregations aggs = response.getAggregations();
         assertNotNull(aggs);

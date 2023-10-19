@@ -36,13 +36,3 @@ tasks.named("test").configure { enabled = false }
 tasks.register('destructivePackagingTest') {
   dependsOn 'destructiveDistroTest'
 }
-
-subprojects { Project platformProject ->
-  tasks.register('packagingTest') {
-    dependsOn 'distroTest'
-  }
-
-  vagrant {
-    hostEnv 'VAGRANT_PROJECT_DIR', platformProject.projectDir.absolutePath
-  }
-}

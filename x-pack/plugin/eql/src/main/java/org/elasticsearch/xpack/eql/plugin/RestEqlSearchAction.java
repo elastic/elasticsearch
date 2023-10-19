@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.ql.util.LoggingUtils.wrapWithFailureLoggin
 @ServerlessScope(Scope.PUBLIC)
 public class RestEqlSearchAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEqlSearchAction.class);
-    private static final String LOGGING_PREFIX = "EQL query";
+    private static final String LOGGING_PREFIX = "EQL request";
     private static final String SEARCH_PATH = "/{index}/_eql/search";
 
     @Override

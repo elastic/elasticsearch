@@ -19,7 +19,7 @@ public final class LoggingUtils {
 
     /**
      * Log the failure of a QL query, that failed with an exception.
-     * @param logger The logger to send the failure message too.
+     * @param logger The logger to send the failure message to.
      * @param queryName The type of QL query. Example `EQL query`. It is prepended to the failure message.
      * @param throwable The exception the query failed with.
      * @param preamble An optional message to log along the failure. Can be `null`.
@@ -73,8 +73,8 @@ public final class LoggingUtils {
         String queryName
     ) {
         return ActionListener.wrap(actionListener::onResponse, ex -> {
-            actionListener.onFailure(ex);
             logQueryFailure(logger, queryName, ex, null);
+            actionListener.onFailure(ex);
         });
     }
 }

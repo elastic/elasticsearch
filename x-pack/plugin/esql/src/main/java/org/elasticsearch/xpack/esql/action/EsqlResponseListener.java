@@ -74,7 +74,7 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
     }
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlResponseListener.class);
-    private static final String LOGGING_PREFIX = "ESQL query";
+    private static final String LOGGING_PREFIX = "ESQL request";
     private static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
     private final RestChannel channel;
     private final RestRequest restRequest;
@@ -164,9 +164,9 @@ public class EsqlResponseListener extends RestResponseListener<EsqlQueryResponse
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
-            onFailure(ex);
             LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
             logQueryFailure(LOGGER, LOGGING_PREFIX, ex, null);
+            onFailure(ex);
         });
     }
 }

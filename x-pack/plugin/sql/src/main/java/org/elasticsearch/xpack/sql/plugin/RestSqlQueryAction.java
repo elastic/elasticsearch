@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 @ServerlessScope(Scope.PUBLIC)
 public class RestSqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestSqlQueryAction.class);
-    private static final String LOGGING_PREFIX = "SQL query";
+    private static final String LOGGING_PREFIX = "SQL request";
 
     @Override
     public List<Route> routes() {

@@ -8,6 +8,7 @@
 
 
 import org.elasticsearch.gradle.transform.UnzipTransform
+import org.elasticsearch.gradle.internal.GenerateProviderManifest
 import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 import java.util.stream.Collectors
@@ -67,15 +68,10 @@ tasks.named("dependencyLicenses").configure {
 }
 
 File generatedResourcesDir = new File(buildDir, 'generated-resources')
-def generateProviderManifest = tasks.register("generateProviderManifest") {
-  File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")
-  inputs.files('jars', configurations.providerImpl).withPathSensitivity(PathSensitivity.RELATIVE)
-  outputs.file(manifestFile)
-  doLast {
-    manifestFile.parentFile.mkdirs()
-    manifestFile.setText(configurations.providerImpl.files.stream()
-      .map(f -> f.name).sorted().collect(Collectors.joining('\n')), 'UTF-8')
-  }
+def generateProviderManifest = tasks.register("generateProviderManifest", GenerateProviderManifest.class) {
+  outputDir = layout.buildDirectory.dir('generated-resources')
+  manifestName = "LISTING.TXT"
+  getProviderImplClasspath().from(configurations.providerImpl)
 }
 
 def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {

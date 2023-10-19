@@ -11,28 +11,37 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.util.FileUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
-import org.gradle.api.provider.Provider;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.File;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
+
 abstract class GenerateProviderManifest extends DefaultTask {
+
+    @Inject
+    public GenerateProviderManifest() {}
 
     @Classpath
     @InputFiles
     abstract public ConfigurableFileCollection getProviderImplClasspath();
 
-    @OutputFile
-    abstract public Provider<File> getManifestFile();
+    @Input
+    abstract public Property<String> getManifestName();
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDir();
 
     @TaskAction
     void generateManifest() {
-        File manifestFile = getManifestFile().get();
-        manifestFile.getParentFile().mkdirs();
+        File manifestFile = getOutputDir().file(getManifestName().get()).get().getAsFile();
         FileUtils.write(manifestFile, generateManifestContent(), "UTF-8");
     }
 

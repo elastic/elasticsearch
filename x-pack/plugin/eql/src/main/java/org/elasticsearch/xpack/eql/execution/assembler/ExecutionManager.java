@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.querydsl.container.FieldExtractorRegistry;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.EqlSession;
-import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -178,7 +178,7 @@ public class ExecutionManager {
      */
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans, Limit limit) {
         if (cfg.fetchSize() > SAMPLE_MAX_PAGE_SIZE) {
-            throw new QlClientIllegalArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
+            throw new InvalidArgumentException("Fetch size cannot be greater than [{}]", SAMPLE_MAX_PAGE_SIZE);
         }
 
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();

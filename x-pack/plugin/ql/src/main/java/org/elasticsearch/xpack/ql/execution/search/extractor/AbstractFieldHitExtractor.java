@@ -11,7 +11,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -195,7 +195,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                         values = unwrappedValues;
                     } else {
                         // missing `field_multi_value_leniency` setting
-                        throw new QlClientIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                        throw new InvalidArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
                     }
                 }
             }

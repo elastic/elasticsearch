@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
-import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -205,7 +205,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
         try {
             return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-        } catch (QlClientIllegalArgumentException ciae) {
+        } catch (InvalidArgumentException ciae) {
             throw new ParsingException(source, ciae.getMessage());
         }
     }
@@ -242,11 +242,11 @@ public class ExpressionBuilder extends IdentifierBuilder {
         try {
             Number value = StringUtils.parseIntegral(text);
             return new Literal(source, value, DataTypes.fromJava(value));
-        } catch (QlClientIllegalArgumentException ciae) {
+        } catch (InvalidArgumentException ciae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-            } catch (QlClientIllegalArgumentException ignored) {}
+            } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, ciae.getMessage());
         }

@@ -17,7 +17,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -111,7 +111,7 @@ public final class StringUtils {
             if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
-                    throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
             } else {
                 switch (curr) {
@@ -119,7 +119,7 @@ public final class StringUtils {
                     case '_' -> regex.append(escaped ? "_" : ".");
                     default -> {
                         if (escaped) {
-                            throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -150,7 +150,7 @@ public final class StringUtils {
             if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
-                    throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
             } else {
                 switch (curr) {
@@ -158,7 +158,7 @@ public final class StringUtils {
                     case '?' -> regex.append(escaped ? "\\?" : ".");
                     default -> {
                         if (escaped) {
-                            throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -194,7 +194,7 @@ public final class StringUtils {
 
             if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
-                    throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
                 escaped = true;
             } else {
@@ -203,7 +203,7 @@ public final class StringUtils {
                     case '_' -> wildcard.append(escaped ? "_" : "?");
                     default -> {
                         if (escaped) {
-                            throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -233,7 +233,7 @@ public final class StringUtils {
 
             if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
-                    throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                    throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                 }
                 escaped = true;
             } else {
@@ -242,7 +242,7 @@ public final class StringUtils {
                     case '_' -> wildcard.append(escaped ? "_" : "*");
                     default -> {
                         if (escaped) {
-                            throw new QlClientIllegalArgumentException(INVALID_REGEX_SEQUENCE);
+                            throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // the resolver doesn't support escaping...
                         wildcard.append(curr);
@@ -304,24 +304,24 @@ public final class StringUtils {
         return scoredMatches.stream().map(a -> a.v2()).collect(toList());
     }
 
-    public static double parseDouble(String string) throws QlClientIllegalArgumentException {
+    public static double parseDouble(String string) throws InvalidArgumentException {
         double value;
         try {
             value = Double.parseDouble(string);
         } catch (NumberFormatException nfe) {
-            throw new QlClientIllegalArgumentException(nfe, "Cannot parse number [{}]", string);
+            throw new InvalidArgumentException(nfe, "Cannot parse number [{}]", string);
         }
 
         if (Double.isInfinite(value)) {
-            throw new QlClientIllegalArgumentException("Number [{}] is too large", string);
+            throw new InvalidArgumentException("Number [{}] is too large", string);
         }
         if (Double.isNaN(value)) {
-            throw new QlClientIllegalArgumentException("[{}] cannot be parsed as a number (NaN)", string);
+            throw new InvalidArgumentException("[{}] cannot be parsed as a number (NaN)", string);
         }
         return value;
     }
 
-    public static long parseLong(String string) throws QlClientIllegalArgumentException {
+    public static long parseLong(String string) throws InvalidArgumentException {
         try {
             return Long.parseLong(string);
         } catch (NumberFormatException nfe) {
@@ -330,25 +330,25 @@ public final class StringUtils {
                 try {
                     bi.longValueExact();
                 } catch (ArithmeticException ae) {
-                    throw new QlClientIllegalArgumentException("Number [{}] is too large", string);
+                    throw new InvalidArgumentException("Number [{}] is too large", string);
                 }
             } catch (NumberFormatException ex) {
                 // parsing fails, go through
             }
-            throw new QlClientIllegalArgumentException("Cannot parse number [{}]", string);
+            throw new InvalidArgumentException("Cannot parse number [{}]", string);
         }
     }
 
-    public static Number parseIntegral(String string) throws QlClientIllegalArgumentException {
+    public static Number parseIntegral(String string) throws InvalidArgumentException {
         BigInteger bi;
         try {
             bi = new BigInteger(string);
         } catch (NumberFormatException ex) {
-            throw new QlClientIllegalArgumentException(ex, "Cannot parse number [{}]", string);
+            throw new InvalidArgumentException(ex, "Cannot parse number [{}]", string);
         }
         if (bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) > 0) {
             if (isUnsignedLong(bi) == false) {
-                throw new QlClientIllegalArgumentException("Number [{}] is too large", string);
+                throw new InvalidArgumentException("Number [{}] is too large", string);
             }
             return bi;
         }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlClientIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
@@ -31,7 +31,7 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
     }
 
     private static String clientError(Object value, Object base) {
-        return error(value, base, QlClientIllegalArgumentException.class);
+        return error(value, base, InvalidArgumentException.class);
     }
 
     public void toNumberWithLongRange() {

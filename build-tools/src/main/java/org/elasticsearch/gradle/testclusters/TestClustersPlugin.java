@@ -190,10 +190,8 @@ public class TestClustersPlugin implements Plugin<Project> {
             // Before each task, we determine if a cluster needs to be started for that task.
             configureStartClustersHook(project.getGradle(), registry, testClusterTasksService);
 
-            getEventsListenerRegistry().onTaskCompletion(testClusterTasksService);
-
             // After each task we determine if there are clusters that are no longer needed.
-            // configureStopClustersHook(project.getGradle(), registry, testClusterTasksService;
+            getEventsListenerRegistry().onTaskCompletion(testClusterTasksService);
         }
 
         private static void configureClaimClustersHook(Gradle gradle, TestClustersRegistry registry) {
@@ -251,12 +249,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                 String taskPath = taskFinishEvent.getDescriptor().getTaskPath();
                 if (tasksMap.containsKey(taskPath)) {
                     TestClustersAware task = tasksMap.get(taskPath);
-                    // always unclaim the cluster, even if _this_ task is up-to-date, as others might not have been
-                    // and caused the cluster to start.
-                    task.getClusters()
-                        .forEach(
-                            cluster -> registryProvider.stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
-                        );
+                    // unclaim the cluster if the task has been executed and the cluster has been claimed in the doFirst block.
+                    if (task.getDidWork()) {
+                        task.getClusters()
+                            .forEach(
+                                cluster -> registryProvider.stopCluster(cluster, taskFinishEvent.getResult() instanceof TaskFailureResult)
+                            );
+                    }
                 }
             }
         }

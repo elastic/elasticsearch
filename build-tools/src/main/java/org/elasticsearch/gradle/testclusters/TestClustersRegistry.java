@@ -37,14 +37,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         cluster.start();
     }
 
-    public void registerStartClusterAction(ElasticsearchCluster cluster) {
-        if (runningClusters.contains(cluster)) {
-            return;
-        }
-        runningClusters.add(cluster);
-        cluster.start();
-    }
-
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (taskFailed) {
             // If the task fails, and other tasks use this cluster, the other task will likely never be

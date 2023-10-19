@@ -60,7 +60,7 @@ public final class LoggingUtils {
             builder.append(ExceptionsHelper.formatStackTrace(t.getStackTrace()));
         }
 
-        Level level = ExceptionsHelper.status(throwable).getStatus() >= 500 ? Level.ERROR : Level.INFO;
+        Level level = ExceptionsHelper.status(throwable).getStatus() >= 500 ? Level.WARN : Level.DEBUG;
         logger.log(level, builder.toString());
     }
 

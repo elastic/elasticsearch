@@ -43,20 +43,20 @@ public class LoggingUtilsTests extends ESTestCase {
     public void testNonElasticsearchException() {
         Exception e = new IllegalArgumentException(exceptionText);
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.INFO);
+        verifyInvocation(e, Level.DEBUG);
     }
 
     public void testElasticsearchUserException() {
         Exception e = new IndexNotFoundException(exceptionText);
         exceptionText = "no such index [" + exceptionText + "]";
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.INFO);
+        verifyInvocation(e, Level.DEBUG);
     }
 
     public void testElasticsearchServerException() {
         Exception e = new QlIllegalArgumentException(exceptionText);
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.ERROR);
+        verifyInvocation(e, Level.WARN);
     }
 
     public void testWithCause() {
@@ -64,7 +64,7 @@ public class LoggingUtilsTests extends ESTestCase {
         causeExceptionText = "no such index [" + exceptionText + "_cause]";
         Exception e = new QlIllegalArgumentException(cause, exceptionText);
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.ERROR);
+        verifyInvocation(e, Level.WARN);
     }
 
     public void testWithNestedCause() {
@@ -81,7 +81,7 @@ public class LoggingUtilsTests extends ESTestCase {
             }
         }
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.ERROR);
+        verifyInvocation(e, Level.WARN);
     }
 
     public void testWithSuppressed() {
@@ -90,7 +90,7 @@ public class LoggingUtilsTests extends ESTestCase {
         e.addSuppressed(suppressed);
         suppressedExceptionText = "no such index [" + exceptionText + "_suppressed]";
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.INFO);
+        verifyInvocation(e, Level.DEBUG);
     }
 
     public void testWithCauseAndSuppressed() {
@@ -103,7 +103,7 @@ public class LoggingUtilsTests extends ESTestCase {
         e.addSuppressed(suppressed);
 
         logQueryFailure(logger, queryName, e, preamble);
-        verifyInvocation(e, Level.ERROR);
+        verifyInvocation(e, Level.WARN);
     }
 
     private void verifyInvocation(Throwable t, Level level) {

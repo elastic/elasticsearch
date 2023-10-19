@@ -8,8 +8,12 @@
 
 package org.elasticsearch.telemetry;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public record Measurement(Number value, Map<String, Object> attributes, boolean isDouble) {
     public Measurement {
@@ -28,5 +32,26 @@ public record Measurement(Number value, Map<String, Object> attributes, boolean 
     public long getLong() {
         assert isLong();
         return value.longValue();
+    }
+
+    public static List<Measurement> combine(List<Measurement> measurements) {
+        if (measurements == null || measurements.isEmpty()) {
+            return Collections.emptyList();
+        }
+        boolean isDouble = measurements.get(0).isDouble;
+        Map<Map<String, Object>, Number> byAttr = new HashMap<>();
+        measurements.forEach(m -> {
+            if (m.isDouble != isDouble) {
+                throw new IllegalArgumentException("cannot combine measurements of different types");
+            }
+            byAttr.compute(
+                m.attributes,
+                (k, v) -> (v == null) ? m.value : isDouble ? v.doubleValue() + m.getDouble() : v.longValue() + m.getLong()
+            );
+        });
+        return byAttr.entrySet()
+            .stream()
+            .map(entry -> new Measurement(entry.getValue(), entry.getKey(), isDouble))
+            .collect(Collectors.toList());
     }
 }

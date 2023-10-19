@@ -77,7 +77,7 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
             @Override
             public MeterService getMeterService() {
-                return null;
+                return MeterService.NOOP;
             }
         };
     }

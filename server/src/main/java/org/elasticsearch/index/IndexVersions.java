@@ -32,12 +32,12 @@ public class IndexVersions {
     static TreeSet<Integer> IDS = new TreeSet<>();
 
     private static IndexVersion def(int id, Version luceneVersion) {
-        if (IndexVersions.IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
+        if (IDS == null) throw new IllegalStateException("The IDS map needs to be present to call this method");
 
-        if (IndexVersions.IDS.add(id) == false) {
+        if (IDS.add(id) == false) {
             throw new IllegalArgumentException("Version id " + id + " defined twice");
         }
-        if (id < IndexVersions.IDS.last()) {
+        if (id < IDS.last()) {
             throw new IllegalArgumentException("Version id " + id + " is not defined in the right location. Keep constants sorted");
         }
         return new IndexVersion(id, luceneVersion);
@@ -114,10 +114,10 @@ public class IndexVersions {
 
     public static final IndexVersion MINIMUM_COMPATIBLE = V_7_0_0;
 
-    static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersion.class);
+    static final NavigableMap<Integer, IndexVersion> VERSION_IDS = getAllVersionIds(IndexVersions.class);
     static final IndexVersion LATEST_DEFINED;
     static {
-        LATEST_DEFINED = IndexVersions.VERSION_IDS.lastEntry().getValue();
+        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
 
         // see comment on IDS field
         // now we're registered the index versions, we can clear the map

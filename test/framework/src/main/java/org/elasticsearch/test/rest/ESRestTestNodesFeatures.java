@@ -8,30 +8,12 @@
 
 package org.elasticsearch.test.rest;
 
+/**
+ * This class is for the test framework consumption (ESRestTestCase and derived classes). It exposes features available on the cluster
+ * under test (current or an older version in BwC/upgrade/mixed tests), so that tests can take different actions/decisions based on their
+ * availability (or not).
+ * Features exposed will be all and only features needed by the framework.
+ */
 public interface ESRestTestNodesFeatures {
-    boolean supportsSearchableSnapshotsIndices();
-
-    boolean supportsComposableIndexTemplates();
-
-    boolean supportsBulkDeleteOnTemplates();
-
-    boolean deprecatesSoftDeleteDisabled();
-
-    boolean enforcesSoftDeleteEnabled();
-
-    boolean deprecatesSystemIndicesAccess();
-
-    boolean supportsReplicationOfClosedIndices();
-
-    boolean supportsFeatureStateReset();
-
-    boolean enforcesMlResetEnabled();
-
-    boolean supportsNodeShutdownApi();
-
-    boolean supportsOperationsOnHiddenIndices();
-
-    boolean enforcesPeerRecoveryRetentionLeases();
-
-    boolean enforcesAllocationFilteringRulesOnIndicesAutoExpand();
+    boolean hasFeature(String featureName);
 }

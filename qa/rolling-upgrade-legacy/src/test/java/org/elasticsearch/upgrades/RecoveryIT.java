@@ -306,7 +306,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
+            if (nodesFeatures.hasFeature("soft_delete_enforced") == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -341,7 +341,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
+            if (nodesFeatures.hasFeature("soft_delete_enforced") == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             createIndex(index, settings.build());
@@ -364,7 +364,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-                if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
+                if (nodesFeatures.hasFeature("soft_delete_enforced") == false && randomBoolean()) {
                     settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
                 }
                 createIndex(index, settings.build());
@@ -460,7 +460,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (nodesFeatures.supportsReplicationOfClosedIndices()) {
+        if (nodesFeatures.hasFeature("replication_closed_indices")) {
             // index is created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -500,7 +500,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         if (indexVersionCreated(indexName).onOrAfter(IndexVersion.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
-            assertTrue(nodesFeatures.supportsReplicationOfClosedIndices());
+            assertTrue(nodesFeatures.hasFeature("replication_closed_indices"));
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
             if (CLUSTER_TYPE != ClusterType.OLD) {
@@ -647,7 +647,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             final Settings.Builder settings = Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
-            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
+            if (nodesFeatures.hasFeature("soft_delete_enforced") == false && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
             final String mappings = randomBoolean() ? "\"_source\": { \"enabled\": false}" : null;
@@ -719,7 +719,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString()
         );
-        if (nodesFeatures.enforcesAllocationFilteringRulesOnIndicesAutoExpand()) {
+        if (nodesFeatures.hasFeature("indices_auto_expand_allocation_filtering_rules_enforced")) {
             assertEquals(nodes.size() - 2, numberOfReplicas);
         } else {
             assertEquals(nodes.size() - 1, numberOfReplicas);
@@ -731,7 +731,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             boolean softDeletesEnabled = true;
             Settings.Builder settings = Settings.builder();
-            if (nodesFeatures.enforcesSoftDeleteEnabled() == false && randomBoolean()) {
+            if (nodesFeatures.hasFeature("soft_delete_enforced") == false && randomBoolean()) {
                 softDeletesEnabled = randomBoolean();
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
             }

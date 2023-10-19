@@ -88,7 +88,7 @@ public class SystemIndicesUpgradeIT extends ParameterizedRollingUpgradeTestCase 
 
             // If we are on 7.x create an alias that includes both a system index and a non-system index so we can be sure it gets
             // upgraded properly. If we're already on 8.x, skip this part of the test.
-            if (nodesFeatures.deprecatesSystemIndicesAccess() == false) {
+            if (nodesFeatures.hasFeature("system_indices_access_deprecated") == false) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
                 putAliasRequest.setJsonEntity("""

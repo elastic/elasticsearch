@@ -237,7 +237,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             for (Map.Entry<?, ?> node : nodes.entrySet()) {
                 Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-                testNodesFeaturesBuilder.addInfoFromNode(nodeInfo);
                 nodeVersions.add(nodeInfo.get("version").toString());
                 for (Object module : (List<?>) nodeInfo.get("modules")) {
                     Map<?, ?> moduleInfo = (Map<?, ?>) module;
@@ -262,6 +261,8 @@ public abstract class ESRestTestCase extends ESTestCase {
                         serverless = true;
                     }
                 }
+                testNodesFeaturesBuilder.addInfoFromNode(nodeInfo);
+
                 if (serverless) {
                     availableFeatures.removeAll(
                         List.of(
@@ -304,7 +305,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         String ports = System.getProperty("tests.cluster.readiness");
         if (ports == null) {
             throw new RuntimeException(
-                "Must specify [tests.rest.cluster.readiness] system property with a comma delimited list "
+                "Must specify [tests.cluster.readiness] system property with a comma delimited list "
                     + "to which to send readiness requests"
             );
         }
@@ -567,12 +568,12 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected boolean resetFeatureStates() {
         // Reset feature state API was introduced in 7.13.0
-        if (nodesFeatures.supportsFeatureStateReset() == false) {
+        if (nodesFeatures.hasFeature("ml.feature_state_reset") == false) {
             return false;
         }
 
         // ML reset fails when ML is disabled in versions before 8.7
-        if (isMlEnabled() == false && nodesFeatures.enforcesMlResetEnabled() == false) {
+        if (isMlEnabled() == false && nodesFeatures.hasFeature("ml.reset_enforced") == false) {
             return false;
         }
         return true;
@@ -707,7 +708,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (nodesFeatures.supportsSearchableSnapshotsIndices()
+        if (nodesFeatures.hasFeature("searchable_snapshots_indices")
             && has(ProductFeature.XPACK)
             && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
             wipeSearchableSnapshotsIndices();
@@ -741,7 +742,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                  */
                 // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.7.0:
-                if (nodesFeatures.supportsComposableIndexTemplates()) {
+                if (nodesFeatures.hasFeature("composable_index_templates")) {
                     try {
                         Request getTemplatesRequest = new Request("GET", "_index_template");
                         Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
@@ -756,7 +757,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (names.isEmpty() == false) {
                             // Ideally we would want to check the version of the elected master node and
                             // send the delete request directly to that node.
-                            if (nodesFeatures.supportsBulkDeleteOnTemplates()) {
+                            if (nodesFeatures.hasFeature("bulk_template_operations")) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_index_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -787,7 +788,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         if (names.isEmpty() == false) {
                             // Ideally we would want to check the version of the elected master node and
                             // send the delete request directly to that node.
-                            if (nodesFeatures.supportsBulkDeleteOnTemplates()) {
+                            if (nodesFeatures.hasFeature("bulk_template_operations")) {
                                 try {
                                     adminClient().performRequest(new Request("DELETE", "_component_template/" + String.join(",", names)));
                                 } catch (ResponseException e) {
@@ -906,7 +907,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             if (has(ProductFeature.XPACK)) {
                 // In case of bwc testing, if all nodes are before 7.8.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.8.0:
-                if (nodesFeatures.supportsComposableIndexTemplates()) {
+                if (nodesFeatures.hasFeature("composable_index_templates")) {
                     Request getTemplatesRequest = new Request("GET", "_index_template");
                     Map<String, Object> composableIndexTemplates = XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
@@ -951,7 +952,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (has(ProductFeature.SHUTDOWN) == false || nodesFeatures.supportsNodeShutdownApi() == false) {
+        if (has(ProductFeature.SHUTDOWN) == false || nodesFeatures.hasFeature("node_shutdown_api") == false) {
             // Node shutdown APIs are only present in xpack
             return;
         }
@@ -970,7 +971,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
-        boolean includeHidden = nodesFeatures.supportsOperationsOnHiddenIndices();
+        boolean includeHidden = nodesFeatures.hasFeature("hidden_indices_operations");
         try {
             // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
@@ -1144,7 +1145,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected void refreshAllIndices() throws IOException {
-        boolean includeHidden = nodesFeatures.supportsOperationsOnHiddenIndices();
+        boolean includeHidden = nodesFeatures.hasFeature("hidden_indices_operations");
         Request refreshRequest = new Request("POST", "/_refresh");
         refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
         // Allow system index deprecation warnings
@@ -1654,7 +1655,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 + "].";
 
         request.setOptions(expectVersionSpecificWarnings(v -> {
-            if (nodesFeatures.deprecatesSoftDeleteDisabled()) {
+            if (nodesFeatures.hasFeature("soft_delete_disabled_deprecated")) {
                 v.current(expectedWarning);
             }
             v.compatible(expectedWarning);
@@ -1948,7 +1949,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * that we have renewed every PRRL to the global checkpoint of the corresponding copy and properly synced to all copies.
      */
     public void ensurePeerRecoveryRetentionLeasesRenewedAndSynced(String index) throws Exception {
-        boolean mustHavePRRLs = nodesFeatures.enforcesPeerRecoveryRetentionLeases();
+        boolean mustHavePRRLs = nodesFeatures.hasFeature("peer_recovery_retention_leases_enforced");
         assertBusy(() -> {
             Map<String, Object> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
             @SuppressWarnings("unchecked")

@@ -497,7 +497,11 @@ class NodeConstruction {
 
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
         final NetworkService networkService = new NetworkService(
-            getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
+            pluginsService.filterPlugins(DiscoveryPlugin.class)
+                .stream()
+                .map(d -> d.getCustomNameResolver(environment.settings()))
+                .filter(Objects::nonNull)
+                .toList()
         );
 
         List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
@@ -1316,19 +1320,5 @@ class NodeConstruction {
             .orElseGet(
                 () -> new PersistedClusterStateService(nodeEnvironment, xContentRegistry, clusterSettings, threadPool::relativeTimeInMillis)
             );
-
-    }
-
-    /**
-     * Get Custom Name Resolvers list based on a Discovery Plugins list
-     *
-     * @param discoveryPlugins Discovery plugins list
-     */
-    private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
-        return pluginsService.filterPlugins(DiscoveryPlugin.class)
-            .stream()
-            .map(d -> d.getCustomNameResolver(environment.settings()))
-            .filter(Objects::nonNull)
-            .toList();
     }
 }

@@ -277,8 +277,8 @@ public class MockNode extends Node {
     ) {
         super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
             @Override
-            Function<Settings, PluginsService> pluginsServiceCtor(Environment initialEnvironment) {
-                return settings -> new MockPluginsService(settings, initialEnvironment, classpathPlugins);
+            PluginsService newPluginService(Environment environment, Settings settings) {
+                return new MockPluginsService(settings, environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));
 

@@ -186,6 +186,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.allocation.StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING;
+import static co.elastic.elasticsearch.stateless.lucene.SearchIndexInput.CACHE_MISS_COUNTER;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
@@ -234,6 +235,7 @@ public class Stateless extends Plugin
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<StatelessIndexSettingProvider> statelessIndexSettingProvider = new SetOnce<>();
+    private TelemetryProvider telemetryProvider = TelemetryProvider.NOOP;
 
     private final boolean sharedCachedSettingExplicitlySet;
 
@@ -486,6 +488,13 @@ public class Stateless extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
+        this.telemetryProvider = telemetryProvider;
+        this.telemetryProvider.getMeter()
+            .registerLongCounter(
+                CACHE_MISS_COUNTER,
+                "The number of times there was a cache miss that triggered a read from the blob store",
+                "count"
+            );
         return components;
     }
 
@@ -628,7 +637,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId());
+                    return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId(), telemetryProvider.getMeter());
                 } else {
                     return in;
                 }
@@ -645,7 +654,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
-                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
+                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId(), telemetryProvider.getMeter());
                 } else {
                     return in;
                 }

@@ -31,6 +31,7 @@ import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -53,6 +54,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
     private final long offset;
+    public static final String CACHE_MISS_COUNTER = "elasticsearch.blob_cache.miss_that_triggered_read_from_blob_store";
+    private final LongCounter cacheMissCounter;
 
     public SearchIndexInput(
         String name,
@@ -61,7 +64,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         BlobContainer blobContainer,
         SharedBlobCacheService<FileCacheKey> cacheService,
         long length,
-        long offset
+        long offset,
+        LongCounter cacheMissCounter
     ) {
         super(name, context);
         this.blobContainer = blobContainer;
@@ -70,6 +74,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         this.offset = offset;
         this.context = context;
         this.cacheFile = cacheFile.copy();
+        this.cacheMissCounter = cacheMissCounter;
     }
 
     @Override
@@ -90,7 +95,16 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) {
         BlobCacheUtils.ensureSlice(sliceDescription, offset, length, this);
-        return new SearchIndexInput(sliceDescription, cacheFile, context, blobContainer, cacheService, length, this.offset + offset);
+        return new SearchIndexInput(
+            sliceDescription,
+            cacheFile,
+            context,
+            blobContainer,
+            cacheService,
+            length,
+            this.offset + offset,
+            cacheMissCounter
+        );
     }
 
     @Override
@@ -102,7 +116,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
             blobContainer,
             cacheService,
             length,
-            offset
+            offset,
+            cacheMissCounter
         );
         try {
             searchIndexInput.seek(getFilePointer());
@@ -200,6 +215,8 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                             progressUpdater,
                             writeBuffer.get().clear()
                         );
+                        // We didn't find the data in the cache, so we read it from the blob store, and we are writing to the cache.
+                        cacheMissCounter.increment();
                     }
                 });
                 byteBufferReference.finish(bytesRead);

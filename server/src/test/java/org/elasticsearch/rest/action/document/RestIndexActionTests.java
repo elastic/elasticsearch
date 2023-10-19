@@ -15,8 +15,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RestIndexActionTests extends RestActionTestCase {
 
+    @SuppressWarnings("this-escape")
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private final AtomicReference<ClusterState> clusterStateSupplier = new AtomicReference<>();
@@ -86,11 +87,7 @@ public class RestIndexActionTests extends RestActionTestCase {
             .build();
         clusterStateSupplier.set(
             ClusterState.builder(ClusterName.DEFAULT)
-                .nodes(
-                    DiscoveryNodes.builder()
-                        .add(TestDiscoveryNode.create("test", buildNewFakeTransportAddress(), minClusterVersion))
-                        .build()
-                )
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.builder("test").version(minClusterVersion).build()).build())
                 .build()
         );
         dispatchRequest(autoIdRequest);

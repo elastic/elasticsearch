@@ -84,7 +84,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         {
               "cluster": [
                 "monitor",
-                "manage_own_api_key"
+                "manage_own_api_key",
+                "read_fleet_secrets"
               ],
               "indices": [
                 {
@@ -93,7 +94,8 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "metrics-*",
                     "traces-*",
                     ".logs-endpoint.diagnostic.collection-*",
-                    ".logs-endpoint.action.responses-*"
+                    ".logs-endpoint.action.responses-*",
+                    ".logs-endpoint.heartbeat-*"
                   ],
                   "privileges": [
                     "write",
@@ -126,7 +128,114 @@ public class ServiceAccountIT extends ESRestTestCase {
                 },
                 {
                   "names": [
-                    ".fleet-*"
+                    ".fleet-secrets*"
+                  ],
+                  "privileges": [
+                    "read"
+                  ],
+                  "allow_restricted_indices":true
+                },
+                {
+                  "names": [
+                    ".fleet-actions*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-agents*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-artifacts*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-enrollment-api-keys*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-policies*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-policies-leader*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-servers*"
+                  ],
+                  "privileges": [
+                    "read",
+                    "write",
+                    "monitor",
+                    "create_index",
+                    "auto_configure",
+                    "maintenance"
+                  ],
+                  "allow_restricted_indices": true
+                },
+                {
+                  "names": [
+                    ".fleet-fileds*"
                   ],
                   "privileges": [
                     "read",
@@ -178,6 +287,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                 {
                     "names": [
                         "search-*",
+                        ".search-acl-filter-*",
                         ".elastic-analytics-collections",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
@@ -214,6 +324,7 @@ public class ServiceAccountIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(2)
         .module("analysis-common")
+        .module("rest-root")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.token.enabled", "true")
@@ -236,8 +347,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .user("test_admin", "x-pack-test-password")
-        .user("elastic/fleet-server", "x-pack-test-password", "superuser")
-        .user("service_account_manager", "x-pack-test-password", "service_account_manager")
+        .user("elastic/fleet-server", "x-pack-test-password", "superuser", false)
+        .user("service_account_manager", "x-pack-test-password", "service_account_manager", false)
         .build();
 
     @BeforeClass

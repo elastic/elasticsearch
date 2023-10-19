@@ -37,11 +37,17 @@ public class MultiCharSequence implements CharSequence {
 
     @Override
     public int length() {
+        if (lengths.length == 0) {
+            return 0;
+        }
         return lengths[lengths.length - 1];
     }
 
     @Override
     public char charAt(int index) {
+        if (lengths.length == 0) {
+            throw new IndexOutOfBoundsException(index);
+        }
         int sequenceIndex = Arrays.binarySearch(lengths, index + 1);
         if (sequenceIndex < 0) {
             sequenceIndex = -1 - sequenceIndex;
@@ -55,6 +61,12 @@ public class MultiCharSequence implements CharSequence {
 
     @Override
     public CharSequence subSequence(int start, int end) {
+        if (start > end) {
+            throw new IndexOutOfBoundsException();
+        }
+        if (lengths.length == 0) {
+            throw new IndexOutOfBoundsException();
+        }
         if (start == 0 && end >= length()) {
             return this;
         }

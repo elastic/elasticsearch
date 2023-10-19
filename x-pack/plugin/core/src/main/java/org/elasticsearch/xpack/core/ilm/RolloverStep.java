@@ -122,14 +122,14 @@ public class RolloverStep extends AsyncActionStep {
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
-        getClient().admin().indices().rolloverIndex(rolloverRequest, ActionListener.wrap(response -> {
+        getClient().admin().indices().rolloverIndex(rolloverRequest, listener.delegateFailureAndWrap((l, response) -> {
             assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
             if (response.isRolledOver()) {
-                listener.onResponse(null);
+                l.onResponse(null);
             } else {
-                listener.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                l.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
             }
-        }, listener::onFailure));
+        }));
     }
 
     @Override

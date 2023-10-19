@@ -23,16 +23,21 @@ public class ByteArrayStreamInput extends StreamInput {
     private int pos;
     private int limit;
 
+    @SuppressWarnings("this-escape")
     public ByteArrayStreamInput() {
         reset(BytesRef.EMPTY_BYTES);
     }
 
+    @SuppressWarnings("this-escape")
     public ByteArrayStreamInput(byte[] bytes) {
         reset(bytes);
     }
 
     @Override
     public int read() throws IOException {
+        if (limit - pos <= 0) {
+            return -1;
+        }
         return readByte() & 0xFF;
     }
 
@@ -59,7 +64,7 @@ public class ByteArrayStreamInput extends StreamInput {
     }
 
     public void skipBytes(long count) {
-        pos += count;
+        pos += (int) count;
     }
 
     @Override

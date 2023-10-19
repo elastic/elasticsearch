@@ -24,6 +24,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
@@ -31,12 +32,12 @@ import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -270,8 +271,9 @@ public class PluginIntrospectorTests extends ESTestCase {
                 NamedWriteableRegistry namedWriteableRegistry,
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<RepositoriesService> repositoriesServiceSupplier,
-                Tracer tracer,
-                AllocationService allocationService
+                TelemetryProvider telemetryProvider,
+                AllocationService allocationService,
+                IndicesService indicesService
             ) {
                 return null;
             }
@@ -336,12 +338,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 return null;
             }
         }
-        class SubBazIngestPlugin extends BazIngestPlugin {
-            @Override
-            public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-                return null;
-            }
-        }
+        class SubBazIngestPlugin extends BazIngestPlugin {}
 
         assertThat(pluginIntrospector.overriddenMethods(BazIngestPlugin.class), contains("getProcessors"));
         assertThat(pluginIntrospector.overriddenMethods(SubBazIngestPlugin.class), contains("getProcessors"));

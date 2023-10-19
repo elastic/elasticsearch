@@ -1,0 +1,13 @@
+{
+  "index_patterns": [
+    ".profiling-symbols-private*"
+  ],
+  "composed_of": [
+    "profiling-symbols"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for .profiling-symbols-private"
+  },
+  "version": ${xpack.profiling.template.version}
+}

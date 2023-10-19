@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
@@ -174,7 +174,7 @@ public class ReconfiguratorTests extends ESTestCase {
     private Set<DiscoveryNode> nodes(String... nodes) {
         final Set<DiscoveryNode> liveNodes = new HashSet<>();
         for (String id : nodes) {
-            liveNodes.add(TestDiscoveryNode.create(id));
+            liveNodes.add(DiscoveryNodeUtils.create(id));
         }
         return liveNodes;
     }

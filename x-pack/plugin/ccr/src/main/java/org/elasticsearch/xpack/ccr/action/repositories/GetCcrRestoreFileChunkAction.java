@@ -57,7 +57,13 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ActionFilters actionFilters,
             CcrRestoreSourceService restoreSourceService
         ) {
-            super(actionName, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
+            super(
+                actionName,
+                transportService,
+                actionFilters,
+                GetCcrRestoreFileChunkRequest::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
+            );
             TransportActionProxy.registerProxyAction(transportService, actionName, false, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
             this.bigArrays = bigArrays;
@@ -129,6 +135,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
 
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC); // large responses must fork before deserialization
             offset = streamInput.readVLong();
             chunk = streamInput.readReleasableBytesReference();
         }

@@ -50,7 +50,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
         assertThat(
             client().prepareSearch()
                 .setSize(0)
@@ -64,7 +64,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         final boolean closed = randomBoolean();
         if (closed) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
             ensureGreen("test");
         }
 
@@ -84,10 +84,10 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         if (closed) {
-            assertAcked(client().admin().indices().prepareOpen("test"));
+            assertAcked(indicesAdmin().prepareOpen("test"));
         }
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
         assertThat(
             client().prepareSearch()
                 .setSize(0)
@@ -149,7 +149,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
         assertThat(
             client().prepareSearch()
                 .setSize(0)
@@ -163,7 +163,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         final boolean closed = randomBoolean();
         if (closed) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
             ensureGreen("test");
         }
 
@@ -236,11 +236,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             Strings.collectionToCommaDelimitedString(includeNodes)
         );
         ensureStableCluster(6);
-        client().admin().indices().prepareCreate("test").get();
+        indicesAdmin().prepareCreate("test").get();
         ensureGreen("test");
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         Settings exclude = Settings.builder()

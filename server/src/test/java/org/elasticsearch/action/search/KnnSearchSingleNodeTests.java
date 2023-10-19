@@ -57,7 +57,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("index").setSource("text", "goodnight world").get();
         }
 
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
         client().prepareUpdate("index", "0").setDoc("vector", (Object) null).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         float[] queryVector = randomVector();
@@ -72,7 +72,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(response, 19);
         assertEquals(10, response.getHits().getHits().length);
         // Make sure we still have 20 docs
-        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true).get(), 20);
+        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true), 20);
     }
 
     public void testKnnWithQuery() throws IOException {
@@ -100,7 +100,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("index").setSource("text", "goodnight world").get();
         }
 
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).boost(5.0f);
@@ -144,7 +144,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", value).get();
         }
 
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).addFilterQuery(
@@ -187,7 +187,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         }
         client().prepareIndex("index").setId("lookup-doc").setSource("other-field", "value").get();
 
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).addFilterQuery(
@@ -234,7 +234,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("index").setSource("vector_2", randomVector(20f, 21f), "text", "hello world", "number", 2).get();
             client().prepareIndex("index").setSource("text", "goodnight world", "number", 3).get();
         }
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector(20f, 21f);
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).boost(5.0f);
@@ -292,7 +292,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             float[] vector = randomVector();
             client().prepareIndex("index").setSource("vector", vector, "vector_2", vector, "number", doc).get();
         }
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
         // Having the same query vector and same docs should mean our KNN scores are linearly combined if the same doc is matched
@@ -351,7 +351,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject();
         createIndex("index", indexSettings, builder);
-        client().admin().indices().prepareAliases().addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit")).get();
+        indicesAdmin().prepareAliases().addAlias("index", "test-alias", QueryBuilders.termQuery("field", "hit")).get();
 
         int expectedHits = 0;
         for (int doc = 0; doc < 10; doc++) {
@@ -362,7 +362,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
                 client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "not hit").get();
             }
         }
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 10, 50, null);
@@ -393,8 +393,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             client().prepareIndex("index2").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
         }
 
-        client().admin().indices().prepareForceMerge("index1", "index2").setMaxNumSegments(1).get();
-        client().admin().indices().prepareRefresh("index1", "index2").get();
+        indicesAdmin().prepareForceMerge("index1", "index2").setMaxNumSegments(1).get();
+        indicesAdmin().prepareRefresh("index1", "index2").get();
 
         // Since there's no kNN search action at the transport layer, we just emulate
         // how the action works (it builds a kNN query under the hood)
@@ -409,7 +409,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getHits().length);
     }
 
-    public void testKnnVectorsWith2048Dims() throws IOException {
+    public void testKnnVectorsWith4096Dims() throws IOException {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
@@ -418,7 +418,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
-            .field("dims", 2048)
+            .field("dims", 4096)
             .field("index", true)
             .field("similarity", "l2_norm")
             .endObject()
@@ -427,18 +427,18 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(2048)).get();
+            client().prepareIndex("index").setSource("vector", randomVector(4096)).get();
         }
 
-        client().admin().indices().prepareRefresh("index").get();
+        indicesAdmin().prepareRefresh("index").get();
 
-        float[] queryVector = randomVector(2048);
+        float[] queryVector = randomVector(4096);
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, null).boost(5.0f);
         SearchResponse response = client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10).get();
 
         assertHitCount(response, 3);
         assertEquals(3, response.getHits().getHits().length);
-        assertEquals(2048, response.getHits().getAt(0).field("vector").getValues().size());
+        assertEquals(4096, response.getHits().getAt(0).field("vector").getValues().size());
     }
 
     private float[] randomVector() {

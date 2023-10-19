@@ -15,11 +15,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,7 +59,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         }
         refresh();
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
+        clusterAdmin().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
             "_local",
             "_prefer_nodes:somenode",
@@ -106,7 +106,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     public void testSimplePreference() {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
+        indicesAdmin().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
@@ -156,7 +156,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ArrayList<String> allNodeIds = new ArrayList<>();
         ArrayList<String> allNodeNames = new ArrayList<>();
         ArrayList<String> allNodeHosts = new ArrayList<>();
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         for (NodeStats node : nodeStats.getNodes()) {
             allNodeIds.add(node.getNode().getId());
             allNodeNames.add(node.getNode().getName());
@@ -245,7 +245,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(
                     IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                    internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                    internalCluster().getNodeNameThat(DiscoveryNode::canContainData)
                 ),
             "test2"
         );
@@ -254,7 +254,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(client().admin().indices().prepareDelete("test2"));
+        assertAcked(indicesAdmin().prepareDelete("test2"));
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
     }

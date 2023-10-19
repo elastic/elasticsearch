@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -30,11 +31,12 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
     public static final String NAME = "cluster:admin/xpack/deprecation/nodes/info";
 
     private NodesDeprecationCheckAction() {
-        super(NAME, NodesDeprecationCheckResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 
     public static class NodeRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         NodesDeprecationCheckRequest request;
 
         public NodeRequest(StreamInput in) throws IOException {
@@ -58,7 +60,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
-            deprecationIssues = in.readList(DeprecationIssue::new);
+            deprecationIssues = in.readCollectionAsList(DeprecationIssue::new);
         }
 
         public NodeResponse(DiscoveryNode node, List<DeprecationIssue> deprecationIssues) {
@@ -69,7 +71,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(this.deprecationIssues);
+            out.writeCollection(this.deprecationIssues);
         }
 
         public List<DeprecationIssue> getDeprecationIssues() {

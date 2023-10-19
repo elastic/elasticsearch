@@ -1,5 +1,0 @@
-pr: 95229
-summary: Avoid null Location in post write refresh
-area: CRUD
-type: bug
-issues: []

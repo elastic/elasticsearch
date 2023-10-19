@@ -8,7 +8,6 @@
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -19,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollActionTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -68,7 +68,7 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
 
     private ClusterState stateWithIndex(Settings.Builder settings) {
         IndexMetadata.Builder meta = IndexMetadata.builder(request().getDestination().index())
-            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfReplicas(0)
             .numberOfShards(1);
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta)).build();

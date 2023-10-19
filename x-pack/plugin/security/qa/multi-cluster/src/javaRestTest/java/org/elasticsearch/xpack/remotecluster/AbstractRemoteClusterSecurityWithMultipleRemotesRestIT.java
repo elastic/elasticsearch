@@ -67,7 +67,8 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
                 { "index": { "_index": "cluster1_index1" } }
                 { "name": "doc1" }
                 { "index": { "_index": "cluster1_index2" } }
-                { "name": "doc2" }\n"""));
+                { "name": "doc2" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -79,7 +80,8 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
                 { "index": { "_index": "cluster2_index1" } }
                 { "name": "doc1" }
                 { "index": { "_index": "cluster2_index2" } }
-                { "name": "doc2" }\n"""));
+                { "name": "doc2" }
+                """));
             assertOK(performRequestAgainstOtherFulfillingCluster(bulkRequest));
         }
 

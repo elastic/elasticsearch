@@ -41,6 +41,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -53,10 +54,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -275,6 +276,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     );
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
+    private static final int WATCHES_INDEX_MAPPINGS_VERSION = 1;
+    private static final int TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION = 1;
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;
@@ -314,8 +317,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -437,7 +441,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                         .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (triggeredFailures.isEmpty() == false) {
-                        String failure = triggeredFailures.values().stream().collect(Collectors.joining(", "));
+                        String failure = String.join(", ", triggeredFailures.values());
                         logger.error(
                             "triggered watches could not be deleted {}, failure [{}]",
                             triggeredFailures.keySet(),
@@ -445,7 +449,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                         );
                     }
                     if (historyFailures.isEmpty() == false) {
-                        String failure = historyFailures.values().stream().collect(Collectors.joining(", "));
+                        String failure = String.join(", ", historyFailures.values());
                         logger.error(
                             "watch history could not be written {}, failure [{}]",
                             historyFailures.keySet(),
@@ -459,7 +463,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                         .filter(r -> r.getVersion() > 1)
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (overwrittenIds.isEmpty() == false) {
-                        String failure = overwrittenIds.values().stream().collect(Collectors.joining(", "));
+                        String failure = String.join(", ", overwrittenIds.values());
                         logger.info(
                             "overwrote watch history entries {}, possible second execution of a triggered watch, failure [{}]",
                             overwrittenIds.keySet(),
@@ -624,7 +628,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 getWatcherThreadPoolSize(settings),
                 1000,
                 "xpack.watcher.thread_pool",
-                false
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
             return Collections.singletonList(builder);
         }
@@ -853,7 +857,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         return "Manages Watch definitions and state";
     }
 
-    private Settings getWatchesIndexSettings() {
+    private static Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -863,7 +867,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getWatchesIndexMappings() {
+    private static XContentBuilder getWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -874,6 +878,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT);
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
                 {
@@ -944,7 +949,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         }
     }
 
-    private Settings getTriggeredWatchesIndexSettings() {
+    private static Settings getTriggeredWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.auto_expand_replicas", "0-1")
@@ -954,7 +959,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getTriggeredWatchesIndexMappings() {
+    private static XContentBuilder getTriggeredWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -965,6 +970,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT);
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
                 {

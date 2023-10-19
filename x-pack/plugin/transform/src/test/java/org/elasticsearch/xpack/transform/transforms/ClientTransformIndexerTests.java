@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -39,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -113,11 +115,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test", searchRequest);
         indexer.doSearch(
             namedSearchRequest,
-            ActionListener.wrap(
-                // A search of zero indices should return null rather than attempt to search all indices
-                ESTestCase::assertNull,
-                e -> fail(e.getMessage())
-            )
+            // A search of zero indices should return null rather than attempt to search all indices
+            ActionTestUtils.assertNoFailureListener(ESTestCase::assertNull)
         );
     }
 
@@ -292,6 +291,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testDisablePit() throws InterruptedException {
+        // TransformConfigTests.randomTransformConfig never produces remote indices in the source, hence we are safe here. */
         TransformConfig config = TransformConfigTests.randomTransformConfig();
         boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
 
@@ -348,6 +348,65 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     assertEquals("the_pit_id+", response.pointInTimeId());
                 }
             });
+        }
+    }
+
+    public void testDisablePitWhenThereIsRemoteIndexInSource() throws InterruptedException {
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig())
+            // Remote index is configured within source
+            .setSource(new SourceConfig("remote-cluster:remote-index"))
+            .build();
+        boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
+
+        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY)
+                ),
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                client,
+                mock(TransformIndexerStats.class),
+                config,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                mock(TransformContext.class),
+                false
+            );
+
+            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> assertNull(response.pointInTimeId())
+            );
+
+            // reverse the setting
+            indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
+
+            // Because remote index is configured within source, we expect PIT *not* being used regardless the transform settings
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doNextSearch(0, listener),
+                response -> assertNull(response.pointInTimeId())
+            );
         }
     }
 

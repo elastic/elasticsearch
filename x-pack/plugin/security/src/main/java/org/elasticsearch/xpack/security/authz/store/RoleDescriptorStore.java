@@ -102,6 +102,11 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         );
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.ASSIGNED
+            && rolesRetrievalResult.getRoleDescriptors().stream().filter(RoleDescriptor::hasRestriction).count() <= 1)
+            || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
+                && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
+            : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
         listener.onResponse(rolesRetrievalResult);
     }
 
@@ -125,7 +130,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         RoleReference.ServiceAccountRoleReference roleReference,
         ActionListener<RolesRetrievalResult> listener
     ) {
-        serviceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
+        ServiceAccountService.getRoleDescriptorForPrincipal(roleReference.getPrincipal(), listener.map(roleDescriptor -> {
             final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
             rolesRetrievalResult.addDescriptors(Set.of(roleDescriptor));
             return rolesRetrievalResult;

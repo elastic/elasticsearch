@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.KnnDenseVectorScriptDocValuesTests;
@@ -42,18 +42,18 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, Version.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.V_7_4_0),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                Version.V_7_4_0
+                IndexVersion.V_7_4_0
             ),
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, Version.CURRENT),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
                 "test",
                 ElementType.FLOAT,
                 dims,
-                Version.CURRENT
+                IndexVersion.current()
             ),
             new KnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }), "test", dims)
         );
@@ -130,7 +130,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new ByteBinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, Version.CURRENT),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, IndexVersion.current()),
                 "test",
                 ElementType.BYTE,
                 dims
@@ -210,22 +210,22 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, Version.V_7_4_0),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.V_7_4_0),
                 "field0",
                 ElementType.FLOAT,
                 dims,
-                Version.V_7_4_0
+                IndexVersion.V_7_4_0
             ),
             new BinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, Version.CURRENT),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
                 "field1",
                 ElementType.FLOAT,
                 dims,
-                Version.CURRENT
+                IndexVersion.current()
             ),
             new KnnDenseVectorDocValuesField(KnnDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }), "field2", dims),
             new ByteBinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, Version.CURRENT),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, IndexVersion.current()),
                 "field3",
                 ElementType.BYTE,
                 dims
@@ -363,7 +363,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
 
         List<DenseVectorDocValuesField> fields = List.of(
             new ByteBinaryDenseVectorDocValuesField(
-                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, Version.CURRENT),
+                BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, IndexVersion.current()),
                 "test",
                 ElementType.BYTE,
                 dims

@@ -62,7 +62,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
         }
 
         assertBusy(() -> {
-            SeqNoStats seqNoStats = client().admin().indices().prepareStats("test").get().getIndex("test").getShards()[0].getSeqNoStats();
+            SeqNoStats seqNoStats = indicesAdmin().prepareStats("test").get().getIndex("test").getShards()[0].getSeqNoStats();
             assertThat(seqNoStats.getGlobalCheckpoint(), equalTo(seqNoStats.getMaxSeqNo()));
         });
     }

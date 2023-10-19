@@ -9,9 +9,10 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,23 +36,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClearScrollControllerTests extends ESTestCase {
 
     public void testClearAll() throws InterruptedException {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node_1");
-        DiscoveryNode node2 = TestDiscoveryNode.create("node_2");
-        DiscoveryNode node3 = TestDiscoveryNode.create("node_3");
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse clearScrollResponse) {
+        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(clearScrollResponse -> {
                 assertEquals(3, clearScrollResponse.getNumFreed());
                 assertTrue(clearScrollResponse.isSucceeded());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, latch);
+            }),
+            latch
+        );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
             @Override
@@ -77,9 +73,9 @@ public class ClearScrollControllerTests extends ESTestCase {
     }
 
     public void testClearScrollIds() throws IOException, InterruptedException {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node_1");
-        DiscoveryNode node2 = TestDiscoveryNode.create("node_2");
-        DiscoveryNode node3 = TestDiscoveryNode.create("node_3");
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
@@ -103,18 +99,13 @@ public class ClearScrollControllerTests extends ESTestCase {
         String scrollId = TransportSearchHelper.buildScrollId(array);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse clearScrollResponse) {
+        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(clearScrollResponse -> {
                 assertEquals(numFreed.get(), clearScrollResponse.getNumFreed());
                 assertTrue(clearScrollResponse.isSucceeded());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, latch);
+            }),
+            latch
+        );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 
@@ -149,9 +140,9 @@ public class ClearScrollControllerTests extends ESTestCase {
     }
 
     public void testClearScrollIdsWithFailure() throws IOException, InterruptedException {
-        DiscoveryNode node1 = TestDiscoveryNode.create("node_1");
-        DiscoveryNode node2 = TestDiscoveryNode.create("node_2");
-        DiscoveryNode node3 = TestDiscoveryNode.create("node_3");
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
             new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
@@ -178,22 +169,17 @@ public class ClearScrollControllerTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
 
-        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(new ActionListener<ClearScrollResponse>() {
-            @Override
-            public void onResponse(ClearScrollResponse clearScrollResponse) {
+        ActionListener<ClearScrollResponse> listener = new LatchedActionListener<>(
+            ActionTestUtils.assertNoFailureListener(clearScrollResponse -> {
                 assertEquals(numFreed.get(), clearScrollResponse.getNumFreed());
                 if (numFailures.get() > 0) {
                     assertFalse(clearScrollResponse.isSucceeded());
                 } else {
                     assertTrue(clearScrollResponse.isSucceeded());
                 }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, latch);
+            }),
+            latch
+        );
         List<DiscoveryNode> nodesInvoked = new CopyOnWriteArrayList<>();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 

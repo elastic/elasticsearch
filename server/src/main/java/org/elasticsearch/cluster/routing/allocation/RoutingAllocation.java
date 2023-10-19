@@ -147,7 +147,7 @@ public class RoutingAllocation {
 
     private static Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets(ClusterState clusterState) {
         Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets = new HashMap<>();
-        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
+        for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().getAll().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
                 nodeReplacementTargets.put(shutdown.getTargetNodeName(), shutdown);
             }
@@ -248,15 +248,6 @@ public class RoutingAllocation {
      */
     public Map<String, SingleNodeShutdownMetadata> replacementTargetShutdowns() {
         return this.nodeReplacementTargets;
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends ClusterState.Custom> T custom(String key) {
-        return (T) clusterState.customs().get(key);
-    }
-
-    public Map<String, ClusterState.Custom> getCustoms() {
-        return clusterState.getCustoms();
     }
 
     public void ignoreDisable(boolean ignoreDisable) {

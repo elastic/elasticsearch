@@ -1,6 +1,0 @@
-pr: 94322
-summary: Enable `_terms_enum` on `ip` fields
-area: Mapping
-type: enhancement
-issues:
- - 89933

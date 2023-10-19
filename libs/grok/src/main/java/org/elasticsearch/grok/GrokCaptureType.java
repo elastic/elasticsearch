@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 /**
  * The type defined for the field in the pattern.
  */
-enum GrokCaptureType {
+public enum GrokCaptureType {
     STRING {
         @Override
         <T> T nativeExtracter(int[] backRefs, NativeExtracterMap<T> map) {
@@ -68,7 +68,7 @@ enum GrokCaptureType {
         };
     }
 
-    protected final GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
+    protected static GrokCaptureExtracter rawExtracter(int[] backRefs, Consumer<? super String> emit) {
         return (utf8Bytes, offset, region) -> {
             for (int number : backRefs) {
                 if (region.beg[number] >= 0) {

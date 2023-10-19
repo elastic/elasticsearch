@@ -89,8 +89,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
     /** Script to extract a collection of numeric values from the 'numbers' field **/
     public static final String NUMERIC_VALUES_SCRIPT = "doc['numbers']";
 
-    public static final int HASHER_DEFAULT_SEED = 17;
-
     @Override
     protected ScriptService getMockScriptService() {
         final Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
@@ -581,6 +579,32 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testIndexedAllDifferentValues() throws IOException {
+        // Indexing enables testing of ordinal values
+        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values");
+        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
+        int docs = randomIntBetween(50, 100);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+
+            for (int i = 0; i < docs; i++) {
+                iw.addDocument(
+                    List.of(
+                        new StringField("str_values", "" + i, Field.Store.NO),
+                        new SortedSetDocValuesField("str_values", new BytesRef("" + i))
+                    )
+                );
+                if (rarely()) {
+                    iw.commit();
+                }
+            }
+        };
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, card -> {
+            assertEquals(docs, card.getValue());
+            assertTrue(AggregationInspectionHelper.hasValue(card));
+        }, mappedFieldTypes);
+    }
+
     public void testUnmappedMissingString() throws IOException {
         CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
@@ -605,23 +629,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
-    }
-
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("cardinality").field("number");
-
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            final int numDocs = 10;
-            for (int i = 0; i < numDocs; i++) {
-                iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
-            }
-            iw.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-        }, card -> {
-            assertEquals(10.0, card.getValue(), 0);
-            assertEquals("cardinality", card.getName());
-            assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, fieldType);
     }
 
     public void testSingleValuedNumericValueScript() throws IOException {

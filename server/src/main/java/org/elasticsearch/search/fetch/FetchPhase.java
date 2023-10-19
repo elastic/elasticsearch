@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -49,6 +51,7 @@ public class FetchPhase {
 
     private final FetchSubPhase[] fetchSubPhases;
 
+    @SuppressWarnings("this-escape")
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
@@ -99,19 +102,20 @@ public class FetchPhase {
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
 
+        PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
+        PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
+        context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
+
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
 
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.build(processors, FetchSubPhaseProcessor::storedFieldsSpec);
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
+        IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
-
-        PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
-        PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
-        context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
@@ -119,19 +123,23 @@ public class FetchPhase {
             LeafNestedDocuments leafNestedDocuments;
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
+            IdLoader.Leaf leafIdLoader;
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
-                profiler.startNextReader();
+                Timer timer = profiler.startNextReader();
                 this.ctx = ctx;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
                 fieldLookupProvider.setNextReader(ctx);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
-                profiler.stopNextReader();
+                if (timer != null) {
+                    timer.stop();
+                }
             }
 
             @Override
@@ -147,7 +155,8 @@ public class FetchPhase {
                     leafStoredFieldLoader,
                     doc,
                     ctx,
-                    leafSourceLoader
+                    leafSourceLoader,
+                    leafIdLoader
                 );
                 sourceProvider.source = hit.source();
                 fieldLookupProvider.storedFields = hit.loadedFields();
@@ -191,10 +200,19 @@ public class FetchPhase {
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
         LeafReaderContext subReaderContext,
-        SourceLoader.Leaf sourceLoader
+        SourceLoader.Leaf sourceLoader,
+        IdLoader.Leaf idLoader
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
-            return prepareNonNestedHitContext(requiresSource, profiler, leafStoredFieldLoader, docId, subReaderContext, sourceLoader);
+            return prepareNonNestedHitContext(
+                requiresSource,
+                profiler,
+                leafStoredFieldLoader,
+                docId,
+                subReaderContext,
+                sourceLoader,
+                idLoader
+            );
         } else {
             return prepareNestedHitContext(
                 context,
@@ -221,25 +239,29 @@ public class FetchPhase {
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
         LeafReaderContext subReaderContext,
-        SourceLoader.Leaf sourceLoader
+        SourceLoader.Leaf sourceLoader,
+        IdLoader.Leaf idLoader
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
         leafStoredFieldLoader.advanceTo(subDocId);
 
-        if (leafStoredFieldLoader.id() == null) {
+        String id = idLoader.getId(subDocId);
+        if (id == null) {
             SearchHit hit = new SearchHit(docId, null);
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {
-            SearchHit hit = new SearchHit(docId, leafStoredFieldLoader.id());
+            SearchHit hit = new SearchHit(docId, id);
             Source source;
             if (requiresSource) {
+                Timer timer = profiler.startLoadingSource();
                 try {
-                    profiler.startLoadingSource();
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                 } finally {
-                    profiler.stopLoadingSource();
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
@@ -318,13 +340,9 @@ public class FetchPhase {
 
         StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader);
 
-        void startLoadingSource();
+        Timer startLoadingSource();
 
-        void stopLoadingSource();
-
-        void startNextReader();
-
-        void stopNextReader();
+        Timer startNextReader();
 
         Profiler NOOP = new Profiler() {
             @Override
@@ -343,16 +361,14 @@ public class FetchPhase {
             }
 
             @Override
-            public void startLoadingSource() {}
+            public Timer startLoadingSource() {
+                return null;
+            }
 
             @Override
-            public void stopLoadingSource() {}
-
-            @Override
-            public void startNextReader() {}
-
-            @Override
-            public void stopNextReader() {}
+            public Timer startNextReader() {
+                return null;
+            }
 
             @Override
             public String toString() {

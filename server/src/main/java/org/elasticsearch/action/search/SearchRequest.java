@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -87,6 +88,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private int batchedReduceSize = DEFAULT_BATCHED_REDUCE_SIZE;
 
     private int maxConcurrentShardRequests = 0;
+    public static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
     private Integer preFilterShardSize;
 
@@ -147,6 +149,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
+    @SuppressWarnings("this-escape")
     public SearchRequest(String[] indices, SearchSourceBuilder source) {
         this();
         if (source == null) {
@@ -238,7 +241,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         preference = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types no longer relevant so ignore
             String[] types = in.readStringArray();
             if (types.length > 0) {
@@ -262,16 +265,16 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0) && in.readBoolean()) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0) && in.readBoolean()) {
             minCompatibleShardNode = Version.readVersion(in);
         } else {
             minCompatibleShardNode = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_16_0)) {
-            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
+            waitForCheckpoints = in.readMap(StreamInput::readLongArray);
             waitForCheckpointsTimeout = in.readTimeValue();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             forceSyntheticSource = in.readBoolean();
         } else {
             forceSyntheticSource = false;
@@ -287,7 +290,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeOptionalString(preference);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
@@ -303,15 +306,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_12_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeBoolean(minCompatibleShardNode != null);
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
         }
-        TransportVersion waitForCheckpointsVersion = TransportVersion.V_7_16_0;
+        TransportVersion waitForCheckpointsVersion = TransportVersions.V_7_16_0;
         if (out.getTransportVersion().onOrAfter(waitForCheckpointsVersion)) {
-            out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoints.isEmpty() == false) {
             throw new IllegalArgumentException(
@@ -323,7 +326,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "] or greater."
             );
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeBoolean(forceSyntheticSource);
         } else {
             if (forceSyntheticSource) {
@@ -359,6 +362,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
         }
         if (source != null) {
+            if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
+                validationException = addValidationError("[sub_searches] requires [rank]", validationException);
+            }
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }
@@ -378,10 +384,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                         validationException
                     );
                 }
-                if (source.knnSearch().isEmpty() || source.query() == null && source.knnSearch().size() < 2) {
+                int queryCount = source.subSearches().size() + source.knnSearch().size();
+                if (queryCount < 2) {
                     validationException = addValidationError(
-                        "[rank] requires a minimum of [2] result sets which"
-                            + " either needs at minimum [a query and a knn search] or [multiple knn searches]",
+                        "[rank] requires a minimum of [2] result sets using a combination of sub searches and/or knn searches",
                         validationException
                     );
                 }
@@ -713,7 +719,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * cluster can be throttled with this number to reduce the cluster load. The default is {@code 5}
      */
     public int getMaxConcurrentShardRequests() {
-        return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
+        return maxConcurrentShardRequests == 0 ? DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS : maxConcurrentShardRequests;
     }
 
     /**

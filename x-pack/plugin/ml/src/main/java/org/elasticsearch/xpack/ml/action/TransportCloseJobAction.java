@@ -24,13 +24,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -97,7 +100,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             CloseJobAction.Request::new,
             CloseJobAction.Response::new,
             CloseJobAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
         this.client = client;
@@ -122,7 +125,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, CloseJobAction.Response::new)
+                    new ActionListenerResponseHandler<>(listener, CloseJobAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             }
         } else {
@@ -417,7 +420,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         CloseJobAction.Request request,
         JobTask jobTask,
         ActionListener<CloseJobAction.Response> listener
@@ -527,7 +530,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
                         }
                     }
 
-                    private void sendResponseOrFailure(
+                    private static void sendResponseOrFailure(
                         String jobId,
                         ActionListener<CloseJobAction.Response> listener,
                         AtomicArray<Exception> failures
@@ -572,7 +575,7 @@ public class TransportCloseJobAction extends TransportTasksAction<
             return;
         }
 
-        final Set<String> movedJobs = Sets.newConcurrentHashSet();
+        final Set<String> movedJobs = ConcurrentCollections.newConcurrentSet();
 
         ActionListener<CloseJobAction.Response> intermediateListener = ActionListener.wrap(response -> {
             for (String jobId : movedJobs) {
@@ -648,6 +651,6 @@ public class TransportCloseJobAction extends TransportTasksAction<
                 }
             }
             return true;
-        }, request.getCloseTimeout(), listener.delegateFailure((l, r) -> l.onResponse(response)));
+        }, request.getCloseTimeout(), listener.safeMap(r -> response));
     }
 }

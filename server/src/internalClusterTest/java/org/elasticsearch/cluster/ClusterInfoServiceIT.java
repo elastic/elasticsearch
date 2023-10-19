@@ -11,7 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -84,7 +85,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME + "*", "Test system index"));
+            return List.of(SystemIndexDescriptorUtils.createUnmanaged(TEST_SYSTEM_INDEX_NAME + "*", "Test system index"));
         }
 
         @Override
@@ -142,7 +143,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             )
         );
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose(indexName));
+            assertAcked(indicesAdmin().prepareClose(indexName));
         }
         ensureGreen(indexName);
         InternalTestCluster internalTestCluster = internalCluster();
@@ -246,8 +247,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = newHashSet(
-            NodesStatsAction.NAME,
-            NodesStatsAction.NAME + "[n]",
+            TransportNodesStatsAction.TYPE.name(),
+            TransportNodesStatsAction.TYPE.name() + "[n]",
             IndicesStatsAction.NAME,
             IndicesStatsAction.NAME + "[n]"
         );

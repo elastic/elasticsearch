@@ -81,7 +81,7 @@ public record LifecycleExecutionState(
             .setSnapshotName(state.snapshotName)
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
-            .setRollupIndexName(state.downsampleIndexName)
+            .setDownsampleIndexName(state.downsampleIndexName)
             .setStepTime(state.stepTime);
     }
 
@@ -187,9 +187,9 @@ public record LifecycleExecutionState(
         if (snapshotIndexName != null) {
             builder.setSnapshotIndexName(snapshotIndexName);
         }
-        String rollupIndexName = customData.get(DOWNSAMPLE_INDEX_NAME);
-        if (rollupIndexName != null) {
-            builder.setRollupIndexName(rollupIndexName);
+        String downsampleIndexName = customData.get(DOWNSAMPLE_INDEX_NAME);
+        if (downsampleIndexName != null) {
+            builder.setDownsampleIndexName(downsampleIndexName);
         }
         return builder.build();
     }
@@ -273,7 +273,7 @@ public record LifecycleExecutionState(
         private String snapshotRepository;
         private String shrinkIndexName;
         private String snapshotIndexName;
-        private String rollupIndexName;
+        private String downsampleIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -355,8 +355,8 @@ public record LifecycleExecutionState(
             return this;
         }
 
-        public Builder setRollupIndexName(String rollupIndexName) {
-            this.rollupIndexName = rollupIndexName;
+        public Builder setDownsampleIndexName(String downsampleIndexName) {
+            this.downsampleIndexName = downsampleIndexName;
             return this;
         }
 
@@ -378,7 +378,7 @@ public record LifecycleExecutionState(
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                rollupIndexName
+                downsampleIndexName
             );
         }
     }

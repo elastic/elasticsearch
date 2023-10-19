@@ -10,13 +10,13 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -25,13 +25,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -60,7 +60,7 @@ public class JoinHelperTests extends ESTestCase {
     public void testJoinDeduplication() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
-        DiscoveryNode localNode = TestDiscoveryNode.create("node0");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node0");
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
@@ -90,12 +90,13 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            CompatibilityVersionsUtils.staticCurrent()
         );
         transportService.start();
 
-        DiscoveryNode node1 = TestDiscoveryNode.create("node1");
-        DiscoveryNode node2 = TestDiscoveryNode.create("node2");
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node2");
         final boolean mightSucceed = randomBoolean();
 
         assertFalse(joinHelper.isJoinPending());
@@ -225,7 +226,7 @@ public class JoinHelperTests extends ESTestCase {
     public void testJoinFailureOnUnhealthyNodes() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
-        DiscoveryNode localNode = TestDiscoveryNode.create("node0");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node0");
         ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
@@ -256,12 +257,13 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onResponse(null)
+            (listener, term) -> listener.onResponse(null),
+            CompatibilityVersionsUtils.staticCurrent()
         );
         transportService.start();
 
-        DiscoveryNode node1 = TestDiscoveryNode.create("node1");
-        DiscoveryNode node2 = TestDiscoveryNode.create("node2");
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node2");
 
         assertFalse(joinHelper.isJoinPending());
 
@@ -301,7 +303,7 @@ public class JoinHelperTests extends ESTestCase {
     public void testLatestStoredStateFailure() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
-        DiscoveryNode localNode = TestDiscoveryNode.create("node0");
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node0");
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final var taskManger = new TaskManager(Settings.EMPTY, threadPool, Set.of());
@@ -331,12 +333,13 @@ public class JoinHelperTests extends ESTestCase {
             new JoinReasonService(() -> 0L),
             new NoneCircuitBreakerService(),
             Function.identity(),
-            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated"))
+            (listener, term) -> listener.onFailure(new ElasticsearchException("simulated")),
+            CompatibilityVersionsUtils.staticCurrent()
         );
 
         final var joinAccumulator = joinHelper.new CandidateJoinAccumulator();
         final var joinListener = new PlainActionFuture<Void>();
-        joinAccumulator.handleJoinRequest(localNode, TransportVersion.CURRENT, joinListener);
+        joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), joinListener);
         assert joinListener.isDone() == false;
 
         final var mockAppender = new MockLogAppender();
@@ -363,7 +366,7 @@ public class JoinHelperTests extends ESTestCase {
             if (action.equals(HANDSHAKE_ACTION_NAME)) {
                 handleResponse(
                     requestId,
-                    new TransportService.HandshakeResponse(node.getVersion(), Build.CURRENT.hash(), node, ClusterName.DEFAULT)
+                    new TransportService.HandshakeResponse(node.getVersion(), Build.current().hash(), node, ClusterName.DEFAULT)
                 );
             } else {
                 super.onSendRequest(requestId, action, request, node);

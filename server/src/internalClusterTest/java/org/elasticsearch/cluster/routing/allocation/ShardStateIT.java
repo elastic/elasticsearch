@@ -28,7 +28,7 @@ public class ShardStateIT extends ESIntegTestCase {
         logger.info("--> disabling allocation to capture shard failure");
         disableAllocation("test");
 
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         final int shard = randomBoolean() ? 0 : 1;
         final String nodeId = state.routingTable().index("test").shard(shard).primaryShard().currentNodeId();
         final String node = state.nodes().get(nodeId).getName();
@@ -38,9 +38,7 @@ public class ShardStateIT extends ESIntegTestCase {
 
         logger.info("--> waiting for a yellow index");
         // we can't use ensureYellow since that one is just as happy with a GREEN status.
-        assertBusy(
-            () -> assertThat(client().admin().cluster().prepareHealth("test").get().getStatus(), equalTo(ClusterHealthStatus.YELLOW))
-        );
+        assertBusy(() -> assertThat(clusterAdmin().prepareHealth("test").get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

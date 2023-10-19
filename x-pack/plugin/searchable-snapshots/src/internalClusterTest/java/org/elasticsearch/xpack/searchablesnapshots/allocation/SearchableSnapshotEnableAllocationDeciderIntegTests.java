@@ -39,7 +39,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
             internalCluster().restartNode(indexNode);
         }
 
-        ClusterHealthResponse response = client().admin().cluster().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
+        ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(restoredIndexName)).actionGet();
         assertThat(response.getUnassignedShards(), Matchers.equalTo(numPrimaries));
 
         setAllocateOnRollingRestart(true);
@@ -68,7 +68,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
         return mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY);
     }
 

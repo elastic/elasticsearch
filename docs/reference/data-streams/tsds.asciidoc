@@ -6,7 +6,7 @@ more time series.
 
 You can use a TSDS to store metrics data more efficiently. In our benchmarks,
 metrics data stored in a TSDS used 70% less disk space than a regular data
-stream.
+stream. The exact impact will vary per data set.
 
 [discrete]
 [[when-to-use-tsds]]
@@ -52,6 +52,11 @@ shard segments by `_tsid` and `@timestamp`.
 * TSDS documents only support auto-generated document `_id` values. For TSDS
 documents, the document `_id` is a hash of the document's dimensions and
 `@timestamp`. A TSDS doesn't support custom document `_id` values.
+
+* A TSDS uses <<synthetic-source,synthetic `_source`>>, and as a result is
+subject to a number of <<synthetic-source-restrictions,restrictions>>.
+
+NOTE: A time series index can contain fields other than dimensions or metrics.
 
 [discrete]
 [[time-series]]
@@ -142,17 +147,20 @@ Accepted metric types vary based on the field type:
 [%collapsible%open]
 ====
 // tag::time-series-metric-counter[]
-`counter`:: A number that only increases or resets to `0` (zero). For
+`counter`:: A cumulative metric that only monotonically increases or resets to `0` (zero). For
 example, a count of errors or completed tasks.
 // end::time-series-metric-counter[]
 +
-Only numeric and `aggregate_metric_double` fields support the `counter` metric
-type.
+A counter field has additional semantic meaning, because it represents a cumulative counter. This works well with
+the `rate` aggregation, since a rate can be derived from a cumulative monotonically increasing counter. However a number
+of aggregations (for example `sum`) compute results that don't make sense for a counter field, because of its cumulative nature.
++
+Only numeric and `aggregate_metric_double` fields support the `counter` metric type.
 
-NOTE: Counter fields do come with a limitation in aggregations. Only the following aggregations are supported with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`.
+NOTE: Due to the cumulative nature of counter fields, the following aggregations are supported and expected to provide meaningful results with the `counter` field: `rate`, `histogram`, `range`, `min`, `max`, `top_metrics` and `variable_width_histogram`. In order to prevent issues with existing integrations and custom dashboards, we also allow the following aggregations, even if the result might be meaningless on counters: `avg`, `box plot`, `cardinality`, `extended stats`, `median absolute deviation`, `percentile ranks`, `percentiles`, `stats`, `sum` and `value count`.
 
 // tag::time-series-metric-gauge[]
-`gauge`:: A number that can increase or decrease. For example, a temperature or
+`gauge`:: A metric that represents a single numeric that can arbitrarily increase or decrease. For example, a temperature or
 available disk space.
 // end::time-series-metric-gauge[]
 +
@@ -210,10 +218,17 @@ if the index isn't the most recent backing index.
 
 image::images/data-streams/time-bound-indices.svg[align="center"]
 
-TIP: Some {ilm-init} actions, such as <<ilm-forcemerge,`forcemerge`>>,
-<<ilm-shrink,`shrink`>>, and <<ilm-searchable-snapshot,`searchable_snapshot`>>,
-make a backing index read-only. You cannot add documents to read-only indices.
-Keep this in mind when defining the index lifecycle policy for your TSDS.
+TIP: Some {ilm-init} actions mark the source index as read-only, or expect the index
+to not be actively written anymore in order to provide good performance. These actions are:
+- <<ilm-delete>>
+- <<ilm-downsample>>
+- <<ilm-forcemerge>>
+- <<ilm-readonly>>
+- <<ilm-searchable-snapshot>>
+- <<ilm-shrink>>
+{ilm-cap} will **not** proceed with executing these actions until the upper time-bound 
+for accepting writes, represented by the <<index-time-series-end-time,`index.time_series.end_time`>> 
+index setting, has lapsed. 
 
 If no backing index can accept a document's `@timestamp` value, {es} rejects the
 document.
@@ -246,6 +261,22 @@ over, {es} sets a final `index.time_series.end_time` value for the index. This
 value borders the `index.time_series.start_time` for the new write index. This
 ensures the `@timestamp` ranges for neighboring backing indices always border
 but never overlap.
+
+[discrete]
+[[tsds-look-back-time]]
+==== Look-back time
+
+Use the <<index-look-back-time,`index.look_back_time`>> index setting to
+configure how far in the past you can add documents to an index. When you
+create a data stream for a TSDS, {es} calculates the index's
+`index.time_series.start_time` value as:
+
+`now - index.look_back_time`
+
+This setting is only used when a data stream gets created and controls
+the `index.time_series.start_time` index setting of the first backing index.
+Configuring this index setting can be useful to accept documents with `@timestamp`
+field values that are older than 2 hours (the `index.look_back_time` default).
 
 [discrete]
 [[tsds-accepted-time-range]]
@@ -316,5 +347,6 @@ Now that you know the basics, you're ready to <<set-up-tsds,create a TSDS>> or
 include::set-up-tsds.asciidoc[]
 include::tsds-index-settings.asciidoc[]
 include::downsampling.asciidoc[]
-include::downsampling-manual.asciidoc[]
 include::downsampling-ilm.asciidoc[]
+include::downsampling-manual.asciidoc[]
+include::tsds-reindex.asciidoc[]

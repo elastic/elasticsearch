@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -53,7 +54,6 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -102,7 +102,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             OpenJobAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.persistentTasksService = persistentTasksService;
@@ -187,7 +187,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                     referencedRuleFiltersPresentListener.onResponse(true);
                 } else {
                     GetFiltersAction.Request getFiltersRequest = new GetFiltersAction.Request();
-                    getFiltersRequest.setResourceId(referencedRuleFilters.stream().collect(Collectors.joining(",")));
+                    getFiltersRequest.setResourceId(String.join(",", referencedRuleFilters));
                     getFiltersRequest.setAllowNoResources(false);
                     client.execute(
                         GetFiltersAction.INSTANCE,
@@ -314,7 +314,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             client,
             clusterState,
             masterNodeTimeout,
-            mappingsUpdatedListener
+            mappingsUpdatedListener,
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 

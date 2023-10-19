@@ -83,7 +83,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final String keystorePassword;
         private final Map<String, Resource> extraConfigFiles;
         private final Map<String, String> systemProperties;
-        private final Map<String, String> secrets;
+        private final List<String> jvmArgs;
         private Version version;
 
         public LocalNodeSpec(
@@ -104,7 +104,7 @@ public class LocalClusterSpec implements ClusterSpec {
             String keystorePassword,
             Map<String, Resource> extraConfigFiles,
             Map<String, String> systemProperties,
-            Map<String, String> secrets
+            List<String> jvmArgs
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -123,7 +123,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.keystorePassword = keystorePassword;
             this.extraConfigFiles = extraConfigFiles;
             this.systemProperties = systemProperties;
-            this.secrets = secrets;
+            this.jvmArgs = jvmArgs;
         }
 
         void setVersion(Version version) {
@@ -182,12 +182,16 @@ public class LocalClusterSpec implements ClusterSpec {
             return systemProperties;
         }
 
-        public Map<String, String> getSecrets() {
-            return secrets;
+        public List<String> getJvmArgs() {
+            return jvmArgs;
         }
 
         public boolean isSecurityEnabled() {
             return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
+        }
+
+        public boolean isRemoteClusterServerEnabled() {
+            return Boolean.parseBoolean(getSetting("remote_cluster_server.enabled", "false"));
         }
 
         public boolean isMasterEligible() {
@@ -195,7 +199,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public boolean hasRole(String role) {
-            return getSetting("node.roles", "[]").contains("search");
+            return getSetting("node.roles", "[]").contains(role);
         }
 
         /**
@@ -299,7 +303,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.keystorePassword,
                         n.extraConfigFiles,
                         n.systemProperties,
-                        n.secrets
+                        n.jvmArgs
                     )
                 )
                 .toList();

@@ -8,12 +8,19 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -21,9 +28,10 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.tracing.Tracer;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,7 +41,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
     public void testSimpleFilter() throws IOException {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.analysis.filter.f.type", "predicate_token_filter")
             .put("index.analysis.filter.f.script.source", "my_script")
             .put("index.analysis.analyzer.myAnalyzer.type", "custom")
@@ -58,22 +66,53 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
                 return (FactoryType) factory;
             }
         };
-
+        Client client = new MockClient(Settings.EMPTY, null);
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP, null);
+        plugin.createComponents(
+            client,
+            null,
+            null,
+            null,
+            scriptService,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TelemetryProvider.NOOP,
+            null,
+            null
+        );
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),
             Collections.singletonList(plugin),
             new StablePluginsRegistry()
         );
 
-        IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);
+        IndexAnalyzers analyzers = module.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
 
         try (NamedAnalyzer analyzer = analyzers.get("myAnalyzer")) {
             assertNotNull(analyzer);
             assertAnalyzesTo(analyzer, "Oh what a wonderful thing to be", new String[] { "Oh", "what", "to", "be" });
         }
 
+    }
+
+    private class MockClient extends AbstractClient {
+        MockClient(Settings settings, ThreadPool threadPool) {
+            super(settings, threadPool);
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {}
     }
 
 }

@@ -24,7 +24,7 @@ public class CanMatchNodeResponse extends TransportResponse {
 
     public CanMatchNodeResponse(StreamInput in) throws IOException {
         super(in);
-        responses = in.readList(ResponseOrFailure::new);
+        responses = in.readCollectionAsList(ResponseOrFailure::new);
     }
 
     public CanMatchNodeResponse(List<ResponseOrFailure> responses) {
@@ -33,7 +33,7 @@ public class CanMatchNodeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(responses);
+        out.writeCollection(responses);
     }
 
     public List<ResponseOrFailure> getResponses() {

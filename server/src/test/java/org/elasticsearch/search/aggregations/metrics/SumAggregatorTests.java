@@ -12,15 +12,12 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
@@ -208,36 +205,6 @@ public class SumAggregatorTests extends AggregatorTestCase {
             assertEquals(0d, result.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(result));
         });
-    }
-
-    public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
-
-        final SumAggregationBuilder builder = sum("_name").field(fieldType.name());
-
-        final int numDocs = randomIntBetween(10, 100);
-        final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
-        int sum = 0;
-        for (int i = 0; i < numDocs; i++) {
-            final long value = randomLongBetween(0, 1000);
-            sum += value;
-            docs.add(singleton(new NumericDocValuesField(fieldType.name(), value)));
-        }
-        docs.add(singleton(new NumericDocValuesField("unrelated", 100)));
-
-        try (Directory mappedDirectory = newDirectory()) {
-            try (RandomIndexWriter mappedWriter = new RandomIndexWriter(random(), mappedDirectory)) {
-                mappedWriter.addDocuments(docs);
-            }
-
-            try (DirectoryReader mappedReader = DirectoryReader.open(mappedDirectory)) {
-                final IndexSearcher searcher = newIndexSearcher(mappedReader);
-
-                final Sum internalSum = searchAndReduce(searcher, new AggTestConfig(builder, fieldType));
-                assertEquals(sum, internalSum.value(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            }
-        }
     }
 
     public void testValueScriptSingleValuedField() throws IOException {

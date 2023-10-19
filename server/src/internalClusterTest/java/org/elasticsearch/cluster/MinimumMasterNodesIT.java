@@ -98,13 +98,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
         // make sure that all shards recovered before trying to flush
         assertThat(
-            client().admin()
-                .cluster()
-                .prepareHealth("test")
-                .setWaitForActiveShards(numShards.totalNumShards)
-                .execute()
-                .actionGet()
-                .getActiveShards(),
+            clusterAdmin().prepareHealth("test").setWaitForActiveShards(numShards.totalNumShards).execute().actionGet().getActiveShards(),
             equalTo(numShards.totalNumShards)
         );
         // flush for simpler debugging
@@ -167,7 +161,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we get the data back after cluster reform");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
 
         logger.info("--> clearing voting config exclusions");
@@ -214,7 +208,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
     }
 
@@ -262,12 +256,12 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             equalTo(false)
         );
         // flush for simpler debugging
-        client().admin().indices().prepareFlush().execute().actionGet();
+        indicesAdmin().prepareFlush().execute().actionGet();
 
         refresh();
         logger.info("--> verify we get the data back");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
 
         List<String> nonMasterNodes = new ArrayList<>(
@@ -296,7 +290,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
         }
     }
 

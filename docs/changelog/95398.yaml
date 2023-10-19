@@ -1,9 +1,0 @@
-pr: 95398
-summary: GA release of the JWT realm
-area: Authentication
-type: feature
-issues: []
-highlight:
-  title: GA release of the JWT realm
-  body: This PR removes the beta label for JWT realm feature to make it GA.
-  notable: true

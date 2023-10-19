@@ -16,12 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -52,7 +53,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             GetComponentTemplateAction.Request::new,
             indexNameExpressionResolver,
             GetComponentTemplateAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
     }
@@ -91,9 +92,12 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
 
             }
         }
-        if (request.includeDefaults() && DataLifecycle.isEnabled()) {
+        if (request.includeDefaults()) {
             listener.onResponse(
-                new GetComponentTemplateAction.Response(results, clusterSettings.get(DataLifecycle.CLUSTER_DLM_DEFAULT_ROLLOVER_SETTING))
+                new GetComponentTemplateAction.Response(
+                    results,
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                )
             );
         } else {
             listener.onResponse(new GetComponentTemplateAction.Response(results));

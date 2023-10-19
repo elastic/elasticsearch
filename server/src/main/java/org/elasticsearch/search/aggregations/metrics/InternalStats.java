@@ -36,6 +36,15 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         public static Metrics resolve(String name) {
             return Metrics.valueOf(name);
         }
+
+        public static boolean hasMetric(String name) {
+            try {
+                InternalStats.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
     }
 
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
@@ -89,6 +98,10 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     @Override
     public String getWriteableName() {
         return StatsAggregationBuilder.NAME;
+    }
+
+    static InternalStats empty(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, format, metadata);
     }
 
     @Override

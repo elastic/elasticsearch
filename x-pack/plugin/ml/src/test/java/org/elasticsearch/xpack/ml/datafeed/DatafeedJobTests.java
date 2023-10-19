@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
@@ -176,6 +176,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1000L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
@@ -202,6 +203,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client).execute(same(PersistJobAction.INSTANCE), eq(new PersistJobAction.Request(jobId)));
     }
@@ -226,6 +228,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(flushJobRequests.getAllValues().size(), equalTo(1));
         FlushJobAction.Request flushRequest = new FlushJobAction.Request(jobId);
         flushRequest.setCalcInterim(true);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client).execute(same(PersistJobAction.INSTANCE), eq(new PersistJobAction.Request(jobId)));
     }
@@ -285,6 +288,7 @@ public class DatafeedJobTests extends ESTestCase {
         flushRequest.setCalcInterim(true);
         flushRequest.setAdvanceTime("59000");
         flushRequest.setWaitForNormalization(false);
+        flushRequest.setRefreshRequired(false);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 
@@ -316,12 +320,12 @@ public class DatafeedJobTests extends ESTestCase {
         {  // What we expect the created annotation to be indexed as
             Annotation expectedAnnotation = new Annotation.Builder().setAnnotation(msg)
                 .setCreateTime(new Date(annotationCreateTime))
-                .setCreateUsername(XPackUser.NAME)
+                .setCreateUsername(InternalUsers.XPACK_USER.principal())
                 .setTimestamp(bucket.getTimestamp())
                 .setEndTimestamp(new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000))
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationCreateTime))
-                .setModifiedUsername(XPackUser.NAME)
+                .setModifiedUsername(InternalUsers.XPACK_USER.principal())
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
@@ -365,12 +369,12 @@ public class DatafeedJobTests extends ESTestCase {
         {  // What we expect the updated annotation to be indexed as
             Annotation expectedUpdatedAnnotation = new Annotation.Builder().setAnnotation(msg)
                 .setCreateTime(new Date(annotationCreateTime))
-                .setCreateUsername(XPackUser.NAME)
+                .setCreateUsername(InternalUsers.XPACK_USER.principal())
                 .setTimestamp(bucket.getTimestamp())
                 .setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000))
                 .setJobId(jobId)
                 .setModifiedTime(new Date(annotationUpdateTime))
-                .setModifiedUsername(XPackUser.NAME)
+                .setModifiedUsername(InternalUsers.XPACK_USER.principal())
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();

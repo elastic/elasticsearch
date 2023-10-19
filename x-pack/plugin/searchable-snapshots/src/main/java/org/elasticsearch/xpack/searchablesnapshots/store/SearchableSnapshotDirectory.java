@@ -24,6 +24,7 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -191,7 +192,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState snapshotRecoveryState, ActionListener<Void> preWarmListener) {
+    public boolean loadSnapshot(
+        RecoveryState snapshotRecoveryState,
+        Supplier<Boolean> cancelPreWarming,
+        ActionListener<Void> preWarmListener
+    ) {
         assert snapshotRecoveryState != null;
         assert snapshotRecoveryState instanceof SearchableSnapshotRecoveryState;
         assert snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
@@ -213,7 +218,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     cleanExistingRegularShardFiles();
                     waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) snapshotRecoveryState;
-                    prewarmCache(preWarmListener);
+                    prewarmCache(preWarmListener, cancelPreWarming);
                 }
             }
         }
@@ -467,12 +472,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }
 
-    private void prewarmCache(ActionListener<Void> listener) {
+    private void prewarmCache(ActionListener<Void> listener, Supplier<Boolean> cancelPreWarming) {
         try (var completionListener = new RefCountingListener(listener.map(v -> {
             recoveryState.setPreWarmComplete();
             return v;
         }))) {
-            if (prewarmCache == false) {
+            if (prewarmCache == false || cancelPreWarming.get()) {
                 return;
             }
             var prewarmTaskRunner = new ThrottledTaskRunner(
@@ -482,6 +487,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
 
             for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
+                if (cancelPreWarming.get()) {
+                    return;
+                }
                 boolean hashEqualsContents = file.metadata().hashEqualsContents();
                 if (hashEqualsContents || isExcludedFromCache(file.physicalName())) {
                     if (hashEqualsContents) {
@@ -495,35 +503,46 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 try {
                     final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
                     assert input instanceof CachedBlobContainerIndexInput : "expected cached index input but got " + input.getClass();
+                    CachedBlobContainerIndexInput cachedIndexInput = (CachedBlobContainerIndexInput) input;
 
-                    try (
-                        var fileListener = new RefCountingListener(
-                            ActionListener.runBefore(completionListener.acquire(), () -> IOUtils.closeWhileHandlingException(input))
-                        )
-                    ) {
+                    final AtomicBoolean alreadyCached = new AtomicBoolean();
+                    try (var fileListener = new RefCountingListener(ActionListener.runBefore(completionListener.acquire().map(v -> {
+                        if (alreadyCached.get()) {
+                            recoveryState.markIndexFileAsReused(file.physicalName());
+                        } else {
+                            recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(file.physicalName(), file.length());
+                        }
+                        return v;
+                    }), () -> IOUtils.closeWhileHandlingException(cachedIndexInput)))) {
+                        if (cachedIndexInput.getPersistentCacheInitialLength() == file.length()) {
+                            alreadyCached.set(true);
+                            logger.trace(
+                                "{} file [{}] is already available in cache ({} bytes)",
+                                shardId,
+                                file.physicalName(),
+                                file.length()
+                            );
+                            continue;
+                        }
+
                         for (int p = 0; p < file.numberOfParts(); p++) {
                             final int part = p;
                             prewarmTaskRunner.enqueueTask(fileListener.acquire().map(releasable -> {
                                 try (releasable) {
-                                    ensureOpen();
                                     var fileName = file.physicalName();
                                     final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                                    final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
-                                    if (persistentCacheLength == file.length()) {
-                                        recoveryState.markIndexFileAsReused(fileName);
-                                    } else {
-                                        recoveryState.getIndex().addRecoveredFromSnapshotBytesToFile(fileName, file.partBytes(part));
-                                    }
-                                    logger.trace(
-                                        () -> format(
-                                            "%s part [%s/%s] of [%s] warmed in [%s] ms",
+                                    var prefetchedPartBytes = cachedIndexInput.prefetchPart(part, cancelPreWarming);
+                                    if (prefetchedPartBytes > -1L && logger.isTraceEnabled()) {
+                                        logger.trace(
+                                            "{} part [{}/{}] of [{}] warmed in [{}] ms ({} bytes)",
                                             shardId,
                                             part + 1,
                                             file.numberOfParts(),
                                             fileName,
-                                            timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis()
-                                        )
-                                    );
+                                            timeValueNanos(statsCurrentTimeNanosSupplier.getAsLong() - startTimeInNanos).millis(),
+                                            prefetchedPartBytes
+                                        );
+                                    }
                                     return null;
                                 }
                             }));
@@ -702,13 +721,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
 
         @Override
-        public InputStream readBlob(String blobName) throws IOException {
-            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName));
+        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName));
         }
 
         @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
-            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(blobName, position, length));
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+            return blobStoreRepository.maybeRateLimitRestores(super.readBlob(purpose, blobName, position, length));
         }
     }
 }

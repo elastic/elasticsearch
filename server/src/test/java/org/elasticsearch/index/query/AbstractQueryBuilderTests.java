@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
@@ -22,6 +23,7 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.hamcrest.Matchers.containsString;
 
 public class AbstractQueryBuilderTests extends ESTestCase {
 
@@ -82,6 +84,12 @@ public class AbstractQueryBuilderTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
+    }
+
+    public void testMaybeConvertToBytesRefLongTerm() {
+        String longTerm = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> AbstractQueryBuilder.maybeConvertToBytesRef(longTerm));
+        assertThat(e.getMessage(), containsString("term starting with [aaaaa"));
     }
 
 }

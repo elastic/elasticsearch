@@ -72,7 +72,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         createIndex("test");
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
             new IsolateAllNodes(new HashSet<>(nodes)),
@@ -223,14 +223,14 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
         prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
-        client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
         client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
         client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
 
-        ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterState = clusterAdmin().prepareState().get();
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
@@ -250,14 +250,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
-        assertHitCount(countResponse, 1L);
+        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
         logger.info("--> here 3");
-        SearchResponse searchResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true), 1L);
 
-        countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
+        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
         assertThat(countResponse.getTotalShards(), equalTo(3));
         assertThat(countResponse.getSuccessfulShards(), equalTo(1));
 
@@ -300,13 +298,13 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
-        client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth("_all").setWaitForGreenStatus().get();
         client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");
 
-        ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterState = clusterAdmin().prepareState().get();
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final List<String> nodesWithShards = clusterState.getState()
@@ -347,11 +345,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
 
-        SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
-            .setAllowPartialSearchResults(true)
-            .setSize(0)
-            .get();
-        assertHitCount(countResponse, 1L);
+        assertHitCount(client(randomFrom(nodesWithShards)).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
         expectThrows(
             Exception.class,

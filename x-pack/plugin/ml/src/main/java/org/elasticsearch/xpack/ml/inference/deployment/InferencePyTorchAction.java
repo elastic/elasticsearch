@@ -9,14 +9,15 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -36,7 +37,8 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
     private final InferenceConfig config;
     private final NlpInferenceInput input;
-    private final Task parentActionTask;
+    @Nullable
+    private final CancellableTask parentActionTask;
 
     InferencePyTorchAction(
         String deploymentId,
@@ -46,7 +48,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         InferenceConfig config,
         NlpInferenceInput input,
         ThreadPool threadPool,
-        @Nullable Task parentActionTask,
+        @Nullable CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         super(deploymentId, requestId, timeout, processContext, threadPool, listener);
@@ -56,9 +58,9 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     }
 
     private boolean isCancelled() {
-        if (parentActionTask instanceof CancellableTask cancellableTask) {
+        if (parentActionTask != null) {
             try {
-                cancellableTask.ensureNotCancelled();
+                parentActionTask.ensureNotCancelled();
             } catch (TaskCancelledException ex) {
                 logger.warn(() -> format("[%s] %s", getDeploymentId(), ex.getMessage()));
                 return true;
@@ -90,7 +92,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             NlpConfig nlpConfig = (NlpConfig) config;
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
                 .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
-            logger.trace(() -> format("handling request [%s]", requestIdStr));
+            logger.debug(() -> format("handling request [%s]", requestIdStr));
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
             if (isCancelled()) {
@@ -109,7 +111,19 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         } catch (IOException e) {
             logger.error(() -> "[" + getDeploymentId() + "] error writing to inference process", e);
             onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
+        } catch (ElasticsearchException e) {
+            // Don't log problems related to the shape of the input as errors
+            if (e.status().getStatus() >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
+                logger.error(() -> "[" + getDeploymentId() + "] internal server error running inference", e);
+            } else {
+                logger.debug(() -> "[" + getDeploymentId() + "] error running inference due to input", e);
+            }
+            onFailure(e);
+        } catch (IllegalArgumentException e) {
+            logger.debug(() -> "[" + getDeploymentId() + "] illegal argument running inference", e);
+            onFailure(e);
         } catch (Exception e) {
+            logger.error(() -> "[" + getDeploymentId() + "] error running inference", e);
             onFailure(e);
         }
     }
@@ -141,7 +155,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
         InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult.inferenceResult());
-        logger.trace(() -> format("[%s] processed result for request [%s]", getDeploymentId(), getRequestId()));
+        logger.debug(() -> format("[%s] processed result for request [%s]", getDeploymentId(), getRequestId()));
         onSuccess(results);
     }
 

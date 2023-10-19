@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,7 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -200,10 +199,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
         Instant timeBeforeRevert = Instant.now();
 
-        assertThat(
-            revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
-            equalTo(RestStatus.OK)
-        );
+        revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults);
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 
@@ -312,7 +308,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
     private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, Event event) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setTimestamp(Date.from(timestamp))
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setEvent(event)
             .build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {

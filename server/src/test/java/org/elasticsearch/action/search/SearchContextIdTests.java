@@ -49,7 +49,7 @@ public class SearchContextIdTests extends ESTestCase {
             )
         );
         final AtomicArray<SearchPhaseResult> queryResults = TransportSearchHelperTests.generateQueryResults();
-        final TransportVersion version = TransportVersion.CURRENT;
+        final TransportVersion version = TransportVersion.current();
         final Map<String, AliasFilter> aliasFilters = new HashMap<>();
         for (SearchPhaseResult result : queryResults.asList()) {
             final AliasFilter aliasFilter;

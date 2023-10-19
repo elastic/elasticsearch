@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -17,7 +18,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
     NodesStatsResponse,
     NodesStatsRequestBuilder> {
 
-    public NodesStatsRequestBuilder(ElasticsearchClient client, NodesStatsAction action) {
+    public NodesStatsRequestBuilder(ElasticsearchClient client, ActionType<NodesStatsResponse> action) {
         super(client, action, new NodesStatsRequest());
     }
 
@@ -150,6 +151,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
 
     public NodesStatsRequestBuilder setIndexingPressure(boolean indexingPressure) {
         addOrRemoveMetric(indexingPressure, NodesStatsRequest.Metric.INDEXING_PRESSURE);
+        return this;
+    }
+
+    public NodesStatsRequestBuilder setRepositoryStats(boolean repositoryStats) {
+        addOrRemoveMetric(repositoryStats, NodesStatsRequest.Metric.REPOSITORIES);
         return this;
     }
 

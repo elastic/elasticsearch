@@ -45,7 +45,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         final CyclicBarrier barrier1 = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final CyclicBarrier barrier2 = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final AtomicInteger count = new AtomicInteger();
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), true) {
+        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, threadPool.generic(), TimeValue.timeValueMillis(1), true) {
 
             @Override
             protected boolean mustReschedule() {
@@ -71,10 +71,6 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 }
             }
 
-            @Override
-            protected String getThreadPool() {
-                return ThreadPool.Names.GENERIC;
-            }
         };
 
         assertFalse(task.isScheduled());
@@ -101,7 +97,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         boolean shouldRunThrowException = randomBoolean();
         final CyclicBarrier barrier = new CyclicBarrier(2); // 1 for runInternal plus 1 for the test sequence
         final AtomicInteger count = new AtomicInteger();
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(1), false) {
+        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, threadPool.generic(), TimeValue.timeValueMillis(1), false) {
 
             @Override
             protected boolean mustReschedule() {
@@ -122,10 +118,6 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 }
             }
 
-            @Override
-            protected String getThreadPool() {
-                return ThreadPool.Names.GENERIC;
-            }
         };
 
         assertFalse(task.isScheduled());
@@ -148,7 +140,13 @@ public class AbstractAsyncTaskTests extends ESTestCase {
 
     public void testCloseWithNoRun() {
 
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMinutes(10), true) {
+        AbstractAsyncTask task = new AbstractAsyncTask(
+            logger,
+            threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            TimeValue.timeValueMinutes(10),
+            true
+        ) {
 
             @Override
             protected boolean mustReschedule() {
@@ -171,7 +169,13 @@ public class AbstractAsyncTaskTests extends ESTestCase {
 
         final CountDownLatch latch = new CountDownLatch(2);
 
-        AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueHours(1), true) {
+        AbstractAsyncTask task = new AbstractAsyncTask(
+            logger,
+            threadPool,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            TimeValue.timeValueHours(1),
+            true
+        ) {
 
             @Override
             protected boolean mustReschedule() {
@@ -202,7 +206,14 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         List<AbstractAsyncTask> tasks = new ArrayList<>(numTasks);
         AtomicLong counter = new AtomicLong();
         for (int i = 0; i < numTasks; i++) {
-            AbstractAsyncTask task = new AbstractAsyncTask(logger, threadPool, TimeValue.timeValueMillis(randomIntBetween(1, 2)), true) {
+            AbstractAsyncTask task = new AbstractAsyncTask(
+                logger,
+                threadPool,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                TimeValue.timeValueMillis(randomIntBetween(1, 2)),
+                true
+            ) {
+
                 @Override
                 protected boolean mustReschedule() {
                     return counter.get() <= 1000;

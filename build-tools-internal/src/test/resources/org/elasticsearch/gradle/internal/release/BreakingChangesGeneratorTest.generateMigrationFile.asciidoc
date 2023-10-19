@@ -21,9 +21,6 @@ and prevent them from operating normally.
 Before upgrading to 8.4, review these changes and take the described steps
 to mitigate the impact.
 
-// NOTE: The notable-breaking-changes tagged regions are re-used in the
-// Installation and Upgrade Guide
-// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_84_api_changes]]
 ==== API changes
@@ -64,7 +61,6 @@ Breaking change details 4
 *Impact* +
 Breaking change impact description 4
 ====
-// end::notable-breaking-changes[]
 
 [discrete]
 [[breaking_84_transform_changes]]
@@ -95,7 +91,6 @@ after upgrading to 8.4.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
-// tag::notable-breaking-changes[]
 [discrete]
 [[deprecations_84_cluster_and_node_setting]]
 ==== Cluster and node setting deprecations
@@ -121,7 +116,6 @@ Deprecation change details 6
 *Impact* +
 Deprecation change impact description 6
 ====
-// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecations_84_cluster_and_node_setting]]

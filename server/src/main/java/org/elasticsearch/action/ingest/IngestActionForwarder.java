@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +43,7 @@ public final class IngestActionForwarder implements ClusterStateApplier {
             randomIngestNode(),
             action.name(),
             request,
-            new ActionListenerResponseHandler(listener, action.getResponseReader())
+            new ActionListenerResponseHandler(listener, action.getResponseReader(), TransportResponseHandler.TRANSPORT_WORKER)
         );
     }
 

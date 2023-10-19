@@ -21,8 +21,8 @@ import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 
 public class LiveVersionMapTestUtils {
 
-    public static LiveVersionMap newLiveVersionMap(LiveVersionMapArchive archiver) {
-        return new LiveVersionMap(archiver);
+    public static LiveVersionMap newLiveVersionMap(LiveVersionMapArchive archive) {
+        return new LiveVersionMap(archive);
     }
 
     public static DeleteVersionValue newDeleteVersionValue(long version, long seqNo, long term, long time) {
@@ -42,6 +42,12 @@ public class LiveVersionMapTestUtils {
     public static void putIndex(LiveVersionMap map, String id, IndexVersionValue version) {
         try (Releasable r = acquireLock(map, uid(id))) {
             map.putIndexUnderLock(uid(id), version);
+        }
+    }
+
+    public static void maybePutIndex(LiveVersionMap map, String id, IndexVersionValue version) {
+        try (Releasable r = acquireLock(map, uid(id))) {
+            map.maybePutIndexUnderLock(uid(id), version);
         }
     }
 
@@ -67,7 +73,7 @@ public class LiveVersionMapTestUtils {
         }
     }
 
-    public static int VersionLookupSize(LiveVersionMap.VersionLookup lookup) {
+    public static int versionLookupSize(LiveVersionMap.VersionLookup lookup) {
         return lookup.size();
     }
 

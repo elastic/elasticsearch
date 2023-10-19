@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +46,7 @@ import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -73,7 +72,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
     }
 
     public void testPercolateScriptQuery() throws IOException {
-        client().admin().indices().prepareCreate("index").setMapping("query", "type=percolator").get();
+        indicesAdmin().prepareCreate("index").setMapping("query", "type=percolator").get();
         client().prepareIndex("index")
             .setId("1")
             .setSource(
@@ -87,17 +86,17 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute()
             .actionGet();
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(
-                new PercolateQueryBuilder(
-                    "query",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
-                    XContentType.JSON
-                )
-            )
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("index")
+                .setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "b").endObject()),
+                        XContentType.JSON
+                    )
+                ),
+            "1"
+        );
     }
 
     public void testPercolateQueryWithNestedDocuments_doNotLeakBitsetCacheEntries() throws Exception {
@@ -122,9 +121,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .endObject();
         createIndex(
             "test",
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 // to avoid normal document from being cached by BitsetFilterCache
                 .setSettings(Settings.builder().put(BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING.getKey(), false))
                 .setMapping(mapping)
@@ -144,41 +141,42 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         for (int i = 0; i < 32; i++) {
-            SearchResponse response = client().prepareSearch()
-                .setQuery(
-                    new PercolateQueryBuilder(
-                        "query",
-                        BytesReference.bytes(
-                            XContentFactory.jsonBuilder()
-                                .startObject()
-                                .field("companyname", "stark")
-                                .startArray("employee")
-                                .startObject()
-                                .field("name", "virginia potts")
-                                .endObject()
-                                .startObject()
-                                .field("name", "tony stark")
-                                .endObject()
-                                .endArray()
-                                .endObject()
-                        ),
-                        XContentType.JSON
+            assertHitCount(
+                client().prepareSearch()
+                    .setQuery(
+                        new PercolateQueryBuilder(
+                            "query",
+                            BytesReference.bytes(
+                                XContentFactory.jsonBuilder()
+                                    .startObject()
+                                    .field("companyname", "stark")
+                                    .startArray("employee")
+                                    .startObject()
+                                    .field("name", "virginia potts")
+                                    .endObject()
+                                    .startObject()
+                                    .field("name", "tony stark")
+                                    .endObject()
+                                    .endArray()
+                                    .endObject()
+                            ),
+                            XContentType.JSON
+                        )
                     )
-                )
-                .addSort("_doc", SortOrder.ASC)
-                // size 0, because other wise load bitsets for normal document in FetchPhase#findRootDocumentIfNested(...)
-                .setSize(0)
-                .get();
-            assertHitCount(response, 1);
+                    .addSort("_doc", SortOrder.ASC)
+                    // size 0, because other wise load bitsets for normal document in FetchPhase#findRootDocumentIfNested(...)
+                    .setSize(0),
+                1
+            );
         }
 
         // We can't check via api... because BitsetCacheListener requires that it can extract shardId from index reader
         // and for percolator it can't do that, but that means we don't keep track of
         // memory for BitsetCache in case of percolator
-        long bitsetSize = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getSegments().getBitsetMemoryInBytes();
+        long bitsetSize = clusterAdmin().prepareClusterStats().get().getIndicesStats().getSegments().getBitsetMemoryInBytes();
         assertEquals("The percolator works with in-memory index and therefor shouldn't use bitset cache", 0L, bitsetSize);
     }
 
@@ -215,7 +213,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        createIndex("test", client().admin().indices().prepareCreate("test").setMapping(mapping));
+        createIndex("test", indicesAdmin().prepareCreate("test").setMapping(mapping));
         Script script = new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "use_fielddata_please", Collections.emptyMap());
         client().prepareIndex("test")
             .setId("q1")
@@ -225,7 +223,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
         XContentBuilder doc = jsonBuilder();
         doc.startObject();
         {
@@ -245,14 +243,15 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         }
         doc.endObject();
         for (int i = 0; i < 32; i++) {
-            SearchResponse response = client().prepareSearch()
-                .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
-                .addSort("_doc", SortOrder.ASC)
-                .get();
-            assertHitCount(response, 1);
+            assertHitCount(
+                client().prepareSearch()
+                    .setQuery(new PercolateQueryBuilder("query", BytesReference.bytes(doc), XContentType.JSON))
+                    .addSort("_doc", SortOrder.ASC),
+                1
+            );
         }
 
-        long fieldDataSize = client().admin().cluster().prepareClusterStats().get().getIndicesStats().getFieldData().getMemorySizeInBytes();
+        long fieldDataSize = clusterAdmin().prepareClusterStats().get().getIndicesStats().getFieldData().getMemorySizeInBytes();
         assertEquals("The percolator works with in-memory index and therefor shouldn't use field-data cache", 0L, fieldDataSize);
     }
 
@@ -263,19 +262,19 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
             .setId("1")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("field1", "value")).endObject())
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(
-                new PercolateQueryBuilder(
-                    "query",
-                    BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
-                    XContentType.JSON
-                )
-            )
-            .get();
-        assertHitCount(response, 1);
-        assertSearchHits(response, "1");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch("test")
+                .setQuery(
+                    new PercolateQueryBuilder(
+                        "query",
+                        BytesReference.bytes(jsonBuilder().startObject().field("field1", "value").endObject()),
+                        XContentType.JSON
+                    )
+                ),
+            "1"
+        );
     }
 
     public void testRangeQueriesWithNow() throws Exception {
@@ -316,7 +315,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                     .endObject()
             )
             .get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             long[] currentTime = new long[] { System.currentTimeMillis() };

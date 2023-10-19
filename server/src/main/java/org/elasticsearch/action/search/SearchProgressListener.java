@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.query.QuerySearchResult;
 
 import java.util.List;
 import java.util.Objects;
@@ -39,15 +40,23 @@ public abstract class SearchProgressListener {
      * @param skippedShards The list of skipped shards.
      * @param clusters The statistics for remote clusters included in the search.
      * @param fetchPhase <code>true</code> if the search needs a fetch phase, <code>false</code> otherwise.
+     * @param timeProvider absolute and relative time provider for this search
      **/
-    protected void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {}
+    protected void onListShards(
+        List<SearchShard> shards,
+        List<SearchShard> skippedShards,
+        Clusters clusters,
+        boolean fetchPhase,
+        TransportSearchAction.SearchTimeProvider timeProvider
+    ) {}
 
     /**
      * Executed when a shard returns a query result.
      *
-     * @param shardIndex The index of the shard in the list provided by {@link SearchProgressListener#onListShards} )}.
+     * @param shardIndex  The index of the shard in the list provided by {@link SearchProgressListener#onListShards} )}.
+     * @param queryResult
      */
-    protected void onQueryResult(int shardIndex) {}
+    protected void onQueryResult(int shardIndex, QuerySearchResult queryResult) {}
 
     /**
      * Executed when a shard reports a query failure.
@@ -95,18 +104,24 @@ public abstract class SearchProgressListener {
      */
     protected void onFetchFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
 
-    final void notifyListShards(List<SearchShard> shards, List<SearchShard> skippedShards, Clusters clusters, boolean fetchPhase) {
+    final void notifyListShards(
+        List<SearchShard> shards,
+        List<SearchShard> skippedShards,
+        Clusters clusters,
+        boolean fetchPhase,
+        TransportSearchAction.SearchTimeProvider timeProvider
+    ) {
         this.shards = shards;
         try {
-            onListShards(shards, skippedShards, clusters, fetchPhase);
+            onListShards(shards, skippedShards, clusters, fetchPhase, timeProvider);
         } catch (Exception e) {
             logger.warn("Failed to execute progress listener on list shards", e);
         }
     }
 
-    final void notifyQueryResult(int shardIndex) {
+    final void notifyQueryResult(int shardIndex, QuerySearchResult queryResult) {
         try {
-            onQueryResult(shardIndex);
+            onQueryResult(shardIndex, queryResult);
         } catch (Exception e) {
             logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on query result", e);
         }

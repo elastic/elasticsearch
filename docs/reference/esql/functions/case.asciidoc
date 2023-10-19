@@ -1,0 +1,42 @@
+[discrete]
+[[esql-case]]
+=== `CASE`
+
+*Syntax*
+
+[source,txt]
+----
+CASE(condition1, value1[, ..., conditionN, valueN][, default_value])
+----
+
+*Parameters*
+
+`conditionX`::
+A condition.
+
+`valueX`:: 
+The value that's returned when the corresponding condition is the first to
+evaluate to `true`.
+
+`default_value`::
+The default value that's is returned when no condition matches.
+
+*Description*
+
+Accepts pairs of conditions and values. The function returns the value that
+belongs to the first condition that evaluates to `true`.
+
+If the number of arguments is odd, the last argument is the default value which
+is returned when no condition matches.
+
+*Example*
+
+[source,esql]
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=case]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=case-result]
+|===

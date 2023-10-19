@@ -8,17 +8,17 @@
 
 package org.elasticsearch.search.sort;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -57,7 +57,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * |___________________________
          * 1   2   3   4   5   6   7
          */
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -148,7 +148,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * d1 = (0, 1), (0, 4), (0, 10); so avg. distance is 5, median distance is 4
          * d2 = (0, 1), (0, 5), (0, 6); so avg. distance is 4, median distance is 5
          */
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -222,7 +222,7 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
          * |______________________
          * 1   2   3   4   5   6
          */
-        Version version = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
+        IndexVersion version = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("index").setSettings(settings).setMapping(LOCATION_FIELD, "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
@@ -368,25 +368,26 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
             client().prepareIndex("test2").setSource()
         );
 
-        SearchResponse resp = client().prepareSearch("test1", "test2")
-            .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
-            .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword"))
-            .get();
-
-        assertSortValues(resp, new Object[] { "bcd", null }, new Object[] { null, null });
-
-        resp = client().prepareSearch("test1", "test2")
-            .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
-            .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long"))
-            .get();
-        assertSortValues(resp, new Object[] { 3L, Long.MIN_VALUE }, new Object[] { Long.MAX_VALUE, Long.MIN_VALUE });
-
-        resp = client().prepareSearch("test1", "test2")
-            .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
-            .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double"))
-            .get();
         assertSortValues(
-            resp,
+            client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")),
+            new Object[] { "bcd", null },
+            new Object[] { null, null }
+        );
+
+        assertSortValues(
+            client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("long_field").order(SortOrder.ASC).unmappedType("long"))
+                .addSort(fieldSort("long_field2").order(SortOrder.DESC).unmappedType("long")),
+            new Object[] { 3L, Long.MIN_VALUE },
+            new Object[] { Long.MAX_VALUE, Long.MIN_VALUE }
+        );
+
+        assertSortValues(
+            client().prepareSearch("test1", "test2")
+                .addSort(fieldSort("double_field").order(SortOrder.ASC).unmappedType("double"))
+                .addSort(fieldSort("double_field2").order(SortOrder.DESC).unmappedType("double")),
             new Object[] { 0.65, Double.NEGATIVE_INFINITY },
             new Object[] { Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }
         );

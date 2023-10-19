@@ -209,7 +209,8 @@ public class Retry2Tests extends ESTestCase {
             long stopTimeNanos = System.nanoTime();
             long runtimeMillis = TimeValue.timeValueNanos((stopTimeNanos - startTimeNanos)).millis();
             assertThat(runtimeMillis, greaterThanOrEqualTo(waitTimeMillis));
-            assertThat(runtimeMillis, lessThanOrEqualTo(2 * waitTimeMillis));
+            // A sanity check that it didn't take an extremely long time to complete:
+            assertThat(runtimeMillis, lessThanOrEqualTo(TimeValue.timeValueSeconds(1).millis()));
         }
     }
 

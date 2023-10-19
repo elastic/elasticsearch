@@ -17,8 +17,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.rest.RestRequest;
@@ -63,7 +65,9 @@ public class RestPluginsActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Version.CURRENT,
-                    TransportVersion.CURRENT,
+                    TransportVersion.current(),
+                    IndexVersion.current(),
+                    Map.of(),
                     null,
                     node(i),
                     null,
@@ -88,6 +92,6 @@ public class RestPluginsActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        return DiscoveryNodeUtils.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 }

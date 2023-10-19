@@ -1,0 +1,14 @@
+[discrete]
+[[esql-coalesce]]
+=== `COALESCE`
+
+Returns the first non-null value.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/null.csv-spec[tag=coalesce]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/null.csv-spec[tag=coalesce-result]
+|===

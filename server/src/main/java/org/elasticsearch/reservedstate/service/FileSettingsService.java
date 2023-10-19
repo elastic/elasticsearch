@@ -71,7 +71,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
      * @param mdBuilder the current metadata builder for the new cluster state
      */
     public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
-        assert currentNodeMaster(clusterState);
+        assert clusterState.nodes().isLocalNodeElectedMaster();
 
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
 
@@ -124,7 +124,7 @@ public class FileSettingsService extends AbstractFileWatchingService {
         completion.get();
     }
 
-    private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
+    private static void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
             completion.onFailure(e);
         } else {

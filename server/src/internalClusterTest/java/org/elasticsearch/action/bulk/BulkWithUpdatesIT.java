@@ -14,8 +14,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -516,8 +514,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(client().prepareSearch().setSize(0), numDocs);
     }
 
     public void testFailingVersionedUpdatedOnBulk() throws Exception {
@@ -637,10 +634,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
 
         client().bulk(bulkRequest).get();
-        SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
-        assertHitCount(searchResponse, 3);
+        assertHitCount(client().prepareSearch("bulkindex*"), 3);
 
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex2")));
+        assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex2")));
 
         BulkRequest bulkRequest2 = new BulkRequest();
         bulkRequest2.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
@@ -660,7 +656,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("bulkindex1");
 
         client().prepareIndex("bulkindex1").setId("1").setSource("text", "test").get();
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex1")));
+        assertBusy(() -> assertAcked(indicesAdmin().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulkRequest.add(new IndexRequest("bulkindex1").id("1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
@@ -697,7 +693,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
         internalCluster().ensureAtLeastNumDataNodes(2);
         ensureGreen(indexName);
-        IndexResponse doc = index(indexName, "1", Map.of("user", "xyz"));
+        DocWriteResponse doc = index(indexName, "1", Map.of("user", "xyz"));
         assertThat(doc.getShardInfo().getSuccessful(), equalTo(2));
         final BulkResponse bulkResponse = client().prepareBulk()
             .add(new UpdateRequest().index(indexName).id("1").detectNoop(true).doc("user", "xyz")) // noop update

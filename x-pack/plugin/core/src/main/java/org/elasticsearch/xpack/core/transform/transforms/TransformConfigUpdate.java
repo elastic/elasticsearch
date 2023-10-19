@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -17,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
@@ -107,6 +107,7 @@ public class TransformConfigUpdate implements Writeable {
         this.retentionPolicyConfig = retentionPolicyConfig;
     }
 
+    @SuppressWarnings("this-escape")
     public TransformConfigUpdate(final StreamInput in) throws IOException {
         source = in.readOptionalWriteable(SourceConfig::new);
         dest = in.readOptionalWriteable(DestConfig::new);
@@ -114,7 +115,7 @@ public class TransformConfigUpdate implements Writeable {
         description = in.readOptionalString();
         syncConfig = in.readOptionalNamedWriteable(SyncConfig.class);
         if (in.readBoolean()) {
-            setHeaders(in.readMap(StreamInput::readString, StreamInput::readString));
+            setHeaders(in.readMap(StreamInput::readString));
         }
         settings = in.readOptionalWriteable(SettingsConfig::new);
         metadata = in.readMap();
@@ -174,7 +175,7 @@ public class TransformConfigUpdate implements Writeable {
         out.writeOptionalNamedWriteable(syncConfig);
         if (headers != null) {
             out.writeBoolean(true);
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(headers, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
@@ -239,7 +240,7 @@ public class TransformConfigUpdate implements Writeable {
         return isNullOrEqual(headers, config.getHeaders()) == false;
     }
 
-    private boolean isNullOrEqual(Object lft, Object rgt) {
+    private static boolean isNullOrEqual(Object lft, Object rgt) {
         return lft == null || lft.equals(rgt);
     }
 
@@ -296,7 +297,7 @@ public class TransformConfigUpdate implements Writeable {
             }
         }
 
-        builder.setVersion(Version.CURRENT);
+        builder.setVersion(TransformConfigVersion.CURRENT);
         return builder.build();
     }
 }

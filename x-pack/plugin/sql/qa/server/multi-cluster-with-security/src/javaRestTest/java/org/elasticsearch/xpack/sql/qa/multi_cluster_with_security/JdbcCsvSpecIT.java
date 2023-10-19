@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.sql.qa.multi_cluster_with_security;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.ql.SpecReader;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvSpecTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -19,8 +19,9 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
-import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
 
 public class JdbcCsvSpecIT extends CsvSpecTestCase {
 
@@ -34,7 +35,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<Object[]> list = new ArrayList<>();
         list.addAll(CsvSpecTestCase.readScriptSpec());
-        list.addAll(readScriptSpec(classpathResources("/multi-cluster-with-security/*.csv-spec"), specParser()));
+        list.addAll(SpecReader.readScriptSpec(classpathResources("/multi-cluster-with-security/*.csv-spec"), specParser()));
         return list;
     }
 

@@ -108,7 +108,7 @@ See <<create-index-template,create an index template>>.
 <<mapping-routing-field,custom routing>>. Defaults to `false`.
 
 `hidden`::
-(Optional, Boolean) If `true`, the data stream is <<hidden,hidden>>. Defaults to
+(Optional, Boolean) If `true`, the data stream is <<multi-hidden,hidden>>. Defaults to
 `false`.
 
 `index_mode`::

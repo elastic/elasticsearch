@@ -11,20 +11,22 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -81,7 +83,14 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
         threadPool = new ThreadPool(
             settings,
-            new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.enrollment.thread_pool", false)
+            new FixedExecutorBuilder(
+                settings,
+                TokenService.THREAD_POOL_NAME,
+                1,
+                1000,
+                "xpack.security.enrollment.thread_pool",
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            )
         );
         AuthenticationTestHelper.builder()
             .user(new User("foo"))
@@ -130,7 +139,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             );
             return null;
         }).when(client).execute(eq(CreateApiKeyAction.INSTANCE), any(CreateApiKeyRequest.class), anyActionListener());
-        doAnswer(this::answerWithInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerWithInfo).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
     }
 
     public void testCreationSuccess() {
@@ -172,7 +181,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             nodeInfoApiCalls += 1;
             responseActionListener.onFailure(new Exception("error"));
             return null;
-        }).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -187,7 +196,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         doAnswer(this::answerNullHttpInfo).doAnswer(this::answerNullHttpInfo)
             .doAnswer(this::answerWithInfo)
             .when(client)
-            .execute(eq(NodesInfoAction.INSTANCE), any(), any());
+            .execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -203,7 +212,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     public void testRetryButFailToGetNodesHttpInfo() {
         // Answer with null HTTP info every time
-        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -223,9 +232,11 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
-                        TransportVersion.CURRENT,
+                        TransportVersion.current(),
+                        IndexVersion.current(),
+                        Map.of(),
                         null,
-                        new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
+                        DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
                         null,
                         null,
@@ -256,9 +267,11 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Version.CURRENT,
-                        TransportVersion.CURRENT,
+                        TransportVersion.current(),
+                        IndexVersion.current(),
+                        Map.of(),
                         null,
-                        new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
+                        DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
                         null,
                         null,

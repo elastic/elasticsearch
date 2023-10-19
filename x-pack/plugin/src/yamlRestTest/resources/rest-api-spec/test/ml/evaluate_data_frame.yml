@@ -207,7 +207,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
+  - match: { outlier_detection.auc_roc.value: 0.99995 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -227,7 +227,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
+  - match: { outlier_detection.auc_roc.value: 0.99995 }
   - is_false: outlier_detection.auc_roc.curve
 
 ---
@@ -247,7 +247,7 @@ setup:
               }
             }
           }
-  - match: { outlier_detection.auc_roc.value: 0.9919403846153846 }
+  - match: { outlier_detection.auc_roc.value: 0.99995 }
   - is_true: outlier_detection.auc_roc.curve
 
 ---
@@ -705,6 +705,8 @@ setup:
           }
 ---
 "Test classification auc_roc":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -722,10 +724,12 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: 0.7754152761810909 }
+  - close_to: { classification.auc_roc.value: { value: 0.8612749970197677, error: 0.00000000001 }}
   - is_false: classification.auc_roc.curve
 ---
 "Test classification auc_roc with default top_classes_field":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body:  >
@@ -742,7 +746,7 @@ setup:
               }
             }
           }
-  - match: { classification.auc_roc.value: 0.7754152761810909 }
+  - close_to: { classification.auc_roc.value: { value: 0.8612749970197677, error: 0.00000000001 }}
   - is_false: classification.auc_roc.curve
 ---
 "Test classification accuracy with missing predicted_field":
@@ -1014,6 +1018,8 @@ setup:
           }
 ---
 "Test regression mean_squared_error":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1028,12 +1034,14 @@ setup:
             }
           }
 
-  - match: { regression.mse.value: 28.67749840974834 }
+  - close_to: { regression.mse.value: { value: 28.67749840974834, error: 0.00000000001 }}
   - is_false: regression.msle.value
   - is_false: regression.r_squared.value
   - is_false: regression.huber.value
 ---
 "Test regression mean_squared_logarithmic_error":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1048,12 +1056,14 @@ setup:
             }
           }
 
-  - match: { regression.msle.value: 0.08680568028334916 }
+  - close_to: { regression.msle.value: { value: 0.08680568028334916, error: 0.00000000001 }}
   - is_false: regression.mse.value
   - is_false: regression.r_squared.value
   - is_false: regression.huber.value
 ---
 "Test regression huber":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1068,12 +1078,14 @@ setup:
             }
           }
 
-  - match: { regression.huber.value: 3.5088110471730145 }
+  - close_to: { regression.huber.value: { value: 3.5088110471730145, error: 0.00000000001 }}
   - is_false: regression.msle.value
   - is_false: regression.mse.value
   - is_false: regression.r_squared.value
 ---
 "Test regression r_squared":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1087,13 +1099,15 @@ setup:
               }
             }
           }
-  - match: { regression.r_squared.value: 0.8551031778603486 }
+  - close_to: { regression.r_squared.value: { value: 0.8551031778603486, error: 0.00000000001 }}
   - is_false: regression.mse
   - is_false: regression.msle.value
   - is_false: regression.huber.value
 
 ---
 "Test regression with null metrics":
+  - skip:
+      features: close_to
   - do:
       ml.evaluate_data_frame:
         body: >
@@ -1107,9 +1121,9 @@ setup:
             }
           }
 
-  - match: { regression.mse.value: 28.67749840974834 }
-  - match: { regression.r_squared.value: 0.8551031778603486 }
-  - match: { regression.huber.value: 1.9205280586939963 }
+  - close_to: { regression.mse.value: { value: 28.67749840974834, error: 0.00000000001 }}
+  - close_to: { regression.r_squared.value: { value: 0.8551031778603486, error: 0.00000000001 }}
+  - close_to: { regression.huber.value: { value: 1.9205280586939963, error: 0.00000000001 }}
   - is_false: regression.msle.value
 ---
 "Test regression given missing actual_field":

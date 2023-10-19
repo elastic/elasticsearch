@@ -8,13 +8,13 @@
 
 package org.elasticsearch.legacygeo.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,8 +40,8 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Version randomSupportedVersion() {
-        return VersionUtils.randomIndexCompatibleVersion(random());
+    protected IndexVersion randomSupportedVersion() {
+        return IndexVersionUtils.randomCompatibleVersion(random());
     }
 
     @Override

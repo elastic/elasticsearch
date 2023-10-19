@@ -44,7 +44,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
             actionFilters,
             DeleteLicenseRequest::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.licenseService = licenseService;
     }
@@ -61,10 +61,6 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) throws ElasticsearchException {
-        licenseService.removeLicense(
-            listener.delegateFailure(
-                (l, postStartBasicResponse) -> l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))
-            )
-        );
+        licenseService.removeLicense(listener.map(r -> AcknowledgedResponse.of(r.isAcknowledged())));
     }
 }

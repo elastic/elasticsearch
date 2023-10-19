@@ -162,9 +162,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
@@ -235,9 +233,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
         assertEquals(0, restoreInfo.failedShards());
@@ -304,9 +300,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .indexSettings(settingsBuilder)
             .quiet(true);
 
-        PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-        future.actionGet();
+        startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
         if (followerRateLimiting) {
             assertTrue(repositories.stream().anyMatch(cr -> cr.getRestoreThrottleTimeInNanos() > 0));
@@ -374,8 +368,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         try {
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
             final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+            final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
             // Depending on when the timeout occurs this can fail in two ways. If it times-out when fetching
             // metadata this will throw an exception. If it times-out when restoring a shard, the shard will
@@ -464,9 +457,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         }
 
         try {
-            PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-            restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-            RestoreInfo restoreInfo = future.actionGet();
+            RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
 
             assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
             assertEquals(0, restoreInfo.failedShards());
@@ -559,8 +550,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
         final PlainActionFuture<Void> waitForRestoreInProgress = PlainActionFuture.newFuture();
         final ClusterStateListener listener = event -> {
-            RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            if (restoreInProgress != null && restoreInProgress.isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
+            if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                 final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                 for (ShardRouting shardRouting : indexRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
                     if (shardRouting.unassignedInfo().getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA) {
@@ -594,7 +584,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                     .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
             )
             .quiet(true);
-        restoreService.restoreSnapshot(restoreRequest, PlainActionFuture.newFuture());
+        restoreService.restoreSnapshot(restoreRequest, ActionListener.noop());
 
         waitForRestoreInProgress.get(30L, TimeUnit.SECONDS);
         clusterService.removeListener(listener);
@@ -608,7 +598,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             );
         }
 
-        assertHitCount(followerClient().prepareSearch(followerIndex).setSize(0).get(), numDocs);
+        assertHitCount(followerClient().prepareSearch(followerIndex).setSize(0), numDocs);
         assertAcked(followerClient().admin().indices().prepareDelete(followerIndex).setMasterNodeTimeout(TimeValue.MAX_VALUE));
     }
 
@@ -646,10 +636,7 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
 
             final PlainActionFuture<Void> waitForAllShardSnapshotSizesFailures = PlainActionFuture.newFuture();
             final ClusterStateListener listener = event -> {
-                RestoreInProgress restoreInProgress = event.state().custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-                if (restoreInProgress != null
-                    && restoreInProgress.isEmpty() == false
-                    && event.state().routingTable().hasIndex(followerIndex)) {
+                if (RestoreInProgress.get(event.state()).isEmpty() == false && event.state().routingTable().hasIndex(followerIndex)) {
                     try {
                         final IndexRoutingTable indexRoutingTable = event.state().routingTable().index(followerIndex);
                         // this assertBusy completes because the listener is added after the InternalSnapshotsInfoService

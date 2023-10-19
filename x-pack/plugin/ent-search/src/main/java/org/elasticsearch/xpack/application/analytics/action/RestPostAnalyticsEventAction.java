@@ -11,13 +11,16 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
+import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
+import org.elasticsearch.xpack.application.utils.LicenseUtils;
 
 import java.net.InetAddress;
 import java.util.List;
@@ -26,7 +29,10 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestPostAnalyticsEventAction extends BaseRestHandler {
+public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandler {
+    public RestPostAnalyticsEventAction(XPackLicenseState licenseState) {
+        super(licenseState, LicenseUtils.Product.BEHAVIORAL_ANALYTICS);
+    }
 
     public static final String X_FORWARDED_FOR_HEADER = "X-Forwarded-For";
 
@@ -41,12 +47,16 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
         PostAnalyticsEventAction.Request request = buidRequest(restRequest);
-        return channel -> client.execute(PostAnalyticsEventAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            PostAnalyticsEventAction.INSTANCE,
+            request,
+            new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED)
+        );
     }
 
-    private InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {
+    private static InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {
         InetAddress remoteAddress = restRequest.getHttpChannel().getRemoteAddress().getAddress();
         if (headers.containsKey(X_FORWARDED_FOR_HEADER)) {
             final List<String> addresses = headers.get(X_FORWARDED_FOR_HEADER);
@@ -61,7 +71,7 @@ public class RestPostAnalyticsEventAction extends BaseRestHandler {
         return remoteAddress;
     }
 
-    private PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
+    private static PostAnalyticsEventAction.Request buidRequest(RestRequest restRequest) {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
 
         PostAnalyticsEventAction.RequestBuilder builder = PostAnalyticsEventAction.Request.builder(

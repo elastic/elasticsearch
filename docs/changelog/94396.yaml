@@ -1,5 +1,0 @@
-pr: 94396
-summary: Allow docvalues-only search on `geo_shape`
-area: Geo
-type: enhancement
-issues: []

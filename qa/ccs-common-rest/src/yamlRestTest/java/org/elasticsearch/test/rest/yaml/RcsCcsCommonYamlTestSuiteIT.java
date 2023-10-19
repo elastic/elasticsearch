@@ -86,7 +86,6 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.security.remote_cluster_server.ssl.enabled", "false")
         .setting("xpack.security.remote_cluster_client.ssl.enabled", "false")
         .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.NEW_RCS_MODE)
         .user("test_admin", "x-pack-test-password");
 
     private static ElasticsearchCluster fulfillingCluster = ElasticsearchCluster.local()
@@ -114,26 +113,22 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             return (String) API_KEY_MAP_REF.get().get("encoded");
         })
         .rolesFile(Resource.fromClasspath("roles.yml"))
-        .user("remote_search_user", "x-pack-test-password", "remote_search_role")
+        .user("remote_search_user", "x-pack-test-password", "remote_search_role", false)
         .build();
 
     private static Map<String, Object> createCrossClusterAccessApiKey() throws IOException {
         assert fulfillingCluster != null;
-        final var createApiKeyRequest = new Request("POST", "/_security/api_key");
+        final var createApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
               "name": "cross_cluster_access_key",
-              "role_descriptors": {
-                "role": {
-                  "cluster": ["cross_cluster_search"],
-                  "index": [
+              "access": {
+                  "search": [
                     {
                       "names": ["*"],
-                      "privileges": ["read", "read_cross_cluster"],
                       "allow_restricted_indices": true
                     }
                   ]
-                }
               }
             }""");
         createApiKeyRequest.setOptions(
@@ -146,7 +141,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         final int portSeparator = url.lastIndexOf(':');
         final var httpHost = new HttpHost(url.substring(0, portSeparator), Integer.parseInt(url.substring(portSeparator + 1)), "http");
         RestClientBuilder builder = RestClient.builder(httpHost);
-        configureClient(builder, Settings.EMPTY);
+        doConfigureClient(builder, Settings.EMPTY);
         builder.setStrictDeprecationMode(true);
         try (RestClient fulfillingClusterClient = builder.build()) {
             final Response createApiKeyResponse = fulfillingClusterClient.performRequest(createApiKeyRequest);

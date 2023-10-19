@@ -14,10 +14,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         );
 
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(null, null, circuitBreakerService, usageService, Tracer.NOOP, false);
+        RestController restController = new RestController(null, null, circuitBreakerService, usageService, Tracer.NOOP);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));

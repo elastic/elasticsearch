@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -35,8 +36,8 @@ import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -96,10 +97,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
     private final SetOnce<ReservedAutoscalingPolicyAction> reservedAutoscalingPolicyAction = new SetOnce<>();
 
+    @SuppressWarnings("this-escape")
     public Autoscaling() {
         this(new AutoscalingLicenseChecker());
     }
 
+    @SuppressWarnings("this-escape")
     Autoscaling(final AutoscalingLicenseChecker autoscalingLicenseChecker) {
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
@@ -118,8 +121,9 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.clusterServiceHolder.set(clusterService);
         this.allocationServiceHolder.set(allocationService);

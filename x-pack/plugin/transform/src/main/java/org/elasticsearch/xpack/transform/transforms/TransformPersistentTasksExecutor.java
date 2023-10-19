@@ -74,6 +74,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
+    private final Settings transformInternalIndexAdditionalSettings;
     private volatile int numFailureRetries;
 
     public TransformPersistentTasksExecutor(
@@ -82,6 +83,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         ThreadPool threadPool,
         ClusterService clusterService,
         Settings settings,
+        Settings transformInternalIndexAdditionalSettings,
         IndexNameExpressionResolver resolver
     ) {
         super(TransformField.TASK_NAME, ThreadPool.Names.GENERIC);
@@ -93,6 +95,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.auditor = transformServices.getAuditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
+        this.transformInternalIndexAdditionalSettings = transformInternalIndexAdditionalSettings;
     }
 
     @Override
@@ -159,7 +162,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null
+                || routingTable.allPrimaryShardsActive() == false
+                || routingTable.readyForSearch(clusterState) == false) {
                 unavailableIndices.add(index);
             }
         }
@@ -339,7 +344,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, buildTask.getParentTaskClient(), templateCheckListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(
+            clusterService,
+            buildTask.getParentTaskClient(),
+            transformInternalIndexAdditionalSettings,
+            templateCheckListener
+        );
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {
@@ -356,7 +366,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         };
     }
 
-    private void markAsFailed(TransformTask task, String reason) {
+    private static void markAsFailed(TransformTask task, String reason) {
         CountDownLatch latch = new CountDownLatch(1);
 
         task.fail(

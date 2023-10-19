@@ -1,8 +1,7 @@
 [[repository-azure]]
 === Azure repository
 
-You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
-{ref}/modules-snapshots.html[Snapshot/Restore].
+You can use https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for <<snapshot-restore,Snapshot/Restore>>.
 
 [[repository-azure-usage]]
 ==== Setup

@@ -8,17 +8,14 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
-import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
@@ -86,17 +83,14 @@ public class JoinReasonServiceTests extends ESTestCase {
             matchesNeedingGuidance("joining, removed [0ms] ago with reason [second test removal], [2] total removals")
         );
 
-        final DiscoveryNode rebootedNode = new DiscoveryNode(
-            discoveryNode.getName(),
-            discoveryNode.getId(),
-            UUIDs.randomBase64UUID(random()),
-            discoveryNode.getHostName(),
-            discoveryNode.getHostAddress(),
-            discoveryNode.getAddress(),
-            discoveryNode.getAttributes(),
-            discoveryNode.getRoles(),
-            discoveryNode.getVersion()
-        );
+        final DiscoveryNode rebootedNode = DiscoveryNodeUtils.builder(discoveryNode.getId())
+            .name(discoveryNode.getName())
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .address(discoveryNode.getHostName(), discoveryNode.getHostAddress(), discoveryNode.getAddress())
+            .attributes(discoveryNode.getAttributes())
+            .roles(discoveryNode.getRoles())
+            .version(discoveryNode.getVersionInformation())
+            .build();
 
         assertThat(
             joinReasonService.getJoinReason(rebootedNode, LEADER),
@@ -191,18 +185,10 @@ public class JoinReasonServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode randomDiscoveryNode() {
-        final TransportAddress transportAddress = buildNewFakeTransportAddress();
-        return new DiscoveryNode(
-            randomAlphaOfLength(10),
-            UUIDs.randomBase64UUID(random()),
-            UUIDs.randomBase64UUID(random()),
-            transportAddress.address().getHostString(),
-            transportAddress.getAddress(),
-            transportAddress,
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID(random()))
+            .name(randomAlphaOfLength(10))
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .build();
     }
 
     private static Matcher<JoinReason> matches(String message) {

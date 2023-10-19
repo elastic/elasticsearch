@@ -46,6 +46,10 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
         out.writeVLong(count);
     }
 
+    public static InternalAvg empty(String name, DocValueFormat format, Map<String, Object> metadata) {
+        return new InternalAvg(name, 0.0, 0L, format, metadata);
+    }
+
     @Override
     public double value() {
         return getValue();

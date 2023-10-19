@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -129,13 +130,13 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testHistoricCursorFromOldNodeFailsOnNewNode() throws IOException {
-        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersion.V_8_8_0));
-        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.CURRENT, newNodesClient);
+        assumeTrue("BwC checks only enabled for <=8.7.0", bwcVersion.before(TransportVersions.V_8_8_0));
+        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, TransportVersion.current(), newNodesClient);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
     public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
-        assertCursorNotCompatibleAcrossVersions(TransportVersion.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+        assertCursorNotCompatibleAcrossVersions(TransportVersion.current(), newNodesClient, bwcVersion, oldNodesClient);
     }
 
     private void assertCursorNotCompatibleAcrossVersions(

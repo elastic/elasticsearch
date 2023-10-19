@@ -106,7 +106,7 @@ public class PITAwareQueryClient extends BasicQueryClient {
         if (CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
             QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
-            RuntimeUtils.addFilter(indexQuery, source);
+            RuntimeUtils.combineFilters(source, indexQuery);
         }
     }
 
@@ -131,10 +131,10 @@ public class PITAwareQueryClient extends BasicQueryClient {
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
             .keepAlive(keepAlive);
-        client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
+        client.execute(OpenPointInTimeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> {
             pitId = r.getPointInTimeId();
             runnable.run();
-        }, listener::onFailure));
+        }));
     }
 
     @Override

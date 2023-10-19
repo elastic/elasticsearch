@@ -47,6 +47,7 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
+        @SuppressWarnings("this-escape")
         public Request() {
             local(true);
         }

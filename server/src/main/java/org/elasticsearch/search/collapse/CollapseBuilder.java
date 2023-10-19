@@ -78,14 +78,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        this.innerHits = in.readList(InnerHitBuilder::new);
+        this.innerHits = in.readCollectionAsList(InnerHitBuilder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        out.writeList(innerHits);
+        out.writeCollection(innerHits);
     }
 
     public static CollapseBuilder fromXContent(XContentParser parser) {

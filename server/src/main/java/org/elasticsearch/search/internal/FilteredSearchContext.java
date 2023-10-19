@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
@@ -17,6 +15,7 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -441,16 +440,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public CollectorManager<Collector, Void> getAggsCollectorManager() {
-        return in.getAggsCollectorManager();
-    }
-
-    @Override
-    public void registerAggsCollectorManager(CollectorManager<Collector, Void> collectorManager) {
-        in.registerAggsCollectorManager(collectorManager);
-    }
-
-    @Override
     public SearchExecutionContext getSearchExecutionContext() {
         return in.getSearchExecutionContext();
     }
@@ -493,5 +482,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SourceLoader newSourceLoader() {
         return in.newSourceLoader();
+    }
+
+    @Override
+    public IdLoader newIdLoader() {
+        return in.newIdLoader();
     }
 }

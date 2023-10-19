@@ -9,7 +9,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.analytics.AnalyticsPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-analytics'
+base {
+  archivesName = 'x-pack-analytics'
+}
 
 dependencies {
   api 'org.apache.commons:commons-math3:3.6.1'

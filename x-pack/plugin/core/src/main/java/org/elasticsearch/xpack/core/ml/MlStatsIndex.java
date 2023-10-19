@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Describes the indices where ML is storing various stats about the users jobs.
@@ -25,6 +25,7 @@ public class MlStatsIndex {
     public static final String TEMPLATE_NAME = ".ml-stats";
 
     private static final String MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
+    public static final int STATS_INDEX_MAPPINGS_VERSION = 1;
 
     private MlStatsIndex() {}
 
@@ -37,9 +38,10 @@ public class MlStatsIndex {
 
     public static String mapping() {
         return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/stats_index_mappings.json",
-            Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE
+            "/ml/stats_index_mappings.json",
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(STATS_INDEX_MAPPINGS_VERSION))
         );
     }
 

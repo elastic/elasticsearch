@@ -1,0 +1,13 @@
+[discrete]
+[[esql-limit]]
+=== `LIMIT`
+
+The `LIMIT` processing command enables you to limit the number of rows:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=limit]
+----
+
+If not specified, `LIMIT` defaults to `500`. A single query will not return
+more than 10,000 rows, regardless of the `LIMIT` value.

@@ -73,8 +73,8 @@ public class ModuleSupport {
         Predicate<String> isPackageInParentLayers
     ) throws IOException {
         var builder = ModuleDescriptor.newOpenModule(name); // open module, for now
-        requires.stream().forEach(builder::requires);
-        uses.stream().forEach(builder::uses);
+        requires.forEach(builder::requires);
+        uses.forEach(builder::uses);
 
         // scan the names of the entries in the JARs
         Set<String> pkgs = new HashSet<>();

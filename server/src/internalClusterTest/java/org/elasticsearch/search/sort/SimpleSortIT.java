@@ -170,7 +170,7 @@ public class SimpleSortIT extends ESIntegTestCase {
                 if (random.nextInt(5) != 0) {
                     refresh();
                 } else {
-                    client().admin().indices().prepareFlush().get();
+                    indicesAdmin().prepareFlush().get();
                 }
             }
         }
@@ -258,7 +258,7 @@ public class SimpleSortIT extends ESIntegTestCase {
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
             client().prepareIndex("test").setId("" + i).setSource(jsonBuilder().startObject().field("ord", i).endObject()).get();
         }
-        client().admin().indices().prepareRefresh("test").get();
+        indicesAdmin().prepareRefresh("test").get();
 
         // test the long values
         SearchResponse searchResponse = client().prepareSearch()
@@ -443,11 +443,8 @@ public class SimpleSortIT extends ESIntegTestCase {
         refresh();
 
         Script sortScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "\u0027\u0027", Collections.emptyMap());
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(scriptSort(sortScript, ScriptSortType.STRING))
-            .setSize(10)
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(
+            client().prepareSearch().setQuery(matchAllQuery()).addSort(scriptSort(sortScript, ScriptSortType.STRING)).setSize(10)
+        );
     }
 }

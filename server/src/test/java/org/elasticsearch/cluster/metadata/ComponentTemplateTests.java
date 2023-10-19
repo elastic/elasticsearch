@@ -69,7 +69,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        DataLifecycle lifecycle = null;
+        DataStreamLifecycle lifecycle = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -80,7 +80,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             aliases = randomAliases();
         }
         if (randomBoolean() && lifecycleAllowed) {
-            lifecycle = randomLifecycle();
+            lifecycle = DataStreamLifecycleTests.randomLifecycle();
         }
         Template template = new Template(settings, mappings, aliases, lifecycle);
 
@@ -117,10 +117,6 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
             .put(IndexMetadata.SETTING_PRIORITY, randomIntBetween(0, 100000))
             .build();
-    }
-
-    private static DataLifecycle randomLifecycle() {
-        return new DataLifecycle(randomMillisUpToYear9999());
     }
 
     private static Map<String, Object> randomMeta() {
@@ -179,7 +175,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.settings(),
                             ot.mappings(),
                             ot.aliases(),
-                            randomValueOtherThan(ot.lifecycle(), ComponentTemplateTests::randomLifecycle)
+                            randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle)
                         ),
                         orig.version(),
                         orig.metadata()
@@ -260,7 +256,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
-        DataLifecycle lifecycle = randomLifecycle();
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle),
             randomNonNegativeLong(),
@@ -273,7 +269,9 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             template.toXContent(builder, ToXContent.EMPTY_PARAMS, rolloverConfiguration);
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
-            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getDataRetention()).getConditions().keySet()) {
+            for (String label : rolloverConfiguration.resolveRolloverConditions(lifecycle.getEffectiveDataRetention())
+                .getConditions()
+                .keySet()) {
                 assertThat(serialized, containsString(label));
             }
         }

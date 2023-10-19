@@ -14,11 +14,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
@@ -42,9 +43,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
 
     public void testScheduling() {
-        final DiscoveryNode discoveryNode = TestDiscoveryNode.create("test");
+        final DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("test");
         final DiscoveryNodes noMaster = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
-        final DiscoveryNodes localMaster = DiscoveryNodes.builder(noMaster).masterNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes localMaster = noMaster.withMasterNodeId(discoveryNode.getId());
 
         final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
         if (randomBoolean()) {
@@ -149,18 +150,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     private static ActionListener<Void> setFlagOnSuccess(AtomicBoolean flag) {
-        return new ActionListener<>() {
-
-            @Override
-            public void onResponse(Void ignored) {
-                assertTrue(flag.compareAndSet(false, true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("unexpected", e);
-            }
-        };
+        return ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(flag.compareAndSet(false, true)));
     }
 
     private static class FakeClusterInfoServiceClient extends NoOpClient {

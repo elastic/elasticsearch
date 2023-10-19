@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.search;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -52,9 +53,10 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
-        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll,
-        // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
+        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll
+        // and pre_filter_shard_size get set to the search request although the REST spec don't list
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
+        // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
             parser -> parseSearchRequest(
                 submit.getSearchRequest(),
@@ -76,7 +78,12 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             submit.setKeepOnCompletion(request.paramAsBoolean("keep_on_completion", submit.isKeepOnCompletion()));
         }
         return channel -> {
-            RestStatusToXContentListener<AsyncSearchResponse> listener = new RestStatusToXContentListener<>(channel);
+            RestChunkedToXContentListener<AsyncSearchResponse> listener = new RestChunkedToXContentListener<>(channel) {
+                @Override
+                protected RestStatus getRestStatus(AsyncSearchResponse asyncSearchResponse) {
+                    return asyncSearchResponse.status();
+                }
+            };
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SubmitAsyncSearchAction.INSTANCE, submit, listener);
         };

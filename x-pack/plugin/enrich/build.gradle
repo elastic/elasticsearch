@@ -6,7 +6,9 @@ esplugin {
   classname 'org.elasticsearch.xpack.enrich.EnrichPlugin'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-enrich'
+base {
+  archivesName = 'x-pack-enrich'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

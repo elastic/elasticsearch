@@ -64,14 +64,11 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         super(
             NodesDeprecationCheckAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
-            ThreadPool.Names.GENERIC,
-            NodesDeprecationCheckAction.NodeResponse.class
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.settings = settings;
         this.pluginsService = pluginsService;

@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -17,7 +18,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -103,7 +104,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = Strings.format("node_%03d", nodeIdGenerator.incrementAndGet());
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles, version);
+        return DiscoveryNodeUtils.builder(id).name(id).roles(roles).version(version).build();
     }
 
     protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
@@ -170,7 +171,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 );
             } else {
                 // fake an election where conflicting nodes are removed and readded
-                state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
+                state = ClusterState.builder(state).nodes(state.nodes().withMasterNodeId(null)).build();
 
                 List<DiscoveryNode> conflictingNodes = randomSubsetOf(2, dataNodes);
                 unchangedNodeIds = dataNodes.stream()
@@ -180,14 +181,13 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
                 List<DiscoveryNode> nodesToAdd = conflictingNodes.stream()
                     .map(
-                        n -> new DiscoveryNode(
-                            n.getName(),
-                            n.getId(),
-                            buildNewFakeTransportAddress(),
-                            n.getAttributes(),
-                            n.getRoles(),
-                            n.getVersion()
-                        )
+                        n -> DiscoveryNodeUtils.builder(n.getId())
+                            .name(n.getName())
+                            .address(buildNewFakeTransportAddress())
+                            .attributes(n.getAttributes())
+                            .roles(n.getRoles())
+                            .version(n.getVersionInformation())
+                            .build()
                     )
                     .collect(Collectors.toCollection(ArrayList::new));
 
@@ -195,7 +195,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd, TransportVersion.CURRENT);
+                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd, TransportVersion.current());
                 postTable = state.routingTable().index("index").shard(0);
             }
 
@@ -237,7 +237,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 localNode,
                 localNode,
                 allNodes.toArray(new DiscoveryNode[0]),
-                TransportVersion.V_7_0_0
+                TransportVersions.V_7_0_0
             );
 
             CreateIndexRequest request = new CreateIndexRequest(
@@ -259,7 +259,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                                                                                                                              // is the
                                                                                                                              // master
 
-            state = cluster.addNode(state, newNode, TransportVersion.V_7_6_0);
+            state = cluster.addNode(state, newNode, TransportVersions.V_7_6_0);
 
             // use allocation filtering
             state = cluster.updateSettings(

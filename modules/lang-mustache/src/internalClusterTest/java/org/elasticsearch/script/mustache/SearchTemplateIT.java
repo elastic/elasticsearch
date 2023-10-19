@@ -8,7 +8,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -57,7 +56,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject().field("text", "value1").endObject()).get();
         client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("text", "value2").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
     }
 
     // Relates to #6318
@@ -101,7 +100,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -122,7 +121,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -143,12 +142,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
     public void testIndexedTemplateClient() throws Exception {
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("testTemplate").setContent(new BytesArray("""
             {
               "script": {
                 "lang": "mustache",
@@ -162,7 +161,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
               }
             }"""), XContentType.JSON));
 
-        GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
+        GetStoredScriptResponse getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
         assertNotNull(getResponse.getSource());
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -172,7 +171,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
         bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
@@ -184,9 +183,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
-        assertAcked(client().admin().cluster().prepareDeleteStoredScript("testTemplate"));
+        assertAcked(clusterAdmin().prepareDeleteStoredScript("testTemplate"));
 
-        getResponse = client().admin().cluster().prepareGetStoredScript("testTemplate").get();
+        getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
         assertNull(getResponse.getSource());
     }
 
@@ -207,9 +206,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }
             """;
 
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
-        assertAcked(client().admin().cluster().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("1a").setContent(new BytesArray(script), XContentType.JSON));
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("2").setContent(new BytesArray(script), XContentType.JSON));
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("3").setContent(new BytesArray(script), XContentType.JSON));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
@@ -218,7 +217,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
         bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         Map<String, Object> templateParams = new HashMap<>();
         templateParams.put("fieldParam", "foo");
@@ -254,7 +253,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         ensureGreen("testindex");
 
         client().prepareIndex("testindex").setId("1").setSource(jsonBuilder().startObject().field("searchtext", "dev1").endObject()).get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         int iterations = randomIntBetween(2, 11);
         String query = """
@@ -275,14 +274,12 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         for (int i = 1; i < iterations; i++) {
             assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutStoredScript()
+                clusterAdmin().preparePutStoredScript()
                     .setId("git01")
                     .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(-1))), XContentType.JSON)
             );
 
-            GetStoredScriptResponse getResponse = client().admin().cluster().prepareGetStoredScript("git01").get();
+            GetStoredScriptResponse getResponse = clusterAdmin().prepareGetStoredScript("git01").get();
             assertNotNull(getResponse.getSource());
 
             Map<String, Object> templateParams = new HashMap<>();
@@ -299,9 +296,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             assertThat(e.getMessage(), containsString("No negative slop allowed"));
 
             assertAcked(
-                client().admin()
-                    .cluster()
-                    .preparePutStoredScript()
+                clusterAdmin().preparePutStoredScript()
                     .setId("git01")
                     .setContent(new BytesArray(query.replace("{{slop}}", Integer.toString(0))), XContentType.JSON)
             );
@@ -333,9 +328,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 }
               }
             }""";
-        assertAcked(
-            client().admin().cluster().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON)
-        );
+        assertAcked(clusterAdmin().preparePutStoredScript().setId("4").setContent(new BytesArray(multiQuery), XContentType.JSON));
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON));
         bulkRequestBuilder.add(client().prepareIndex("test").setId("2").setSource("{\"theField\":\"foo 2\"}", XContentType.JSON));
@@ -343,7 +336,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         bulkRequestBuilder.add(client().prepareIndex("test").setId("4").setSource("{\"theField\":\"foo 4\"}", XContentType.JSON));
         bulkRequestBuilder.add(client().prepareIndex("test").setId("5").setSource("{\"theField\":\"bar\"}", XContentType.JSON));
         bulkRequestBuilder.get();
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
         Map<String, Object> arrayTemplateParams = new HashMap<>();
         String[] fieldParams = { "foo", "bar" };
@@ -358,7 +351,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -369,16 +363,24 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         request.setRequest(new SearchRequest());
         ExecutionException ex = expectThrows(
             ExecutionException.class,
-            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+            () -> client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get()
         );
+
+        Throwable primary = ex.getCause();
+        assertNotNull(primary);
+
+        Throwable underlying = primary.getCause();
+        assertNotNull(underlying);
+
         assertThat(
-            ex.getCause().getMessage(),
+            primary.getMessage(),
             containsString("[class org.elasticsearch.action.search.SearchRequest] is not compatible with version")
         );
-        assertThat(ex.getCause().getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
-        assertEquals(
-            "This query isn't serializable with transport versions before " + TransportVersion.CURRENT,
-            ex.getCause().getCause().getMessage()
-        );
+        assertThat(primary.getMessage(), containsString("'search.check_ccs_compatibility' setting is enabled."));
+
+        String expectedCause = "[fail_before_current_version] was released first in version XXXXXXX, failed compatibility check trying to"
+            + " send it to node with version XXXXXXX";
+        String actualCause = underlying.getMessage().replaceAll("\\d{7,}", "XXXXXXX");
+        assertEquals(expectedCause, actualCause);
     }
 }

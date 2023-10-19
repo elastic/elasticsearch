@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.analytics.event;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.application.analytics.event.parser.event.SearchCl
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.PAGE_VIEW;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH;
 import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent.Type.SEARCH_CLICK;
@@ -33,13 +33,11 @@ public class AnalyticsEventFactory {
 
     public static final AnalyticsEventFactory INSTANCE = new AnalyticsEventFactory();
 
-    private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = MapBuilder.<
-        AnalyticsEvent.Type,
-        ContextParser<AnalyticsEvent.Context, AnalyticsEvent>>newMapBuilder()
-        .put(PAGE_VIEW, PageViewAnalyticsEvent::fromXContent)
-        .put(SEARCH, SearchAnalyticsEvent::fromXContent)
-        .put(SEARCH_CLICK, SearchClickAnalyticsEvent::fromXContent)
-        .immutableMap();
+    private static final Map<AnalyticsEvent.Type, ContextParser<AnalyticsEvent.Context, AnalyticsEvent>> EVENT_PARSERS = Map.ofEntries(
+        entry(PAGE_VIEW, PageViewAnalyticsEvent::fromXContent),
+        entry(SEARCH, SearchAnalyticsEvent::fromXContent),
+        entry(SEARCH_CLICK, SearchClickAnalyticsEvent::fromXContent)
+    );
 
     private AnalyticsEventFactory() {
 

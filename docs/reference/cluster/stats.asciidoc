@@ -841,6 +841,70 @@ Occurrences of the built-in analyzer in selected nodes.
 (integer)
 Number of indices using the built-in analyzer in selected nodes.
 ======
+
+`synonyms`::
+(object)
+Contains statistics about synonyms defined in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+
++
+.Properties of `synonyms` objects
+[%collapsible%open]
+======
+`inline`::
+(object)
+Inline synonyms defined using `synonyms` configuration in synonym or synonym graph token filters.
+
++
+.Properties of `inline` objects
+[%collapsible%open]
+=======
+
+`count`::
+(integer)
+Occurrences of inline synonyms configuration in selected nodes.
+Each inline synonyms configuration will be counted separately, regardless of the synonyms defined.
+Two synonyms configurations with the same synonyms will count as separate ocurrences.
+
+`index_count`::
+(integer)
+Number of indices that use inline synonyms configuration for synonyms token filters.
+=======
+
+`paths`::
+(object)
+Contains statistics about synonym files defined as `synonyms_path` in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+
++
+.Properties of `paths` objects
+[%collapsible%open]
+=======
+`count`::
+(integer)
+Occurrences of unique synonym paths in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices that use `synonyms_path` configuration for synonyms token filters.
+=======
+
+`sets`::
+(object)
+Contains statistics about synonyms sets configured as `synonyms_set` in <<analysis-synonym-tokenfilter,synonym>> and <<analysis-synonym-graph-tokenfilter,synonym graph>> token filters configuration.
+
++
+.Properties of `sets` objects
+[%collapsible%open]
+=======
+`count`::
+(integer)
+Occurrences of unique synonyms sets in selected nodes.
+
+`index_count`::
+(integer)
+Number of indices that use `synonyms_set` configuration for synonyms token filters.
+=======
+
+======
 =====
 
 `search`::
@@ -873,6 +937,18 @@ rather than by the number of times it's been used in that individual search requ
 Search sections used in selected nodes. For each section, name and number of times
 it's been used is reported.
 
+=====
+
+`dense_vector`::
+(object)
+Contains statistics about indexed dense vector used in selected nodes.
++
+.Properties of `dense_vector`
+[%collapsible%open]
+=====
+`value_count`::
+(integer)
+Total number of dense vector indexed in selected nodes.
 =====
 ====
 
@@ -1294,7 +1370,7 @@ Number of selected nodes using the HTTP type.
 
 `discovery_types`::
 (object)
-Contains statistics about the <<modules-discovery-hosts-providers,discovery
+Contains statistics about the <<discovery-hosts-providers,discovery
 types>> used by selected nodes.
 +
 .Properties of `discovery_types`
@@ -1302,7 +1378,7 @@ types>> used by selected nodes.
 =====
 `<discovery_type>`::
 (integer)
-Number of selected nodes using the <<modules-discovery-hosts-providers,discovery
+Number of selected nodes using the <<discovery-hosts-providers,discovery
 type>> to find other nodes.
 =====
 
@@ -1595,7 +1671,8 @@ The API returns the following response:
         "built_in_char_filters": [],
         "built_in_tokenizers": [],
         "built_in_filters": [],
-        "built_in_analyzers": []
+        "built_in_analyzers": [],
+        "synonyms": {}
       },
       "versions": [
         {
@@ -1605,7 +1682,10 @@ The API returns the following response:
           "total_primary_size": "7.4kb",
           "total_primary_bytes": 7632
         }
-      ]
+      ],
+      "dense_vector": {
+          "value_count": 0
+      }
    },
    "nodes": {
       "count": {

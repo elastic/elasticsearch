@@ -16,7 +16,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -70,12 +70,12 @@ public class OutboundHandlerTests extends ESTestCase {
         super.setUp();
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         TransportAddress transportAddress = buildNewFakeTransportAddress();
-        node = TestDiscoveryNode.create("", transportAddress);
+        node = DiscoveryNodeUtils.create("", transportAddress);
         StatsTracker statsTracker = new StatsTracker();
         compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         handler = new OutboundHandler(
             "node",
-            TransportVersion.CURRENT,
+            TransportVersion.current(),
             statsTracker,
             threadPool,
             recycler,
@@ -84,7 +84,7 @@ public class OutboundHandlerTests extends ESTestCase {
         );
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(TransportVersion.CURRENT, this.recycler);
+        final InboundDecoder decoder = new InboundDecoder(this.recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, (c, m) -> {
@@ -317,16 +317,17 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals("header_value", header.getHeaders().v1().get("header"));
     }
 
+    /**
+     * This logger is mentioned in the docs by name, so we cannot rename it without adjusting the docs. Thus we fix the expected logger
+     * name in this string constant rather than using {@code OutboundHandler.class.getCanonicalName()}.
+     */
+    private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.OutboundHandler";
+
     public void testSlowLogOutboundMessage() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                OutboundHandler.class.getCanonicalName(),
-                Level.WARN,
-                "sending transport message "
-            )
+            new MockLogAppender.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
         );
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
         Loggers.addAppender(outboundHandlerLogger, mockAppender);

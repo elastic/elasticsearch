@@ -8,7 +8,6 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,6 +29,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
@@ -72,7 +72,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
     /**
      * Provides a supported version when the mapping was created.
      */
-    protected abstract Version randomSupportedVersion();
+    protected abstract IndexVersion randomSupportedVersion();
 
     /**
      * If this field is allowed to be executed when setting allow_expensive_queries us set to false.
@@ -230,14 +230,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         mapping.endObject().endObject().endObject();
 
         // create index
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setSettings(settings(randomSupportedVersion()).build())
-                .setMapping(mapping)
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(settings(randomSupportedVersion()).build()).setMapping(mapping).get());
         ensureGreen();
 
         String source = """
@@ -285,14 +278,12 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         getGeoShapeMapping(mapping);
         mapping.endObject().endObject().endObject();
 
-        final Version version = randomSupportedVersion();
-        CreateIndexRequestBuilder mappingRequest = client().admin()
-            .indices()
-            .prepareCreate("shapes")
+        final IndexVersion version = randomSupportedVersion();
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("shapes")
             .setMapping(mapping)
             .setSettings(settings(version).build());
         mappingRequest.get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         // Create a multipolygon with two polygons. The first is an rectangle of size 10x10
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
@@ -321,11 +312,10 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         assertFirstHit(result, hasId("1"));
 
         // Point in polygon hole
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(4.5, 4.5)))
-            .get();
-        assertHitCount(result, 0);
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(4.5, 4.5))),
+            0
+        );
 
         // by definition the border of a polygon belongs to the inner
         // so the border of a polygons hole also belongs to the inner
@@ -348,11 +338,10 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         assertFirstHit(result, hasId("1"));
 
         // Point not in polygon
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().disjointQuery("area", new Point(3, 3)))
-            .get();
-        assertHitCount(result, 0);
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().disjointQuery("area", new Point(3, 3))),
+            0
+        );
 
         // Point in polygon hole
         result = client().prepareSearch()
@@ -383,8 +372,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         // Polygon WithIn Polygon
         Polygon WithIn = new Polygon(new LinearRing(new double[] { -30, -30, 30, 30, -30 }, new double[] { -30, 30, 30, -30, -30 }));
 
-        result = client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().withinQuery("area", WithIn)).get();
-        assertHitCount(result, 2);
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().withinQuery("area", WithIn)), 2);
 
         // Create a polygon crossing longitude 180.
         Polygon crossing = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
@@ -403,36 +391,32 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         client().prepareIndex("shapes").setId("1").setSource(data, XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(174, -4)))
-            .get();
-        assertHitCount(result, 1);
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(174, -4))),
+            1
+        );
 
         // In geo coordinates the polygon wraps the dateline, so we need to search within valid longitude ranges
         double xWrapped = getFieldTypeName().contains("geo") ? -174 : 186;
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(xWrapped, -4)))
-            .get();
-        assertHitCount(result, 1);
-
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -4)))
-            .get();
-        assertHitCount(result, 0);
-
-        result = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -6)))
-            .get();
-        assertHitCount(result, 1);
+        assertHitCount(
+            client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setPostFilter(queryBuilder().intersectionQuery("area", new Point(xWrapped, -4))),
+            1
+        );
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -4))),
+            0
+        );
+        assertHitCount(
+            client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(queryBuilder().intersectionQuery("area", new Point(180, -6))),
+            1
+        );
     }
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-        Version version = randomSupportedVersion();
+        IndexVersion version = randomSupportedVersion();
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
             .startObject()
@@ -468,8 +452,8 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
     protected abstract void doDistanceAndBoundingBoxTest(String key);
 
-    private String findNodeName(String index) {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+    private static String findNodeName(String index) {
+        ClusterState state = clusterAdmin().prepareState().get().getState();
         IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
         String nodeId = shard.assignedShards().get(0).currentNodeId();
         return state.getNodes().get(nodeId).getName();

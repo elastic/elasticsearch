@@ -9,19 +9,19 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SimilarityScript;
 import org.elasticsearch.script.SimilarityWeightScript;
 
 /** Provider of scripted similarities. */
-final class ScriptedSimilarityProvider implements TriFunction<Settings, Version, ScriptService, Similarity> {
+final class ScriptedSimilarityProvider implements TriFunction<Settings, IndexVersion, ScriptService, Similarity> {
 
     @Override
-    public Similarity apply(Settings settings, Version indexCreatedVersion, ScriptService scriptService) {
+    public Similarity apply(Settings settings, IndexVersion indexCreatedVersion, ScriptService scriptService) {
         boolean discountOverlaps = settings.getAsBoolean(SimilarityProviders.DISCOUNT_OVERLAPS, true);
         Settings scriptSettings = settings.getAsSettings("script");
         Script script = Script.parse(scriptSettings);

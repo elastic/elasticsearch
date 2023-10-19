@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -73,10 +72,12 @@ public class ActiveDirectoryRunAsIT extends AbstractAdLdapRealmTestCase {
     }
 
     protected Client runAsClient(String user) {
-        final Map<String, String> headers = MapBuilder.<String, String>newMapBuilder()
-            .put(BASIC_AUTH_HEADER, UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD))
-            .put(AuthenticationServiceField.RUN_AS_USER_HEADER, user)
-            .map();
+        final Map<String, String> headers = Map.of(
+            BASIC_AUTH_HEADER,
+            UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, BOOTSTRAP_PASSWORD),
+            AuthenticationServiceField.RUN_AS_USER_HEADER,
+            user
+        );
         return client().filterWithHeader(headers);
     }
 

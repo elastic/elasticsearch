@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -407,7 +408,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerialization() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(true);
 
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_2_0, null);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_2_0, null);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
         original.writeTo(output);
@@ -425,7 +426,11 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     public void testSerializationPreV71() throws Exception {
         final ExpressionRoleMapping original = randomRoleMapping(false);
 
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.V_7_0_1);
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.V_7_0_0,
+            TransportVersions.V_7_0_1
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
         original.writeTo(output);

@@ -56,7 +56,8 @@ class MinAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new MinAggregator(name, config, context, parent, metadata);
+        final Min empty = Min.createEmptyMin(name, config.format(), metadata);
+        return new NonCollectingSingleMetricAggregator(name, context, parent, empty, metadata);
     }
 
     @Override

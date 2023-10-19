@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -361,7 +360,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 )
         );
 
-        client().admin().indices().prepareAliases().addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1")).get();
+        indicesAdmin().prepareAliases().addAlias("test", "alias1", QueryBuilders.termQuery("field1", "value1")).get();
 
         ensureGreen();
 
@@ -1415,7 +1414,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             )
         );
 
-        IndexResponse indexResponse1 = client().prepareIndex("test")
+        DocWriteResponse indexResponse1 = client().prepareIndex("test")
             .setId("1")
             .setSource(
                 jsonBuilder().startObject()
@@ -1469,7 +1468,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
             .get();
         assertTrue(indexResponse1.getShardInfo().getSuccessful() > 0);
 
-        IndexResponse indexResponse2 = client().prepareIndex("test")
+        DocWriteResponse indexResponse2 = client().prepareIndex("test")
             .setId("2")
             .setSource(
                 jsonBuilder().startObject()
@@ -1560,11 +1559,11 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureSearchable("test");
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        ClusterStatsResponse clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
 
         // Now add nested mapping
-        assertAcked(client().admin().indices().preparePutMapping("test").setSource("array1", "type=nested"));
+        assertAcked(indicesAdmin().preparePutMapping("test").setSource("array1", "type=nested"));
 
         XContentBuilder builder = jsonBuilder().startObject()
             .startArray("array1")
@@ -1583,7 +1582,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         ensureSearchable("test");
 
         if (loadFixedBitSeLazily) {
-            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+            clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
             assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
 
             // only when querying with nested the fixed bitsets are loaded
@@ -1593,19 +1592,18 @@ public class SimpleNestedIT extends ESIntegTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L));
         }
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0L));
 
-        assertAcked(client().admin().indices().prepareDelete("test"));
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
+        assertAcked(indicesAdmin().prepareDelete("test"));
+        clusterStatsResponse = clusterAdmin().prepareClusterStats().get();
         assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
     }
 
     private void assertDocumentCount(String index, long numdocs) {
-        IndicesStatsResponse stats = admin().indices().prepareStats(index).clear().setDocs(true).get();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats(index).clear().setDocs(true).get();
         assertNoFailures(stats);
         assertThat(stats.getIndex(index).getPrimaries().docs.getCount(), is(numdocs));
-
     }
 
 }

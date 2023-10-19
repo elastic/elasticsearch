@@ -173,7 +173,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters." + name + ".ssl.verification_mode", verificationModeName)
             .build();
         updateSettings.persistentSettings(settings);
-        return client().admin().cluster().updateSettings(updateSettings);
+        return clusterAdmin().updateSettings(updateSettings);
     }
 
     private void clearPersistentSettings(String... names) {

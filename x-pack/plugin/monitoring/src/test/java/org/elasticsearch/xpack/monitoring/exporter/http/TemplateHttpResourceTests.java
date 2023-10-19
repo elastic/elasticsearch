@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.HttpEntity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
@@ -112,7 +112,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     public void testDoPublishFalseWithNonPublishedResource() {
         RestClient mockClient = mock(RestClient.class);
         SetOnce<HttpResource.ResourcePublishResult> result = new SetOnce<>();
-        resource.doPublish(mockClient, ActionListener.wrap(result::set, e -> { throw new RuntimeException("Unexpected exception", e); }));
+        resource.doPublish(mockClient, ActionTestUtils.assertNoFailureListener(result::set));
         verifyNoMoreInteractions(mockClient); // Should not have used the client at all.
         HttpResource.ResourcePublishResult resourcePublishResult = result.get();
         assertThat(resourcePublishResult, notNullValue());

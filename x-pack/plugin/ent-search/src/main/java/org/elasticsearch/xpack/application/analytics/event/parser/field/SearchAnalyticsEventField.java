@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.application.analytics.event.parser.field;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PaginationAnalyticsEventField.PAGINATION_FIELD;
@@ -29,9 +29,9 @@ public class SearchAnalyticsEventField {
 
     public static ParseField SEARCH_RESULTS_FIELD = new ParseField("results");
 
-    private static final ObjectParser<MapBuilder<String, Object>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
+    private static final ObjectParser<Map<String, Object>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SEARCH_FIELD.getPreferredName(),
-        MapBuilder::newMapBuilder
+        HashMap::new
     );
 
     static {
@@ -60,6 +60,6 @@ public class SearchAnalyticsEventField {
     private SearchAnalyticsEventField() {}
 
     public static Map<String, Object> fromXContent(XContentParser parser, AnalyticsEvent.Context context) throws IOException {
-        return PARSER.parse(parser, context).immutableMap();
+        return Map.copyOf(PARSER.parse(parser, context));
     }
 }

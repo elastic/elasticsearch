@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -258,12 +259,12 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             TimeValue.timeValueMillis(1),
             TimeValue.timeValueMinutes(10),
             keepOnCompletion,
-            ActionListener.wrap(r -> {
+            ActionTestUtils.assertNoFailureListener(r -> {
                 assertThat(r.string, nullValue());
                 assertThat(r.id, notNullValue());
                 assertThat(responseHolder.getAndSet(r), nullValue());
                 latch.countDown();
-            }, e -> fail("Shouldn't be here"))
+            })
         );
         assertThat(latch.await(20, TimeUnit.SECONDS), equalTo(true));
 
@@ -284,7 +285,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             CountDownLatch getResponseCountDown = getResponse(
                 responseHolder.get().id,
                 TimeValue.timeValueSeconds(5),
-                ActionListener.wrap(responseRef::set, e -> fail("Shouldn't be here"))
+                ActionTestUtils.assertNoFailureListener(responseRef::set)
             );
 
             executionLatch.countDown();
@@ -328,7 +329,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     private StoredAsyncResponse<TestResponse> getResponse(String id, TimeValue timeout) throws InterruptedException {
         AtomicReference<StoredAsyncResponse<TestResponse>> response = new AtomicReference<>();
         assertThat(
-            getResponse(id, timeout, ActionListener.wrap(response::set, e -> fail("Shouldn't be here"))).await(10, TimeUnit.SECONDS),
+            getResponse(id, timeout, ActionTestUtils.assertNoFailureListener(response::set)).await(10, TimeUnit.SECONDS),
             equalTo(true)
         );
         return response.get();

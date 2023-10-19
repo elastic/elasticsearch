@@ -1,0 +1,37 @@
+[discrete]
+[[esql-date_parse]]
+=== `DATE_PARSE`
+
+*Syntax*
+
+[source,txt]
+----
+DATE_PARSE([format,] date_string)
+----
+
+*Parameters*
+
+`format`::
+The date format. Refer to the
+https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter`
+documentation] for the syntax. If `null`, the function returns `null`.
+
+`date_string`::
+Date expression as a string. If `null` or an empty string, the function returns
+`null`.
+
+*Description*
+
+Returns a date by parsing the second argument using the format specified in the
+first argument.
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dateParse]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dateParse-result]
+|===

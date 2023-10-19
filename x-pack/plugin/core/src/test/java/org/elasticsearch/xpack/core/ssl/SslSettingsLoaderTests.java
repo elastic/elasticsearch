@@ -24,7 +24,6 @@ import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.junit.Before;
 
@@ -77,7 +76,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
     }
 
     public void testRemoteClusterSslConfigurationsWhenPortNotEnabled() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
             builder.put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), false);
@@ -99,7 +97,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
      * Tests that the Remote Cluster port is configured if enabled and properly uses the default settings.
      */
     public void testRemoteClusterPortConfigurationIsInjectedWithDefaults() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         Settings testSettings = Settings.builder().put(RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED.getKey(), true).build();
         Map<String, Settings> settingsMap = SSLService.getSSLSettingsMap(testSettings);
         // Server
@@ -120,7 +117,6 @@ public class SslSettingsLoaderTests extends ESTestCase {
      * covered.
      */
     public void testRemoteClusterPortConfigurationIsInjectedWithItsSettings() {
-        assumeTrue("tests Remote Cluster Security 2.0 functionality", TcpTransport.isUntrustedRemoteClusterEnabled());
         final Path path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(

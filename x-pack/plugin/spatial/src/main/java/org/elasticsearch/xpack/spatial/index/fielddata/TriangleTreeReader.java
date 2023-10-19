@@ -11,6 +11,11 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.LEFT;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.LINE;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.POINT;
+import static org.elasticsearch.xpack.spatial.index.fielddata.TriangleTreeWriter.RIGHT;
+
 /**
  * A tree reader for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
  * {@link TriangleTreeWriter}.
@@ -40,7 +45,7 @@ class TriangleTreeReader {
         byte metadata = input.readByte();
         int thisMinX;
         int thisMinY;
-        if ((metadata & 1 << 2) == 1 << 2) { // component in this node is a point
+        if ((metadata & POINT) == POINT) { // component in this node is a point
             int x = Math.toIntExact(thisMaxX - input.readVLong());
             int y = Math.toIntExact(thisMaxY - input.readVLong());
             visitor.visitPoint(x, y);
@@ -49,7 +54,7 @@ class TriangleTreeReader {
             }
             thisMinX = x;
             thisMinY = y;
-        } else if ((metadata & 1 << 3) == 1 << 3) { // component in this node is a line
+        } else if ((metadata & LINE) == LINE) { // component in this node is a line
             int aX = Math.toIntExact(thisMaxX - input.readVLong());
             int aY = Math.toIntExact(thisMaxY - input.readVLong());
             int bX = Math.toIntExact(thisMaxX - input.readVLong());
@@ -74,12 +79,12 @@ class TriangleTreeReader {
             thisMinX = aX;
             thisMinY = Math.min(Math.min(aY, bY), cY);
         }
-        if ((metadata & 1 << 0) == 1 << 0) { // left != null
+        if ((metadata & LEFT) == LEFT) { // left != null
             if (pushLeft(input, visitor, thisMaxX, thisMaxY, splitX) == false) {
                 return false;
             }
         }
-        if ((metadata & 1 << 1) == 1 << 1) { // right != null
+        if ((metadata & RIGHT) == RIGHT) { // right != null
             // root node does not have a size
             int rightSize = isRoot ? 0 : input.readVInt();
             if (pushRight(input, visitor, thisMaxX, thisMaxY, thisMinX, thisMinY, splitX, rightSize) == false) {

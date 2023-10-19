@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -21,7 +21,7 @@ public class JoinStatusTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         JoinStatus joinStatus = new JoinStatus(
-            TestDiscoveryNode.create(UUID.randomUUID().toString()),
+            DiscoveryNodeUtils.create(UUID.randomUUID().toString()),
             randomLongBetween(0, 1000),
             randomAlphaOfLengthBetween(0, 100),
             randomNonNegativeTimeValue()
@@ -60,7 +60,7 @@ public class JoinStatusTests extends ESTestCase {
                 );
             }
             case 4 -> {
-                DiscoveryNode newNode = TestDiscoveryNode.create(UUID.randomUUID().toString());
+                DiscoveryNode newNode = DiscoveryNodeUtils.create(UUID.randomUUID().toString());
                 return new JoinStatus(newNode, originalJoinStatus.term(), originalJoinStatus.message(), originalJoinStatus.age());
             }
             default -> throw new IllegalStateException();

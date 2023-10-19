@@ -35,7 +35,9 @@
             "DLM",
             "Discovery-Plugins",
             "Distributed",
+            "Downsampling",
             "EQL",
+            "ES|QL",
             "Engine",
             "FIPS",
             "Features",
@@ -73,7 +75,6 @@
             "Ranking",
             "Recovery",
             "Reindex",
-            "Rollup",
             "SQL",
             "Search",
             "Security",
@@ -263,6 +264,7 @@
     "compatibilityChangeArea": {
       "type": "string",
       "enum": [
+        "Authorization",
         "Cluster and node setting",
         "Command line tool",
         "CRUD",

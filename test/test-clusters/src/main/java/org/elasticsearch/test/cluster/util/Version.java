@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates comparison and printing logic for an x.y.z version.
  */
-public final class Version implements Comparable<Version>, Serializable {
+public class Version implements Comparable<Version>, Serializable {
     public static final Version CURRENT;
     private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha\\d+|beta\\d+|rc\\d+|SNAPSHOT))?");
     private static final Pattern relaxedPattern = Pattern.compile(

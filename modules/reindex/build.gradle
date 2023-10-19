@@ -29,6 +29,7 @@ testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:parent-join'
   module ':modules:lang-painless'
+  module ':modules:rest-root'
   // Whitelist reindexing from the local node so we can test reindex-from-remote.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
@@ -39,12 +40,13 @@ dependencies {
   api project(":libs:elasticsearch-ssl-config")
   // for parent/child testing
   testImplementation project(':modules:parent-join')
+  testImplementation project(':modules:rest-root')
 }
 
 restResources {
   restApi {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
-                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script', 'bulk'
+                'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script', 'bulk', 'info'
   }
 }
 

@@ -17,9 +17,9 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +40,7 @@ public abstract class RestActionTestCase extends ESTestCase {
     @Before
     public void setUpController() {
         verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP, false);
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP);
     }
 
     @After
@@ -78,6 +78,7 @@ public abstract class RestActionTestCase extends ESTestCase {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
+        @SuppressWarnings("this-escape")
         public VerifyingClient(String testName) {
             super(testName);
             reset();

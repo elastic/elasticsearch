@@ -47,7 +47,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
             TimeValue.timeValueMillis(3000),
             SizeValue.parseSizeValue("10k")
         );
-        output.setTransportVersion(TransportVersion.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -58,7 +58,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
-        output.setTransportVersion(TransportVersion.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -113,7 +113,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatThreadPoolTypeIsSerializedCorrectly() throws IOException {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType);
-        output.setTransportVersion(TransportVersion.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();

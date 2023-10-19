@@ -11,18 +11,101 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 
 public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializingTestCase<CreateCrossClusterApiKeyRequest> {
+
+    private String access;
+    private CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
+
+    @Before
+    public void init() throws IOException {
+        access = randomCrossClusterApiKeyAccessField();
+        roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(access);
+    }
+
+    @Override
+    protected Writeable.Reader<CreateCrossClusterApiKeyRequest> instanceReader() {
+        return CreateCrossClusterApiKeyRequest::new;
+    }
+
+    @Override
+    protected CreateCrossClusterApiKeyRequest createTestInstance() {
+        CreateCrossClusterApiKeyRequest request = new CreateCrossClusterApiKeyRequest(
+            randomAlphaOfLengthBetween(3, 8),
+            roleDescriptorBuilder,
+            randomExpiration(),
+            randomMetadata()
+        );
+        request.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
+        return request;
+    }
+
+    @Override
+    protected CreateCrossClusterApiKeyRequest mutateInstance(CreateCrossClusterApiKeyRequest instance) throws IOException {
+        switch (randomIntBetween(1, 4)) {
+            case 1 -> {
+                return new CreateCrossClusterApiKeyRequest(
+                    randomValueOtherThan(instance.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
+                    roleDescriptorBuilder,
+                    instance.getExpiration(),
+                    instance.getMetadata()
+                );
+            }
+            case 2 -> {
+                return new CreateCrossClusterApiKeyRequest(
+                    instance.getName(),
+                    CrossClusterApiKeyRoleDescriptorBuilder.parse(
+                        randomValueOtherThan(access, CreateCrossClusterApiKeyRequestTests::randomCrossClusterApiKeyAccessField)
+                    ),
+                    instance.getExpiration(),
+                    instance.getMetadata()
+                );
+            }
+            case 3 -> {
+                return new CreateCrossClusterApiKeyRequest(
+                    instance.getName(),
+                    roleDescriptorBuilder,
+                    randomValueOtherThan(instance.getExpiration(), CreateCrossClusterApiKeyRequestTests::randomExpiration),
+                    instance.getMetadata()
+                );
+            }
+            default -> {
+                return new CreateCrossClusterApiKeyRequest(
+                    instance.getName(),
+                    roleDescriptorBuilder,
+                    instance.getExpiration(),
+                    randomValueOtherThan(instance.getMetadata(), CreateCrossClusterApiKeyRequestTests::randomMetadata)
+                );
+            }
+        }
+    }
+
+    private static TimeValue randomExpiration() {
+        return randomFrom(TimeValue.timeValueHours(randomIntBetween(1, 999)), null);
+    }
+
+    private static Map<String, Object> randomMetadata() {
+        return randomFrom(
+            randomMap(
+                0,
+                3,
+                () -> new Tuple<>(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomFrom(randomAlphaOfLengthBetween(3, 8), randomInt(), randomBoolean())
+                )
+            ),
+            null
+        );
+    }
 
     private static final List<String> ACCESS_CANDIDATES = List.of("""
         {
@@ -48,92 +131,7 @@ public class CreateCrossClusterApiKeyRequestTests extends AbstractWireSerializin
           "replication": [ {"names": ["archive"]} ]
         }""");
 
-    private String access;
-    private CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder;
-
-    @Before
-    public void init() {
-        access = randomFrom(ACCESS_CANDIDATES);
-        roleDescriptorBuilder = parseForCrossClusterApiKeyRoleDescriptorBuilder(access);
-    }
-
-    @Override
-    protected Writeable.Reader<CreateCrossClusterApiKeyRequest> instanceReader() {
-        return CreateCrossClusterApiKeyRequest::new;
-    }
-
-    @Override
-    protected CreateCrossClusterApiKeyRequest createTestInstance() {
-        return new CreateCrossClusterApiKeyRequest(
-            randomAlphaOfLengthBetween(3, 8),
-            roleDescriptorBuilder,
-            randomExpiration(),
-            randomMetadata()
-        );
-    }
-
-    @Override
-    protected CreateCrossClusterApiKeyRequest mutateInstance(CreateCrossClusterApiKeyRequest instance) throws IOException {
-        switch (randomIntBetween(1, 4)) {
-            case 1 -> {
-                return new CreateCrossClusterApiKeyRequest(
-                    randomValueOtherThan(instance.getName(), () -> randomAlphaOfLengthBetween(3, 8)),
-                    roleDescriptorBuilder,
-                    instance.getExpiration(),
-                    instance.getMetadata()
-                );
-            }
-            case 2 -> {
-                return new CreateCrossClusterApiKeyRequest(
-                    instance.getName(),
-                    parseForCrossClusterApiKeyRoleDescriptorBuilder(randomValueOtherThan(access, () -> randomFrom(ACCESS_CANDIDATES))),
-                    instance.getExpiration(),
-                    instance.getMetadata()
-                );
-            }
-            case 3 -> {
-                return new CreateCrossClusterApiKeyRequest(
-                    instance.getName(),
-                    roleDescriptorBuilder,
-                    randomValueOtherThan(instance.getExpiration(), CreateCrossClusterApiKeyRequestTests::randomExpiration),
-                    instance.getMetadata()
-                );
-            }
-            default -> {
-                return new CreateCrossClusterApiKeyRequest(
-                    instance.getName(),
-                    roleDescriptorBuilder,
-                    instance.getExpiration(),
-                    randomValueOtherThan(instance.getMetadata(), CreateCrossClusterApiKeyRequestTests::randomMetadata)
-                );
-            }
-        }
-    }
-
-    private CrossClusterApiKeyRoleDescriptorBuilder parseForCrossClusterApiKeyRoleDescriptorBuilder(String access) {
-        try {
-            final XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, access);
-            return CrossClusterApiKeyRoleDescriptorBuilder.PARSER.parse(parser, null);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    private static TimeValue randomExpiration() {
-        return randomFrom(TimeValue.timeValueHours(randomIntBetween(1, 999)), null);
-    }
-
-    private static Map<String, Object> randomMetadata() {
-        return randomFrom(
-            randomMap(
-                0,
-                3,
-                () -> new Tuple<>(
-                    randomAlphaOfLengthBetween(3, 8),
-                    randomFrom(randomAlphaOfLengthBetween(3, 8), randomInt(), randomBoolean())
-                )
-            ),
-            null
-        );
+    public static String randomCrossClusterApiKeyAccessField() {
+        return randomFrom(ACCESS_CANDIDATES);
     }
 }

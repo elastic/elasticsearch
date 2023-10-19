@@ -859,10 +859,10 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersion.CURRENT);
+            output.setTransportVersion(TransportVersion.current());
             datafeedConfig.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setTransportVersion(TransportVersion.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(in);
                 assertEquals(datafeedConfig, streamedDatafeedConfig);
 

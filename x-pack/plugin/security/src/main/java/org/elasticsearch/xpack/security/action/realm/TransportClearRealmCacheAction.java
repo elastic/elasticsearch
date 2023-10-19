@@ -48,14 +48,11 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearRealmCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRealmCacheRequest::new,
             ClearRealmCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearRealmCacheResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.realms = realms;
         this.authenticationService = authenticationService;

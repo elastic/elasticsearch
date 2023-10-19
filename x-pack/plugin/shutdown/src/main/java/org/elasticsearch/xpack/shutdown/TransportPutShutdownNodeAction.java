@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -24,9 +25,11 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,8 +39,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
-
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
 
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
@@ -64,6 +65,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             .setNodeSeen(nodeSeen)
             .setAllocationDelay(request.getAllocationDelay())
             .setTargetNodeName(request.getTargetNodeName())
+            .setGracePeriod(request.getGracePeriod())
             .build();
 
         // log the update
@@ -91,7 +93,11 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
+                    logger.log(
+                        MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.WARN,
+                        () -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown",
+                        e
+                    );
                 }
             });
         } else {
@@ -120,7 +126,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         @Override
         public ClusterState execute(BatchExecutionContext<PutShutdownNodeTask> batchExecutionContext) throws Exception {
             final var initialState = batchExecutionContext.initialState();
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(initialState).getAllNodeMetadataMap());
+            var shutdownMetadata = new HashMap<>(initialState.metadata().nodeShutdowns().getAll());
             Predicate<String> nodeExistsPredicate = batchExecutionContext.initialState().getNodes()::nodeExists;
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
@@ -163,14 +169,14 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         taskQueue = clusterService.createTaskQueue("put-shutdown", Priority.URGENT, new PutShutdownNodeExecutor());
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (isNoop(getShutdownsOrEmpty(state).getAllNodeMetadataMap(), request)) {
+        if (isNoop(state.getMetadata().nodeShutdowns().getAll(), request)) {
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }

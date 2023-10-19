@@ -69,7 +69,7 @@ cluster can report a `green` status, override the default by setting
 <<dynamic-index-settings,`index.number_of_replicas`>> to `0` on every index.
 
 If the node fails, you may need to restore an older copy of any lost indices
-from a <<modules-snapshots,snapshot>>.
+from a <<snapshot-restore,snapshot>>.
 
 Because they are not resilient to any failures, we do not recommend using
 one-node clusters in production.
@@ -281,7 +281,7 @@ cluster when handling such a failure.
 
 For resilience against whole-zone failures, it is important that there is a copy
 of each shard in more than one zone, which can be achieved by placing data
-nodes in multiple zones and configuring <<allocation-awareness,shard allocation
+nodes in multiple zones and configuring <<shard-allocation-awareness,shard allocation
 awareness>>. You should also ensure that client requests are sent to nodes in
 more than one zone.
 
@@ -334,7 +334,7 @@ tiebreaker need not be as powerful as the other two nodes since it has no other
 roles and will not perform any searches nor coordinate any client requests nor
 be elected as the master of the cluster.
 
-You should use <<allocation-awareness,shard allocation awareness>> to ensure
+You should use <<shard-allocation-awareness,shard allocation awareness>> to ensure
 that there is a copy of each shard in each zone. This means either zone remains
 fully available if the other zone fails.
 
@@ -359,7 +359,7 @@ mean that the cluster can still elect a master even if one of the zones fails.
 
 As always, your indices should have at least one replica in case a node fails,
 unless they are <<searchable-snapshots,searchable snapshot indices>>. You
-should also use <<allocation-awareness,shard allocation awareness>> to limit
+should also use <<shard-allocation-awareness,shard allocation awareness>> to limit
 the number of copies of each shard in each zone. For instance, if you have an
 index with one or two replicas configured then allocation awareness will ensure
 that the replicas of the shard are in a different zone from the primary. This

@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchService;
@@ -389,9 +390,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
 
         public Response(StreamInput in) throws IOException {
-            this.indices = in.readList(ResolvedIndex::new);
-            this.aliases = in.readList(ResolvedAlias::new);
-            this.dataStreams = in.readList(ResolvedDataStream::new);
+            this.indices = in.readCollectionAsList(ResolvedIndex::new);
+            this.aliases = in.readCollectionAsList(ResolvedAlias::new);
+            this.dataStreams = in.readCollectionAsList(ResolvedDataStream::new);
         }
 
         public List<ResolvedIndex> getIndices() {
@@ -408,9 +409,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(indices);
-            out.writeList(aliases);
-            out.writeList(dataStreams);
+            out.writeCollection(indices);
+            out.writeCollection(aliases);
+            out.writeCollection(dataStreams);
         }
 
         @Override
@@ -453,7 +454,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
@@ -492,7 +493,11 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                     String clusterAlias = remoteIndices.getKey();
                     OriginalIndices originalIndices = remoteIndices.getValue();
-                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
+                    Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                        threadPool,
+                        clusterAlias,
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
                     remoteClusterClient.admin().indices().resolveIndex(remoteRequest, ActionListener.wrap(response -> {
                         remoteResponses.put(clusterAlias, response);
@@ -636,9 +641,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case DATA_STREAM -> {
                         DataStream dataStream = (DataStream) ia;
                         String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
-                        dataStreams.add(
-                            new ResolvedDataStream(dataStream.getName(), backingIndices, dataStream.getTimeStampField().getName())
-                        );
+                        dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }

@@ -17,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -72,11 +73,16 @@ public class SequenceMatcher {
     // Set of completed sequences - separate to avoid polluting the other stages
     // It is a set since matches are ordered at insertion time based on the ordinal of the first entry
     private final Set<Sequence> completed;
+    private final Set<Sequence> toCheckForMissing;
     private final long maxSpanInNanos;
 
     private final boolean descending;
 
     private final Limit limit;
+    private final boolean[] missingEventStages;
+    protected final int firstPositiveStage;
+    protected final int lastPositiveStage;
+    private final boolean missingEventStagesExist;
     private final CircuitBreaker circuitBreaker;
 
     private final Stats stats = new Stats();
@@ -88,7 +94,14 @@ public class SequenceMatcher {
     private long prevRamBytesUsedCompleted = 0;
 
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
+    public SequenceMatcher(
+        int stages,
+        boolean descending,
+        TimeValue maxSpan,
+        Limit limit,
+        boolean[] missingEventStages,
+        CircuitBreaker circuitBreaker
+    ) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -96,18 +109,50 @@ public class SequenceMatcher {
         this.stageToKeys = new StageToKeys(completionStage);
         this.keyToSequences = new KeyToSequences(completionStage);
         this.completed = new TreeSet<>();
+        this.toCheckForMissing = new TreeSet<>();
 
         this.maxSpanInNanos = maxSpan.nanos();
 
         this.limit = limit;
+        this.missingEventStages = missingEventStages;
+        this.firstPositiveStage = calculateFirstPositiveStage();
+        this.lastPositiveStage = calculateLastPositiveStage();
+        this.missingEventStagesExist = calculateMissingEventStagesExist();
         this.circuitBreaker = circuitBreaker;
+    }
+
+    private int calculateFirstPositiveStage() {
+        for (int i = 0; i < missingEventStages.length; i++) {
+            if (missingEventStages[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int calculateLastPositiveStage() {
+        for (int i = missingEventStages.length - 1; i >= 0; i--) {
+            if (missingEventStages[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean calculateMissingEventStagesExist() {
+        for (int i = 0; i < missingEventStages.length; i++) {
+            if (missingEventStages[i]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
-        stageToKeys.add(0, key);
-        keyToSequences.add(0, sequence);
+        stageToKeys.add(firstPositiveStage, key);
+        keyToSequences.add(firstPositiveStage, sequence);
 
         stats.seen++;
     }
@@ -121,10 +166,16 @@ public class SequenceMatcher {
             KeyAndOrdinal ko = tuple.v1();
             HitReference hit = tuple.v2();
 
-            if (stage == 0) {
+            if (isFirstPositiveStage(stage)) {
+                log.trace("Matching hit {}  - track sequence", ko.ordinal);
                 Sequence seq = new Sequence(ko.key, numberOfStages, ko.ordinal, hit);
-                trackSequence(seq);
+                if (lastPositiveStage == stage) {
+                    tryComplete(seq);
+                } else {
+                    trackSequence(seq);
+                }
             } else {
+                log.trace("Matching hit {}  - match", ko.ordinal);
                 match(stage, ko.key, ko.ordinal, hit);
 
                 // early skip in case of reaching the limit
@@ -149,6 +200,10 @@ public class SequenceMatcher {
         return matched;
     }
 
+    protected boolean exceedsMaxSpan(Timestamp from, Timestamp to) {
+        return maxSpanInNanos > 0 && to.delta(from) > maxSpanInNanos;
+    }
+
     private boolean tailLimitReached() {
         return limit != null && limit.limit() < 0 && limit.absLimit() <= completed.size();
     }
@@ -160,7 +215,7 @@ public class SequenceMatcher {
     private void match(int stage, SequenceKey key, Ordinal ordinal, HitReference hit) {
         stats.seen++;
 
-        int previousStage = stage - 1;
+        int previousStage = previousPositiveStage(stage);
         // check key presence to avoid creating a collection
         SequenceGroup group = keyToSequences.groupIfPresent(previousStage, key);
         if (group == null || group.isEmpty()) {
@@ -186,7 +241,7 @@ public class SequenceMatcher {
         //
 
         // maxspan
-        if (maxSpanInNanos > 0 && ordinal.timestamp().delta(sequence.startOrdinal().timestamp()) > maxSpanInNanos) {
+        if (exceedsMaxSpan(sequence.startOrdinal().timestamp(), ordinal.timestamp())) {
             stats.rejectionMaxspan++;
             return;
         }
@@ -207,7 +262,7 @@ public class SequenceMatcher {
         sequence.putMatch(stage, ordinal, hit);
 
         // bump the stages
-        if (stage == completionStage) {
+        if (stage == lastPositiveStage) {
             // when dealing with descending queries
             // avoid duplicate matching (since the ASC query can return previously seen results)
             if (descending) {
@@ -218,16 +273,62 @@ public class SequenceMatcher {
                 }
             }
 
-            completed.add(sequence);
+            tryComplete(sequence);
             // update the bool lazily
             // only consider positive limits / negative ones imply tail which means having to go
             // through the whole page of results before selecting the last ones
             // doing a limit early returns the 'head' not 'tail'
-            headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
+            calculateHeadLimit();
         } else {
             stageToKeys.add(stage, key);
             keyToSequences.add(stage, sequence);
         }
+    }
+
+    public void tryComplete(Sequence sequence) {
+        if (missingEventStagesExist) {
+            toCheckForMissing.add(sequence);
+        } else {
+            completed.add(sequence);
+        }
+    }
+
+    private void calculateHeadLimit() {
+        headLimit = limit != null && limit.limit() > 0 && completed.size() == limit.totalLimit();
+    }
+
+    int previousPositiveStage(int stage) {
+        for (int i = stage - 1; i >= 0; i--) {
+            if (missingEventStages[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public boolean limitReached() {
+        calculateHeadLimit();
+        return headLimit;
+    }
+
+    int nextPositiveStage(int stage) {
+        for (int i = stage + 1; i < missingEventStages.length; i++) {
+            if (missingEventStages[i] == false) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    public boolean isMissingEvent(int stage) {
+        if (stage < 0 || stage >= missingEventStages.length) {
+            return false;
+        }
+        return missingEventStages[stage];
+    }
+
+    private boolean isFirstPositiveStage(int stage) {
+        return stage == firstPositiveStage;
     }
 
     /**
@@ -293,8 +394,12 @@ public class SequenceMatcher {
         }
     }
 
-    public Stats stats() {
-        return stats;
+    public void addToCompleted(Sequence sequence) {
+        this.completed.add(sequence);
+    }
+
+    Set<Sequence> toCheckForMissing() {
+        return toCheckForMissing;
     }
 
     public void clear() {
@@ -302,6 +407,7 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
+        toCheckForMissing.clear();
         clearCircuitBreaker();
     }
 

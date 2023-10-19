@@ -12,14 +12,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
-import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -48,7 +50,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -72,6 +73,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final TransformContext context;
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
+    @SuppressWarnings("this-escape")
     public TransformTask(
         long id,
         String type,
@@ -181,18 +183,28 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public void getCheckpointingInfo(
         TransformCheckpointService transformsCheckpointService,
-        ActionListener<TransformCheckpointingInfo> listener
+        ActionListener<TransformCheckpointingInfo> listener,
+        TimeValue timeout
     ) {
-        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
-            if (context.getChangesLastDetectedAt() != null) {
-                infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
-            }
-            if (context.getLastSearchTime() != null) {
-                infoBuilder.setLastSearchTime(context.getLastSearchTime());
-            }
-            listener.onResponse(infoBuilder.build());
-        }, listener::onFailure);
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ListenerTimeouts.wrapWithTimeout(
+            threadPool,
+            timeout,
+            threadPool.generic(),
+            ActionListener.wrap(infoBuilder -> {
+                if (context.getChangesLastDetectedAt() != null) {
+                    infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
+                }
+                if (context.getLastSearchTime() != null) {
+                    infoBuilder.setLastSearchTime(context.getLastSearchTime());
+                }
+                listener.onResponse(infoBuilder.build());
+            }, listener::onFailure),
+            (ignore) -> listener.onFailure(
+                new ElasticsearchTimeoutException(format("Timed out retrieving checkpointing info after [%s]", timeout))
+            )
+        );
 
+        // TODO: pass `timeout` to the lower layers
         ClientTransformIndexer transformIndexer = getIndexer();
         if (transformIndexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
@@ -466,17 +478,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         logger.debug("[{}] shutdown of transform requested", transform.getId());
         transformScheduler.deregisterTransform(getTransformId());
         markAsCompleted();
-        waitForPersistentTask(Objects::isNull, null, new PersistentTasksService.WaitForPersistentTaskListener<>() {
-            @Override
-            public void onResponse(PersistentTask<PersistentTaskParams> persistentTask) {
-                logger.trace("[{}] successfully finished waiting for persistent task to disappear.", transform.getId());
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(() -> "[" + transform.getId() + "] failure while waiting for persistent task to disappear.", e);
-            }
-        });
     }
 
     void persistStateToClusterState(TransformState state, ActionListener<PersistentTask<?>> listener) {

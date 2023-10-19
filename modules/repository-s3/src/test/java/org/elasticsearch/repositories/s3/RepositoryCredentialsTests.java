@@ -31,6 +31,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -243,14 +244,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
-                .setType(S3Repository.TYPE)
-                .setVerify(false)
-                .setSettings(repositorySettings)
-        );
+        assertAcked(clusterAdmin().preparePutRepository(name).setType(S3Repository.TYPE).setVerify(false).setSettings(repositorySettings));
     }
 
     /**
@@ -270,7 +264,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, Meter.NOOP) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads
@@ -279,8 +273,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        S3Service s3Service(Environment environment) {
-            return new ProxyS3Service(environment);
+        S3Service s3Service(Environment environment, Settings nodeSettings) {
+            return new ProxyS3Service(environment, nodeSettings);
         }
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
@@ -296,8 +290,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
-            ProxyS3Service(Environment environment) {
-                super(environment);
+            ProxyS3Service(Environment environment, Settings nodeSettings) {
+                super(environment, nodeSettings);
             }
 
             @Override

@@ -51,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -84,29 +85,30 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("6").setSource("otherbody", "spaghetti")
         );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar")).get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "1", "2", "3");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar")), "1", "2", "3");
 
         // Tests boost value setting. In this case doc 1 should always be ranked above the other
         // two matches.
-        searchResponse = client().prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
             .setQuery(boolQuery().should(simpleQueryStringQuery("\"foo bar\"").boost(10.0f)).should(termQuery("body", "eggplant")))
             .get();
         assertHitCount(searchResponse, 2L);
         assertFirstHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").defaultOperator(Operator.AND)).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("3"));
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").defaultOperator(Operator.AND)),
+            "3"
+        );
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("\"quux baz\" +(eggplant | spaghetti)")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "4", "5");
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("eggplants").analyzer("mock_snowball")).get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("4"));
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("\"quux baz\" +(eggplant | spaghetti)")),
+            "4",
+            "5"
+        );
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("eggplants").analyzer("mock_snowball")),
+            "4"
+        );
 
         searchResponse = client().prepareSearch()
             .setQuery(simpleQueryStringQuery("spaghetti").field("body", 1000.0f).field("otherbody", 2.0f).queryName("myquery"))
@@ -116,9 +118,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "5", "6");
         assertThat(searchResponse.getHits().getAt(0).getMatchedQueries()[0], equalTo("myquery"));
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "5", "6");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("spaghetti").field("*body")), "5", "6");
     }
 
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
@@ -134,31 +134,35 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         );
 
         logger.info("--> query 1");
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "3", "4");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")),
+            "3",
+            "4"
+        );
 
         logger.info("--> query 2");
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2"))
-            .get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "3", "4");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2")),
+            "3",
+            "4"
+        );
 
         // test case from #13884
         logger.info("--> query 3");
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo").field("body").field("body2").field("body3").minimumShouldMatch("-50%"))
-            .get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "1", "3", "4");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("foo").field("body").field("body2").field("body3").minimumShouldMatch("-50%")),
+            "1",
+            "3",
+            "4"
+        );
 
         logger.info("--> query 4");
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo bar baz").field("body").field("body2").minimumShouldMatch("70%"))
-            .get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "3", "4");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body").field("body2").minimumShouldMatch("70%")),
+            "3",
+            "4"
+        );
 
         indexRandom(
             true,
@@ -170,23 +174,32 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         );
 
         logger.info("--> query 5");
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2"))
-            .get();
-        assertHitCount(searchResponse, 4L);
-        assertSearchHits(searchResponse, "3", "4", "7", "8");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2")),
+            "3",
+            "4",
+            "7",
+            "8"
+        );
 
         logger.info("--> query 6");
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
-        assertHitCount(searchResponse, 5L);
-        assertSearchHits(searchResponse, "3", "4", "6", "7", "8");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")),
+            "3",
+            "4",
+            "6",
+            "7",
+            "8"
+        );
 
         logger.info("--> query 7");
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo bar baz").field("body2").field("other").minimumShouldMatch("70%"))
-            .get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "6", "7", "8");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("foo bar baz").field("body2").field("other").minimumShouldMatch("70%")),
+            "6",
+            "7",
+            "8"
+        );
     }
 
     public void testNestedFieldSimpleQueryString() throws IOException {
@@ -211,21 +224,10 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("body", "foo bar baz").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
-
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body.sub")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")), "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body")), "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body.sub")), "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body.sub")), "1");
     }
 
     public void testSimpleQueryStringFlags() throws ExecutionException, InterruptedException {
@@ -240,50 +242,55 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("6").setSource("otherbody", "spaghetti")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo bar").flags(SimpleQueryStringFlag.ALL))
-            .get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "1", "2", "3");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").flags(SimpleQueryStringFlag.ALL)),
+            "1",
+            "2",
+            "3"
+        );
 
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo | bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.OR))
-            .get();
-        assertHitCount(searchResponse, 3L);
-        assertSearchHits(searchResponse, "1", "2", "3");
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("foo | bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.OR)),
+            "1",
+            "2",
+            "3"
+        );
 
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("foo | bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE))
-            .get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("3"));
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("foo | bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)),
+            "3"
+        );
 
-        searchResponse = client().prepareSearch()
-            .setQuery(simpleQueryStringQuery("baz | egg*").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(
+            client().prepareSearch()
+                .setQuery(simpleQueryStringQuery("baz | egg*").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)),
+            0L
+        );
 
-        searchResponse = client().prepareSearch()
-            .setSource(
-                new SearchSourceBuilder().query(
-                    QueryBuilders.simpleQueryStringQuery("foo|bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)
-                )
-            )
-            .get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(
+            client().prepareSearch()
+                .setSource(
+                    new SearchSourceBuilder().query(
+                        QueryBuilders.simpleQueryStringQuery("foo|bar").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.NONE)
+                    )
+                ),
+            1L
+        );
 
-        searchResponse = client().prepareSearch()
-            .setQuery(
-                simpleQueryStringQuery("quuz~1 + egg*").flags(
-                    SimpleQueryStringFlag.WHITESPACE,
-                    SimpleQueryStringFlag.AND,
-                    SimpleQueryStringFlag.FUZZY,
-                    SimpleQueryStringFlag.PREFIX
-                )
-            )
-            .get();
-        assertHitCount(searchResponse, 1L);
-        assertFirstHit(searchResponse, hasId("4"));
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch()
+                .setQuery(
+                    simpleQueryStringQuery("quuz~1 + egg*").flags(
+                        SimpleQueryStringFlag.WHITESPACE,
+                        SimpleQueryStringFlag.AND,
+                        SimpleQueryStringFlag.FUZZY,
+                        SimpleQueryStringFlag.PREFIX
+                    )
+                ),
+            "4"
+        );
     }
 
     public void testSimpleQueryStringLenient() throws ExecutionException, InterruptedException {
@@ -303,10 +310,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
         assertSearchHits(searchResponse, "1");
 
-        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field").lenient(true)).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("foo").field("field").lenient(true)), "1");
     }
 
     // Issue #7967
@@ -318,12 +322,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         );
 
         BoolQueryBuilder q = boolQuery().should(simpleQueryStringQuery("bar").field("num").field("body").lenient(true));
-        SearchResponse resp = client().prepareSearch("test").setQuery(q).get();
-        assertNoFailures(resp);
         // the bug is that this would be parsed into basically a match_all
         // query and this would match both documents
-        assertHitCount(resp, 1);
-        assertSearchHits(resp, "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch("test").setQuery(q), "1");
     }
 
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
@@ -339,37 +340,26 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("location", "Köln"));
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("Köln*").field("location")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("Köln*").field("location")), "1");
     }
 
     public void testSimpleQueryStringUsesFieldAnalyzer() throws Exception {
         client().prepareIndex("test").setId("1").setSource("foo", 123, "bar", "abc").get();
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
-
         refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("123").field("foo").field("bar")).get();
-        assertHitCount(searchResponse, 1L);
-        assertSearchHits(searchResponse, "1");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("123").field("foo").field("bar")), "1");
     }
 
     public void testSimpleQueryStringOnIndexMetaField() throws Exception {
         client().prepareIndex("test").setId("1").setSource("foo", 123, "bar", "abc").get();
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
-
         refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")), "1", "2");
     }
 
     public void testEmptySimpleQueryStringWithAnalysis() throws Exception {
@@ -386,14 +376,12 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .endObject()
         );
 
-        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test1").setMapping(mapping);
+        CreateIndexRequestBuilder mappingRequest = indicesAdmin().prepareCreate("test1").setMapping(mapping);
         mappingRequest.get();
         indexRandom(true, client().prepareIndex("test1").setId("1").setSource("body", "Some Text"));
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("the*").field("body")).get();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 0L);
+        assertSearchHitsWithoutFailures(client().prepareSearch().setQuery(simpleQueryStringQuery("the*").field("body")));
     }
 
     public void testBasicAllQuery() throws Exception {

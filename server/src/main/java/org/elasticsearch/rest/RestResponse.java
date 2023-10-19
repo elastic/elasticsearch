@@ -16,6 +16,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -79,8 +80,16 @@ public class RestResponse {
         this(status, responseMediaType, content, null);
     }
 
-    public RestResponse(RestStatus status, ChunkedRestResponseBody content) {
-        this(status, content.getResponseContentTypeString(), null, content);
+    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content) {
+        if (content.isDone()) {
+            return new RestResponse(
+                restStatus,
+                content.getResponseContentTypeString(),
+                new ReleasableBytesReference(BytesArray.EMPTY, content)
+            );
+        } else {
+            return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content);
+        }
     }
 
     /**
@@ -103,6 +112,7 @@ public class RestResponse {
         this(channel, ExceptionsHelper.status(e), e);
     }
 
+    @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
         ToXContent.Params params = paramsFromRequest(channel.request());
@@ -110,9 +120,10 @@ public class RestResponse {
             // log exception only if it is not returned in the response
             Supplier<?> messageSupplier = () -> String.format(
                 Locale.ROOT,
-                "path: %s, params: %s",
+                "path: %s, params: %s, status: %d",
                 channel.request().rawPath(),
-                channel.request().params()
+                channel.request().params(),
+                status.getStatus()
             );
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
@@ -155,7 +166,7 @@ public class RestResponse {
 
     private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
         ToXContent.Params params = restRequest;
-        if (params.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
+        if (restRequest.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;

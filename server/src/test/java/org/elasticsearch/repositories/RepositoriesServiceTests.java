@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -38,6 +39,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -73,7 +75,7 @@ public class RepositoriesServiceTests extends ESTestCase {
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(), boundAddress.publishAddress()),
             null,
             Collections.emptySet()
         );
@@ -253,6 +255,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         );
     }
 
+    public void testRepositoriesThrottlingStats() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
+        RepositoriesStats throttlingStats = repositoriesService.getRepositoriesThrottlingStats();
+        assertTrue(throttlingStats.getRepositoryThrottlingStats().containsKey(repoName));
+        assertNotNull(throttlingStats.getRepositoryThrottlingStats().get(repoName));
+    }
+
     // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from
     // master. When current node become master node later and same repository is put again, current node can create repository successfully
     // and replace previous InvalidRepository
@@ -348,8 +359,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
-            long repositoryStateId,
-            Version repositoryMetaVersion,
+            long repositoryDataGeneration,
+            IndexVersion minimumNodeVersion,
             SnapshotDeleteListener listener
         ) {
             listener.onFailure(new UnsupportedOperationException());
@@ -471,7 +482,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-a")
+                Map.of("bucket", "bucket-a"),
+                Meter.NOOP
             );
         }
 
@@ -498,7 +510,8 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-b")
+                Map.of("bucket", "bucket-b"),
+                Meter.NOOP
             );
         }
 

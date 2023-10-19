@@ -214,7 +214,7 @@ public class LinearizabilityChecker {
      * @param missingResponseGenerator used to complete the history with missing responses
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+    public static boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
         return isLinearizable(spec, history, missingResponseGenerator, () -> false);
     }
 
@@ -227,7 +227,7 @@ public class LinearizabilityChecker {
      * @param terminateEarly a condition upon which to terminate early
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(
+    public static boolean isLinearizable(
         SequentialSpec spec,
         History history,
         Function<Object, Object> missingResponseGenerator,
@@ -239,7 +239,7 @@ public class LinearizabilityChecker {
         return partitions.stream().allMatch(h -> isLinearizable(spec, h, terminateEarly));
     }
 
-    private boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
+    private static boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
         logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
@@ -290,7 +290,7 @@ public class LinearizabilityChecker {
     /**
      * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
-    public boolean isLinearizable(SequentialSpec spec, History history) {
+    public static boolean isLinearizable(SequentialSpec spec, History history) {
         return isLinearizable(spec, history, o -> { throw new IllegalArgumentException("history is not complete"); });
     }
 

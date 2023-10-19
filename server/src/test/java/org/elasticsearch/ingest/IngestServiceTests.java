@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -32,12 +31,12 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -50,8 +49,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -63,6 +64,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
@@ -88,10 +90,12 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.IngestService.NOOP_PIPELINE_NAME;
 import static org.elasticsearch.ingest.IngestService.hasPipeline;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -147,7 +151,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(DUMMY_PLUGIN),
             client,
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -166,7 +171,8 @@ public class IngestServiceTests extends ESTestCase {
                 null,
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client,
-                null
+                null,
+                () -> DocumentParsingObserver.EMPTY_INSTANCE
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -182,7 +188,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(DUMMY_PLUGIN),
             client,
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -310,6 +317,68 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.pipelines(), sameInstance(pipelines));
     }
 
+    public void testInnerUpdatePipelinesValidation() {
+        Map<String, Processor.Factory> processors = new HashMap<>();
+        processors.put("fail_validation", (factories, tag, description, config) -> {
+            // ordinary validation issues happen at processor construction time
+            throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
+        });
+        processors.put("fail_extra_validation", (factories, tag, description, config) -> {
+            // 'extra validation' issues happen post- processor construction time
+            return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
+                @Override
+                public void extraValidation() throws Exception {
+                    throw newConfigurationException("fail_extra_validation", tag, "no_property_name", "extra validation failure reason");
+                }
+            };
+        });
+
+        {
+            // a processor that fails ordinary validation (i.e. the processor factory throws an exception while constructing it)
+            // will result in a placeholder pipeline being substituted
+
+            IngestService ingestService = createWithProcessors(processors);
+            PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
+                {"processors": [{"fail_validation" : {}}]}"""), XContentType.JSON);
+            IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+            ClusterState previousClusterState = clusterState;
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+                .build();
+            ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+            Pipeline pipeline = ingestService.getPipeline("_id");
+            assertThat(
+                pipeline.getDescription(),
+                equalTo("this is a place holder pipeline, because pipeline with id [_id] could not be loaded")
+            );
+        }
+
+        {
+            // a processor that fails extra validation (i.e. an exception is throw from `extraValidation`)
+            // will be processed just fine -- extraValidation is for rest/transport validation, not for when
+            // a processor is being created from a processor factory
+
+            IngestService ingestService = createWithProcessors(processors);
+            PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
+                {"processors": [{"fail_extra_validation" : {}}]}"""), XContentType.JSON);
+            IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+            ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+            ClusterState previousClusterState = clusterState;
+            clusterState = ClusterState.builder(clusterState)
+                .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+                .build();
+            ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+            Pipeline pipeline = ingestService.getPipeline("_id");
+            assertThat(pipeline.getDescription(), nullValue());
+            assertThat(pipeline.getProcessors().size(), equalTo(1));
+            Processor processor = pipeline.getProcessors().get(0);
+            assertThat(processor.getType(), equalTo("fail_extra_validation"));
+        }
+    }
+
     public void testDelete() {
         IngestService ingestService = createWithProcessors();
         PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
@@ -350,7 +419,7 @@ public class IngestServiceTests extends ESTestCase {
         );
         assertEquals("Ingest info is empty", e.getMessage());
 
-        DiscoveryNode discoveryNode = TestDiscoveryNode.create("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("_node_id", buildNewFakeTransportAddress(), Map.of(), Set.of());
         IngestInfo ingestInfo = new IngestInfo(List.of(new ProcessorInfo("set")));
         ingestService.validatePipeline(Map.of(discoveryNode, ingestInfo), putRequest.getId(), pipelineConfig);
     }
@@ -364,7 +433,7 @@ public class IngestServiceTests extends ESTestCase {
             String indexName = "index" + i;
             defaultIndices.add(indexName);
             IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
-            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            Settings.Builder settingsBuilder = settings(IndexVersion.current());
             settingsBuilder.put(IndexSettings.DEFAULT_PIPELINE.getKey(), pipeline);
             builder.settings(settingsBuilder);
             IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
@@ -377,7 +446,7 @@ public class IngestServiceTests extends ESTestCase {
             String indexName = "index" + i;
             finalIndices.add(indexName);
             IndexMetadata.Builder builder = IndexMetadata.builder(indexName);
-            Settings.Builder settingsBuilder = settings(Version.CURRENT);
+            Settings.Builder settingsBuilder = settings(IndexVersion.current());
             settingsBuilder.put(IndexSettings.FINAL_PIPELINE.getKey(), pipeline);
             builder.settings(settingsBuilder);
             IndexMetadata indexMetadata = builder.settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
@@ -795,7 +864,7 @@ public class IngestServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             builder.put(
-                IndexMetadata.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
+                IndexMetadata.builder("test" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1).build(),
                 true
             );
         }
@@ -813,7 +882,7 @@ public class IngestServiceTests extends ESTestCase {
         {
             // delete pipeline which is in used of default_pipeline
             IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "_id"))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -830,7 +899,7 @@ public class IngestServiceTests extends ESTestCase {
         {
             // delete pipeline which is in used of final_pipeline
             IndexMetadata indexMetadata = IndexMetadata.builder("pipeline-index")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "_id"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "_id"))
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
@@ -888,7 +957,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipelines.get(1).getId(), equalTo("_id2"));
     }
 
-    public void testValidate() throws Exception {
+    public void testValidateProcessorTypeOnAllNodes() throws Exception {
         IngestService ingestService = createWithProcessors();
         PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
             {
@@ -910,8 +979,8 @@ public class IngestServiceTests extends ESTestCase {
             }"""), XContentType.JSON);
         var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
 
-        DiscoveryNode node1 = TestDiscoveryNode.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
-        DiscoveryNode node2 = TestDiscoveryNode.create("_node_id2", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("_node_id2", buildNewFakeTransportAddress(), Map.of(), Set.of());
         Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
         ingestInfos.put(node1, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"))));
@@ -927,6 +996,69 @@ public class IngestServiceTests extends ESTestCase {
         var pipelineConfig2 = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
         ingestInfos.put(node2, new IngestInfo(List.of(new ProcessorInfo("set"), new ProcessorInfo("remove"))));
         ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig2);
+    }
+
+    public void testValidateConfigurationExceptions() {
+        IngestService ingestService = createWithProcessors(Map.of("fail_validation", (factories, tag, description, config) -> {
+            // ordinary validation issues happen at processor construction time
+            throw newConfigurationException("fail_validation", tag, "no_property_name", "validation failure reason");
+        }));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "fail_validation": {
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+
+        // other validation actually consults this map, but this validation does not. however, it must not be empty.
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(List.of()));
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+        );
+        assertEquals("[no_property_name] validation failure reason", e.getMessage());
+        assertEquals("fail_validation", e.getMetadata("es.processor_type").get(0));
+    }
+
+    public void testValidateExtraValidationConfigurationExceptions() {
+        IngestService ingestService = createWithProcessors(Map.of("fail_extra_validation", (factories, tag, description, config) -> {
+            // 'extra validation' issues happen post- processor construction time
+            return new FakeProcessor("fail_extra_validation", tag, description, ingestDocument -> {}) {
+                @Override
+                public void extraValidation() throws Exception {
+                    throw newConfigurationException("fail_extra_validation", tag, "no_property_name", "extra validation failure reason");
+                }
+            };
+        }));
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {
+              "processors": [
+                {
+                  "fail_extra_validation": {
+                  }
+                }
+              ]
+            }"""), XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+
+        // other validation actually consults this map, but this validation does not. however, it must not be empty.
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(List.of()));
+
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> ingestService.validatePipeline(ingestInfos, putRequest.getId(), pipelineConfig)
+        );
+        assertEquals("[no_property_name] extra validation failure reason", e.getMessage());
+        assertEquals("fail_extra_validation", e.getMetadata("es.processor_type").get(0));
     }
 
     public void testExecuteIndexPipelineExistsButFailedParsing() {
@@ -1030,6 +1162,67 @@ public class IngestServiceTests extends ESTestCase {
             argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
+    }
+
+    public void testExecuteBulkRequestCallsDocumentParsingObserver() {
+        /*
+         * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentParsingObserver is
+         * called using a non-null index name.
+         */
+        AtomicInteger setNameCalledCount = new AtomicInteger(0);
+        AtomicInteger closeCalled = new AtomicInteger(0);
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier = () -> new DocumentParsingObserver() {
+            @Override
+            public XContentParser wrapParser(XContentParser xContentParser) {
+                return xContentParser;
+            }
+
+            @Override
+            public void setIndexName(String indexName) {
+                assertNotNull(indexName);
+                setNameCalledCount.incrementAndGet();
+            }
+
+            @Override
+            public void close() {
+                closeCalled.incrementAndGet();
+            }
+        };
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),
+            documentParsingObserverSupplier
+        );
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
+        updateRequest.upsertRequest().setPipeline("_id");
+        bulkRequest.add(updateRequest);
+        IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
+        bulkRequest.add(indexRequest);
+        @SuppressWarnings("unchecked")
+        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
+        @SuppressWarnings("unchecked")
+        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
+        ingestService.executeBulkRequest(
+            bulkRequest.numberOfActions(),
+            bulkRequest.requests(),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
+        assertThat(setNameCalledCount.get(), equalTo(2));
+        assertThat(closeCalled.get(), equalTo(2));
     }
 
     public void testExecuteSuccess() {
@@ -1380,9 +1573,13 @@ public class IngestServiceTests extends ESTestCase {
 
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
         int numRequest = scaledRandomIntBetween(8, 64);
+        List<Boolean> executedPipelinesExpected = new ArrayList<>();
         for (int i = 0; i < numRequest; i++) {
             IndexRequest indexRequest = new IndexRequest("_index").id("_id").setPipeline(pipelineId).setFinalPipeline("_none");
             indexRequest.source(xContentType, "field1", "value1");
+            boolean shouldListExecutedPiplines = randomBoolean();
+            executedPipelinesExpected.add(shouldListExecutedPiplines);
+            indexRequest.setListExecutedPipelines(shouldListExecutedPiplines);
             bulkRequest.add(indexRequest);
         }
 
@@ -1421,10 +1618,18 @@ public class IngestServiceTests extends ESTestCase {
 
         verify(requestItemErrorHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-        for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+        for (int i = 0; i < bulkRequest.requests().size(); i++) {
+            DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(i);
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(docWriteRequest);
             assertThat(indexRequest, notNullValue());
             assertThat(indexRequest.getContentType(), equalTo(xContentType.canonical()));
+            if (executedPipelinesExpected.get(i)) {
+                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of(pipelineId)));
+            } else if (indexRequest.getListExecutedPipelines()) {
+                assertThat(indexRequest.getExecutedPipelines(), equalTo(List.of()));
+            } else {
+                assertThat(indexRequest.getExecutedPipelines(), nullValue());
+            }
         }
     }
 
@@ -1464,8 +1669,8 @@ public class IngestServiceTests extends ESTestCase {
         {
             // all zeroes since nothing has executed
             final IngestStats ingestStats = ingestService.stats();
-            assertThat(ingestStats.getPipelineStats().size(), equalTo(0));
-            assertStats(ingestStats.getTotalStats(), 0, 0, 0);
+            assertThat(ingestStats.pipelineStats().size(), equalTo(0));
+            assertStats(ingestStats.totalStats(), 0, 0, 0);
         }
 
         // put some pipelines, and now there are pipeline and processor stats, too
@@ -1497,14 +1702,14 @@ public class IngestServiceTests extends ESTestCase {
 
         {
             final IngestStats ingestStats = ingestService.stats();
-            assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
+            assertThat(ingestStats.pipelineStats().size(), equalTo(3));
 
             // total
-            assertStats(ingestStats.getTotalStats(), 0, 0, 0);
+            assertStats(ingestStats.totalStats(), 0, 0, 0);
             // pipeline
-            assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 0, 0, 0);
-            assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 0, 0, 0);
-            assertPipelineStats(ingestStats.getPipelineStats(), "_id3", 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id1", 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id2", 0, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id3", 0, 0, 0);
             // processor
             assertProcessorStats(0, ingestStats, "_id1", 0, 0, 0);
             assertProcessorStats(0, ingestStats, "_id2", 0, 0, 0);
@@ -1519,14 +1724,14 @@ public class IngestServiceTests extends ESTestCase {
 
         {
             final IngestStats ingestStats = ingestService.stats();
-            assertThat(ingestStats.getPipelineStats().size(), equalTo(3));
+            assertThat(ingestStats.pipelineStats().size(), equalTo(3));
 
             // total
-            assertStats(ingestStats.getTotalStats(), 1, 0, 0);
+            assertStats(ingestStats.totalStats(), 1, 0, 0);
             // pipeline
-            assertPipelineStats(ingestStats.getPipelineStats(), "_id1", 1, 0, 0);
-            assertPipelineStats(ingestStats.getPipelineStats(), "_id2", 1, 0, 0);
-            assertPipelineStats(ingestStats.getPipelineStats(), "_id3", 1, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id1", 1, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id2", 1, 0, 0);
+            assertPipelineStats(ingestStats.pipelineStats(), "_id3", 1, 0, 0);
             // processor
             assertProcessorStats(0, ingestStats, "_id1", 1, 0, 0);
             assertProcessorStats(0, ingestStats, "_id2", 1, 0, 0);
@@ -1561,8 +1766,8 @@ public class IngestServiceTests extends ESTestCase {
         IngestService ingestService = createWithProcessors(map);
 
         final IngestStats initialStats = ingestService.stats();
-        assertThat(initialStats.getPipelineStats().size(), equalTo(0));
-        assertStats(initialStats.getTotalStats(), 0, 0, 0);
+        assertThat(initialStats.pipelineStats().size(), equalTo(0));
+        assertStats(initialStats.totalStats(), 0, 0, 0);
 
         PutPipelineRequest putRequest = new PutPipelineRequest(
             "_id1",
@@ -1588,16 +1793,16 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         final IngestStats afterFirstRequestStats = ingestService.stats();
-        assertThat(afterFirstRequestStats.getPipelineStats().size(), equalTo(2));
+        assertThat(afterFirstRequestStats.pipelineStats().size(), equalTo(2));
 
-        afterFirstRequestStats.getProcessorStats().get("_id1").forEach(p -> assertEquals(p.getName(), "mock:mockTag"));
-        afterFirstRequestStats.getProcessorStats().get("_id2").forEach(p -> assertEquals(p.getName(), "mock:mockTag"));
+        afterFirstRequestStats.processorStats().get("_id1").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
+        afterFirstRequestStats.processorStats().get("_id2").forEach(p -> assertEquals(p.name(), "mock:mockTag"));
 
         // total
-        assertStats(afterFirstRequestStats.getTotalStats(), 1, 0, 0);
+        assertStats(afterFirstRequestStats.totalStats(), 1, 0, 0);
         // pipeline
-        assertPipelineStats(afterFirstRequestStats.getPipelineStats(), "_id1", 1, 0, 0);
-        assertPipelineStats(afterFirstRequestStats.getPipelineStats(), "_id2", 0, 0, 0);
+        assertPipelineStats(afterFirstRequestStats.pipelineStats(), "_id1", 1, 0, 0);
+        assertPipelineStats(afterFirstRequestStats.pipelineStats(), "_id2", 0, 0, 0);
         // processor
         assertProcessorStats(0, afterFirstRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterFirstRequestStats, "_id2", 0, 0, 0);
@@ -1605,12 +1810,12 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.setPipeline("_id2");
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         final IngestStats afterSecondRequestStats = ingestService.stats();
-        assertThat(afterSecondRequestStats.getPipelineStats().size(), equalTo(2));
+        assertThat(afterSecondRequestStats.pipelineStats().size(), equalTo(2));
         // total
-        assertStats(afterSecondRequestStats.getTotalStats(), 2, 0, 0);
+        assertStats(afterSecondRequestStats.totalStats(), 2, 0, 0);
         // pipeline
-        assertPipelineStats(afterSecondRequestStats.getPipelineStats(), "_id1", 1, 0, 0);
-        assertPipelineStats(afterSecondRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
+        assertPipelineStats(afterSecondRequestStats.pipelineStats(), "_id1", 1, 0, 0);
+        assertPipelineStats(afterSecondRequestStats.pipelineStats(), "_id2", 1, 0, 0);
         // processor
         assertProcessorStats(0, afterSecondRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterSecondRequestStats, "_id2", 1, 0, 0);
@@ -1627,12 +1832,12 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.setPipeline("_id1");
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         final IngestStats afterThirdRequestStats = ingestService.stats();
-        assertThat(afterThirdRequestStats.getPipelineStats().size(), equalTo(2));
+        assertThat(afterThirdRequestStats.pipelineStats().size(), equalTo(2));
         // total
-        assertStats(afterThirdRequestStats.getTotalStats(), 3, 0, 0);
+        assertStats(afterThirdRequestStats.totalStats(), 3, 0, 0);
         // pipeline
-        assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id1", 2, 0, 0);
-        assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
+        assertPipelineStats(afterThirdRequestStats.pipelineStats(), "_id1", 2, 0, 0);
+        assertPipelineStats(afterThirdRequestStats.pipelineStats(), "_id2", 1, 0, 0);
         // The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
         // due to the parallel array's used to identify which metrics to carry forward. Without unique ids or semantic equals for each
         // processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
@@ -1650,12 +1855,12 @@ public class IngestServiceTests extends ESTestCase {
         indexRequest.setPipeline("_id1");
         ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
         final IngestStats afterForthRequestStats = ingestService.stats();
-        assertThat(afterForthRequestStats.getPipelineStats().size(), equalTo(2));
+        assertThat(afterForthRequestStats.pipelineStats().size(), equalTo(2));
         // total
-        assertStats(afterForthRequestStats.getTotalStats(), 4, 0, 0);
+        assertStats(afterForthRequestStats.totalStats(), 4, 0, 0);
         // pipeline
-        assertPipelineStats(afterForthRequestStats.getPipelineStats(), "_id1", 3, 0, 0);
-        assertPipelineStats(afterForthRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
+        assertPipelineStats(afterForthRequestStats.pipelineStats(), "_id1", 3, 0, 0);
+        assertPipelineStats(afterForthRequestStats.pipelineStats(), "_id2", 1, 0, 0);
         // processor
         assertProcessorStats(0, afterForthRequestStats, "_id1", 1, 1, 0); // not carried forward since type changed
         assertProcessorStats(1, afterForthRequestStats, "_id1", 2, 0, 0); // carried forward and added from old stats
@@ -1776,7 +1981,8 @@ public class IngestServiceTests extends ESTestCase {
             null,
             List.of(testPlugin),
             client,
-            null
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -1840,7 +2046,7 @@ public class IngestServiceTests extends ESTestCase {
                     tag,
                     description,
                     // just always set the timestamp field to 100
-                    (ingestDocument) -> ingestDocument.setFieldValue(TimestampField.FIXED_TIMESTAMP_FIELD, 100)
+                    (ingestDocument) -> ingestDocument.setFieldValue(DataStream.TIMESTAMP_FIELD_NAME, 100)
                 )
             )
         );
@@ -1874,7 +2080,7 @@ public class IngestServiceTests extends ESTestCase {
         IndexRequest indexRequest4 = new IndexRequest("idx").setPipeline("_id1").setFinalPipeline("_id2").source(doc1);
 
         // feed a document with a timestamp through four scenarios
-        Map<String, Object> doc2 = Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10);
+        Map<String, Object> doc2 = Map.of(DataStream.TIMESTAMP_FIELD_NAME, 10);
 
         // neither a request nor a final pipeline
         IndexRequest indexRequest5 = new IndexRequest("idx").setPipeline("_none").setFinalPipeline("_none").source(doc2);
@@ -1938,7 +2144,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
@@ -1961,7 +2167,7 @@ public class IngestServiceTests extends ESTestCase {
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
+            .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
         IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
@@ -1972,7 +2178,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testResolveFinalPipeline() {
         IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("alias").writeIndex(true).build());
@@ -1997,7 +2203,7 @@ public class IngestServiceTests extends ESTestCase {
         // index name matches with ITMD:
         IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
             .patterns(List.of("id*"))
-            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
+            .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"));
         metadata = Metadata.builder().put(templateBuilder).build();
         indexRequest = new IndexRequest("idx");
         IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
@@ -2011,7 +2217,7 @@ public class IngestServiceTests extends ESTestCase {
         final long epochMillis = randomLongBetween(1, System.currentTimeMillis());
         final DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
         IndexMetadata.Builder builder = IndexMetadata.builder("idx-" + dateFormatter.formatMillis(epochMillis))
-            .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+            .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
             .numberOfShards(1)
             .numberOfReplicas(0);
         Metadata metadata = Metadata.builder().put(builder).build();
@@ -2049,7 +2255,7 @@ public class IngestServiceTests extends ESTestCase {
         // request pipeline with default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2063,7 +2269,7 @@ public class IngestServiceTests extends ESTestCase {
         // request pipeline with final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2104,7 +2310,17 @@ public class IngestServiceTests extends ESTestCase {
         Client client = mock(Client.class);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of(DUMMY_PLUGIN), client, null);
+        IngestService ingestService = new IngestService(
+            clusterService,
+            threadPool,
+            null,
+            null,
+            null,
+            List.of(DUMMY_PLUGIN),
+            client,
+            null,
+            () -> DocumentParsingObserver.EMPTY_INSTANCE
+        );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -2267,7 +2483,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2281,7 +2497,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none default pipeline with request pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2295,7 +2511,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none request pipeline with default pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2309,7 +2525,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none request pipeline with final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), "final-pipeline"))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2324,7 +2540,7 @@ public class IngestServiceTests extends ESTestCase {
         // _none final pipeline:
         {
             IndexMetadata.Builder builder = IndexMetadata.builder("idx")
-                .settings(settings(Version.CURRENT).put(IndexSettings.FINAL_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.FINAL_PIPELINE.getKey(), NOOP_PIPELINE_NAME))
                 .numberOfShards(1)
                 .numberOfReplicas(0);
             Metadata metadata = Metadata.builder().put(builder).build();
@@ -2377,6 +2593,13 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
+        return createWithProcessors(processors, () -> DocumentParsingObserver.EMPTY_INSTANCE);
+    }
+
+    private static IngestService createWithProcessors(
+        Map<String, Processor.Factory> processors,
+        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -2386,7 +2609,7 @@ public class IngestServiceTests extends ESTestCase {
             public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
                 return processors;
             }
-        }), client, null);
+        }), client, null, documentParsingObserverSupplier);
     }
 
     private CompoundProcessor mockCompoundProcessor() {
@@ -2422,7 +2645,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private void assertProcessorStats(int processor, IngestStats stats, String pipelineId, long count, long failed, long time) {
-        assertStats(stats.getProcessorStats().get(pipelineId).get(processor).getStats(), count, failed, time);
+        assertStats(stats.processorStats().get(pipelineId).get(processor).stats(), count, failed, time);
     }
 
     private void assertPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String pipelineId, long count, long failed, long time) {
@@ -2430,14 +2653,14 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private void assertStats(IngestStats.Stats stats, long count, long failed, long time) {
-        assertThat(stats.getIngestCount(), equalTo(count));
-        assertThat(stats.getIngestCurrent(), equalTo(0L));
-        assertThat(stats.getIngestFailedCount(), equalTo(failed));
-        assertThat(stats.getIngestTimeInMillis(), greaterThanOrEqualTo(time));
+        assertThat(stats.ingestCount(), equalTo(count));
+        assertThat(stats.ingestCurrent(), equalTo(0L));
+        assertThat(stats.ingestFailedCount(), equalTo(failed));
+        assertThat(stats.ingestTimeInMillis(), greaterThanOrEqualTo(time));
     }
 
     private IngestStats.Stats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
-        return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+        return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().map(p2 -> p2.stats()).orElse(null);
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {

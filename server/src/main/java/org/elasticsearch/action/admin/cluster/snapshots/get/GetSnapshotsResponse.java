@@ -92,9 +92,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
     }
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
-        this.snapshots = in.readImmutableList(SnapshotInfo::readFrom);
+        this.snapshots = in.readCollectionAsImmutableList(SnapshotInfo::readFrom);
         if (in.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
+            final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readException);
             this.failures = Collections.unmodifiableMap(failedResponses);
             this.next = in.readOptionalString();
         } else {
@@ -148,9 +148,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(snapshots);
+        out.writeCollection(snapshots);
         if (out.getTransportVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
+            out.writeMap(failures, StreamOutput::writeException);
             out.writeOptionalString(next);
         } else {
             if (failures.isEmpty() == false) {
@@ -170,35 +170,32 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             b.startObject();
             b.startArray("snapshots");
             return b;
-        }),
-            getSnapshots().stream().map(snapshotInfo -> (ToXContent) snapshotInfo::toXContentExternal).iterator(),
-            Iterators.single((b, p) -> {
-                b.endArray();
-                if (failures.isEmpty() == false) {
-                    b.startObject("failures");
-                    for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
-                        b.field(error.getKey(), (bb, pa) -> {
-                            bb.startObject();
-                            error.getValue().toXContent(bb, pa);
-                            bb.endObject();
-                            return bb;
-                        });
-                    }
-                    b.endObject();
-                }
-                if (next != null) {
-                    b.field("next", next);
-                }
-                if (total >= 0) {
-                    b.field("total", total);
-                }
-                if (remaining >= 0) {
-                    b.field("remaining", remaining);
+        }), Iterators.map(getSnapshots().iterator(), snapshotInfo -> snapshotInfo::toXContentExternal), Iterators.single((b, p) -> {
+            b.endArray();
+            if (failures.isEmpty() == false) {
+                b.startObject("failures");
+                for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
+                    b.field(error.getKey(), (bb, pa) -> {
+                        bb.startObject();
+                        error.getValue().toXContent(bb, pa);
+                        bb.endObject();
+                        return bb;
+                    });
                 }
                 b.endObject();
-                return b;
-            })
-        );
+            }
+            if (next != null) {
+                b.field("next", next);
+            }
+            if (total >= 0) {
+                b.field("total", total);
+            }
+            if (remaining >= 0) {
+                b.field("remaining", remaining);
+            }
+            b.endObject();
+            return b;
+        }));
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {

@@ -334,9 +334,9 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             );
 
             if (randomBoolean()) {
-                assertAcked(client().admin().indices().prepareDelete(INDEX_NAME));
+                assertAcked(indicesAdmin().prepareDelete(INDEX_NAME));
             } else {
-                assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+                assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
                 ensureGreen(INDEX_NAME);
             }
 
@@ -595,7 +595,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
 
-            assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+            assertAcked(indicesAdmin().prepareClose(INDEX_NAME));
             ensureGreen(INDEX_NAME);
             assertEngineTypes();
         } finally {
@@ -700,7 +700,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 });
             }
 
-            RefreshResponse response = client().admin().indices().prepareRefresh(INDEX_NAME).execute().actionGet();
+            RefreshResponse response = indicesAdmin().prepareRefresh(INDEX_NAME).execute().actionGet();
             assertThat(
                 "each unpromotable replica shard should be added to the shard failures",
                 response.getFailedShards(),

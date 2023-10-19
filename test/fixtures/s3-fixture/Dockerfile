@@ -1,7 +1,4 @@
-FROM ubuntu:20.04
-
-RUN apt-get update -qqy
-RUN apt-get install -qqy openjdk-17-jre-headless
+FROM openjdk:17.0.2
 
 ARG fixtureClass
 ARG port

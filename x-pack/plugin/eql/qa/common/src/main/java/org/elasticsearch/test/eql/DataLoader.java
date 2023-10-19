@@ -17,6 +17,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -58,6 +59,7 @@ public class DataLoader {
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
     public static final String TEST_SAMPLE = "sample1,sample2,sample3";
+    public static final String TEST_MISSING_EVENTS_INDEX = "missing-events";
     public static final String TEST_SAMPLE_MULTI = "sample-multi";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
@@ -103,6 +105,10 @@ public class DataLoader {
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
         load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
         load(client, TEST_SAMPLE, null, null, p);
+        //
+        // missing_events index
+        //
+        load(client, TEST_MISSING_EVENTS_INDEX, null, null, p);
         load(client, TEST_SAMPLE_MULTI, null, null, p);
     }
 
@@ -131,7 +137,13 @@ public class DataLoader {
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
-        ESRestTestCase.createIndex(client.getLowLevelClient(), indexName, null, mapping, null);
+        ESRestTestCase.createIndex(
+            client.getLowLevelClient(),
+            indexName,
+            Settings.builder().put("number_of_shards", 1).build(),
+            mapping,
+            null
+        );
     }
 
     /**

@@ -20,7 +20,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class SqlActionIT extends AbstractSqlIntegTestCase {
 
     public void testSqlAction() {
-        assertAcked(client().admin().indices().prepareCreate("test").get());
+        assertAcked(indicesAdmin().prepareCreate("test").get());
         client().prepareBulk()
             .add(new IndexRequest("test").id("1").source("data", "bar", "count", 42))
             .add(new IndexRequest("test").id("2").source("data", "baz", "count", 43))

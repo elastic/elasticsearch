@@ -58,6 +58,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param subAggregatorCardinality Upper bound of the number of buckets that sub aggregations will collect
      * @param metadata              The metadata associated with this aggregator
      */
+    @SuppressWarnings("this-escape")
     protected AggregatorBase(
         String name,
         AggregatorFactories factories,
@@ -271,6 +272,15 @@ public abstract class AggregatorBase extends Aggregator {
             }
         }
         return subAggregatorbyName.get(aggName);
+    }
+
+    @Override
+    public void releaseAggregations() {
+        // release sub aggregations
+        Arrays.stream(subAggregators).forEach(Aggregator::releaseAggregations);
+        // release this aggregation
+        close();
+        context.removeReleasable(this);
     }
 
     /**

@@ -116,7 +116,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
         }
 
         Response(StreamInput in) throws IOException {
-            jobs = in.readImmutableMap(StreamInput::readString, RollableIndexCaps::new);
+            jobs = in.readImmutableMap(RollableIndexCaps::new);
         }
 
         public Map<String, RollableIndexCaps> getJobs() {
@@ -125,7 +125,7 @@ public class GetRollupCapsAction extends ActionType<GetRollupCapsAction.Response
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(jobs, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(jobs, StreamOutput::writeWriteable);
         }
 
         @Override

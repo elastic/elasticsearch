@@ -88,15 +88,11 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("headers", "application/json")).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(client().prepareSearch().setQuery(matchQuery("headers", "application/json")), 1L);
 
         // Check that queries are split on whitespace.
-        searchResponse = client().prepareSearch().setQuery(matchQuery("headers.content-type", "application/json text/plain")).get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(matchQuery("headers.origin", "application/json")).get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(client().prepareSearch().setQuery(matchQuery("headers.content-type", "application/json text/plain")), 1L);
+        assertHitCount(client().prepareSearch().setQuery(matchQuery("headers.origin", "application/json")), 0L);
     }
 
     public void testMultiMatchQuery() throws Exception {
@@ -114,19 +110,10 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(multiMatchQuery("application/json", "headers")).get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("application/json text/plain", "headers.content-type")).get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(multiMatchQuery("application/json", "headers.origin")).get();
-        assertHitCount(searchResponse, 0L);
-
-        searchResponse = client().prepareSearch()
-            .setQuery(multiMatchQuery("application/json", "headers.origin", "headers.contentType"))
-            .get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(client().prepareSearch().setQuery(multiMatchQuery("application/json", "headers")), 1L);
+        assertHitCount(client().prepareSearch().setQuery(multiMatchQuery("application/json text/plain", "headers.content-type")), 1L);
+        assertHitCount(client().prepareSearch().setQuery(multiMatchQuery("application/json", "headers.origin")), 0L);
+        assertHitCount(client().prepareSearch().setQuery(multiMatchQuery("application/json", "headers.origin", "headers.contentType")), 0L);
     }
 
     public void testQueryStringQuery() throws Exception {
@@ -199,17 +186,11 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(existsQuery("headers")).get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(existsQuery("headers.content-type")).get();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(existsQuery("headers.nonexistent")).get();
-        assertHitCount(searchResponse, 0L);
+        assertHitCount(client().prepareSearch().setQuery(existsQuery("headers")), 1L);
+        assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.content-type")), 1L);
+        assertHitCount(client().prepareSearch().setQuery(existsQuery("headers.nonexistent")), 0L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86115")
     public void testCardinalityAggregation() throws IOException {
         int numDocs = randomIntBetween(2, 100);
         int precisionThreshold = randomIntBetween(0, 1 << randomInt(20));

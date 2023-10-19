@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,8 +29,6 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS;
-
 /**
  * Response for a {@link GetUserPrivilegesRequest}
  */
@@ -44,15 +43,15 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     public GetUserPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
-        cluster = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        configurableClusterPrivileges = Collections.unmodifiableSet(in.readSet(ConfigurableClusterPrivileges.READER));
-        index = Collections.unmodifiableSet(in.readSet(Indices::new));
-        application = Collections.unmodifiableSet(in.readSet(RoleDescriptor.ApplicationResourcePrivileges::new));
-        runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        if (in.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
-            remoteIndex = Collections.unmodifiableSet(in.readSet(RemoteIndices::new));
+        cluster = in.readCollectionAsImmutableSet(StreamInput::readString);
+        configurableClusterPrivileges = in.readCollectionAsImmutableSet(ConfigurableClusterPrivileges.READER);
+        index = in.readCollectionAsImmutableSet(Indices::new);
+        application = in.readCollectionAsImmutableSet(RoleDescriptor.ApplicationResourcePrivileges::new);
+        runAs = in.readCollectionAsImmutableSet(StreamInput::readString);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            remoteIndex = in.readCollectionAsImmutableSet(RemoteIndices::new);
         } else {
-            remoteIndex = Collections.emptySet();
+            remoteIndex = Set.of();
         }
     }
 
@@ -102,17 +101,17 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(cluster, StreamOutput::writeString);
+        out.writeStringCollection(cluster);
         out.writeCollection(configurableClusterPrivileges, ConfigurableClusterPrivileges.WRITER);
         out.writeCollection(index);
         out.writeCollection(application);
-        out.writeCollection(runAs, StreamOutput::writeString);
-        if (out.getTransportVersion().onOrAfter(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS)) {
+        out.writeStringCollection(runAs);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeCollection(remoteIndex);
         } else if (hasRemoteIndicesPrivileges()) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY_CCS
+                    + TransportVersions.V_8_8_0
                     + "] can't handle remote indices privileges and attempted to send to ["
                     + out.getTransportVersion()
                     + "]"
@@ -145,7 +144,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     public record RemoteIndices(Indices indices, Set<String> remoteClusters) implements ToXContentObject, Writeable {
 
         public RemoteIndices(StreamInput in) throws IOException {
-            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString))));
+            this(new Indices(in), Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString))));
         }
 
         @Override
@@ -191,14 +190,14 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         public Indices(StreamInput in) throws IOException {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
-            indices = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readSet(StreamInput::readString)));
-            fieldSecurity = Collections.unmodifiableSet(in.readSet(input -> {
+            indices = Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString)));
+            privileges = Collections.unmodifiableSet(new TreeSet<>(in.readCollectionAsSet(StreamInput::readString)));
+            fieldSecurity = in.readCollectionAsImmutableSet(input -> {
                 final String[] grant = input.readOptionalStringArray();
                 final String[] exclude = input.readOptionalStringArray();
                 return new FieldPermissionsDefinition.FieldGrantExcludeGroup(grant, exclude);
-            }));
-            queries = Collections.unmodifiableSet(in.readSet(StreamInput::readBytesReference));
+            });
+            queries = in.readCollectionAsImmutableSet(StreamInput::readBytesReference);
             this.allowRestrictedIndices = in.readBoolean();
         }
 
@@ -306,8 +305,8 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(indices, StreamOutput::writeString);
-            out.writeCollection(privileges, StreamOutput::writeString);
+            out.writeStringCollection(indices);
+            out.writeStringCollection(privileges);
             out.writeCollection(fieldSecurity, (output, fields) -> {
                 output.writeOptionalStringArray(fields.getGrantedFields());
                 output.writeOptionalStringArray(fields.getExcludedFields());

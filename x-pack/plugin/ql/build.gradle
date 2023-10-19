@@ -8,7 +8,9 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-ql'
+base {
+  archivesName = 'x-pack-ql'
+}
 
 dependencies {
   api "org.antlr:antlr4-runtime:${versions.antlr4}"

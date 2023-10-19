@@ -360,9 +360,8 @@ public final class PainlessLookup {
                         if (painlessObject != null) {
                             return painlessObject;
                         }
-
-                        targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                     }
+                    targetInterfaces.addAll(Arrays.asList(targetInterface.getInterfaces()));
                 }
             }
 

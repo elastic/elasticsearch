@@ -1,0 +1,12 @@
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+first | rest | result
+boolean | boolean | boolean
+double | double | double
+integer | integer | integer
+ip | ip | ip
+keyword | keyword | keyword
+long | long | long
+text | text | text
+version | version | version
+|===

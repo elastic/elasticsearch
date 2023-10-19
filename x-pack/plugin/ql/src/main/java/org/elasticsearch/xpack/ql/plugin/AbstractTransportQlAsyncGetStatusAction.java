@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,6 +42,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<
     private final Class<? extends AsyncTask> asyncTaskClass;
     private final AsyncTaskIndexService<StoredAsyncResponse<Response>> store;
 
+    @SuppressWarnings("this-escape")
     public AbstractTransportQlAsyncGetStatusAction(
         String actionName,
         TransportService transportService,
@@ -52,7 +54,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<
         BigArrays bigArrays,
         Class<? extends AsyncTask> asyncTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new);
+        super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.actionName = actionName;
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -89,7 +91,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<
                 node,
                 actionName,
                 request,
-                new ActionListenerResponseHandler<>(listener, QlStatusResponse::new, ThreadPool.Names.SAME)
+                new ActionListenerResponseHandler<>(listener, QlStatusResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

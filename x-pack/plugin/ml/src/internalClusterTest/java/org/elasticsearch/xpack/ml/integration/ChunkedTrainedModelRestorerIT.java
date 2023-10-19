@@ -123,9 +123,7 @@ public class ChunkedTrainedModelRestorerIT extends MlSingleNodeTestCase {
         String index2 = "foo-2";
 
         for (String index : new String[] { index1, index2 }) {
-            client().admin()
-                .indices()
-                .prepareCreate(index)
+            indicesAdmin().prepareCreate(index)
                 .setMapping(
                     TrainedModelDefinitionDoc.DEFINITION.getPreferredName(),
                     "type=binary",

@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
@@ -41,19 +42,14 @@ public class TransportHandshakerTests extends ESTestCase {
         String nodeId = "node-id";
         channel = mock(TcpChannel.class);
         requestSender = mock(TransportHandshaker.HandshakeRequestSender.class);
-        node = new DiscoveryNode(
-            nodeId,
-            nodeId,
-            nodeId,
-            "host",
-            "host_address",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Collections.emptySet(),
-            Version.CURRENT
-        );
+        node = DiscoveryNodeUtils.builder(nodeId)
+            .name(nodeId)
+            .ephemeralId(nodeId)
+            .address("host", "host_address", buildNewFakeTransportAddress())
+            .roles(Collections.emptySet())
+            .build();
         threadPool = new TestThreadPool("thread-poll");
-        handshaker = new TransportHandshaker(TransportVersion.CURRENT, threadPool, requestSender, false);
+        handshaker = new TransportHandshaker(TransportVersion.current(), threadPool, requestSender, false);
     }
 
     @Override
@@ -71,7 +67,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.CURRENT);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.current());
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         handshakeRequest.writeTo(bytesStreamOutput);
         StreamInput input = bytesStreamOutput.bytes().streamInput();
@@ -83,7 +79,7 @@ public class TransportHandshakerTests extends ESTestCase {
         handler.handleResponse((TransportHandshaker.HandshakeResponse) responseFuture.actionGet());
 
         assertTrue(versionFuture.isDone());
-        assertEquals(TransportVersion.CURRENT, versionFuture.actionGet());
+        assertEquals(TransportVersion.current(), versionFuture.actionGet());
     }
 
     public void testHandshakeRequestFutureVersionsCompatibility() throws IOException {
@@ -92,7 +88,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         verify(requestSender).sendRequest(node, channel, reqId, TransportHandshaker.REQUEST_HANDSHAKE_VERSION);
 
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.CURRENT);
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(TransportVersion.current());
         BytesStreamOutput currentHandshakeBytes = new BytesStreamOutput();
         handshakeRequest.writeTo(currentHandshakeBytes);
 
@@ -118,7 +114,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
         TransportHandshaker.HandshakeResponse response = (TransportHandshaker.HandshakeResponse) responseFuture.actionGet();
 
-        assertEquals(TransportVersion.CURRENT, response.getResponseVersion());
+        assertEquals(TransportVersion.current(), response.getResponseVersion());
     }
 
     public void testHandshakeError() throws IOException {

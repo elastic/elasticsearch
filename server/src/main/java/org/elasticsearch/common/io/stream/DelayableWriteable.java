@@ -103,12 +103,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public Serialized<T> asSerialized(Reader<T> reader, NamedWriteableRegistry registry) {
             BytesStreamOutput buffer;
             try {
-                buffer = writeToBuffer(TransportVersion.CURRENT);
+                buffer = writeToBuffer(TransportVersion.current());
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
             // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
-            return new Serialized<>(reader, TransportVersion.CURRENT, registry, ReleasableBytesReference.wrap(buffer.bytes()));
+            return new Serialized<>(reader, TransportVersion.current(), registry, ReleasableBytesReference.wrap(buffer.bytes()));
         }
 
         @Override
@@ -214,7 +214,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     public static long getSerializedSize(Writeable ref) {
         try (CountingStreamOutput out = new CountingStreamOutput()) {
-            out.setTransportVersion(TransportVersion.CURRENT);
+            out.setTransportVersion(TransportVersion.current());
             ref.writeTo(out);
             return out.size;
         } catch (IOException exc) {

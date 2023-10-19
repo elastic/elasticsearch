@@ -64,7 +64,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // both values should collate to same value
         indexRandom(
@@ -105,7 +105,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         // everything should be indexed fine, no exceptions
         indexRandom(
@@ -169,7 +169,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -214,7 +214,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -259,7 +259,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -304,7 +304,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -345,7 +345,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
             {"collate":"foobar-10"}""", XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
@@ -382,7 +382,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
             {"id":"1","collate":"résumé"}""", XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
@@ -418,7 +418,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,
@@ -466,7 +466,7 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
+        assertAcked(indicesAdmin().prepareCreate(index).setMapping(builder));
 
         indexRandom(
             true,

@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -64,15 +64,18 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
+import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.IngestProcessorException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestResponseTests;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.TooManyScrollContextsException;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.UnsupportedAggregationOnDownsampledIndex;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -171,10 +174,10 @@ public class ExceptionSerializationTests extends ESTestCase {
                 if (isEsException(clazz) == false) {
                     return;
                 }
-                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.CURRENT) == false
+                if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.current()) == false
                     && ElasticsearchException.class.equals(clazz.getEnclosingClass()) == false) {
                     notRegistered.add(clazz);
-                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.CURRENT)) {
+                } else if (ElasticsearchException.isRegistered(clazz.asSubclass(Throwable.class), TransportVersion.current())) {
                     registered.add(clazz);
                     try {
                         if (clazz.getMethod("writeTo", StreamOutput.class) != null) {
@@ -354,7 +357,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         TransportVersion version = TransportVersionUtils.randomVersion(random());
         SearchContextMissingException ex = serialize(new SearchContextMissingException(contextId), version);
         assertThat(ex.contextId().getId(), equalTo(contextId.getId()));
-        if (version.onOrAfter(TransportVersion.V_7_7_0)) {
+        if (version.onOrAfter(TransportVersions.V_7_7_0)) {
             assertThat(ex.contextId().getSessionId(), equalTo(contextId.getSessionId()));
         } else {
             assertThat(ex.contextId().getSessionId(), equalTo(""));
@@ -364,7 +367,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     public void testCircuitBreakingException() throws IOException {
         CircuitBreakingException ex = serialize(
             new CircuitBreakingException("Too large", 0, 100, CircuitBreaker.Durability.TRANSIENT),
-            TransportVersion.V_7_0_0
+            TransportVersions.V_7_0_0
         );
         assertEquals("Too large", ex.getMessage());
         assertEquals(100, ex.getByteLimit());
@@ -406,7 +409,7 @@ public class ExceptionSerializationTests extends ESTestCase {
 
     public void testConnectTransportException() throws IOException {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
-        DiscoveryNode node = TestDiscoveryNode.create("thenode", transportAddress, emptyMap(), emptySet());
+        DiscoveryNode node = DiscoveryNodeUtils.create("thenode", transportAddress, emptyMap(), emptySet());
         ConnectTransportException ex = serialize(new ConnectTransportException(node, "msg", "action", null));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertNull(ex.getCause());
@@ -829,6 +832,10 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(167, UnsupportedAggregationOnDownsampledIndex.class);
         ids.put(168, DocumentParsingException.class);
         ids.put(169, HttpHeadersValidationException.class);
+        ids.put(170, ElasticsearchRoleRestrictionException.class);
+        ids.put(171, ApiNotAvailableException.class);
+        ids.put(172, RecoveryCommitTooNewException.class);
+        ids.put(173, TooManyScrollContextsException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

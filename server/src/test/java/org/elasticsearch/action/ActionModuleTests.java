@@ -8,8 +8,7 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.main.MainAction;
-import org.elasticsearch.action.main.TransportMainAction;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -23,16 +22,19 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
-import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestMainAction;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -56,7 +58,10 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(MainAction.INSTANCE.name(), new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class))
+            hasEntry(
+                TransportNodesInfoAction.TYPE.name(),
+                new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class)
+            )
         );
     }
 
@@ -64,11 +69,11 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(MainAction.INSTANCE, TransportMainAction.class));
+                return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
-        assertEquals("action for name [" + MainAction.NAME + "] already registered", e.getMessage());
+        assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 
     public void testPluginCanRegisterAction() {
@@ -86,12 +91,7 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
         }
-        class FakeAction extends ActionType<ActionResponse> {
-            protected FakeAction() {
-                super("fake", null);
-            }
-        }
-        FakeAction action = new FakeAction();
+        final var action = new ActionType<>("fake", null);
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -121,7 +121,8 @@ public class ActionModuleTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
-            List.of()
+            List.of(),
+            RestExtension.allowAll()
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -133,11 +134,11 @@ public class ActionModuleTests extends ESTestCase {
 
                 @Override
                 public List<Route> routes() {
-                    return List.of(new Route(GET, "/"));
+                    return List.of(new Route(GET, "/_nodes"));
                 }
             })
         );
-        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
@@ -152,7 +153,7 @@ public class ActionModuleTests extends ESTestCase {
                 IndexNameExpressionResolver indexNameExpressionResolver,
                 Supplier<DiscoveryNodes> nodesInCluster
             ) {
-                return singletonList(new RestMainAction() {
+                return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
 
                     @Override
                     public String getName() {
@@ -180,10 +181,11 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
-                List.of()
+                List.of(),
+                RestExtension.allowAll()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
-            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
             threadPool.shutdown();
         }
@@ -232,7 +234,8 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
-                List.of()
+                List.of(),
+                RestExtension.allowAll()
             );
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -259,7 +262,7 @@ public class ActionModuleTests extends ESTestCase {
 
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
-        ActionPlugin secPlugin = new SecPlugin();
+        ActionPlugin secPlugin = new SecPlugin(true, false);
         try {
             UsageService usageService = new UsageService();
 
@@ -279,14 +282,54 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     mock(ClusterService.class),
-                    List.of()
+                    List.of(),
+                    RestExtension.allowAll()
                 )
             );
             assertThat(
                 e.getMessage(),
                 Matchers.equalTo(
                     "The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin tried to "
-                        + "install a custom REST interceptor. This functionality is not available anymore."
+                        + "install a custom REST interceptor. This functionality is not available to external plugins."
+                )
+            );
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void test3rdPartyRestControllerIsNotInstalled() {
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        ActionPlugin secPlugin = new SecPlugin(false, true);
+        try {
+            UsageService usageService = new UsageService();
+
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new ActionModule(
+                    settingsModule.getSettings(),
+                    TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                    settingsModule.getIndexScopedSettings(),
+                    settingsModule.getClusterSettings(),
+                    settingsModule.getSettingsFilter(),
+                    threadPool,
+                    Arrays.asList(secPlugin),
+                    null,
+                    null,
+                    usageService,
+                    null,
+                    null,
+                    mock(ClusterService.class),
+                    List.of(),
+                    RestExtension.allowAll()
+                )
+            );
+            assertThat(
+                e.getMessage(),
+                Matchers.equalTo(
+                    "The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin tried to install a custom REST controller."
+                        + " This functionality is not available to external plugins."
                 )
             );
         } finally {
@@ -304,10 +347,37 @@ public class ActionModuleTests extends ESTestCase {
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {}
     }
 
-    class SecPlugin implements ActionPlugin, RestInterceptorActionPlugin {
+    class SecPlugin implements ActionPlugin, RestServerActionPlugin {
+        private final boolean installInterceptor;
+        private final boolean installController;
+
+        SecPlugin(boolean installInterceptor, boolean installController) {
+            this.installInterceptor = installInterceptor;
+            this.installController = installController;
+        }
+
         @Override
         public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
-            return UnaryOperator.identity();
+            if (installInterceptor) {
+                return UnaryOperator.identity();
+            } else {
+                return null;
+            }
         }
-    };
+
+        @Override
+        public RestController getRestController(
+            UnaryOperator<RestHandler> handlerWrapper,
+            NodeClient client,
+            CircuitBreakerService circuitBreakerService,
+            UsageService usageService,
+            Tracer tracer
+        ) {
+            if (installController) {
+                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer);
+            } else {
+                return null;
+            }
+        }
+    }
 }

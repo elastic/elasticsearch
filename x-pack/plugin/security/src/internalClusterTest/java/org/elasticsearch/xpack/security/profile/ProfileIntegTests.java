@@ -834,6 +834,17 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         );
     }
 
+    public void testGetUsersWithProfileUidWhenProfileIndexDoesNotExists() {
+        final GetUsersRequest getUsersRequest = new GetUsersRequest();
+        getUsersRequest.setWithProfileUid(true);
+        if (randomBoolean()) {
+            getUsersRequest.usernames(ElasticUser.NAME, RAC_USER_NAME);
+        }
+        final GetUsersResponse getUsersResponse = client().execute(GetUsersAction.INSTANCE, getUsersRequest).actionGet();
+        // When profile index does not exist, profile lookup is null
+        assertThat(getUsersResponse.getProfileUidLookup(), nullValue());
+    }
+
     private SuggestProfilesResponse.ProfileHit[] doSuggest(String name) {
         return doSuggest(name, Set.of());
     }

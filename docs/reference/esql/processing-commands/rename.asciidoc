@@ -1,0 +1,27 @@
+[discrete]
+[[esql-rename]]
+=== `RENAME`
+
+Use `RENAME` to rename a column using the following syntax:
+
+[source,esql]
+----
+RENAME <old-name> AS <new-name>
+----
+
+For example:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=rename]
+----
+
+If a column with the new name already exists, it will be replaced by the new
+column.
+
+Multiple columns can be renamed with a single `RENAME` command:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=renameMultipleColumns]
+----

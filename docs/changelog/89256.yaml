@@ -1,6 +1,0 @@
-pr: 89256
-summary: Add `keyed` parameter to filters agg, allowing the user to get non-keyed buckets of named filters agg
-area: Aggregations
-type: enhancement
-issues:
-  - 83957

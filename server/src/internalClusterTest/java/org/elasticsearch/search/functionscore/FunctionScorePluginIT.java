@@ -10,6 +10,7 @@ package org.elasticsearch.search.functionscore;
 
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -50,9 +51,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
     }
 
     public void testPlugin() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -68,7 +67,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
                     .endObject()
             )
             .get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
+        clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().get();
 
         client().index(
             new IndexRequest("test").id("1")
@@ -139,7 +138,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
 
         private static final DecayFunction decayFunction = new LinearMultScoreFunction();

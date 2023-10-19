@@ -73,8 +73,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(client().prepareSearch(".watcher-history-*"), 1);
         });
     }
 
@@ -107,12 +106,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(client().prepareSearch(".watcher-history*").setSize(0), 1);
         });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
         XContentSource source = new XContentSource(
             response.getMappings().values().iterator().next().source().uncompressed(),
             XContentType.JSON
@@ -153,12 +151,11 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-            assertHitCount(searchResponse, 1);
+            assertHitCount(client().prepareSearch(".watcher-history*").setSize(0), 1);
         });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+        GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
         XContentSource source = new XContentSource(
             response.getMappings().values().iterator().next().source().uncompressed(),
             XContentType.JSON
@@ -221,7 +218,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             // also ensure that the status field is disabled in the watch history
-            GetMappingsResponse response = client().admin().indices().prepareGetMappings(".watcher-history*").get();
+            GetMappingsResponse response = indicesAdmin().prepareGetMappings(".watcher-history*").get();
             XContentSource mappingSource = new XContentSource(
                 response.getMappings().values().iterator().next().source().uncompressed(),
                 XContentType.JSON

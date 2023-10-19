@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Index-specific deprecation checks
@@ -32,8 +31,8 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
         // TODO: this check needs to be revised. It's trivially true right now.
-        Version currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
-        if (currentCompatibilityVersion.before(Version.V_7_0_0)) {
+        IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (currentCompatibilityVersion.before(IndexVersion.V_7_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 7.0",
@@ -212,7 +211,7 @@ public class IndexDeprecationChecks {
         );
 
         if (fields.size() > 0) {
-            String detailsMessageBeginning = fields.stream().collect(Collectors.joining(" "));
+            String detailsMessageBeginning = String.join(" ", fields);
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Date fields use deprecated camel case formats",

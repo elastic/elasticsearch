@@ -1,5 +1,0 @@
-pr: 94133
-summary: Porting watcher over to `BulkProcessor2`
-area: Watcher
-type: enhancement
-issues: []

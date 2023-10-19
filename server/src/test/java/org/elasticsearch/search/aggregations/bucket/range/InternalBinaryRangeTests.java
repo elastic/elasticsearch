@@ -91,7 +91,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         for (Range.Bucket bucket : reduced.getBuckets()) {
             int expectedCount = 0;
             for (InternalBinaryRange input : inputs) {
-                expectedCount += input.getBuckets().get(pos).getDocCount();
+                expectedCount += (int) input.getBuckets().get(pos).getDocCount();
             }
             assertEquals(expectedCount, bucket.getDocCount());
             pos++;

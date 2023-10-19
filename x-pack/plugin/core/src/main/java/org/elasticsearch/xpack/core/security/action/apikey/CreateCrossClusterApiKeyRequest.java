@@ -41,7 +41,7 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         super(in);
         this.name = in.readString();
         this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readImmutableList(RoleDescriptor::new);
+        this.roleDescriptors = in.readCollectionAsImmutableList(RoleDescriptor::new);
         this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
         this.metadata = in.readMap();
     }
@@ -73,7 +73,7 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         out.writeString(id);
         out.writeString(name);
         out.writeOptionalTimeValue(expiration);
-        out.writeList(roleDescriptors);
+        out.writeCollection(roleDescriptors);
         refreshPolicy.writeTo(out);
         out.writeGenericMap(metadata);
     }
@@ -94,5 +94,9 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
     @Override
     public int hashCode() {
         return Objects.hash(id, name, expiration, metadata, roleDescriptors, refreshPolicy);
+    }
+
+    public static CreateCrossClusterApiKeyRequest withNameAndAccess(String name, String access) throws IOException {
+        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null);
     }
 }

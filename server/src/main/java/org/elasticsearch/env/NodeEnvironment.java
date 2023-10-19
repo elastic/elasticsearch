@@ -20,6 +20,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -47,6 +48,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -85,6 +87,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -208,6 +212,7 @@ public final class NodeEnvironment implements Closeable {
          * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
          * @param pathFunction function to check node path before attempt of acquiring a node lock
          */
+        @SuppressWarnings("this-escape")
         public NodeLock(
             final Logger logger,
             final Environment environment,
@@ -312,8 +317,8 @@ public final class NodeEnvironment implements Closeable {
             for (Path dataPath : environment.dataFiles()) {
                 final Path legacyNodesPath = dataPath.resolve("nodes");
                 if (Files.isRegularFile(legacyNodesPath) == false) {
-                    final String content = "written by Elasticsearch v"
-                        + Version.CURRENT
+                    final String content = "written by Elasticsearch "
+                        + Build.current().version()
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
                     Files.writeString(legacyNodesPath, content);
                     IOUtils.fsync(legacyNodesPath, false);
@@ -510,9 +515,9 @@ public final class NodeEnvironment implements Closeable {
         if (metadata == null) {
             throw new CorruptStateException(
                 "Format version is not supported. Upgrading to ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] is only supported from version ["
-                    + Version.CURRENT.minimumCompatibilityVersion()
+                    + Build.current().minWireCompatVersion()
                     + "]."
             );
         }
@@ -522,19 +527,21 @@ public final class NodeEnvironment implements Closeable {
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
         if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
+
+            String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
             throw new IllegalStateException(
-                "Cannot start this node because it holds metadata for indices created with version ["
+                "Cannot start this node because it holds metadata for indices with version ["
                     + metadata.oldestIndexVersion()
                     + "] with which this node of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
-                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
-                    + "] and delete any indices created in versions earlier than ["
-                    + Version.CURRENT.minimumIndexCompatibilityVersion()
+                    + bestDowngradeVersion
+                    + "] and delete any indices with versions earlier than ["
+                    + IndexVersion.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
-                    + Version.max(Version.CURRENT.minimumCompatibilityVersion(), metadata.previousNodeVersion())
+                    + bestDowngradeVersion
                     + "] and wait for it to join the cluster to clean up any older indices from its metadata."
             );
         }
@@ -623,7 +630,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, Version.CURRENT);
+                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -1502,4 +1509,32 @@ public final class NodeEnvironment implements Closeable {
             }
         }
     }
+
+    /**
+     * Get a useful version string to direct a user's downgrade operation
+     *
+     * <p>If a user is trying to install 8.0 but has incompatible indices, the user should
+     * downgrade to 7.17.x. We return 7.17.0, unless the user is trying to upgrade from
+     * a 7.17.x release, in which case we return the last installed version.
+     * @return Version to downgrade to
+     */
+    // visible for testing
+    static String getBestDowngradeVersion(String previousNodeVersion) {
+        // this method should only be called in the context of an upgrade to 8.x
+        assert Build.current().version().startsWith("9.") == false;
+        Pattern pattern = Pattern.compile("^7\\.(\\d+)\\.\\d+$");
+        Matcher matcher = pattern.matcher(previousNodeVersion);
+        if (matcher.matches()) {
+            try {
+                int minorVersion = Integer.parseInt(matcher.group(1));
+                if (minorVersion >= 17) {
+                    return previousNodeVersion;
+                }
+            } catch (NumberFormatException e) {
+                // continue and return default
+            }
+        }
+        return "7.17.0";
+    }
+
 }

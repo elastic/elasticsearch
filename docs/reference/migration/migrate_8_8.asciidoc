@@ -9,17 +9,12 @@ your application to {es} 8.8.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.8.0]
-
 
 [discrete]
 [[breaking-changes-8.8]]
 === Breaking changes
 
-// tag::notable-breaking-changes[]
 There are no breaking changes in {es} 8.8.
-// end::notable-breaking-changes[]
-
 
 [discrete]
 [[deprecated-8.8]]

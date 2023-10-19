@@ -38,30 +38,36 @@ repositories {
   }
 }
 
-if(useDra == false) {
+if (useDra == false) {
   repositories {
-    // Cloud builds bundle some beats
-    ivy {
-      name = 'beats'
-      if (useLocalArtifacts) {
-        url "file://${buildDir}/artifacts/"
-        patternLayout {
-          artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
-        }
-      } else {
-        url "https://artifacts-snapshot.elastic.co/"
-        patternLayout {
-          if (VersionProperties.isElasticsearchSnapshot()) {
-            artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+    exclusiveContent {
+      // Cloud builds bundle some beats
+      forRepository {
+        ivy {
+          name = 'beats'
+          if (useLocalArtifacts) {
+            url getLayout().getBuildDirectory().dir("artifacts").get().asFile
+            patternLayout {
+              artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
+            }
           } else {
-            // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
-            // Release builds are always done with a local repo.
-            artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+            url "https://artifacts-snapshot.elastic.co/"
+            patternLayout {
+              if (VersionProperties.isElasticsearchSnapshot()) {
+                artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+              } else {
+                // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+                // Release builds are always done with a local repo.
+                artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+              }
+            }
           }
+          metadataSources { artifact() }
         }
       }
-      metadataSources { artifact() }
-      content { includeGroup 'beats' }
+      filter {
+        includeGroup("beats")
+      }
     }
   }
 }
@@ -79,6 +85,10 @@ configurations {
       attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
     }
   }
+  // Iron bank images require a tarball
+  aarch64DockerSourceTar
+  dockerSourceTar
+
   log4jConfig
   tini
   allPlugins
@@ -92,7 +102,9 @@ String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'am
 
 dependencies {
   aarch64DockerSource project(":distribution:archives:linux-aarch64-tar")
+  aarch64DockerSourceTar project(path: ":distribution:archives:linux-aarch64-tar", configuration:"default")
   dockerSource project(":distribution:archives:linux-tar")
+  dockerSourceTar project(path: ":distribution:archives:linux-tar", configuration:"default")
   log4jConfig project(path: ":distribution", configuration: 'log4jConfig')
   tini "krallin:tini:0.19.0:${tiniArch}"
   allPlugins project(path: ':plugins', configuration: 'allPlugins')
@@ -310,11 +322,15 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     String distributionFolderName = "elasticsearch-${VersionProperties.elasticsearch}"
 
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
-      eachFile { FileCopyDetails details ->
-        if (details.name.equals("Dockerfile")) {
-          filter { String contents ->
-            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
-                           .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
+
+      if (base != DockerBase.IRON_BANK) {
+        // iron bank always needs a COPY with the tarball file path
+        eachFile { FileCopyDetails details ->
+          if (details.name.equals("Dockerfile")) {
+            filter { String contents ->
+              return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY $distributionFolderName .")
+                .replaceAll('^RUN tar -zxf /tmp/elasticsearch.tar.gz --strip-components=1$', "")
+            }
           }
         }
       }
@@ -322,12 +338,13 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     into "${project.buildDir}/docker-context/${archiveName}"
 
     // Since we replaced the remote URL in the Dockerfile, copy in the required file
-    from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSource : configurations.dockerSource)
-
-    if (base == DockerBase.IRON_BANK) {
+    if(base == DockerBase.IRON_BANK) {
+      from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSourceTar : configurations.dockerSourceTar)
       from (configurations.tini) {
         rename { _ -> 'tini' }
       }
+    } else {
+      from(architecture == Architecture.AARCH64 ? configurations.aarch64DockerSource : configurations.dockerSource)
     }
 
     expansions(architecture, base).findAll { it.key != 'build_date' }.each { k, v ->

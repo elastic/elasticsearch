@@ -11,7 +11,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -43,7 +42,7 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
                 Document document = new Document();
                 int counter = 0;
                 for (String date : datasetTimes) {
-                    states[counter] = new TDigestState(50);
+                    states[counter] = TDigestState.create(50);
                     final int numberDocs = randomIntBetween(5, 50);
                     long instant = asLong(date);
                     for (int i = 0; i < numberDocs; i++) {
@@ -63,14 +62,12 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
             }
 
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(aggBuilder.field());
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.DOUBLE);
 
                 InternalDateHistogram histogram;
                 histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggBuilder, fieldType, valueFieldType).withMaxBuckets(1000).withQuery(query)
                 );
                 for (int i = 0; i < histogram.getBuckets().size(); i++) {
@@ -96,7 +93,7 @@ public class MovingPercentilesTDigestAggregatorTests extends MovingPercentilesAb
         if (fromIndex == toIndex) {
             return null;
         }
-        TDigestState result = new TDigestState(buckets[0].compression());
+        TDigestState result = TDigestState.create(buckets[0].compression());
         for (int i = fromIndex; i < toIndex; i++) {
             result.add(buckets[i]);
         }

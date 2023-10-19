@@ -1,5 +1,5 @@
 [[search-shard-routing]]
-== Search shard routing
+=== Search shard routing
 
 To protect against hardware failure and increase search capacity, {es} can store
 copies of an index's data across multiple shards on multiple nodes. When running
@@ -9,7 +9,7 @@ _search shard routing_ or _routing_.
 
 [discrete]
 [[search-adaptive-replica]]
-=== Adaptive replica selection
+==== Adaptive replica selection
 
 By default, {es} uses _adaptive replica selection_ to route search requests.
 This method selects an eligible node using <<shard-allocation-awareness,shard
@@ -28,7 +28,7 @@ search requests using a round-robin method, which may result in slower searches.
 
 [discrete]
 [[shard-and-node-preference]]
-=== Set a preference
+==== Set a preference
 
 By default, adaptive replica selection chooses from all eligible nodes and
 shards. However, you may only want data from a local node or want to route
@@ -96,7 +96,7 @@ node.
 
 [discrete]
 [[search-routing]]
-=== Use a routing value
+==== Use a routing value
 
 When you index a document, you can specify an optional
 <<mapping-routing-field,routing value>>, which routes the document to a
@@ -151,14 +151,14 @@ GET /my-index-000001/_search?routing=my-routing-value,my-routing-value-2
 
 [discrete]
 [[search-concurrency-and-parallelism]]
-=== Search concurrency and parallelism
+==== Search concurrency and parallelism
 
 By default, {es} doesn't reject search requests based on the number of shards
 the request hits. However, hitting a large number of shards can significantly
 increase CPU and memory usage.
 
 TIP: For tips on preventing indices with large numbers of shards, see
-<<avoid-oversharding>>.
+<<size-your-shards>>.
 
 You can use the `max_concurrent_shard_requests` query parameter to control
 maximum number of concurrent shards a search request can hit per node. This

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.tasks.Task;
@@ -89,7 +90,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             ResizeRequest::new,
             indexNameExpressionResolver,
             ResizeResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
         this.client = client;
@@ -163,12 +164,13 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             client.execute(
                 IndicesStatsAction.INSTANCE,
                 statsRequest,
-                listener.delegateFailure(
-                    (delegatedListener, indicesStatsResponse) -> delegatedListener.onResponse(
-                        new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(indicesStatsResponse.getPrimaries().store, i -> {
+                listener.safeMap(
+                    indicesStatsResponse -> new ResizeNumberOfShardsCalculator.ShrinkShardsCalculator(
+                        indicesStatsResponse.getPrimaries().store,
+                        i -> {
                             IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                             return shard == null ? null : shard.getPrimary().getDocs();
-                        })
+                        }
                     )
                 )
             );

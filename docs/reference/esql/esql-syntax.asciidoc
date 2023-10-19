@@ -1,0 +1,90 @@
+[[esql-syntax]]
+=== {esql} syntax reference
+
+++++
+<titleabbrev>Syntax reference</titleabbrev>
+++++
+
+[discrete]
+[[esql-basic-syntax]]
+=== Basic syntax
+
+An {esql} query is composed of a <<esql-source-commands,source command>> followed
+by an optional series of <<esql-processing-commands,processing commands>>,
+separated by a pipe character: `|`. For example:
+
+[source,esql]
+----
+source-command
+| processing-command1
+| processing-command2
+----
+
+The result of a query is the table produced by the final processing command.
+
+For an overview of all supported commands, functions, and operators, refer to <<esql-commands>> and <<esql-functions-operators>>.
+
+[NOTE]
+====
+For readability, this documentation puts each processing command on a new
+line. However, you can write an {esql} query as a single line. The following
+query is identical to the previous one:
+
+[source,esql]
+----
+source-command | processing-command1 | processing-command2
+----
+====
+
+[discrete]
+[[esql-comments]]
+==== Comments
+{esql} uses C++ style comments:
+
+* double slash `//` for single line comments
+* `/*` and `*/` for block comments
+
+[source,esql]
+----
+// Query the employees index
+FROM employees
+| WHERE height > 2
+----
+
+[source,esql]
+----
+FROM /* Query the employees index */ employees
+| WHERE height > 2
+----
+
+[source,esql]
+----
+FROM employees
+/* Query the
+ * employees
+ * index */
+| WHERE height > 2
+----
+
+[discrete]
+[[esql-timespan-literals]]
+==== Timespan literals
+
+Datetime intervals and timespans can be expressed using timespan literals.
+Timespan literals are a combination of a number and a qualifier. These
+qualifiers are supported:
+
+* `millisecond`/`milliseconds`
+* `second`/`seconds`
+* `minute`/`minutes`
+* `hour`/`hours`
+* `day`/`days`
+* `week`/`weeks`
+* `month`/`months`
+* `year`/`years`
+
+Timespan literals are not whitespace sensitive. These expressions are all valid:
+
+* `1day`
+* `1 day`
+* `1       day`

@@ -216,7 +216,7 @@ public class CustomMetadataContextIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.CURRENT;
+            return TransportVersion.current();
         }
 
         @Override

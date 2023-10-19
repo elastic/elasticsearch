@@ -76,6 +76,8 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeString(String value) throws IOException;
 
+    void writeStringArray(String[] array) throws IOException;
+
     void writeString(char[] text, int offset, int len) throws IOException;
 
     void writeUTF8String(byte[] value, int offset, int length) throws IOException;

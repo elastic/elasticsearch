@@ -15,8 +15,10 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -57,6 +59,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
@@ -80,8 +83,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = TestDiscoveryNode.create("node1");
-        DiscoveryNode replicaNode = TestDiscoveryNode.create("node2");
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -191,7 +194,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {
@@ -236,7 +239,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionSameAsNewVersion() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(newVersion)
+        );
         testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion);
     }
 
@@ -260,8 +267,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         int numConcurrent = randomIntBetween(1, 4);
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node2").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -319,7 +326,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
-            new ActionListener<SearchResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onFailure(Exception e) {
                     responses.add(e);
@@ -331,16 +338,16 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             },
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         );
 
         newSearchAsyncAction.start();
-        assertEquals(1, responses.size());
-        assertTrue(responses.get(0) instanceof SearchPhaseExecutionException);
+        assertThat(responses, hasSize(1));
+        assertThat(responses.get(0), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException e = (SearchPhaseExecutionException) responses.get(0);
-        assertTrue(e.getCause() instanceof VersionMismatchException);
+        assertThat(e.getCause(), instanceOf(VersionMismatchException.class));
         assertThat(
             e.getCause().getMessage(),
             equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]")
@@ -349,7 +356,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionSameAsOldVersion() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(newVersion)
+        );
         Version minVersion = oldVersion;
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
@@ -360,8 +371,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node2").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(oldVersionNode));
 
@@ -465,7 +476,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {
@@ -491,7 +502,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
+        Version oldVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(newVersion)
+        );
         Version minVersion = newVersion;
 
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
@@ -502,9 +517,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         AtomicInteger successfulOps = new AtomicInteger();
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode newVersionNode1 = TestDiscoveryNode.create("node1", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode newVersionNode2 = TestDiscoveryNode.create("node2", buildNewFakeTransportAddress(), newVersion);
-        DiscoveryNode oldVersionNode = TestDiscoveryNode.create("node3", buildNewFakeTransportAddress(), oldVersion);
+        DiscoveryNode newVersionNode1 = DiscoveryNodeUtils.builder("node1").version(newVersion).build();
+        DiscoveryNode newVersionNode2 = DiscoveryNodeUtils.builder("node2").version(newVersion).build();
+        DiscoveryNode oldVersionNode = DiscoveryNodeUtils.builder("node3").version(oldVersion).build();
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(newVersionNode1));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(newVersionNode2));
         lookup.put("node3", new SearchAsyncActionTests.MockConnection(oldVersionNode));
@@ -609,7 +624,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {

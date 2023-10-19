@@ -9,7 +9,6 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -32,7 +31,7 @@ import java.util.Set;
 import java.util.StringJoiner;
 
 /**
- * This class is responsible for working out if APM tracing is configured and if so, preparing
+ * This class is responsible for working out if APM telemetry is configured and if so, preparing
  * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
  * APM doesn't need to be enabled, as that can be toggled at runtime, but some configuration e.g.
  * server URL and secret key can only be provided when Elasticsearch starts.
@@ -44,7 +43,7 @@ class APMJvmOptions {
     // tag::noformat
     private static final Map<String, String> STATIC_CONFIG = Map.of(
         // Identifies the version of Elasticsearch in the captured trace data.
-        "service_version", Version.CURRENT.toString(),
+        "service_version", Build.current().version(),
 
         // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
         // by the agent. Don't disable writing to a log file, as the agent will then
@@ -53,7 +52,8 @@ class APMJvmOptions {
         "log_file", "_AGENT_HOME_/../../logs/apm.log",
 
         // ES does not use auto-instrumentation.
-        "instrument", "false"
+        "instrument", "false",
+        "enable_experimental_instrumentations", "true"
         );
 
     /**
@@ -128,7 +128,7 @@ class APMJvmOptions {
     );
 
     /**
-     * This method works out if APM tracing is enabled, and if so, prepares a temporary config file
+     * This method works out if APM telemetry is enabled, and if so, prepares a temporary config file
      * for the APM Java agent and CLI options to the JVM to configure APM. The config file is temporary
      * because it will be deleted once Elasticsearch starts.
      *
@@ -306,7 +306,7 @@ class APMJvmOptions {
         final Path apmModule = Path.of(installDir).resolve("modules").resolve("apm");
 
         if (Files.notExists(apmModule)) {
-            if (Build.CURRENT.isProductionRelease()) {
+            if (Build.current().isProductionRelease()) {
                 throw new UserException(
                     ExitCodes.CODE_ERROR,
                     "Expected to find [apm] module in [" + apmModule + "]! Installation is corrupt"

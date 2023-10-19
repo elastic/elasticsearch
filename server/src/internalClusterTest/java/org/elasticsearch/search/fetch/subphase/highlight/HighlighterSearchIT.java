@@ -1539,11 +1539,11 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchPhraseQuery("title", "this is a test"))
-            .highlighter(new HighlightBuilder().field("title", 50, 1, 10))
-            .get();
-        assertNoFailures(search);
+        assertNoFailures(
+            client().prepareSearch()
+                .setQuery(matchPhraseQuery("title", "this is a test"))
+                .highlighter(new HighlightBuilder().field("title", 50, 1, 10))
+        );
 
         assertFailures(
             client().prepareSearch()
@@ -1560,7 +1560,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
                 .highlighter(new HighlightBuilder().field("tit*", 50, 1, 10).highlighterType("fvh"))
-                .get()
         );
     }
 
@@ -1842,15 +1841,22 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(
-                new HighlightBuilder().field("text").field("byte").field("short").field("int").field("long").field("float").field("double")
-            )
-            .get();
         // Highlighting of numeric fields is not supported, but it should not raise errors
         // (this behavior is consistent with version 0.20)
-        assertHitCount(response, 1L);
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "test"))
+                .highlighter(
+                    new HighlightBuilder().field("text")
+                        .field("byte")
+                        .field("short")
+                        .field("int")
+                        .field("long")
+                        .field("float")
+                        .field("double")
+                ),
+            1L
+        );
     }
 
     // Issue #3200
@@ -1864,12 +1870,13 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("text", "elasticsearch test").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchQuery("text", "test"))
-            .highlighter(new HighlightBuilder().field("text"))
-            .get();
         // Mock tokenizer will throw an exception if it is resetted twice
-        assertHitCount(response, 1L);
+        assertHitCount(
+            client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "test"))
+                .highlighter(new HighlightBuilder().field("text")),
+            1L
+        );
     }
 
     public void testHighlightUsesHighlightQuery() throws IOException {
@@ -2217,14 +2224,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         searchResponse = client().search(new SearchRequest("test").source(source)).actionGet();
 
-        assertHighlight(
-            searchResponse,
-            0,
-            "field2",
-            0,
-            1,
-            equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy quick dog")
-        );
+        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <xxx>quick brown</xxx> fox jumps over the lazy quick dog"));
 
         // lets fall back to the standard highlighter then, what people would do to highlight query matches
         logger.info("--> searching on field2, highlighting on field2, falling back to the plain highlighter");
@@ -2655,11 +2655,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchQuery("title", "this is a test"))
-            .highlighter(new HighlightBuilder().field("title"))
-            .get();
-        assertNoFailures(search);
+        assertNoFailures(
+            client().prepareSearch().setQuery(matchQuery("title", "this is a test")).highlighter(new HighlightBuilder().field("title"))
+        );
     }
 
     public void testPostingsHighlighterBoostingQuery() throws IOException {
@@ -2975,7 +2973,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .endObject()
             .endObject();
         assertAcked(prepareCreate("test").setMapping(mapping));
-        assertAcked(client().admin().indices().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
+        assertAcked(indicesAdmin().prepareAliases().addAlias("test", "filtered_alias", matchQuery("foo", "japanese")));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test").setSource("foo", "test japanese"));
@@ -3325,9 +3323,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("index-1")
+            indicesAdmin().prepareCreate("index-1")
                 .setMapping("d", "type=date", "field", "type=text,store=true,term_vector=with_positions_offsets")
                 .setSettings(indexSettings(2, 0))
                 .get()

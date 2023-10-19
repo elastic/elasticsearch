@@ -39,9 +39,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testSingleShardAllocation() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setSettings(indexSettings(1, 0).put("index.routing.allocation.include.tag", "A"))
             .execute()
             .actionGet();
@@ -65,9 +63,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     }
 
     public void testMultipleShardsSingleNodeAllocation() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setSettings(indexSettings(4, 0).put("index.routing.allocation.include.tag", "A"))
             .execute()
             .actionGet();
@@ -90,9 +86,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
     public void testMultipleIndicesAllocation() throws Exception {
         createIndex("test1", 4, 1);
         createIndex("test2", 4, 1);
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAliasAction(AliasActions.add().index("test1").alias("routing_alias").routing("ABC"))
             .addAliasAction(AliasActions.add().index("test2").alias("routing_alias").routing("EFG"))
             .get();

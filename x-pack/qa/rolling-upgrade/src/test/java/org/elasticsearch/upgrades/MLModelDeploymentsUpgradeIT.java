@@ -73,7 +73,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
-                "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": "TRACE",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
@@ -97,6 +97,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(request);
     }
 
+    @AwaitsFix(bugUrl = "mute to try and reproduce https://github.com/elastic/elasticsearch/issues/100379")
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
 
@@ -112,21 +113,10 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                     request.addParameter("timeout", "70s");
                 }));
-
-                // Workaround for an upgrade test failure where an ingest
-                // pipeline config cannot be parsed by older nodes:
-                // https://github.com/elastic/elasticsearch/issues/95766
-                //
-                // In version 8.3.1 ml stopped parsing the full ingest
-                // pipeline configuration so will avoid this problem.
-                // TODO remove this check once https://github.com/elastic/elasticsearch/issues/95766
-                // is resolved
-                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_1)) {
-                    waitForDeploymentStarted(modelId);
-                    // attempt inference on new and old nodes multiple times
-                    for (int i = 0; i < 10; i++) {
-                        assertInfer(modelId);
-                    }
+                waitForDeploymentStarted(modelId);
+                // attempt inference on new and old nodes multiple times
+                for (int i = 0; i < 10; i++) {
+                    assertInfer(modelId);
                 }
             }
             case UPGRADED -> {

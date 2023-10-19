@@ -17,9 +17,9 @@ public class IngestMetricTests extends ESTestCase {
     public void testIngestCurrent() {
         IngestMetric metric = new IngestMetric();
         metric.preIngest();
-        assertThat(1L, equalTo(metric.createStats().getIngestCurrent()));
+        assertThat(1L, equalTo(metric.createStats().ingestCurrent()));
         metric.postIngest(0);
-        assertThat(0L, equalTo(metric.createStats().getIngestCurrent()));
+        assertThat(0L, equalTo(metric.createStats().ingestCurrent()));
     }
 
     public void testIngestTimeInNanos() {
@@ -28,22 +28,22 @@ public class IngestMetricTests extends ESTestCase {
         metric.postIngest(500000L);
         metric.preIngest();
         metric.postIngest(500000L);
-        assertThat(1L, equalTo(metric.createStats().getIngestTimeInMillis()));
+        assertThat(1L, equalTo(metric.createStats().ingestTimeInMillis()));
     }
 
     public void testPostIngestDoubleDecrement() {
         IngestMetric metric = new IngestMetric();
 
         metric.preIngest();
-        assertThat(1L, equalTo(metric.createStats().getIngestCurrent()));
+        assertThat(1L, equalTo(metric.createStats().ingestCurrent()));
 
         metric.postIngest(500000L);
-        assertThat(0L, equalTo(metric.createStats().getIngestCurrent()));
+        assertThat(0L, equalTo(metric.createStats().ingestCurrent()));
 
         // the second postIngest triggers an assertion error
         expectThrows(AssertionError.class, () -> metric.postIngest(500000L));
         // We never allow the reported ingestCurrent to be negative:
-        assertThat(metric.createStats().getIngestCurrent(), equalTo(0L));
+        assertThat(metric.createStats().ingestCurrent(), equalTo(0L));
     }
 
 }

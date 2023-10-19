@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
@@ -33,7 +35,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
             Version.V_8_0_0,
             () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(previousVersion, randomFrom("basic", "trial"));
@@ -52,11 +54,9 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
                     + "] has changed in the current version. "
                     + " Security features were implicitly disabled for this node but they would now be enabled, possibly"
                     + " preventing access to the node. "
-                    + "See https://www.elastic.co/guide/en/elasticsearch/reference/"
-                    + Version.CURRENT.major
-                    + "."
-                    + Version.CURRENT.minor
-                    + "/security-minimal-setup.html to configure security, or explicitly disable security by "
+                    + "See "
+                    + ReferenceDocs.BOOTSTRAP_CHECK_SECURITY_MINIMAL_SETUP
+                    + " to configure security, or explicitly disable security by "
                     + "setting [xpack.security.enabled] to \"false\" in elasticsearch.yml before restarting the node."
             )
         );
@@ -67,7 +67,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
             Version.V_8_0_0,
             () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         Metadata metadata = createLicensesMetadata(previousVersion, randomFrom("gold", "platinum"));
@@ -85,7 +85,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
             Version.V_8_0_0,
             () -> VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0)
         );
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -99,7 +99,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom8xWithImplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
@@ -110,7 +110,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
 
     public void testUpgradeFrom8xWithExplicitSecuritySettings() throws Exception {
         final Version previousVersion = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, null);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, Version.CURRENT);
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(

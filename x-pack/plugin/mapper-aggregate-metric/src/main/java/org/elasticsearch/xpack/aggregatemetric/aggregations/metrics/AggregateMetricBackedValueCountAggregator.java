@@ -45,20 +45,13 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
         Map<String, Object> metadata
     ) throws IOException {
         super(name, aggregationContext, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues()
-            ? (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource()
-            : null;
-        if (valuesSource != null) {
-            counts = bigArrays().newLongArray(1, true);
-        }
+        assert valuesSourceConfig.hasValues();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource();
+        counts = bigArrays().newLongArray(1, true);
     }
 
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
         final BigArrays bigArrays = bigArrays();
         final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(
             aggCtx.getLeafReaderContext(),
@@ -81,12 +74,12 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
 
     @Override
     public double metric(long owningBucketOrd) {
-        return (valuesSource == null || owningBucketOrd >= counts.size()) ? 0 : counts.get(owningBucketOrd);
+        return owningBucketOrd >= counts.size() ? 0 : counts.get(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= counts.size()) {
+        if (bucket >= counts.size()) {
             return buildEmptyAggregation();
         }
         return new InternalValueCount(name, counts.get(bucket), metadata());
@@ -94,7 +87,7 @@ class AggregateMetricBackedValueCountAggregator extends NumericMetricsAggregator
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalValueCount(name, 0L, metadata());
+        return InternalValueCount.empty(name, metadata());
     }
 
     @Override

@@ -8,16 +8,17 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -33,6 +34,7 @@ import java.util.function.BiConsumer;
  */
 public final class RepositoriesModule {
 
+    public static final String METRIC_REQUESTS_COUNT = "repositories.requests.count";
     private final RepositoriesService repositoriesService;
 
     public RepositoriesModule(
@@ -42,8 +44,10 @@ public final class RepositoriesModule {
         ClusterService clusterService,
         BigArrays bigArrays,
         NamedXContentRegistry namedXContentRegistry,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        TelemetryProvider telemetryProvider
     ) {
+        telemetryProvider.getMeter().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,
@@ -85,9 +89,9 @@ public final class RepositoriesModule {
             }
         }
 
-        List<BiConsumer<Snapshot, Version>> preRestoreChecks = new ArrayList<>();
+        List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks = new ArrayList<>();
         for (RepositoryPlugin repoPlugin : repoPlugins) {
-            BiConsumer<Snapshot, Version> preRestoreCheck = repoPlugin.addPreRestoreVersionCheck();
+            BiConsumer<Snapshot, IndexVersion> preRestoreCheck = repoPlugin.addPreRestoreVersionCheck();
             if (preRestoreCheck != null) {
                 preRestoreChecks.add(preRestoreCheck);
             }
@@ -100,7 +104,7 @@ public final class RepositoriesModule {
                         "the snapshot was created with Elasticsearch version ["
                             + version
                             + "] which is below the current versions minimum index compatibility version ["
-                            + Version.CURRENT.minimumIndexCompatibilityVersion()
+                            + IndexVersion.MINIMUM_COMPATIBLE
                             + "]"
                     );
                 }

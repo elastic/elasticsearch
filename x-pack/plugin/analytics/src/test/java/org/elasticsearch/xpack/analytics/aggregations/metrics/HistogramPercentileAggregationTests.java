@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
-import com.tdunning.math.stats.Centroid;
-
 import org.HdrHistogram.DoubleHistogram;
 import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.tests.util.TestUtil;
@@ -23,6 +21,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -166,7 +165,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         PutMappingRequest request2 = new PutMappingRequest("pre_agg").source(xContentBuilder2);
         client().admin().indices().putMapping(request2).actionGet();
 
-        TDigestState histogram = new TDigestState(compression);
+        TDigestState histogram = TDigestState.create(compression);
         BulkRequest bulkRequest = new BulkRequest();
 
         int numDocs = 10000;
@@ -186,7 +185,7 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                 client().bulk(bulkRequest);
                 bulkRequest = new BulkRequest();
                 List<Double> values = new ArrayList<>();
-                List<Integer> counts = new ArrayList<>();
+                List<Long> counts = new ArrayList<>();
                 Collection<Centroid> centroids = histogram.centroids();
                 for (Centroid centroid : centroids) {
                     values.add(centroid.mean());
@@ -197,12 +196,12 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
                     .startObject("inner")
                     .startObject("data")
                     .field("values", values.toArray(new Double[values.size()]))
-                    .field("counts", counts.toArray(new Integer[counts.size()]))
+                    .field("counts", counts.toArray(new Long[counts.size()]))
                     .endObject()
                     .endObject()
                     .endObject();
                 client().prepareIndex("pre_agg").setSource(preAggDoc).get();
-                histogram = new TDigestState(compression);
+                histogram = TDigestState.create(compression);
             }
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();

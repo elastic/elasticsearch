@@ -81,7 +81,7 @@ hard-linked files.
 
 `disk.avail`::
 Free disk space available to {es}. {es} retrieves this metric from the node's
-OS. <<disk-allocator,Disk-based shard allocation>> uses this metric to assign
+OS. <<disk-based-shard-allocation,Disk-based shard allocation>> uses this metric to assign
 shards to nodes based on available disk space.
 
 `disk.total`::

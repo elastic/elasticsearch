@@ -76,11 +76,6 @@ public abstract class IdpSamlTestCase extends ESTestCase {
         }
     }
 
-    private static boolean isTurkishLocale() {
-        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
-            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
-    }
-
     @AfterClass
     public static void restoreLocale() {
         if (restoreLocale != null) {
@@ -150,7 +145,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     }
 
     protected void print(Element element, Writer writer, boolean pretty) throws TransformerException {
-        final Transformer serializer = new SamlFactory().getHardenedXMLTransformer();
+        final Transformer serializer = SamlFactory.getHardenedXMLTransformer();
         if (pretty) {
             serializer.setOutputProperty(OutputKeys.INDENT, "yes");
         }

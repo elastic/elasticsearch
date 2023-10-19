@@ -172,6 +172,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
 
     def "applies conventions on yaml-rest-test tests"() {
         given:
+        buildApiRestrictionsDisabled = true
         clazz(dir('src/yamlRestTest/java'), "org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase")
         buildFile << """
         apply plugin:'elasticsearch.legacy-yaml-rest-test'
@@ -211,6 +212,7 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradleInternalPl
     @Unroll
     def "applies conventions on #sourceSetName tests"() {
         given:
+        buildApiRestrictionsDisabled = pluginName.contains('legacy')
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.ESIntegTestCase")
         clazz(dir("src/${sourceSetName}/java"), "org.elasticsearch.test.rest.ESRestTestCase")
         buildFile << """

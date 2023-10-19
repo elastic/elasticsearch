@@ -51,6 +51,7 @@ import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -69,10 +70,10 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -190,10 +191,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NotCopyableOnResize
     );
     // The file extensions that are excluded from the cache
-    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING = Setting.stringListSetting(
         "index.store.snapshot.cache.excluded_file_types",
-        Collections.emptyList(),
-        Function.identity(),
         Setting.Property.IndexScope,
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
@@ -252,6 +251,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
      * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(",", DataTier.DATA_CONTENT, DataTier.DATA_HOT);
+    private static final int SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION = 1;
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
@@ -331,8 +331,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
@@ -344,7 +345,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
                 nodeEnvironment,
                 settings,
-                threadPool
+                threadPool,
+                SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);
@@ -368,7 +370,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
             var usageTracker = new SearchableSnapshotsUsageTracker(getLicenseState(), clusterService::state);
-            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
+            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
 
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
@@ -612,6 +614,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                     {
                         builder.startObject("_meta");
                         builder.field("version", Version.CURRENT);
+                        builder.field(SystemIndexDescriptor.VERSION_META_KEY, SEARCHABLE_SNAPSHOTS_INDEX_MAPPINGS_VERSION);
                         builder.endObject();
                     }
                     {

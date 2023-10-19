@@ -123,7 +123,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .actionGet();
 
         refresh();
-        assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
+        assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
         ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
         // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
 
@@ -134,8 +134,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ensureYellow();
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
+        indicesAdmin().prepareRefresh().execute().actionGet();
+        assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
 
         internalCluster().fullRestart();
 
@@ -143,8 +143,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ensureYellow();
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
+        indicesAdmin().prepareRefresh().execute().actionGet();
+        assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("appAccountIds", 179)), 2);
     }
 
     private Map<String, long[]> assertAndCapturePrimaryTerms(Map<String, long[]> previousTerms) {
@@ -233,10 +233,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         refresh();
 
         for (int i = 0; i <= randomInt(10); i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), value1Docs + value2Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value1")).get(), value1Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")).get(), value2Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)).get(), value1Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), value1Docs + value2Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value1")), value1Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")), value2Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)), value1Docs);
         }
         if (indexToAllShards == false) {
             // we have to verify primaries are started for them to be restored
@@ -253,10 +253,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
         for (int i = 0; i <= randomInt(10); i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), value1Docs + value2Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value1")).get(), value1Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")).get(), value2Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)).get(), value1Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), value1Docs + value2Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value1")), value1Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")), value2Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)), value1Docs);
         }
 
         internalCluster().fullRestart();
@@ -266,10 +266,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
         for (int i = 0; i <= randomInt(10); i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), value1Docs + value2Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value1")).get(), value1Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")).get(), value2Docs);
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)).get(), value1Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), value1Docs + value2Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value1")), value1Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")), value2Docs);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)), value1Docs);
         }
     }
 
@@ -288,7 +288,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             .actionGet();
         refresh();
 
-        assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
+        assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
 
         ensureYellow("test"); // wait for primary allocations here otherwise if we have a lot of shards we might have a
         // shard that is still in post recovery when we restart and the ensureYellow() below will timeout
@@ -302,7 +302,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
         internalCluster().fullRestart();
@@ -312,7 +312,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
     }
 
@@ -337,7 +337,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
@@ -365,7 +365,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         primaryTerms = assertAndCapturePrimaryTerms(primaryTerms);
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
         client().execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
@@ -377,25 +377,25 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
-        assertAcked(client().admin().indices().prepareCreate("test"));
+        assertAcked(indicesAdmin().prepareCreate("test"));
         client().prepareIndex("test")
             .setId("1")
             .setSource(jsonBuilder().startObject().field("field", "value1").endObject())
             .execute()
             .actionGet();
-        client().admin().indices().prepareFlush().execute().actionGet();
+        indicesAdmin().prepareFlush().execute().actionGet();
         client().prepareIndex("test")
             .setId("2")
             .setSource(jsonBuilder().startObject().field("field", "value2").endObject())
             .execute()
             .actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
         String metadataUuid = clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID();
@@ -414,17 +414,15 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         // https://github.com/elastic/elasticsearch/issues/9997
         // clusterAdmin().prepareHealth("test").setWaitForYellowStatus().get();
         logger.info("--> refreshing all indices after indexing is complete");
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        indicesAdmin().prepareRefresh().execute().actionGet();
 
         logger.info("--> checking if documents exist, there should be 3");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 3);
         }
 
         logger.info("--> add some metadata and additional template");
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
+        indicesAdmin().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
             .setOrder(0)
             .setMapping(
@@ -446,12 +444,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             )
             .execute()
             .actionGet();
-        client().admin()
-            .indices()
-            .prepareAliases()
-            .addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value"))
-            .execute()
-            .actionGet();
+        indicesAdmin().prepareAliases().addAlias("test", "test_alias", QueryBuilders.termQuery("field", "value")).execute().actionGet();
 
         logger.info("--> stopping the second node");
         internalCluster().stopRandomDataNode();
@@ -469,7 +462,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         assertThat(clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID(), equalTo(metadataUuid));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet(), 3);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 3);
         }
 
         ClusterState state = clusterAdmin().prepareState().execute().actionGet().getState();
@@ -511,7 +504,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String replicaNode = internalCluster().startDataOnlyNode(nodeSettings(1, Settings.EMPTY));
         ensureGreen();
 
-        final RecoveryResponse initialRecoveryReponse = client().admin().indices().prepareRecoveries("test").get();
+        final RecoveryResponse initialRecoveryReponse = indicesAdmin().prepareRecoveries("test").get();
         final Set<String> files = new HashSet<>();
         for (final RecoveryState recoveryState : initialRecoveryReponse.shardRecoveryStates().get("test")) {
             if (recoveryState.getTargetNode().getName().equals(replicaNode)) {
@@ -550,16 +543,13 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                     .get();
                 assertBusy(
                     () -> assertThat(
-                        client().admin().indices().prepareStats("test").get().getShards()[0].getRetentionLeaseStats()
-                            .retentionLeases()
-                            .leases()
-                            .size(),
+                        indicesAdmin().prepareStats("test").get().getShards()[0].getRetentionLeaseStats().retentionLeases().leases().size(),
                         equalTo(1)
                     )
                 );
-                client().admin().indices().prepareFlush("test").setForce(true).get();
+                indicesAdmin().prepareFlush("test").setForce(true).get();
                 if (softDeleteEnabled) { // We need an extra flush to advance the min_retained_seqno of the SoftDeletesPolicy
-                    client().admin().indices().prepareFlush("test").setForce(true).get();
+                    indicesAdmin().prepareFlush("test").setForce(true).get();
                 }
                 return super.onNodeStopped(nodeName);
             }
@@ -567,7 +557,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        final RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (final RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
             long recovered = 0;
             long reused = 0;
@@ -623,7 +613,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
     }
 
     public void assertSyncIdsNotNull() {
-        IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
+        IndexStats indexStats = indicesAdmin().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {
             assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
@@ -634,7 +624,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-            client().admin().indices().prepareGetSettings("test").get().getIndexToSettings().get("test")
+            indicesAdmin().prepareGetSettings("test").get().getIndexToSettings().get("test")
         );
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);

@@ -38,7 +38,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     }
 
     CommitStats(StreamInput in) throws IOException {
-        userData = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+        userData = in.readImmutableMap(StreamInput::readString);
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
@@ -83,7 +83,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(userData, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(userData, StreamOutput::writeString);
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);

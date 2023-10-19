@@ -23,7 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -42,29 +42,29 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
-        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = clusterAdmin().nodesInfo(new NodesInfoRequest()).actionGet();
-        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = clusterAdmin().nodesInfo(new NodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().size(), is(1));
+        assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = clusterAdmin().nodesInfo(new NodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().size(), is(1));
+        assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = clusterAdmin().nodesInfo(new NodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().size(), is(1));
+        assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = clusterAdmin().nodesInfo(new NodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().size(), is(1));
+        assertThat(response.getNodes(), hasSize(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
 
@@ -81,7 +81,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
-        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
         assertThat(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer().getBytes(), greaterThan(0L));
@@ -92,7 +92,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
 
         // again, using only the indices flag
         response = clusterAdmin().prepareNodesInfo().clear().setIndices(true).execute().actionGet();
-        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
         assertThat(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer().getBytes(), greaterThan(0L));
@@ -120,7 +120,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
 
         NodesInfoResponse response = clusterAdmin().prepareNodesInfo().execute().actionGet();
 
-        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodes(), hasSize(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 

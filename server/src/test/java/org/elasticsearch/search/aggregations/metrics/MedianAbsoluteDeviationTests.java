@@ -19,6 +19,9 @@ public class MedianAbsoluteDeviationTests extends AbstractNumericMetricTestCase<
         if (randomBoolean()) {
             builder.compression(randomDoubleBetween(0, 1000.0, false));
         }
+        if (randomBoolean()) {
+            builder.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
 
         if (randomBoolean()) {
             builder.missing("MISSING");

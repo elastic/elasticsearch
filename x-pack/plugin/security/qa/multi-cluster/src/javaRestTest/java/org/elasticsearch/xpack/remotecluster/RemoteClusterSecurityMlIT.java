@@ -57,20 +57,16 @@ public class RemoteClusterSecurityMlIT extends AbstractRemoteClusterSecurityTest
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 API_KEY_MAP_REF.compareAndSet(null, createCrossClusterAccessApiKey("""
                     {
-                      "role": {
-                        "cluster": ["cross_cluster_search"],
-                        "index": [
+                        "search": [
                           {
-                              "names": ["shared-airline-data"],
-                              "privileges": ["read", "read_cross_cluster", "view_index_metadata"]
+                              "names": ["shared-airline-data"]
                           }
                         ]
-                      }
                     }"""));
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
             .rolesFile(Resource.fromClasspath("roles.yml"))
-            .user(REMOTE_ML_USER, PASS.toString(), "ml_jobs_shared_airline_data")
+            .user(REMOTE_ML_USER, PASS.toString(), "ml_jobs_shared_airline_data", false)
             .build();
     }
 

@@ -30,6 +30,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 public class ExistsIT extends ESIntegTestCase {
@@ -37,10 +38,8 @@ public class ExistsIT extends ESIntegTestCase {
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).get();
-        assertSearchResponse(resp);
-        resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).get();
-        assertSearchResponse(resp);
+        assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")));
+        assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))));
     }
 
     public void testExists() throws Exception {
@@ -70,11 +69,14 @@ public class ExistsIT extends ESIntegTestCase {
             .endObject()
             .endObject()
             .endObject()
+            .startObject("vec")
+            .field("type", "sparse_vector")
+            .endObject()
             .endObject()
             .endObject()
             .endObject();
 
-        assertAcked(client().admin().indices().prepareCreate("idx").setMapping(mapping));
+        assertAcked(indicesAdmin().prepareCreate("idx").setMapping(mapping));
         Map<String, Object> barObject = new HashMap<>();
         barObject.put("foo", "bar");
         barObject.put("bar", singletonMap("bar", "foo"));
@@ -85,6 +87,10 @@ public class ExistsIT extends ESIntegTestCase {
             // object fields
             singletonMap("bar", barObject),
             singletonMap("bar", singletonMap("baz", 42)),
+            // sparse_vector field empty
+            singletonMap("vec", emptyMap()),
+            // sparse_vector field non-empty
+            singletonMap("vec", singletonMap("1", 100)),
             // empty doc
             emptyMap() };
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -105,6 +111,7 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar", 1);
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
+        expected.put("vec", 2);
 
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();

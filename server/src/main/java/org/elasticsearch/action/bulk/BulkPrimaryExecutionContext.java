@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * This is a utility class that holds the per request state needed to perform bulk operations on the primary.
@@ -58,7 +60,7 @@ class BulkPrimaryExecutionContext {
     private ItemProcessingState currentItemState;
     private DocWriteRequest<?> requestToExecute;
     private BulkItemResponse executionResult;
-    private int retryCounter;
+    private int updateRetryCounter;
 
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
@@ -84,7 +86,7 @@ class BulkPrimaryExecutionContext {
             : "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
         currentIndex = findNextNonAborted(currentIndex + 1);
-        retryCounter = 0;
+        updateRetryCounter = 0;
         requestToExecute = null;
         executionResult = null;
         assert assertInvariants(ItemProcessingState.INITIAL);
@@ -105,9 +107,9 @@ class BulkPrimaryExecutionContext {
         return executionResult;
     }
 
-    /** returns the number of times the current operation has been retried */
-    public int getRetryCounter() {
-        return retryCounter;
+    /** returns the number of times the current update operation has been retried */
+    public int getUpdateRetryCounter() {
+        return updateRetryCounter;
     }
 
     /** returns true if the request needs to wait for a mapping update to arrive from the master */
@@ -178,8 +180,19 @@ class BulkPrimaryExecutionContext {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
     }
 
+    public void resetForUpdateRetry() {
+        assert assertInvariants(ItemProcessingState.EXECUTED);
+        updateRetryCounter++;
+        resetForExecutionRetry();
+    }
+
+    public void resetForMappingUpdateRetry() {
+        assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE);
+        resetForExecutionRetry();
+    }
+
     /** resets the current item state, prepare for a new execution */
-    public void resetForExecutionForRetry() {
+    private void resetForExecutionRetry() {
         assert assertInvariants(ItemProcessingState.WAIT_FOR_MAPPING_UPDATE, ItemProcessingState.EXECUTED);
         currentItemState = ItemProcessingState.INITIAL;
         requestToExecute = null;
@@ -220,13 +233,20 @@ class BulkPrimaryExecutionContext {
                 final DocWriteResponse response;
                 if (result.getOperationType() == Engine.Operation.TYPE.INDEX) {
                     Engine.IndexResult indexResult = (Engine.IndexResult) result;
+                    List<String> executedPipelines;
+                    if (docWriteRequest instanceof IndexRequest indexRequest) {
+                        executedPipelines = indexRequest.getExecutedPipelines();
+                    } else {
+                        executedPipelines = null;
+                    }
                     response = new IndexResponse(
                         primary.shardId(),
                         indexResult.getId(),
                         result.getSeqNo(),
                         result.getTerm(),
                         indexResult.getVersion(),
-                        indexResult.isCreated()
+                        indexResult.isCreated(),
+                        executedPipelines
                     );
                 } else if (result.getOperationType() == Engine.Operation.TYPE.DELETE) {
                     Engine.DeleteResult deleteResult = (Engine.DeleteResult) result;
@@ -292,7 +312,7 @@ class BulkPrimaryExecutionContext {
         assert Arrays.asList(expectedCurrentState).contains(currentItemState)
             : "expected current state [" + currentItemState + "] to be one of " + Arrays.toString(expectedCurrentState);
         assert currentIndex >= 0 : currentIndex;
-        assert retryCounter >= 0 : retryCounter;
+        assert updateRetryCounter >= 0 : updateRetryCounter;
         switch (currentItemState) {
             case INITIAL:
                 assert requestToExecute == null : requestToExecute;

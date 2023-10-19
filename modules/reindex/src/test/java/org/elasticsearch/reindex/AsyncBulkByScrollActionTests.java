@@ -45,7 +45,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -89,6 +89,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,7 +98,6 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.newSetFromMap;
 import static java.util.Collections.singleton;
@@ -149,7 +149,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         testTask.setWorker(testRequest.getRequestsPerSecond(), null);
         worker = testTask.getWorkerState();
 
-        localNode = TestDiscoveryNode.create("thenode", buildNewFakeTransportAddress(), emptyMap(), emptySet());
+        localNode = DiscoveryNodeUtils.builder("thenode").roles(emptySet()).build();
         taskId = new TaskId(localNode.getId(), testTask.getId());
     }
 
@@ -393,7 +393,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         worker.rethrottle(1);
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 // While we're here we can check that the sleep made it through
                 assertThat(delay.nanos(), greaterThan(0L));
                 assertThat(delay.seconds(), lessThanOrEqualTo(10L));
@@ -519,7 +519,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         AtomicReference<Runnable> capturedCommand = new AtomicReference<>();
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 capturedDelay.set(delay);
                 capturedCommand.set(command);
                 return new ScheduledCancellable() {
@@ -735,7 +735,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
          */
         setupClient(new TestThreadPool(getTestName()) {
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
                 /*
                  * This is called twice:
                  * 1. To schedule the throttling. When that happens we immediately cancel the task.
@@ -746,7 +746,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 if (delay.nanos() > 0) {
                     generic().execute(() -> taskManager.cancel(testTask, reason, () -> {}));
                 }
-                return super.schedule(command, delay, name);
+                return super.schedule(command, delay, executor);
             }
         });
 

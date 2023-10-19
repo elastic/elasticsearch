@@ -109,9 +109,6 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
         }
 
         @Override
-        public void close() {}
-
-        @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(getLongValues(), name);
         }

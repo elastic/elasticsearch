@@ -11,7 +11,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
@@ -33,6 +33,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.LicensedFeature;
@@ -55,8 +57,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -83,7 +85,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         License.OperationMode.ENTERPRISE
     );
 
-    private static Version MINIMUM_ARCHIVE_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_ARCHIVE_VERSION = IndexVersion.fromId(5000099);
 
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
 
@@ -100,8 +102,9 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService
+        TelemetryProvider telemetryProvider,
+        AllocationService allocationService,
+        IndicesService indicesService
     ) {
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
         if (DiscoveryNode.isMasterNode(environment.settings())) {
@@ -109,7 +112,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             // then marking the feature as used. We do this on each master node so that if one master fails, the
             // continue reporting usage state.
             var usageTracker = new ArchiveUsageTracker(getLicenseState(), clusterService::state);
-            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), ThreadPool.Names.GENERIC);
+            threadPool.scheduleWithFixedDelay(usageTracker, TimeValue.timeValueMinutes(15), threadPool.generic());
         }
         return List.of();
     }
@@ -153,7 +156,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     }
 
     @Override
-    public BiConsumer<Snapshot, Version> addPreRestoreVersionCheck() {
+    public BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
         return (snapshot, version) -> {
             if (version.isLegacyIndexVersion()) {
                 if (ARCHIVE_FEATURE.checkWithoutTracking(getLicenseState()) == false) {
@@ -162,9 +165,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
                 if (version.before(MINIMUM_ARCHIVE_VERSION)) {
                     throw new SnapshotRestoreException(
                         snapshot,
-                        "the snapshot was created with Elasticsearch version ["
-                            + version
-                            + "] which isn't supported by the archive functionality"
+                        "the snapshot has indices of version [" + version + "] which isn't supported by the archive functionality"
                     );
                 }
             }
@@ -196,9 +197,9 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
             throw new UncheckedIOException(
                 Strings.format(
                     """
-                        Elasticsearch version [{}] has limited support for indices created in version [{}] but this index could not be \
+                        Elasticsearch version [{}] has limited support for indices created with version [{}] but this index could not be \
                         read. It may be using an unsupported feature, or it may be damaged or corrupt. See {} for further information.""",
-                    Version.CURRENT,
+                    Build.current().version(),
                     IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexShard.indexSettings().getSettings()),
                     ReferenceDocs.ARCHIVE_INDICES
                 ),

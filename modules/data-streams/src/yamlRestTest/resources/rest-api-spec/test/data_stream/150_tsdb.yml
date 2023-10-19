@@ -16,7 +16,7 @@ setup:
             settings:
               index:
                 mode: time_series
-                number_of_replicas: 0
+                number_of_replicas: 1
                 number_of_shards: 2
                 routing_path: [metricset, time_series_dimension]
                 time_series:
@@ -91,6 +91,10 @@ created the data stream:
       reason: introduced in 8.1.0
 
   - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
       indices.get_data_stream:
         name: '*'
   - length: { data_streams: 1 }
@@ -114,7 +118,8 @@ created the data stream:
   - match: { $body.$backing_index.data_stream: 'k8s' }
   - match: { $body.$backing_index.settings.index.mode: 'time_series' }
   - match: { $body.$backing_index.settings.index.time_series.start_time: '2021-04-28T00:00:00Z' }
-  - match: { $body.$backing_index.settings.index.time_series.end_time: '2021-04-29T00:00:00Z' }
+# We can't match on index.time_series.end_time in this test because UpdateTimeSeriesRangeService updates it every 5 minutes, so every
+# once in a while it is not what we expect it to be. See #93068.
 
   - do:
       cat.indices:

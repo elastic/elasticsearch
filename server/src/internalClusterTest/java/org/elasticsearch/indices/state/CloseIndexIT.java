@@ -79,7 +79,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseMissingIndex() {
-        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareClose("test").get());
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> indicesAdmin().prepareClose("test").get());
         assertThat(e.getMessage(), is("no such index [test]"));
     }
 
@@ -87,21 +87,21 @@ public class CloseIndexIT extends ESIntegTestCase {
         createIndex("test1");
         final IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin().indices().prepareClose("test1", "test2").get()
+            () -> indicesAdmin().prepareClose("test1", "test2").get()
         );
         assertThat(e.getMessage(), is("no such index [test2]"));
     }
 
     public void testCloseOneMissingIndexIgnoreMissing() throws Exception {
         createIndex("test1");
-        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("test1", "test2").setIndicesOptions(lenientExpandOpen())));
+        assertBusy(() -> assertAcked(indicesAdmin().prepareClose("test1", "test2").setIndicesOptions(lenientExpandOpen())));
         assertIndexIsClosed("test1");
     }
 
     public void testCloseNoIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().admin().indices().prepareClose().get()
+            () -> indicesAdmin().prepareClose().get()
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
@@ -109,7 +109,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     public void testCloseNullIndex() {
         final ActionRequestValidationException e = expectThrows(
             ActionRequestValidationException.class,
-            () -> client().admin().indices().prepareClose((String[]) null).get()
+            () -> indicesAdmin().prepareClose((String[]) null).get()
         );
         assertThat(e.getMessage(), containsString("index is missing"));
     }
@@ -131,8 +131,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertBusy(() -> closeIndices(indexName));
         assertIndexIsClosed(indexName);
 
-        assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        assertAcked(indicesAdmin().prepareOpen(indexName));
+        assertHitCount(client().prepareSearch(indexName).setSize(0), nbDocs);
     }
 
     public void testCloseAlreadyClosedIndex() throws Exception {
@@ -156,7 +156,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         // Second close should be acked too
         final ActiveShardCount activeShardCount = randomFrom(ActiveShardCount.NONE, ActiveShardCount.DEFAULT, ActiveShardCount.ALL);
         assertBusy(() -> {
-            CloseIndexResponse response = client().admin().indices().prepareClose(indexName).setWaitForActiveShards(activeShardCount).get();
+            CloseIndexResponse response = indicesAdmin().prepareClose(indexName).setWaitForActiveShards(activeShardCount).get();
             assertAcked(response);
             assertTrue(response.getIndices().isEmpty());
         });
@@ -174,7 +174,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
-        assertBusy(() -> closeIndices(client().admin().indices().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
+        assertBusy(() -> closeIndices(indicesAdmin().prepareClose(indexName).setWaitForActiveShards(ActiveShardCount.NONE)));
         assertIndexIsClosed(indexName);
     }
 
@@ -211,13 +211,9 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
+                safeAwait(startClosing);
                 try {
-                    startClosing.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                try {
-                    client().admin().indices().prepareClose(indexName).get();
+                    indicesAdmin().prepareClose(indexName).get();
                 } catch (final Exception e) {
                     assertException(e, indexName);
                 }
@@ -236,7 +232,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
 
-        int nbDocs = 0;
+        long nbDocs = 0;
         try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), MAX_DOCS)) {
             indexer.setFailureAssertion(t -> assertException(t, indexName));
 
@@ -247,8 +243,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
 
         assertIndexIsClosed(indexName);
-        assertAcked(client().admin().indices().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
+        assertAcked(indicesAdmin().prepareOpen(indexName));
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -275,13 +271,9 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         for (final String indexToDelete : indices) {
             threads.add(new Thread(() -> {
+                safeAwait(latch);
                 try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                try {
-                    assertAcked(client().admin().indices().prepareDelete(indexToDelete));
+                    assertAcked(indicesAdmin().prepareDelete(indexToDelete));
                 } catch (final Exception e) {
                     assertException(e, indexToDelete);
                 }
@@ -289,13 +281,9 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         for (final String indexToClose : indices) {
             threads.add(new Thread(() -> {
+                safeAwait(latch);
                 try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-                try {
-                    client().admin().indices().prepareClose(indexToClose).get();
+                    indicesAdmin().prepareClose(indexToClose).get();
                 } catch (final Exception e) {
                     assertException(e, indexToClose);
                 }
@@ -320,20 +308,13 @@ public class CloseIndexIT extends ESIntegTestCase {
         waitForDocs(1, indexer);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Runnable waitForLatch = () -> {
-            try {
-                latch.await();
-            } catch (final InterruptedException e) {
-                throw new AssertionError(e);
-            }
-        };
 
         final List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             threads.add(new Thread(() -> {
                 try {
-                    waitForLatch.run();
-                    client().admin().indices().prepareClose(indexName).get();
+                    safeAwait(latch);
+                    indicesAdmin().prepareClose(indexName).get();
                 } catch (final Exception e) {
                     throw new AssertionError(e);
                 }
@@ -342,8 +323,8 @@ public class CloseIndexIT extends ESIntegTestCase {
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             threads.add(new Thread(() -> {
                 try {
-                    waitForLatch.run();
-                    assertAcked(client().admin().indices().prepareOpen(indexName).get());
+                    safeAwait(latch);
+                    assertAcked(indicesAdmin().prepareOpen(indexName).get());
                 } catch (final Exception e) {
                     throw new AssertionError(e);
                 }
@@ -363,12 +344,12 @@ public class CloseIndexIT extends ESIntegTestCase {
         final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         if (clusterState.metadata().indices().get(indexName).getState() == IndexMetadata.State.CLOSE) {
             assertIndexIsClosed(indexName);
-            assertAcked(client().admin().indices().prepareOpen(indexName));
+            assertAcked(indicesAdmin().prepareOpen(indexName));
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
         assertHitCount(
-            client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
+            client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE),
             indexer.totalIndexedDocs()
         );
     }
@@ -389,7 +370,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         );
         ensureGreen(indexName);
 
-        final CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+        final CloseIndexResponse closeIndexResponse = indicesAdmin().prepareClose(indexName).get();
         assertThat(clusterAdmin().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
         assertTrue(closeIndexResponse.isAcknowledged());
         assertTrue(closeIndexResponse.isShardsAcknowledged());
@@ -417,14 +398,14 @@ public class CloseIndexIT extends ESIntegTestCase {
             ensureGreen(indexName);
 
             // Closing an index should execute noop peer recovery
-            assertAcked(client().admin().indices().prepareClose(indexName).get());
+            assertAcked(indicesAdmin().prepareClose(indexName).get());
             assertIndexIsClosed(indexName);
             ensureGreen(indexName);
             assertNoFileBasedRecovery(indexName);
             internalCluster().assertSameDocIdsOnShards();
 
             // Open a closed index should execute noop recovery
-            assertAcked(client().admin().indices().prepareOpen(indexName).get());
+            assertAcked(indicesAdmin().prepareOpen(indexName).get());
             assertIndexIsOpened(indexName);
             ensureGreen(indexName);
             assertNoFileBasedRecovery(indexName);
@@ -452,7 +433,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .collect(toList())
         );
         ensureGreen(indexName);
-        client().admin().indices().prepareFlush(indexName).get();
+        indicesAdmin().prepareFlush(indexName).get();
 
         // index more documents while one shard copy is offline
         internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
@@ -463,14 +444,14 @@ public class CloseIndexIT extends ESIntegTestCase {
                 for (int i = 0; i < moreDocs; i++) {
                     client.prepareIndex(indexName).setSource("num", i).get();
                 }
-                assertAcked(client.admin().indices().prepareClose(indexName));
+                assertAcked(indicesAdmin().prepareClose(indexName));
                 return super.onNodeStopped(nodeName);
             }
         });
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         internalCluster().assertSameDocIdsOnShards();
-        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
             }
@@ -494,7 +475,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
                 .collect(toList())
         );
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertAcked(indicesAdmin().prepareClose(indexName));
         // move single shard to second node
         updateIndexSettings(Settings.builder().put("index.routing.allocation.include._name", dataNodes.get(1)), indexName);
         ensureGreen(indexName);
@@ -516,7 +497,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .collect(toList())
         );
         ensureGreen(indexName);
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertAcked(indicesAdmin().prepareClose(indexName));
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         String nodeWithPrimary = clusterService().state()
@@ -547,7 +528,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .collect(toList())
         );
         ensureGreen(indexName);
-        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertAcked(indicesAdmin().prepareClose(indexName));
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
         if (randomBoolean()) {
@@ -589,7 +570,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     private static void closeIndices(final String... indices) {
-        closeIndices(client().admin().indices().prepareClose(indices));
+        closeIndices(indicesAdmin().prepareClose(indices));
     }
 
     private static void closeIndices(final CloseIndexRequestBuilder requestBuilder) {
@@ -672,7 +653,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     void assertNoFileBasedRecovery(String indexName) {
-        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+        for (RecoveryState recovery : indicesAdmin().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());
             }

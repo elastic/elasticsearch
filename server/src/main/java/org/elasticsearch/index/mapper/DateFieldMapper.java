@@ -22,7 +22,6 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
@@ -249,16 +249,17 @@ public final class DateFieldMapper extends FieldMapper {
         private final Parameter<OnScriptError> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Resolution resolution;
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
+        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             Resolution resolution,
             DateFormatter dateFormatter,
             ScriptCompiler scriptCompiler,
             boolean ignoreMalformedByDefault,
-            Version indexCreatedVersion
+            IndexVersion indexCreatedVersion
         ) {
             super(name);
             this.resolution = resolution;
@@ -325,7 +326,7 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
+                if (indexCreatedVersion.onOrAfter(IndexVersion.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
@@ -358,11 +359,16 @@ public final class DateFieldMapper extends FieldMapper {
             );
 
             Long nullTimestamp = parseNullValue(ft);
-            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), nullTimestamp, resolution, this);
+            if (name().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                && context.isDataStream()
+                && ignoreMalformed.isConfigured() == false) {
+                ignoreMalformed.setValue(false);
+            }
+            return new DateFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, nullTimestamp, resolution, this);
         }
     }
 
-    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+    private static final IndexVersion MINIMUM_COMPATIBILITY_VERSION = IndexVersion.fromId(5000099);
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -834,7 +840,7 @@ public final class DateFieldMapper extends FieldMapper {
     private final Resolution resolution;
 
     private final boolean ignoreMalformedByDefault;
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     private final Script script;
     private final ScriptCompiler scriptCompiler;

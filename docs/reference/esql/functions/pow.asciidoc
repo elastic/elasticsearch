@@ -1,0 +1,96 @@
+[discrete]
+[[esql-pow]]
+=== `POW`
+[.text-center]
+image::esql/functions/signature/pow.svg[Embedded,opts=inline]
+
+Returns the value of a base (first argument) raised to the power of an exponent (second argument).
+Both arguments must be numeric.
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=powDI]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powDI-result]
+|===
+
+[discrete]
+==== Type rules
+
+The type of the returned value is determined by the types of the base and exponent.
+The following rules are applied to determine the result type:
+
+* If either of the base or exponent are of a floating point type, the result will be a double
+* Otherwise, if either the base or the exponent are 64-bit (long or unsigned long), the result will be a long
+* Otherwise, the result will be a 32-bit integer (this covers all other numeric types, including int, short and byte)
+
+For example, using simple integers as arguments will lead to an integer result:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=powII]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powII-result]
+|===
+
+NOTE: The actual power function is performed using double precision values for all cases.
+This means that for very large non-floating point values there is a small chance that the
+operation can lead to slightly different answers than expected.
+However, a more likely outcome of very large non-floating point values is numerical overflow.
+
+[discrete]
+==== Arithmetic errors
+
+Arithmetic errors and numeric overflow do not result in an error. Instead, the result will be `null`
+and a warning for the `ArithmeticException` added.
+For example:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=powULOverrun]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powULOverrun-warning]
+|===
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powULOverrun-result]
+|===
+
+If it is desired to protect against numerical overruns, use `TO_DOUBLE` on either of the arguments:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=pow2d]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=pow2d-result]
+|===
+
+[discrete]
+==== Fractional exponents
+
+The exponent can be a fraction, which is similar to performing a root.
+For example, the exponent of `0.5` will give the square root of the base:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/math.csv-spec[tag=powID-sqrt]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/math.csv-spec[tag=powID-sqrt-result]
+|===
+
+[discrete]
+==== Table of supported input and output types
+
+For clarity, the following table describes the output result type for all combinations of numeric input types:
+
+include::types/pow.asciidoc[]

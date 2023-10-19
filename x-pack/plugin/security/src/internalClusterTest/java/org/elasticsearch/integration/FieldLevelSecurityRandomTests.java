@@ -156,30 +156,32 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
             fieldMappers[j++] = "type=text";
             doc.put(field, "value");
         }
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(fieldMappers));
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(fieldMappers));
         client().prepareIndex("test").setId("1").setSource(doc).setRefreshPolicy(IMMEDIATE).get();
 
         for (String allowedField : allowedFields) {
             logger.info("Checking allowed field [{}]", allowedField);
-            SearchResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareSearch("test").setQuery(matchQuery(allowedField, "value")).get();
-            assertHitCount(response, 1);
+            assertHitCount(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(matchQuery(allowedField, "value")),
+                1
+            );
         }
         for (String disallowedField : disAllowedFields) {
             logger.info("Checking disallowed field [{}]", disallowedField);
-            SearchResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareSearch("test").setQuery(matchQuery(disallowedField, "value")).get();
-            assertHitCount(response, 0);
+            assertHitCount(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(matchQuery(disallowedField, "value")),
+                0
+            );
         }
     }
 
     public void testDuel() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
+            indicesAdmin().prepareCreate("test")
                 .setMapping("id", "type=keyword", "field1", "type=text", "field2", "type=text", "field3", "type=text")
         );
 

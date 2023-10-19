@@ -51,7 +51,7 @@ public interface Transport extends LifecycleComponent {
     }
 
     default TransportVersion getVersion() {
-        return TransportVersion.CURRENT;
+        return TransportVersion.current();
     }
 
     /**

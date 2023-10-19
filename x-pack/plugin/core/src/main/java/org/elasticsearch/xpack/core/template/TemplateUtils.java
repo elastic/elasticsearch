@@ -14,13 +14,13 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.template.resources.TemplateResources;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -71,20 +71,13 @@ public class TemplateUtils {
      */
     public static String loadTemplate(String resource, String version, String versionProperty, Map<String, String> variables) {
         try {
-            String source = load(resource);
+            String source = TemplateResources.load(resource);
             source = replaceVariables(source, version, versionProperty, variables);
             validate(source);
             return source;
         } catch (Exception e) {
             throw new IllegalArgumentException("Unable to load template [" + resource + "]", e);
         }
-    }
-
-    /**
-     * Loads a resource from the classpath and returns it as a {@link String}
-     */
-    public static String load(String name) throws IOException {
-        return Streams.readFully(TemplateUtils.class.getResourceAsStream(name)).utf8ToString();
     }
 
     /**
@@ -124,14 +117,15 @@ public class TemplateUtils {
      * Checks if a versioned template exists, and if it exists checks if the version is greater than or equal to the current version.
      * @param templateName Name of the index template
      * @param state Cluster state
+     * @param currentVersion The current version to check against
      */
-    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state) {
+    public static boolean checkTemplateExistsAndVersionIsGTECurrentVersion(String templateName, ClusterState state, long currentVersion) {
         ComposableIndexTemplate templateMetadata = state.metadata().templatesV2().get(templateName);
         if (templateMetadata == null) {
             return false;
         }
 
-        return templateMetadata.version() != null && templateMetadata.version() >= Version.CURRENT.id;
+        return templateMetadata.version() != null && templateMetadata.version() >= currentVersion;
     }
 
     /**

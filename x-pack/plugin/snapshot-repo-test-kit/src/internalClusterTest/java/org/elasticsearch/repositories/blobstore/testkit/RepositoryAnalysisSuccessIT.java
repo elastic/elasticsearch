@@ -14,7 +14,10 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +35,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -47,7 +49,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -123,10 +124,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         request.timeout(TimeValue.timeValueSeconds(20));
 
-        final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request)
-            .actionGet(30L, TimeUnit.SECONDS);
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
 
-        assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(blobStore.currentPath, nullValue());
     }
 
@@ -240,6 +239,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
+        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {}
+
+        @Override
         public void close() {}
 
         public void setMaxWriteConcurrency(int concurrency) {
@@ -271,7 +273,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         private final long maxTotalBlobSize;
         private final Map<String, byte[]> blobs = ConcurrentCollections.newConcurrentMap();
         private final AtomicLong totalBytesWritten = new AtomicLong();
-        private final Map<String, AtomicLong> registers = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, BytesRegister> registers = ConcurrentCollections.newConcurrentMap();
         private final AtomicBoolean firstRegisterRead = new AtomicBoolean(true);
 
         AssertingBlobContainer(
@@ -296,12 +298,12 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public boolean blobExists(String blobName) {
+        public boolean blobExists(OperationPurpose purpose, String blobName) {
             return blobs.containsKey(blobName);
         }
 
         @Override
-        public InputStream readBlob(String blobName) throws IOException {
+        public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
             final byte[] contents = blobs.get(blobName);
             if (contents == null) {
                 throw new FileNotFoundException(blobName + " not found");
@@ -310,7 +312,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
             final byte[] contents = blobs.get(blobName);
             if (contents == null) {
                 throw new FileNotFoundException(blobName + " not found");
@@ -320,7 +322,13 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        public void writeBlob(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
             assertTrue("must only write blob [" + blobName + "] non-atomically if it doesn't already exist", failIfAlreadyExists);
             assertNull("blob [" + blobName + "] must not exist", blobs.get(blobName));
 
@@ -329,12 +337,14 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-            writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+        public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+            throws IOException {
+            writeBlob(OperationPurpose.SNAPSHOT, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
         @Override
         public void writeMetadataBlob(
+            OperationPurpose purpose,
             String blobName,
             boolean failIfAlreadyExists,
             boolean atomic,
@@ -343,14 +353,15 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             final BytesStreamOutput out = new BytesStreamOutput();
             writer.accept(out);
             if (atomic) {
-                writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+                writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
             } else {
-                writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+                writeBlob(OperationPurpose.SNAPSHOT, blobName, out.bytes(), failIfAlreadyExists);
             }
         }
 
         @Override
-        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        public void writeBlobAtomic(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists)
+            throws IOException {
             writeBlobAtomic(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         }
 
@@ -379,7 +390,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public DeleteResult delete() {
+        public DeleteResult delete(OperationPurpose purpose) {
             deleteContainer.accept(this);
             final DeleteResult deleteResult = new DeleteResult(blobs.size(), blobs.values().stream().mapToLong(b -> b.length).sum());
             blobs.clear();
@@ -387,50 +398,59 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
+        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) {
             blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobs() {
+        public Map<String, BlobMetadata> listBlobs(OperationPurpose purpose) {
             return blobs.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobMetadata(e.getKey(), e.getValue().length)));
         }
 
         @Override
-        public Map<String, BlobContainer> children() {
+        public Map<String, BlobContainer> children(OperationPurpose purpose) {
             return Map.of();
         }
 
         @Override
-        public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
-            final Map<String, BlobMetadata> blobMetadataByName = listBlobs();
+        public Map<String, BlobMetadata> listBlobsByPrefix(OperationPurpose purpose, String blobNamePrefix) {
+            final Map<String, BlobMetadata> blobMetadataByName = listBlobs(OperationPurpose.SNAPSHOT);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
             return blobMetadataByName;
         }
 
         @Override
-        public void getRegister(String key, ActionListener<OptionalLong> listener) {
+        public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
             if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
                 // only fail the first read, we must not fail the final check
-                listener.onResponse(OptionalLong.empty());
+                listener.onResponse(OptionalBytesReference.EMPTY);
             } else if (randomBoolean()) {
-                listener.onResponse(OptionalLong.of(registers.computeIfAbsent(key, ignored -> new AtomicLong()).get()));
+                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
             } else {
-                compareAndExchangeRegister(key, -1, -1, listener);
+                final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
+                compareAndExchangeRegister(OperationPurpose.SNAPSHOT, key, bogus, bogus, listener);
             }
         }
 
         @Override
-        public void compareAndExchangeRegister(String key, long expected, long updated, ActionListener<OptionalLong> listener) {
+        public void compareAndExchangeRegister(
+            OperationPurpose purpose,
+            String key,
+            BytesReference expected,
+            BytesReference updated,
+            ActionListener<OptionalBytesReference> listener
+        ) {
             firstRegisterRead.set(false);
-            if (updated != -1 && randomBoolean() && randomBoolean()) {
-                // updated != -1 so we don't fail the final check because we know there can be no concurrent operations at that point
-                listener.onResponse(OptionalLong.empty());
+            if (updated.length() > 1 && randomBoolean() && randomBoolean()) {
+                // updated.length() > 1 so we don't fail the final check because we know there can be no concurrent operations at that point
+                listener.onResponse(OptionalBytesReference.MISSING);
             } else {
                 listener.onResponse(
-                    OptionalLong.of(registers.computeIfAbsent(key, ignored -> new AtomicLong()).compareAndExchange(expected, updated))
+                    OptionalBytesReference.of(
+                        registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated)
+                    )
                 );
             }
         }

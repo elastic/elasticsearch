@@ -704,7 +704,7 @@ The API returns the following result:
 ----
 // TESTRESPONSE[s/1656364565517/$body.$_path/]
 // TESTRESPONSE[s/"version" : "8.4.0"/"version": $body.version/]
-// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]
+// TESTRESPONSE[s/"superuser"/"_es_test_root"/]
 
 
 [[ml-put-dfanalytics-example-r]]
@@ -777,7 +777,7 @@ The API returns the following result:
 ----
 // TESTRESPONSE[s/1656364845151/$body.$_path/]
 // TESTRESPONSE[s/"version" : "8.4.0"/"version": $body.version/]
-// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]
+// TESTRESPONSE[s/"superuser"/"_es_test_root"/]
 // TESTRESPONSE[s/-3578554885299300212/$body.$_path/]
 
 

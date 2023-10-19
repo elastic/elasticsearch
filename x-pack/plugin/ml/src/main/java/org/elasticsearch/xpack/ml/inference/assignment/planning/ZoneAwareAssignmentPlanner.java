@@ -46,9 +46,7 @@ public class ZoneAwareAssignmentPlanner {
     }
 
     private static Map<List<String>, List<Node>> sortByZone(Map<List<String>, List<Node>> nodesByZone) {
-        Map<List<String>, List<Node>> sortedByZone = new TreeMap<>(
-            Comparator.comparing(zoneAttributes -> zoneAttributes.stream().collect(Collectors.joining()))
-        );
+        Map<List<String>, List<Node>> sortedByZone = new TreeMap<>(Comparator.comparing(zoneAttributes -> String.join("", zoneAttributes)));
         sortedByZone.putAll(nodesByZone);
         return sortedByZone;
     }

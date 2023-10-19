@@ -141,7 +141,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             return false;
         }
 
-        if (indexMetadata.getTimeSeriesTimestampRange() != null) {
+        if (indexMetadata.hasTimeSeriesTimestampRange()) {
             // Tsdb indices have @timestamp field and index.time_series.start_time / index.time_series.end_time range
             return true;
         }
@@ -151,7 +151,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     }
 
     private static DateFieldMapper.DateFieldType fromMapperService(MapperService mapperService) {
-        final MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        final MappedFieldType mappedFieldType = mapperService.fieldType(DataStream.TIMESTAMP_FIELD_NAME);
         if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
             return (DateFieldMapper.DateFieldType) mappedFieldType;
         } else {

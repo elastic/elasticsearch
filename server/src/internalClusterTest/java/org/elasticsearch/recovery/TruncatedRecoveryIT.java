@@ -59,7 +59,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             Settings.builder().put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES))
         );
 
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
             if (stat.getNode().canContainData()) {
@@ -93,13 +93,13 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         indexRandom(true, builder);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)).get(), 1);
+            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
         }
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
-        client().admin().indices().prepareFlush().setForce(true).get();
-        client().admin().indices().prepareFlush().setForce(true).get(); // double flush to create safe commit in case of async durability
-        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
+        indicesAdmin().prepareFlush().setForce(true).get();
+        indicesAdmin().prepareFlush().setForce(true).get(); // double flush to create safe commit in case of async durability
+        indicesAdmin().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
@@ -143,7 +143,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen("test");
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)).get(), 1);
+            assertHitCount(client().prepareSearch().setQuery(QueryBuilders.termQuery("the_id", id)), 1);
         }
     }
 }

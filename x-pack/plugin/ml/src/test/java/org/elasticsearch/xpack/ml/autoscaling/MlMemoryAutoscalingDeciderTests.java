@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.TestDiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -27,6 +26,8 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -131,7 +132,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
     private static final long PER_NODE_OVERHEAD = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
 
     private NodeLoadDetector nodeLoadDetector;
-    private NodeAvailabilityZoneMapper nodeAvailabilityZoneMapper;
+    private NodeRealAvailabilityZoneMapper nodeRealAvailabilityZoneMapper;
     private ClusterService clusterService;
     private Settings settings;
     private LongSupplier timeSupplier;
@@ -151,7 +152,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
             NodeLoad.builder("any").setUseMemory(true).incAssignedAnomalyDetectorMemory(ByteSizeValue.ofGb(1).getBytes()).build()
         );
-        nodeAvailabilityZoneMapper = mock(NodeAvailabilityZoneMapper.class);
+        nodeRealAvailabilityZoneMapper = mock(NodeRealAvailabilityZoneMapper.class);
         clusterService = mock(ClusterService.class);
         settings = Settings.EMPTY;
         timeSupplier = System::currentTimeMillis;
@@ -160,7 +161,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
             Set.of(
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT,
+                MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_ML_NODE_SIZE,
                 AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING
             )
@@ -579,7 +580,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         List<String> jobTasks = List.of("waiting_job", "waiting_job_2");
         List<String> analytics = List.of("analytics_waiting");
         // Two small nodes in cluster, so simulate two availability zones
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
+        when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
         List<NodeLoad> nodesWithRoom = List.of(
             NodeLoad.builder("partially_filled")
                 .setMaxMemory(2 * TEST_JOB_SIZE + PER_NODE_OVERHEAD)
@@ -908,7 +909,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
     public void testScaleUp_withWaitingModelsAndRoomInNodes() {
         // Two small nodes in cluster, so simulate two availability zones
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
+        when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(2));
         List<NodeLoad> nodesWithRoom = List.of(
             NodeLoad.builder("partially_filled")
                 .setMaxMemory(2 * TEST_JOB_SIZE + PER_NODE_OVERHEAD)
@@ -944,7 +945,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
     }
 
     public void testScaleDown() {
-        when(nodeAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
+        when(nodeRealAvailabilityZoneMapper.getNumMlAvailabilityZones()).thenReturn(OptionalInt.of(3));
         MlMemoryAutoscalingDecider decider = buildDecider();
         decider.setMaxMachineMemoryPercent(25);
         { // Current capacity allows for smaller node
@@ -1063,7 +1064,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1075,11 +1078,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
-                withMlNodes("ml_node_1", "ml_node_2")
+                withMlNodes("ml_node_1", "ml_node_2"),
+                1
             )
         );
         assertTrue(
@@ -1094,7 +1100,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1106,11 +1114,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
-                withMlNodes("ml_node_1", "ml_node_2")
+                withMlNodes("ml_node_1", "ml_node_2"),
+                1
             )
         );
         assertFalse(
@@ -1125,7 +1136,9 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             3,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build(),
                     TrainedModelAssignment.Builder.empty(
@@ -1137,11 +1150,14 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
                             1,
                             100,
                             null,
-                            Priority.NORMAL
+                            Priority.NORMAL,
+                            0L,
+                            0L
                         )
                     ).build()
                 ),
-                withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4")
+                withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4"),
+                1
             )
         );
     }
@@ -1237,7 +1253,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         DeciderContext deciderContext = new DeciderContext(clusterState, autoscalingCapacity);
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(clusterState);
 
-        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
+        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext, 1);
         assertThat(result.reason(), containsString("but the number in the queue is less than the configured maximum allowed"));
         assertThat(result.nodeSize(), equalTo(ByteSizeValue.ofGb(1)));
         assertThat(result.tierSize(), equalTo(ByteSizeValue.ofGb(1)));
@@ -1266,7 +1282,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         DeciderContext deciderContext = new DeciderContext(clusterState, AutoscalingCapacity.ZERO);
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(clusterState);
 
-        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext);
+        MlMemoryAutoscalingCapacity result = decider.scale(settings, deciderContext, mlAutoscalingContext, 1);
         assertThat(
             result.reason(),
             containsString(
@@ -1281,7 +1297,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         return new MlMemoryAutoscalingDecider(
             settings,
             clusterService,
-            nodeAvailabilityZoneMapper,
+            nodeRealAvailabilityZoneMapper,
             nodeLoadDetector,
             new ScaleTimer(timeSupplier)
         );
@@ -1358,7 +1374,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
     private static List<DiscoveryNode> withMlNodes(String... nodeName) {
         return Arrays.stream(nodeName)
             .map(
-                n -> TestDiscoveryNode.create(
+                n -> DiscoveryNodeUtils.create(
                     n,
                     buildNewFakeTransportAddress(),
                     Map.of(
@@ -1384,7 +1400,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(jobId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(jobId, Version.CURRENT, true),
+            new StartDataFrameAnalyticsAction.TaskParams(jobId, MlConfigVersion.CURRENT, true),
             nodeId == null ? AWAITING_LAZY_ASSIGNMENT : new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment")
         );
         if (jobState != null) {
@@ -1455,7 +1471,7 @@ public class MlMemoryAutoscalingDeciderTests extends ESTestCase {
 
     private static long autoBytesForMl(Long nodeSize, Long jvmSize) {
         return NativeMemoryCalculator.allowedBytesForMl(
-            TestDiscoveryNode.create(
+            DiscoveryNodeUtils.create(
                 "node",
                 ESTestCase.buildNewFakeTransportAddress(),
                 Map.of(MAX_JVM_SIZE_NODE_ATTR, jvmSize.toString(), MACHINE_MEMORY_NODE_ATTR, nodeSize.toString()),

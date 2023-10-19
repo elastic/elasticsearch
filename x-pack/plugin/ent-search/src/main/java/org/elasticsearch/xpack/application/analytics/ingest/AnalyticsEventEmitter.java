@@ -108,8 +108,6 @@ public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             return client.prepareIndex(collection.getEventDataStream())
-                // disable auto-creation of the underlying index
-                .setRequireAlias(true)
                 .setCreate(true)
                 .setSource(event.toXContent(builder, ToXContent.EMPTY_PARAMS))
                 .request();

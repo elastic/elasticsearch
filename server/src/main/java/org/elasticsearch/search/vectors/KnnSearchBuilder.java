@@ -42,6 +42,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewriteable<KnnSearchBuilder> {
     private static final int NUM_CANDS_LIMIT = 10000;
+    private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 2f;
+    private static final int NUM_CANDS_DEFAULT = 100;
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField K_FIELD = new ParseField("k");
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
@@ -442,7 +444,9 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             return this;
         }
         int adjustedK = k != null ? k : size;
-        int adjustedNumCands = numCands != null ? numCands : 100;
+        int adjustedNumCands = numCands != null
+            ? numCands
+            : Math.min(Math.max(NUM_CANDS_DEFAULT, (int) NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK), NUM_CANDS_LIMIT);
         return new KnnSearchBuilder(field, queryVector, queryVectorBuilder, adjustedK, adjustedNumCands, similarity).addFilterQueries(
             filterQueries
         ).boost(boost);

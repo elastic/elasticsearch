@@ -138,10 +138,10 @@ public final class SearchPhaseController {
         if (request.hasKnnSearch() == false) {
             return null;
         }
-
-        List<List<TopDocs>> topDocsLists = new ArrayList<>(request.source().knnSearch().size());
-        List<SetOnce<String>> nestedPath = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
+        SearchSourceBuilder source = request.source();
+        List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());
+        List<SetOnce<String>> nestedPath = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
             topDocsLists.add(new ArrayList<>());
             nestedPath.add(new SetOnce<>());
         }
@@ -160,13 +160,10 @@ public final class SearchPhaseController {
             }
         }
 
-        List<DfsKnnResults> mergedResults = new ArrayList<>(request.source().knnSearch().size());
-        for (int i = 0; i < request.source().knnSearch().size(); i++) {
-            Integer topK = request.source().knnSearch().get(i).k();
-            TopDocs mergedTopDocs = TopDocs.merge(
-                topK != null ? topK : request.source().size(),
-                topDocsLists.get(i).toArray(new TopDocs[0])
-            );
+        List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
+        for (int i = 0; i < source.knnSearch().size(); i++) {
+            Integer topK = source.knnSearch().get(i).k();
+            TopDocs mergedTopDocs = TopDocs.merge(topK != null ? topK : source.size(), topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;

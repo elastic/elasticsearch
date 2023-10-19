@@ -53,6 +53,8 @@ public class StringUtilsTests extends ESTestCase {
     }
 
     public void testEscapedEscape() {
-        assertEquals("^\\\\\\\\$", wildcardToJavaPattern("\\\\\\\\", '\\'));
+        assertEquals("""
+            ^\\\\$""", wildcardToJavaPattern("""
+            \\\\""", '\\'));
     }
 }

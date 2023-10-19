@@ -50,7 +50,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -517,7 +516,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertSearchHits(response, "1");
 
         response = client().prepareSearchScroll(response.getScrollId()).get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertHitCount(response, 1);
         assertNoSearchHits(response);
 

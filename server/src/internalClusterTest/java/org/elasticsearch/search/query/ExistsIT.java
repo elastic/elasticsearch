@@ -31,7 +31,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 public class ExistsIT extends ESIntegTestCase {
 
@@ -115,14 +114,14 @@ public class ExistsIT extends ESIntegTestCase {
 
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
-        assertSearchResponse(allDocs);
+        assertNoFailures(allDocs);
         assertHitCount(allDocs, numDocs);
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
             SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(resp);
+            assertNoFailures(resp);
             try {
                 assertEquals(
                     String.format(
@@ -201,7 +200,7 @@ public class ExistsIT extends ESIntegTestCase {
             int expectedCount = entry.getValue();
 
             SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(response);
+            assertNoFailures(response);
             assertHitCount(response, expectedCount);
         }
     }
@@ -233,7 +232,7 @@ public class ExistsIT extends ESIntegTestCase {
         indexRandom(true, false, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")).get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertHitCount(response, 2);
     }
 }

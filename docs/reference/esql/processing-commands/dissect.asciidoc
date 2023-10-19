@@ -2,12 +2,31 @@
 [[esql-dissect]]
 === `DISSECT`
 
+**Syntax**
+
+[source,txt]
+----
+DISSECT input pattern [ APPEND_SEPARATOR="<separator>"]
+----
+
+*Parameters*
+
+`input`::
+
+`pattern`::
+
+`APPEND_SEPARATOR="<separator>"`::
+A string used as the separator between appended values, when using the <<esql-append-modifier,append modifier>>.
+
+*Description*
+
 `DISSECT` enables you to extract structured data out of a string. `DISSECT`
 matches the string against a delimiter-based pattern, and extracts the specified
 keys as columns.
 
-Refer to the <<dissect-processor,dissect processor documentation>> for the
-syntax of dissect patterns.
+Refer to <<esql-process-data-with-dissect>> for the syntax of dissect patterns.
+
+*Example*
 
 [source.merge.styled,esql]
 ----

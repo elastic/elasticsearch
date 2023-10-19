@@ -29,19 +29,98 @@ can deconstruct the section of the line that is repeated. The `GROK` filter can
 process the remaining field values with more regex predictability.
 
 [[esql-process-data-with-dissect]]
-==== `DISSECT`
+==== Process data with `DISSECT`
 
-include::../ingest/processors/dissect.asciidoc[tag=intro-example]
+The <<esql-dissect>> processing command matches the string against a
+delimiter-based pattern, and extracts the specified keys as columns.
 
-and result in adding the following columns to the input table:
+For example the following pattern:
+[source,txt]
+--------------------------------------------------
+%{ip} [%{@timestamp}] %{status} 
+--------------------------------------------------
+
+will match a log line of this format:
+[source,txt]
+--------------------------------------------------
+1.2.3.4 [30/Apr/2023:22:00:52 +0000] Connected
+--------------------------------------------------
+
+and results in adding the following columns to the input table:
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-clientip:keyword | ident:keyword | auth:keyword | @timestamp:keyword | verb:keyword | request:keyword | httpversion:keyword  | status:keyword | size:keyword
-1.2.3.4 | - | - | 30/Apr/1998:22:00:52 +0000 | GET | /english/venues/cities/images/montpellier/18.gif | 1.0 | 1200 | 3171
+ip:keyword | @timestamp:keyword | status:keyword
+1.2.3.4 | 30/Apr/2023:22:00:52 +0000 | Connected
 |===
 
 include::../ingest/processors/dissect.asciidoc[tag=intro-example-explanation]
 
+An empty key `%{}` or a <<esql-named-skip-key,named skip key>> can be used to
+match values, but exclude the value from the output.
+
+All matched values are represented as string data types. Use the
+<<esql-type-conversion-functions>> to convert to expected data type.
+
+Dissect also supports <<esql-dissect-key-modifiers,key modifiers>> that can
+change dissect's default behavior. For example you can instruct dissect to
+ignore certain fields, append fields, skip over padding, etc.
+
+===== Terminology
+
+*dissect pattern*::
+the set of fields and delimiters describing the textual 
+format. Also known as a dissection. 
+The dissection is described using a set of `%{}` sections:
+`%{a} - %{b} - %{c}`
+
+*field*::
+the text from `%{` to `}` inclusive.
+
+*delimiter*::
+the text between `}` and the next `%{` characters.
+Any set of characters other than `%{`, `'not }'`, or `}` is a delimiter.
+
+*key*::
++
+--
+the text between the `%{` and `}`, exclusive of the `?`, `+`, `&` prefixes 
+and the ordinal suffix. 
+
+Examples:
+
+* `%{?aaa}` - the key is `aaa` 
+* `%{+bbb/3}` - the key is `bbb` 
+* `%{&ccc}` - the key is `ccc` 
+--
+
+[[esql-dissect-key-modifiers]]
+===== Dissect key modifiers
+
+include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers]
+
+[[esql-dissect-key-modifiers-table]]
+include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers-table]
+
+[[esql-dissect-modifier-skip-right-padding]]
+====== Right padding modifier (`->`)
+include::../ingest/processors/dissect.asciidoc[tag=dissect-modifier-skip-right-padding]
+
+[[esql-append-modifier]]
+====== Append modifier (`+`)
+include::../ingest/processors/dissect.asciidoc[tag=append-modifier]
+
+[[esql-append-order-modifier]]
+====== Append with order modifier (`+` and `/n`)
+include::../ingest/processors/dissect.asciidoc[tag=append-order-modifier]
+
+[[esql-named-skip-key]]
+====== Named skip key (`?`)
+include::../ingest/processors/dissect.asciidoc[tag=named-skip-key]
+
+[[esql-reference-keys]]
+====== Reference keys (`*` and `&`)
+include::../ingest/processors/dissect.asciidoc[tag=reference-keys]
+
 [[esql-process-data-with-grok]]
-==== `GROK`
+==== Process data with `GROK`

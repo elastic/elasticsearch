@@ -443,11 +443,8 @@ public class SimpleSortIT extends ESIntegTestCase {
         refresh();
 
         Script sortScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "\u0027\u0027", Collections.emptyMap());
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(scriptSort(sortScript, ScriptSortType.STRING))
-            .setSize(10)
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(
+            client().prepareSearch().setQuery(matchAllQuery()).addSort(scriptSort(sortScript, ScriptSortType.STRING)).setSize(10)
+        );
     }
 }

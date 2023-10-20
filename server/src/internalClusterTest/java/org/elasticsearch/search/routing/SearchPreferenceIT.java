@@ -15,11 +15,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -217,8 +217,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         final String customPreference = randomAlphaOfLength(10);
 
-        final String nodeId = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        final String nodeId = prepareSearch("test").setQuery(matchAllQuery())
             .setPreference(customPreference)
             .get()
             .getHits()
@@ -245,7 +244,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(
                     IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                    internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                    internalCluster().getNodeNameThat(DiscoveryNode::canContainData)
                 ),
             "test2"
         );
@@ -260,7 +259,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     private static void assertSearchesSpecificNode(String index, String customPreference, String nodeId) {
-        final SearchResponse searchResponse = client().prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
+        final SearchResponse searchResponse = prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getShard().getNodeId(), equalTo(nodeId));
     }

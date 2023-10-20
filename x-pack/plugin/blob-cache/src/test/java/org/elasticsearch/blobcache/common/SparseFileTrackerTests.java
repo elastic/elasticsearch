@@ -414,17 +414,14 @@ public class SparseFileTrackerTests extends ESTestCase {
             assertThat(sparseFileTracker.getAbsentRangeWithin(completedRange), nullValue());
 
             final AtomicBoolean listenerCalled = new AtomicBoolean();
-            assertThat(sparseFileTracker.waitForRange(completedRange, completedRange, new ActionListener<>() {
-                @Override
-                public void onResponse(Void aVoid) {
-                    listenerCalled.set(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }), hasSize(0));
+            assertThat(
+                sparseFileTracker.waitForRange(
+                    completedRange,
+                    completedRange,
+                    ActionTestUtils.assertNoFailureListener(ignored -> listenerCalled.set(true))
+                ),
+                hasSize(0)
+            );
             assertThat(listenerCalled.get(), is(true));
         }
     }

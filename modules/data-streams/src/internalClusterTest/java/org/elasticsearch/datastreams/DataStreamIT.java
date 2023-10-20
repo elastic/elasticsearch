@@ -8,7 +8,6 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -560,10 +559,10 @@ public class DataStreamIT extends ESIntegTestCase {
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareRefresh(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().prepareSearch(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, prepareSearch(dataStreamName), false, 1);
         verifyResolvability(
             dataStreamName,
-            client().prepareMultiSearch().add(client().prepareSearch(dataStreamName).setQuery(matchAllQuery())),
+            client().prepareMultiSearch().add(prepareSearch(dataStreamName).setQuery(matchAllQuery())),
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareClearCache(dataStreamName), false);
@@ -606,10 +605,10 @@ public class DataStreamIT extends ESIntegTestCase {
 
         String wildcardExpression = "logs*";
         verifyResolvability(wildcardExpression, indicesAdmin().prepareRefresh(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().prepareSearch(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, prepareSearch(wildcardExpression), false, 2);
         verifyResolvability(
             wildcardExpression,
-            client().prepareMultiSearch().add(client().prepareSearch(wildcardExpression).setQuery(matchAllQuery())),
+            client().prepareMultiSearch().add(prepareSearch(wildcardExpression).setQuery(matchAllQuery())),
             false
         );
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClearCache(wildcardExpression), false);
@@ -754,11 +753,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        SearchResponse searchResponse = client().prepareSearch("logs-foobar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 2, because it matches with the defined filter in the alias:
-        searchResponse = client().prepareSearch("foo").get();
-        assertSearchHits(searchResponse, "2");
+        assertSearchHits(prepareSearch("foo"), "2");
 
         // Update alias:
         addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
@@ -786,11 +783,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        searchResponse = client().prepareSearch("logs-foobar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 1, because it matches with the defined filter in the alias:
-        searchResponse = client().prepareSearch("foo").get();
-        assertSearchHits(searchResponse, "1");
+        assertSearchHits(prepareSearch("foo"), "1");
     }
 
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
@@ -833,11 +828,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the filtered and unfiltered aliases should return all results (unfiltered):
-        SearchResponse searchResponse = client().prepareSearch("foo", "bar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("foo", "bar"), "1", "2");
         // Searching the data stream name and the filtered alias should return all results (unfiltered):
-        searchResponse = client().prepareSearch("foo", dataStreamName).get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("foo", dataStreamName), "1", "2");
     }
 
     public void testRandomDataSteamAliasesUpdate() throws Exception {
@@ -1303,8 +1296,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs("metrics-foo", numDocsRolledFoo);
 
         SearchRequest searchRequest = new SearchRequest("*");
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
+        assertHitCount(client().search(searchRequest), numDocsBar + numDocsFoo + numDocsRolledFoo);
     }
 
     public void testGetDataStream() throws Exception {
@@ -1479,9 +1471,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         SearchRequest searchRequest = new SearchRequest("*");
         searchRequest.source().query(new TermQueryBuilder("_index", "metrics-foo"));
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+        assertHitCount(client().search(searchRequest), 1);
     }
 
     public void testDataStreamMetadata() throws Exception {
@@ -1894,7 +1884,7 @@ public class DataStreamIT extends ESIntegTestCase {
             }
         } else {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
-                assertHitCount(searchRequestBuilder.get(), expectedCount);
+                assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));

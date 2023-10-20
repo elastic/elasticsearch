@@ -206,6 +206,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
+                responseBuilder.setTotalSamples(totalFinalCount);
                 log.debug(
                     "Found [{}] stacktrace events, resampled with sample rate [{}] to [{}] events ([{}] unique stack traces).",
                     totalCount,
@@ -500,6 +501,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private Map<String, String> executables;
         private Map<String, Integer> stackTraceEvents;
         private double samplingRate;
+        private long totalSamples;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -545,8 +547,20 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.samplingRate = rate;
         }
 
+        public void setTotalSamples(long totalSamples) {
+            this.totalSamples = totalSamples;
+        }
+
         public GetStackTracesResponse build() {
-            return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
+            return new GetStackTracesResponse(
+                stackTraces,
+                stackFrames,
+                executables,
+                stackTraceEvents,
+                totalFrames,
+                samplingRate,
+                totalSamples
+            );
         }
     }
 }

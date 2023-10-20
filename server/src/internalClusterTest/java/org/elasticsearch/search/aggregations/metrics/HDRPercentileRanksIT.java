@@ -248,8 +248,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValue, maxValue);
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(
                 percentileRanks("percentile_ranks", pcts).method(PercentilesMethod.HDR)
                     .numberOfSignificantValueDigits(sigDigits)

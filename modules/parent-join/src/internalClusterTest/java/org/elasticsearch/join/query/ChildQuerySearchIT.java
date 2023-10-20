@@ -1259,26 +1259,20 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         indicesAdmin().prepareRefresh("test").get();
 
         for (int i = 0; i < 2; i++) {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(
-                    boolQuery().must(matchAllQuery())
-                        .filter(
-                            boolQuery().must(hasChildQuery("child", matchQuery("c_field", "red"), ScoreMode.None)).must(matchAllQuery())
-                        )
-                )
-                .get();
+            SearchResponse searchResponse = prepareSearch().setQuery(
+                boolQuery().must(matchAllQuery())
+                    .filter(boolQuery().must(hasChildQuery("child", matchQuery("c_field", "red"), ScoreMode.None)).must(matchAllQuery()))
+            ).get();
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         }
 
         createIndexRequest("test", "child", "c3", "p2", "c_field", "blue").get();
         indicesAdmin().prepareRefresh("test").get();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(
-                boolQuery().must(matchAllQuery())
-                    .filter(boolQuery().must(hasChildQuery("child", matchQuery("c_field", "red"), ScoreMode.None)).must(matchAllQuery()))
-            )
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(
+            boolQuery().must(matchAllQuery())
+                .filter(boolQuery().must(hasChildQuery("child", matchQuery("c_field", "red"), ScoreMode.None)).must(matchAllQuery()))
+        ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }

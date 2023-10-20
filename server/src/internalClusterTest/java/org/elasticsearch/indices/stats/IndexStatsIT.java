@@ -151,8 +151,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         // sort to load it to field data...
-        client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
-        client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
 
         nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -167,8 +167,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
 
         // sort to load it to field data...
-        client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
-        client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
 
         // now check the per field stats
         nodesStats = clusterAdmin().prepareNodesStats("data:true")
@@ -272,16 +272,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
 
         // sort to load it to field data and filter to load filter cache
-        client().prepareSearch()
-            .setPostFilter(QueryBuilders.termQuery("field", "value1"))
-            .addSort("field", SortOrder.ASC)
-            .execute()
-            .actionGet();
-        client().prepareSearch()
-            .setPostFilter(QueryBuilders.termQuery("field", "value2"))
-            .addSort("field", SortOrder.ASC)
-            .execute()
-            .actionGet();
+        prepareSearch().setPostFilter(QueryBuilders.termQuery("field", "value1")).addSort("field", SortOrder.ASC).execute().actionGet();
+        prepareSearch().setPostFilter(QueryBuilders.termQuery("field", "value2")).addSort("field", SortOrder.ASC).execute().actionGet();
 
         nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(

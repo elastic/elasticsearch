@@ -273,15 +273,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .addUnboundedTo(500)
-                    .addRange(500, 1000)
-                    .addUnboundedFrom(1000)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                .unit(DistanceUnit.KILOMETERS)
+                .addUnboundedTo(500)
+                .addRange(500, 1000)
+                .addUnboundedFrom(1000)
+        ).get();
 
         assertNoFailures(response);
 

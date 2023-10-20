@@ -588,24 +588,22 @@ public class BucketScriptIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                histogram("histo").field(FIELD_1_NAME)
-                    .interval(interval)
-                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                    .subAggregation(
-                        bucketScript(
-                            "seriesArithmetic",
-                            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
-                            "field2Sum",
-                            "field3Sum",
-                            "field4Sum"
-                        )
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            histogram("histo").field(FIELD_1_NAME)
+                .interval(interval)
+                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                .subAggregation(
+                    bucketScript(
+                        "seriesArithmetic",
+                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                        "field2Sum",
+                        "field3Sum",
+                        "field4Sum"
                     )
-            )
-            .get();
+                )
+        ).get();
 
         assertNoFailures(response);
 
@@ -651,14 +649,12 @@ public class BucketScriptIT extends ESIntegTestCase {
             "seriesArithmetic"
         );
 
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                histogram("histo").field(FIELD_1_NAME)
-                    .interval(interval)
-                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                    .subAggregation(bucketScriptAgg)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            histogram("histo").field(FIELD_1_NAME)
+                .interval(interval)
+                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                .subAggregation(bucketScriptAgg)
+        ).get();
 
         assertNoFailures(response);
 
@@ -698,16 +694,14 @@ public class BucketScriptIT extends ESIntegTestCase {
             "seriesArithmetic"
         );
 
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                histogram("histo").field(FIELD_1_NAME)
-                    .interval(interval)
-                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                    .subAggregation(bucketScriptAgg)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            histogram("histo").field(FIELD_1_NAME)
+                .interval(interval)
+                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                .subAggregation(bucketScriptAgg)
+        ).get();
 
         assertNoFailures(response);
 
@@ -757,16 +751,14 @@ public class BucketScriptIT extends ESIntegTestCase {
             "seriesArithmetic"
         );
 
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                histogram("histo").field(FIELD_1_NAME)
-                    .interval(interval)
-                    .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
-                    .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
-                    .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
-                    .subAggregation(bucketScriptAgg)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            histogram("histo").field(FIELD_1_NAME)
+                .interval(interval)
+                .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
+                .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
+                .subAggregation(sum("field4Sum").field(FIELD_4_NAME))
+                .subAggregation(bucketScriptAgg)
+        ).get();
 
         assertNoFailures(response);
 

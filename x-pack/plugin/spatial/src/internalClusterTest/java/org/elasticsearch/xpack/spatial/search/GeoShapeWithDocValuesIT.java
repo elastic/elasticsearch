@@ -150,8 +150,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         refresh();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "POINT(4.51 52.20)").endObject());
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+        SearchResponse response = prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 3);

@@ -1076,7 +1076,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         indicesAdmin().prepareRefresh("test").get();
-        assertHitCount(client().prepareSearch(), numDocs);
+        assertHitCount(prepareSearch(), numDocs);
     }
 
     /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */

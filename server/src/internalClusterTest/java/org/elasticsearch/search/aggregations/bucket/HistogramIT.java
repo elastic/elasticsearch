@@ -825,9 +825,9 @@ public class HistogramIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+        ).get();
 
         assertNoFailures(response);
 
@@ -846,13 +846,11 @@ public class HistogramIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmappedWithExtendedBounds() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
-                    .interval(interval)
-                    .extendedBounds(-1 * 2 * interval, valueCounts.length * interval)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                .interval(interval)
+                .extendedBounds(-1 * 2 * interval, valueCounts.length * interval)
+        ).get();
 
         assertNoFailures(response);
 

@@ -158,8 +158,7 @@ public class SamplerIT extends ESIntegTestCase {
     public void testPartiallyUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped", "test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("idx_unmapped", "test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)

@@ -533,13 +533,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
-                    .field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
+                .field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -1125,13 +1123,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     public void testIndexMetaField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "empty_bucket_idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .executionHint(randomExecutionHint())
-                    .field(IndexFieldMapper.NAME)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "empty_bucket_idx").addAggregation(
+            new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                .executionHint(randomExecutionHint())
+                .field(IndexFieldMapper.NAME)
+        ).get();
 
         assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("terms");

@@ -589,9 +589,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(1)
                 .maxQueryTerms(max_query_terms)
                 .minimumShouldMatch("0%");
-            SearchResponse response = prepareSearch("test").setQuery(mltQuery).get();
-            assertNoFailures(response);
-            assertHitCount(response, max_query_terms);
+            assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), max_query_terms);
         }
     }
 
@@ -652,9 +650,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("100%"); // strict all terms must match!
-        SearchResponse response = prepareSearch("test").setQuery(mltQuery).get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 1);
     }
 
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
@@ -678,16 +674,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new Item[] { new Item("test", malformedFieldDoc) }).minTermFreq(0)
             .minDocFreq(0)
             .minimumShouldMatch("0%");
-        SearchResponse response = prepareSearch("test").setQuery(mltQuery).get();
-        assertNoFailures(response);
-        assertHitCount(response, 0);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 0);
 
         logger.info("Checking with an empty document ...");
         XContentBuilder emptyDoc = jsonBuilder().startObject().endObject();
         mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", emptyDoc) }).minTermFreq(0).minDocFreq(0).minimumShouldMatch("0%");
-        response = prepareSearch("test").setQuery(mltQuery).get();
-        assertNoFailures(response);
-        assertHitCount(response, 0);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 0);
 
         logger.info("Checking the document matches otherwise ...");
         XContentBuilder normalDoc = jsonBuilder().startObject()
@@ -697,9 +689,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", normalDoc) }).minTermFreq(0)
             .minDocFreq(0)
             .minimumShouldMatch("100%");  // strict all terms must match but date is ignored
-        response = prepareSearch("test").setQuery(mltQuery).get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 1);
     }
 
     public void testMoreLikeThisUnlike() throws ExecutionException, InterruptedException, IOException {

@@ -456,8 +456,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
         parser.nextToken();
         TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
-        SearchResponse searchResponse = prepareSearch("idx").setQuery(query).get();
-        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertHitCount(prepareSearch("idx").setQuery(query), 1);
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {

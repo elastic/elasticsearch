@@ -1157,24 +1157,30 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("4").setSource("field1", "test2", "num_long", 4).get();
         refresh();
 
-        SearchResponse searchResponse = prepareSearch("test").setPostFilter(
-            boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4))
-        ).get();
-        assertHitCount(searchResponse, 4L);
+        assertHitCount(
+            prepareSearch("test").setPostFilter(
+                boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4))
+            ),
+            4L
+        );
 
         // This made 2826 fail! (only with bit based filters)
-        searchResponse = prepareSearch("test").setPostFilter(
-            boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4))
-        ).get();
-        assertHitCount(searchResponse, 4L);
+        assertHitCount(
+            prepareSearch("test").setPostFilter(
+                boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4))
+            ),
+            4L
+        );
 
         // This made #2979 fail!
-        searchResponse = prepareSearch("test").setPostFilter(
-            boolQuery().must(termQuery("field1", "test1"))
-                .should(rangeQuery("num_long").from(1).to(2))
-                .should(rangeQuery("num_long").from(3).to(4))
-        ).get();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(
+            prepareSearch("test").setPostFilter(
+                boolQuery().must(termQuery("field1", "test1"))
+                    .should(rangeQuery("num_long").from(1).to(2))
+                    .should(rangeQuery("num_long").from(3).to(4))
+            ),
+            2L
+        );
     }
 
     // see #2926
@@ -1193,15 +1199,12 @@ public class SearchQueryIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("4").setSource("description", "foo")
         );
 
-        SearchResponse searchResponse = prepareSearch("test").setQuery(matchAllQuery())
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .get();
-        assertHitCount(searchResponse, 4L);
-
-        searchResponse = prepareSearch("test").setQuery(boolQuery().mustNot(matchQuery("description", "anything")))
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .get();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(prepareSearch("test").setQuery(matchAllQuery()).setSearchType(SearchType.DFS_QUERY_THEN_FETCH), 4L);
+        assertHitCount(
+            prepareSearch("test").setQuery(boolQuery().mustNot(matchQuery("description", "anything")))
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH),
+            2L
+        );
     }
 
     public void testIntervals() throws InterruptedException {
@@ -1789,17 +1792,14 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         {
             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
-            SearchResponse searchResponse = prepareSearch().setQuery(wildCardQuery).get();
-            assertHitCount(searchResponse, 0L);
+            assertHitCount(prepareSearch().setQuery(wildCardQuery), 0L);
 
             // the following works not because of normalization but because of the `case_insensitive` parameter
             wildCardQuery = wildcardQuery("field1", "Bb*").caseInsensitive(true);
-            searchResponse = prepareSearch().setQuery(wildCardQuery).get();
-            assertHitCount(searchResponse, 1L);
+            assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
 
             wildCardQuery = wildcardQuery("field1", "bb*");
-            searchResponse = prepareSearch().setQuery(wildCardQuery).get();
-            assertHitCount(searchResponse, 1L);
+            assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
         }
     }
 
@@ -1821,12 +1821,10 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
-        SearchResponse searchResponse = prepareSearch().setQuery(wildCardQuery).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
 
         wildCardQuery = wildcardQuery("field", "la*el-?");
-        searchResponse = prepareSearch().setQuery(wildCardQuery).get();
-        assertHitCount(searchResponse, 1L);
+        assertHitCount(prepareSearch().setQuery(wildCardQuery), 1L);
     }
 
     public static class MockAnalysisPlugin extends Plugin implements AnalysisPlugin {

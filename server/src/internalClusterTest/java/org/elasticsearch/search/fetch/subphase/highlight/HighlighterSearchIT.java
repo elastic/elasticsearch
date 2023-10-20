@@ -92,6 +92,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNotHighlighted;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -3230,11 +3231,12 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                         .setCorners(new GeoPoint(48.934059, 41.610741), new GeoPoint(-23.065941, 113.610741))
                 )
         );
-        SearchResponse search = prepareSearch().setSource(
-            new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))
-        ).get();
-        assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCountAndNoFailures(
+            prepareSearch().setSource(
+                new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd"))
+            ),
+            1
+        );
     }
 
     public void testKeywordFieldHighlighting() throws IOException {

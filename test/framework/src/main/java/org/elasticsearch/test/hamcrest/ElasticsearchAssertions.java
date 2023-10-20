@@ -306,9 +306,13 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) throws ExecutionException,
-        InterruptedException {
-        var res = responseFuture.get();
+    public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
+        SearchResponse res;
+        try {
+            res = responseFuture.get();
+        } catch (ExecutionException | InterruptedException ex) {
+            throw new AssertionError(ex);
+        }
         try {
             assertHitCount(res, expectedHitCount);
         } finally {

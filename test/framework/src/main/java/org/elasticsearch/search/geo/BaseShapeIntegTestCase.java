@@ -184,7 +184,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
         );
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
@@ -217,9 +217,9 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON).setRouting("ABC"));
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(queryBuilder().shapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(
+            queryBuilder().shapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC")
+        ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
@@ -248,8 +248,7 @@ public abstract class BaseShapeIntegTestCase<T extends AbstractGeometryQueryBuil
             // Execute with search.allow_expensive_queries to false
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
-            SearchRequestBuilder builder = client().prepareSearch("test")
-                .setQuery(queryBuilder().shapeQuery("shape", new Circle(0, 0, 77000)));
+            SearchRequestBuilder builder = prepareSearch("test").setQuery(queryBuilder().shapeQuery("shape", new Circle(0, 0, 77000)));
             if (allowExpensiveQueries()) {
                 assertThat(builder.get().getHits().getTotalHits().value, equalTo(1L));
             } else {

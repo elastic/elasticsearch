@@ -194,7 +194,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchRequestBuilder search = client().prepareSearch("test");
+        SearchRequestBuilder search = prepareSearch("test");
         String name = "TestPosition";
 
         search.setQuery(QueryBuilders.matchAllQuery())

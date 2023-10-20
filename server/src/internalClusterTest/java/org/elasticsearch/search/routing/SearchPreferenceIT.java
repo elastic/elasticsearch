@@ -217,8 +217,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         final String customPreference = randomAlphaOfLength(10);
 
-        final String nodeId = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        final String nodeId = prepareSearch("test").setQuery(matchAllQuery())
             .setPreference(customPreference)
             .get()
             .getHits()
@@ -260,7 +259,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     private static void assertSearchesSpecificNode(String index, String customPreference, String nodeId) {
-        final SearchResponse searchResponse = client().prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
+        final SearchResponse searchResponse = prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getShard().getNodeId(), equalTo(nodeId));
     }

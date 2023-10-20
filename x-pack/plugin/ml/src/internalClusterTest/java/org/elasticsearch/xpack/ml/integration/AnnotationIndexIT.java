@@ -39,6 +39,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AnnotationIndexIT extends MlSingleNodeTestCase {
@@ -285,7 +286,8 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
                     assertBusy(() -> {
                         try {
                             assertHitCount(client().search(new SearchRequest(".ml-notifications*")), 1);
-                        } catch (SearchPhaseExecutionException e) {
+                        } catch (Exception e) {
+                            assertThat(e.getCause(), instanceOf(SearchPhaseExecutionException.class));
                             throw new AssertionError("Notifications index exists but shards not yet ready - continuing busy wait", e);
                         }
                         assertFalse(annotationsIndexExists(AnnotationIndex.LATEST_INDEX_NAME));

@@ -18,6 +18,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
@@ -85,7 +86,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
               }
             }""";
 
-        if (version.before(IndexVersion.V_8_0_0)) {
+        if (version.before(IndexVersions.V_8_0_0)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()

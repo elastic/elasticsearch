@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -295,7 +296,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 IndexVersion.fromId(version.id)
             );
         } else {
-            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
+            return new VersionInformation(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         }
     }
 

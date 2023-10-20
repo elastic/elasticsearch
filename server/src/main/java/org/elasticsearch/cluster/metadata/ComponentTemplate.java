@@ -67,7 +67,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata) {
-        this(template, version, metadata, Boolean.TRUE);
+        this(template, version, metadata, Boolean.FALSE);
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata, Boolean deprecated) {

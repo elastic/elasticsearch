@@ -70,8 +70,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -167,7 +169,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
     }
 
-    public void testAbsoluteStartMillis() {
+    public void testAbsoluteStartMillis() throws ExecutionException, InterruptedException {
         TaskId parentTaskId = new TaskId("node", randomNonNegativeLong());
         {
             IndexRequest indexRequest = new IndexRequest("test-1970.01.01");
@@ -186,9 +188,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             assertEquals(RestStatus.CREATED, indexResponse.status());
         }
         {
-            SearchRequest searchRequest = new SearchRequest();
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertHitCount(client().search(new SearchRequest()), 2);
         }
         {
             SearchRequest searchRequest = new SearchRequest("<test-{now/d}>");
@@ -205,8 +205,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 0,
                 randomBoolean()
             );
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            assertEquals(2, searchResponse.getHits().getTotalHits().value);
+            assertHitCount(client().search(searchRequest), 2);
         }
         {
             SearchRequest searchRequest = SearchRequest.subSearchRequest(

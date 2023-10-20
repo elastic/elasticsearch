@@ -26,6 +26,7 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -47,10 +48,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
         client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse searchResponse = prepareSearch("my-index").setQuery(matchQuery("title", "multi")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        searchResponse = prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch("my-index").setQuery(matchQuery("title", "multi")), 1);
+        assertHitCount(client().prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")), 1);
 
         assertAcked(indicesAdmin().preparePutMapping("my-index").setSource(createPutMappingSource()));
 
@@ -68,8 +67,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
 
         client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
-        searchResponse = prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")), 1);
     }
 
     @SuppressWarnings("unchecked")

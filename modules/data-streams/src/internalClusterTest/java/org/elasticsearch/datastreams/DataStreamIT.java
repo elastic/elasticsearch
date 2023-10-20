@@ -8,7 +8,6 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -829,9 +828,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the filtered and unfiltered aliases should return all results (unfiltered):
-        assertSearchHits(client().prepareSearch("foo", "bar"), "1", "2");
+        assertSearchHits(prepareSearch("foo", "bar"), "1", "2");
         // Searching the data stream name and the filtered alias should return all results (unfiltered):
-        assertSearchHits(client().prepareSearch("foo", dataStreamName), "1", "2");
+        assertSearchHits(prepareSearch("foo", dataStreamName), "1", "2");
     }
 
     public void testRandomDataSteamAliasesUpdate() throws Exception {
@@ -1297,8 +1296,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs("metrics-foo", numDocsRolledFoo);
 
         SearchRequest searchRequest = new SearchRequest("*");
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
+        assertHitCount(client().search(searchRequest), numDocsBar + numDocsFoo + numDocsRolledFoo);
     }
 
     public void testGetDataStream() throws Exception {
@@ -1473,9 +1471,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         SearchRequest searchRequest = new SearchRequest("*");
         searchRequest.source().query(new TermQueryBuilder("_index", "metrics-foo"));
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+        assertHitCount(client().search(searchRequest), 1);
     }
 
     public void testDataStreamMetadata() throws Exception {

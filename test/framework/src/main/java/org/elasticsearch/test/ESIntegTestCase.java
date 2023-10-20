@@ -1096,7 +1096,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static SearchRequestBuilder prepareSearch(String... indices) {
-        return prepareSearch(indices);
+        return client().prepareSearch(indices);
     }
 
     /**

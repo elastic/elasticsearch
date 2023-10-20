@@ -395,7 +395,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     public void testAllMissingLenient() throws Exception {
         createIndex("test1");
         client().prepareIndex("test1").setId("1").setSource("k", "v").setRefreshPolicy(IMMEDIATE).get();
-        assertHitCount(client().prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 0L);
+        assertHitCount(prepareSearch("test2").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchAllQuery()), 0L);
         assertHitCount(
             client().prepareSearch("test2", "test3").setQuery(matchAllQuery()).setIndicesOptions(IndicesOptions.lenientExpandOpen()),
             0L
@@ -406,7 +406,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testAllMissingStrict() throws Exception {
         createIndex("test1");
-        expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("test2").setQuery(matchAllQuery()).execute().actionGet());
+        expectThrows(IndexNotFoundException.class, () -> prepareSearch("test2").setQuery(matchAllQuery()).execute().actionGet());
 
         expectThrows(
             IndexNotFoundException.class,
@@ -606,7 +606,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     }
 
     static SearchRequestBuilder search(String... indices) {
-        return client().prepareSearch(indices).setQuery(matchAllQuery());
+        return prepareSearch(indices).setQuery(matchAllQuery());
     }
 
     static MultiSearchRequestBuilder msearch(IndicesOptions options, String... indices) {
@@ -614,7 +614,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         if (options != null) {
             multiSearchRequestBuilder.setIndicesOptions(options);
         }
-        return multiSearchRequestBuilder.add(client().prepareSearch(indices).setQuery(matchAllQuery()));
+        return multiSearchRequestBuilder.add(prepareSearch(indices).setQuery(matchAllQuery()));
     }
 
     static ClearIndicesCacheRequestBuilder clearCache(String... indices) {

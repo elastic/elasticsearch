@@ -394,7 +394,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         refresh(INDEX_NAME);
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
 
         final boolean closedIndex = randomBoolean();
         if (closedIndex) {
@@ -439,7 +439,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         if (closedIndex) {
             assertAcked(indicesAdmin().prepareOpen(INDEX_NAME));
         }
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
     }
 
     public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
@@ -925,7 +925,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
+        assertThat(prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
         return indicesAdmin().prepareStats(name).execute().actionGet();
     }
 

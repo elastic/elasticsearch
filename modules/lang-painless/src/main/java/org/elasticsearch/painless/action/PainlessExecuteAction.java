@@ -113,14 +113,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
+public class PainlessExecuteAction {
 
-    public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
-    private static final String NAME = "cluster:admin/scripts/painless/execute";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute", Response::new);
 
-    private PainlessExecuteAction() {
-        super(NAME, Response::new);
-    }
+    private PainlessExecuteAction() {/* no instances */}
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
 
@@ -507,7 +504,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             IndicesService indicesServices
         ) {
             super(
-                NAME,
+                INSTANCE.name(),
                 threadPool,
                 clusterService,
                 transportService,

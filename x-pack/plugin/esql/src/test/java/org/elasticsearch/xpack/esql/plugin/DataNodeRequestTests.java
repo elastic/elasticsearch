@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
 
@@ -182,5 +183,10 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             physical = physicalPlanOptimizer.optimize(physical);
         }
         return physical;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

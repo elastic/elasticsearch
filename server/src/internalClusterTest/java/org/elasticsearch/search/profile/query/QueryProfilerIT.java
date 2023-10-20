@@ -115,15 +115,13 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
         logger.debug("Query: {}", q);
 
-        SearchRequestBuilder vanilla = client().prepareSearch("test")
-            .setQuery(q)
+        SearchRequestBuilder vanilla = prepareSearch("test").setQuery(q)
             .setProfile(false)
             .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
-        SearchRequestBuilder profile = client().prepareSearch("test")
-            .setQuery(q)
+        SearchRequestBuilder profile = prepareSearch("test").setQuery(q)
             .setProfile(true)
             .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)

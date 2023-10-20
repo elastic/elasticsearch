@@ -37,7 +37,7 @@ public class TransportSeekStatsAction extends TransportNodesAction<SeekStatsRequ
         SeekStatsService seekStatsService
     ) {
         super(
-            SeekStatsAction.NAME,
+            SeekTrackerPlugin.SEEK_STATS_ACTION.name(),
             clusterService,
             transportService,
             actionFilters,

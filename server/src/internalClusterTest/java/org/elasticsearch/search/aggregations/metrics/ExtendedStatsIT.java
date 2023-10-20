@@ -38,7 +38,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -91,8 +91,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(
                 histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(extendedStats("stats").field("value"))
             )
@@ -126,8 +125,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").field("value"))
             .get();
 
@@ -158,8 +156,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     public void testPartiallyUnmapped() {
         double sigma = randomDouble() * 5;
-        ExtendedStats s1 = client().prepareSearch("idx")
-            .addAggregation(extendedStats("stats").field("value").sigma(sigma))
+        ExtendedStats s1 = prepareSearch("idx").addAggregation(extendedStats("stats").field("value").sigma(sigma))
             .get()
             .getAggregations()
             .get("stats");
@@ -187,8 +184,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedField() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").field("value").sigma(sigma))
             .get();
 
@@ -215,8 +211,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     public void testSingleValuedFieldDefaultSigma() throws Exception {
         // Same as previous test, but uses a default value for sigma
 
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").field("value"))
             .get();
 
@@ -242,8 +237,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     public void testSingleValuedField_WithFormatter() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").format("0000.0").field("value").sigma(sigma))
             .get();
 
@@ -280,8 +274,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(extendedStats("stats").field("value")))
             .get();
 
@@ -378,8 +371,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldWithValueScript() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 extendedStats("stats").field("value")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
@@ -412,8 +404,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 extendedStats("stats").field("value")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
@@ -444,8 +435,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testMultiValuedField() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").field("values").sigma(sigma))
             .get();
 
@@ -487,8 +477,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testMultiValuedFieldWithValueScript() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 extendedStats("stats").field("values")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", Collections.emptyMap()))
@@ -534,8 +523,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 extendedStats("stats").field("values")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - dec", params))
@@ -578,8 +566,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testScriptSingleValued() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 extendedStats("stats").script(
                     new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap())
@@ -615,8 +602,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params);
 
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").script(script).sigma(sigma))
             .get();
 
@@ -643,8 +629,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testScriptMultiValued() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 extendedStats("stats").script(
                     new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())
@@ -700,8 +685,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         );
 
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").script(script).sigma(sigma))
             .get();
 
@@ -732,8 +716,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     }
 
     public void testEmptySubAggregation() {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 terms("value").field("value")
                     .subAggregation(missing("values").field("values").subAggregation(extendedStats("stats").field("value")))
@@ -776,8 +759,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 terms("terms").field("value")
                     .order(BucketOrder.compound(BucketOrder.aggregation("filter>extendedStats.avg", true)))
@@ -866,14 +848,13 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 extendedStats("foo").field("d")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -885,14 +866,13 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 extendedStats("foo").field("d")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -904,8 +884,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(extendedStats("foo").field("d")).get();
-        assertSearchResponse(r);
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(extendedStats("foo").field("d")).get();
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),

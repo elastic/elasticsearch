@@ -687,7 +687,7 @@ public final class PlanNamedTypes {
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
-        return new EsRelation(in.readSource(), readEsIndex(in), readAttributes(in));
+        return new EsRelation(in.readSource(), readEsIndex(in), readAttributes(in), in.readBoolean());
     }
 
     static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
@@ -695,6 +695,7 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         writeEsIndex(out, relation.index());
         writeAttributes(out, relation.output());
+        out.writeBoolean(relation.frozen());
     }
 
     static Eval readEval(PlanStreamInput in) throws IOException {
@@ -727,6 +728,16 @@ public final class PlanNamedTypes {
         enrich.policy().policy().writeTo(out);
         writeEsIndex(out, enrich.policy().index().get());
         writeNamedExpressions(out, enrich.enrichFields());
+    }
+
+    static EsqlProject readEsqlProject(PlanStreamInput in) throws IOException {
+        return new EsqlProject(in.readSource(), in.readLogicalPlanNode(), readNamedExpressions(in));
+    }
+
+    static void writeEsqlProject(PlanStreamOutput out, EsqlProject project) throws IOException {
+        out.writeNoSource();
+        out.writeLogicalPlanNode(project.child());
+        writeNamedExpressions(out, project.projections());
     }
 
     static Filter readFilter(PlanStreamInput in) throws IOException {

@@ -381,7 +381,13 @@ public class CsvTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
+                    Driver.start(
+                        threadPool.getThreadContext(),
+                        threadPool.executor(ESQL_THREAD_POOL_NAME),
+                        driver,
+                        between(1, 1000),
+                        driverListener
+                    );
                 }
             };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
@@ -422,7 +428,11 @@ public class CsvTests extends ESTestCase {
     private void assertWarnings(List<String> warnings) {
         List<String> normalized = new ArrayList<>(warnings.size());
         for (String w : warnings) {
-            normalized.add(HeaderWarning.extractWarningValueFromWarningHeader(w, false));
+            String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
+            if (normW.startsWith("No limit defined, adding default limit of [") == false) {
+                // too many tests do not have a LIMIT, we'll test this warning separately
+                normalized.add(normW);
+            }
         }
         assertMap(normalized, matchesList(testCase.expectedWarnings));
     }

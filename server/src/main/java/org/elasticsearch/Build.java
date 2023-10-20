@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.internal.BuildExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
 
@@ -127,14 +128,14 @@ public record Build(
 
         final String flavor = "default";
         String minWireCompat = Version.CURRENT.minimumCompatibilityVersion().toString();
-        String minIndexCompat = minimumCompatString(IndexVersion.MINIMUM_COMPATIBLE);
+        String minIndexCompat = minimumCompatString(IndexVersions.MINIMUM_COMPATIBLE);
         String displayString = defaultDisplayString(type, hash, date, qualifiedVersionString(version, qualifier, isSnapshot));
 
         return new Build(flavor, type, hash, date, version, qualifier, isSnapshot, minWireCompat, minIndexCompat, displayString);
     }
 
     public static String minimumCompatString(IndexVersion minimumCompatible) {
-        if (minimumCompatible.before(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+        if (minimumCompatible.before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
             // use Version for compatibility
             return Version.fromId(minimumCompatible.id()).toString();
         } else {

@@ -63,7 +63,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -126,7 +125,7 @@ public class FieldSortIT extends ESIntegTestCase {
             .setSize(10)
             .get();
         logClusterState();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().getHits().length; j++) {
             Number current = (Number) searchResponse.getHits().getHits()[j].getSourceAsMap().get("entry");
@@ -140,7 +139,7 @@ public class FieldSortIT extends ESIntegTestCase {
             .setSize(10)
             .get();
         logClusterState();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().getHits().length; j++) {
             Number current = (Number) searchResponse.getHits().getHits()[j].getSourceAsMap().get("entry");
@@ -184,7 +183,7 @@ public class FieldSortIT extends ESIntegTestCase {
             .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
             .setSize(docs)
             .get();
-        assertSearchResponse(allDocsResponse);
+        assertNoFailures(allDocsResponse);
 
         final int numiters = randomIntBetween(1, 20);
         for (int i = 0; i < numiters; i++) {
@@ -197,7 +196,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .addSort(new FieldSortBuilder("timeUpdated").order(SortOrder.ASC).unmappedType("date"))
                 .setSize(scaledRandomIntBetween(1, docs))
                 .get();
-            assertSearchResponse(searchResponse);
+            assertNoFailures(searchResponse);
             for (int j = 0; j < searchResponse.getHits().getHits().length; j++) {
                 assertThat(
                     searchResponse.toString() + "\n vs. \n" + allDocsResponse.toString(),
@@ -281,8 +280,7 @@ public class FieldSortIT extends ESIntegTestCase {
         indexRandom(true, builders);
         {
             int size = between(1, denseBytes.size());
-            SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            SearchResponse searchResponse = prepareSearch("test").setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("dense_bytes", SortOrder.ASC)
                 .get();
@@ -328,8 +326,7 @@ public class FieldSortIT extends ESIntegTestCase {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", Integer.toString(i)).get();
         }
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC))
             .get();
         assertThat(searchResponse.getHits().getAt(0).getSortValues()[0].toString(), equalTo("1"));
@@ -340,8 +337,7 @@ public class FieldSortIT extends ESIntegTestCase {
         client().prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
         refresh();
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC))
             .get();
         assertThat(searchResponse.getHits().getAt(0).getSortValues()[0].toString(), equalTo("1"));
@@ -351,8 +347,7 @@ public class FieldSortIT extends ESIntegTestCase {
         // reindex - no refresh
         client().prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC))
             .get();
         assertThat(searchResponse.getHits().getAt(0).getSortValues()[0].toString(), equalTo("1"));
@@ -364,8 +359,7 @@ public class FieldSortIT extends ESIntegTestCase {
         refresh();
 
         client().prepareIndex("test").setId(Integer.toString(1)).setSource("field", Integer.toString(1)).get();
-        searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC))
             .get();
         assertThat(searchResponse.getHits().getAt(0).getSortValues()[0].toString(), equalTo("1"));
@@ -373,8 +367,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getSortValues()[0].toString(), equalTo("100"));
 
         refresh();
-        searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC))
             .get();
         assertThat(searchResponse.getHits().getAt(0).getSortValues()[0].toString(), equalTo("1"));
@@ -392,29 +385,27 @@ public class FieldSortIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(
+            QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field"))
+        ).get();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(0).getScore()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(1).getScore()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
-            .addSort("_score", SortOrder.DESC)
-            .get();
+        searchResponse = prepareSearch("test").setQuery(
+            QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field"))
+        ).addSort("_score", SortOrder.DESC).get();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(0).getScore()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(1).getScore()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field")))
-            .addSort("_score", SortOrder.DESC)
-            .get();
+        searchResponse = prepareSearch("test").setQuery(
+            QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field"))
+        ).addSort("_score", SortOrder.DESC).get();
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -430,17 +421,16 @@ public class FieldSortIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(
+            functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field"))
+        ).get();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(0).getScore()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(1).getScore()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
+        searchResponse = prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
             .addSort("_score", SortOrder.DESC)
             .get();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
@@ -449,8 +439,7 @@ public class FieldSortIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).getScore(), Matchers.lessThan(searchResponse.getHits().getAt(1).getScore()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
+        searchResponse = prepareSearch("test").setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("field")))
             .addSort("_score", SortOrder.DESC)
             .get();
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
@@ -465,11 +454,7 @@ public class FieldSortIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("{\"field1\":\"value2\"}", XContentType.JSON).get();
         client().prepareIndex("test").setId("3").setSource("{\"field1\":\"value3\"}", XContentType.JSON).get();
         refresh();
-        SearchResponse result = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
-            .setTrackScores(true)
-            .addSort("field1", SortOrder.ASC)
-            .get();
+        SearchResponse result = prepareSearch("test").setQuery(matchAllQuery()).setTrackScores(true).addSort("field1", SortOrder.ASC).get();
 
         for (SearchHit hit : result.getHits()) {
             assertFalse(Float.isNaN(hit.getScore()));
@@ -497,8 +482,7 @@ public class FieldSortIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("tag", "beta").get();
 
             refresh();
-            SearchResponse resp = client().prepareSearch("test")
-                .setSize(2)
+            SearchResponse resp = prepareSearch("test").setSize(2)
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("tag").order(SortOrder.ASC))
                 .get();
@@ -507,8 +491,7 @@ public class FieldSortIT extends ESIntegTestCase {
             assertFirstHit(resp, hasId("1"));
             assertSecondHit(resp, hasId("2"));
 
-            resp = client().prepareSearch("test")
-                .setSize(2)
+            resp = prepareSearch("test").setSize(2)
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("tag").order(SortOrder.DESC))
                 .get();
@@ -950,24 +933,23 @@ public class FieldSortIT extends ESIntegTestCase {
                     format = type.equals("date") ? "strict_date_optional_time" : "strict_date_optional_time_nanos";
                 }
 
-                SearchResponse searchResponse = client().prepareSearch(index)
-                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format))
-                    .get();
+                SearchResponse searchResponse = prepareSearch(index).addSort(
+                    SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format)
+                ).get();
                 assertHitsInOrder(searchResponse, new String[] { "1", "2", "3" });
 
-                searchResponse = client().prepareSearch(index)
-                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).missing("_first").setFormat(format))
-                    .get();
+                searchResponse = prepareSearch(index).addSort(
+                    SortBuilders.fieldSort("mydate").order(SortOrder.ASC).missing("_first").setFormat(format)
+                ).get();
                 assertHitsInOrder(searchResponse, new String[] { "3", "1", "2" });
 
-                searchResponse = client().prepareSearch(index)
-                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format))
+                searchResponse = prepareSearch(index).addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format))
                     .get();
                 assertHitsInOrder(searchResponse, new String[] { "2", "1", "3" });
 
-                searchResponse = client().prepareSearch(index)
-                    .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).missing("_first").setFormat(format))
-                    .get();
+                searchResponse = prepareSearch(index).addSort(
+                    SortBuilders.fieldSort("mydate").order(SortOrder.DESC).missing("_first").setFormat(format)
+                ).get();
                 assertHitsInOrder(searchResponse, new String[] { "3", "2", "1" });
             }
         }
@@ -1012,32 +994,24 @@ public class FieldSortIT extends ESIntegTestCase {
             }
 
             String index = "test*";
-            SearchResponse searchResponse = client().prepareSearch(index)
-                .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format).setNumericType("date_nanos"))
-                .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
-                .get();
+            SearchResponse searchResponse = prepareSearch(index).addSort(
+                SortBuilders.fieldSort("mydate").order(SortOrder.ASC).setFormat(format).setNumericType("date_nanos")
+            ).addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC)).get();
             assertHitsInOrder(searchResponse, new String[] { "1", "2", "4", "5", "3", "6" });
 
-            searchResponse = client().prepareSearch(index)
-                .addSort(
-                    SortBuilders.fieldSort("mydate").order(SortOrder.ASC).missing("_first").setFormat(format).setNumericType("date_nanos")
-                )
-                .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
-                .get();
+            searchResponse = prepareSearch(index).addSort(
+                SortBuilders.fieldSort("mydate").order(SortOrder.ASC).missing("_first").setFormat(format).setNumericType("date_nanos")
+            ).addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC)).get();
             assertHitsInOrder(searchResponse, new String[] { "3", "6", "1", "2", "4", "5" });
 
-            searchResponse = client().prepareSearch(index)
-                .addSort(SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format).setNumericType("date_nanos"))
-                .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
-                .get();
+            searchResponse = prepareSearch(index).addSort(
+                SortBuilders.fieldSort("mydate").order(SortOrder.DESC).setFormat(format).setNumericType("date_nanos")
+            ).addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC)).get();
             assertHitsInOrder(searchResponse, new String[] { "5", "4", "2", "1", "3", "6" });
 
-            searchResponse = client().prepareSearch(index)
-                .addSort(
-                    SortBuilders.fieldSort("mydate").order(SortOrder.DESC).missing("_first").setFormat(format).setNumericType("date_nanos")
-                )
-                .addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC))
-                .get();
+            searchResponse = prepareSearch(index).addSort(
+                SortBuilders.fieldSort("mydate").order(SortOrder.DESC).missing("_first").setFormat(format).setNumericType("date_nanos")
+            ).addSort(SortBuilders.fieldSort("other_field").order(SortOrder.ASC)).get();
             assertHitsInOrder(searchResponse, new String[] { "3", "6", "5", "4", "2", "1" });
         }
     }
@@ -1071,33 +1045,29 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         }
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword"))
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(client().prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword")));
 
         // nested field
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(
-                SortBuilders.fieldSort("nested.foo")
-                    .unmappedType("keyword")
-                    .setNestedSort(new NestedSortBuilder("nested").setNestedSort(new NestedSortBuilder("nested.foo")))
-            )
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(
+            client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("nested.foo")
+                        .unmappedType("keyword")
+                        .setNestedSort(new NestedSortBuilder("nested").setNestedSort(new NestedSortBuilder("nested.foo")))
+                )
+        );
 
         // nestedQuery
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addSort(
-                SortBuilders.fieldSort("nested.foo")
-                    .unmappedType("keyword")
-                    .setNestedSort(new NestedSortBuilder("nested").setFilter(QueryBuilders.termQuery("nested.foo", "abc")))
-            )
-            .get();
-        assertNoFailures(searchResponse);
+        assertNoFailures(
+            client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.fieldSort("nested.foo")
+                        .unmappedType("keyword")
+                        .setNestedSort(new NestedSortBuilder("nested").setFilter(QueryBuilders.termQuery("nested.foo", "abc")))
+                )
+        );
     }
 
     public void testSortMVField() throws Exception {
@@ -1741,9 +1711,9 @@ public class FieldSortIT extends ESIntegTestCase {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
         int from = between(0, 256);
         int size = between(0, 256);
-        SearchResponse multiShardResponse = client().prepareSearch("test1").setFrom(from).setSize(size).addSort(sortField, order).get();
+        SearchResponse multiShardResponse = prepareSearch("test1").setFrom(from).setSize(size).addSort(sortField, order).get();
         assertNoFailures(multiShardResponse);
-        SearchResponse singleShardResponse = client().prepareSearch("test2").setFrom(from).setSize(size).addSort(sortField, order).get();
+        SearchResponse singleShardResponse = prepareSearch("test2").setFrom(from).setSize(size).addSort(sortField, order).get();
         assertNoFailures(singleShardResponse);
 
         assertThat(multiShardResponse.getHits().getTotalHits().value, equalTo(singleShardResponse.getHits().getTotalHits().value));
@@ -1768,14 +1738,14 @@ public class FieldSortIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("ip", "2001:db8::ff00:42:8329")
         );
 
-        SearchResponse response = client().prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).get();
+        assertNoFailures(response);
         assertEquals(2, response.getHits().getTotalHits().value);
         assertArrayEquals(new String[] { "192.168.1.7" }, response.getHits().getAt(0).getSortValues());
         assertArrayEquals(new String[] { "2001:db8::ff00:42:8329" }, response.getHits().getAt(1).getSortValues());
 
-        response = client().prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).searchAfter(new Object[] { "192.168.1.7" }).get();
-        assertSearchResponse(response);
+        response = prepareSearch("test").addSort(SortBuilders.fieldSort("ip")).searchAfter(new Object[] { "192.168.1.7" }).get();
+        assertNoFailures(response);
         assertEquals(2, response.getHits().getTotalHits().value);
         assertEquals(1, response.getHits().getHits().length);
         assertArrayEquals(new String[] { "2001:db8::ff00:42:8329" }, response.getHits().getAt(0).getSortValues());
@@ -2084,7 +2054,7 @@ public class FieldSortIT extends ESIntegTestCase {
             .addSort(new FieldSortBuilder("long_field").order(SortOrder.DESC))
             .setSize(10)
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         long previousLong = Long.MAX_VALUE;
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             // check the correct sort order
@@ -2096,7 +2066,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
         // *** 2. sort ASC on long_field
         searchResponse = client().prepareSearch().addSort(new FieldSortBuilder("long_field").order(SortOrder.ASC)).setSize(10).get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         previousLong = Long.MIN_VALUE;
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             // check the correct sort order
@@ -2124,7 +2094,7 @@ public class FieldSortIT extends ESIntegTestCase {
                 .addSort(new FieldSortBuilder("foo"))
                 .setSize(10)
                 .get();
-            assertSearchResponse(searchResponse);
+            assertNoFailures(searchResponse);
         }
 
         String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";

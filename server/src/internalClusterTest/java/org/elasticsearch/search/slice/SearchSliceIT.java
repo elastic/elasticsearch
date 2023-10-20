@@ -92,16 +92,14 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (String field : new String[] { "_id", "random_int", "static_int" }) {
             int fetchSize = randomIntBetween(10, 100);
             // test _doc sort
-            SearchRequestBuilder request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            SearchRequestBuilder request = prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .setSize(fetchSize)
                 .addSort(SortBuilders.fieldSort("_doc"));
             assertSearchSlicesWithScroll(request, field, max, numDocs);
 
             // test numeric sort
-            request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            request = prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .addSort(SortBuilders.fieldSort("random_int"))
                 .setSize(fetchSize);
@@ -114,12 +112,11 @@ public class SearchSliceIT extends ESIntegTestCase {
         int totalDocs = randomIntBetween(100, 1000);
         setupIndex(totalDocs, numShards);
         {
-            SearchResponse sr = client().prepareSearch("test").setQuery(matchAllQuery()).setPreference("_shards:1,4").setSize(0).get();
+            SearchResponse sr = prepareSearch("test").setQuery(matchAllQuery()).setPreference("_shards:1,4").setSize(0).get();
             int numDocs = (int) sr.getHits().getTotalHits().value;
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
-            SearchRequestBuilder request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            SearchRequestBuilder request = prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .setSize(fetchSize)
                 .setPreference("_shards:1,4")
@@ -127,12 +124,11 @@ public class SearchSliceIT extends ESIntegTestCase {
             assertSearchSlicesWithScroll(request, "_id", max, numDocs);
         }
         {
-            SearchResponse sr = client().prepareSearch("test").setQuery(matchAllQuery()).setRouting("foo", "bar").setSize(0).get();
+            SearchResponse sr = prepareSearch("test").setQuery(matchAllQuery()).setRouting("foo", "bar").setSize(0).get();
             int numDocs = (int) sr.getHits().getTotalHits().value;
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
-            SearchRequestBuilder request = client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            SearchRequestBuilder request = prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .setSize(fetchSize)
                 .setRouting("foo", "bar")
@@ -222,8 +218,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (int id = 0; id < numSlice; id++) {
             int numSliceResults = 0;
 
-            SearchRequestBuilder request = client().prepareSearch("test")
-                .slice(new SliceBuilder(sliceField, id, numSlice))
+            SearchRequestBuilder request = prepareSearch("test").slice(new SliceBuilder(sliceField, id, numSlice))
                 .setPointInTime(new PointInTimeBuilder(pointInTimeId))
                 .addSort(SortBuilders.fieldSort(sortField))
                 .setSize(randomIntBetween(10, 100));
@@ -257,8 +252,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            () -> prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .slice(new SliceBuilder("invalid_random_int", 0, 10))
                 .get()
@@ -269,8 +263,7 @@ public class SearchSliceIT extends ESIntegTestCase {
 
         exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("test")
-                .setQuery(matchAllQuery())
+            () -> prepareSearch("test").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .slice(new SliceBuilder("invalid_random_kw", 0, 10))
                 .get()

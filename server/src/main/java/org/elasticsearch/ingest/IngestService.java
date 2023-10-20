@@ -824,7 +824,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-
+            indexRequest.addPipeline(pipelineId);
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;

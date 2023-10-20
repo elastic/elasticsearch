@@ -510,14 +510,9 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                dateRange("range").field("date")
-                    .addUnboundedTo(date(2, 15))
-                    .addRange(date(2, 15), date(3, 15))
-                    .addUnboundedFrom(date(3, 15))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            dateRange("range").field("date").addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))
+        ).get();
 
         assertNoFailures(response);
 

@@ -158,26 +158,21 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             )
             .get();
         refresh();
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
+        SearchResponse search = prepareSearch().setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
             .highlighter(new HighlightBuilder().field("body").highlighterType("fvh"))
             .get();
         assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
-        search = client().prepareSearch()
-            .setQuery(
-                matchPhraseQuery(
-                    "body",
-                    "Test: http://www.facebook.com "
-                        + "http://elasticsearch.org http://xing.com http://cnn.com "
-                        + "http://quora.com http://twitter.com this is a test for highlighting "
-                        + "feature Test: http://www.facebook.com http://elasticsearch.org "
-                        + "http://xing.com http://cnn.com http://quora.com http://twitter.com this "
-                        + "is a test for highlighting feature"
-                )
+        search = prepareSearch().setQuery(
+            matchPhraseQuery(
+                "body",
+                "Test: http://www.facebook.com "
+                    + "http://elasticsearch.org http://xing.com http://cnn.com "
+                    + "http://quora.com http://twitter.com this is a test for highlighting "
+                    + "feature Test: http://www.facebook.com http://elasticsearch.org "
+                    + "http://xing.com http://cnn.com http://quora.com http://twitter.com this "
+                    + "is a test for highlighting feature"
             )
-            .highlighter(new HighlightBuilder().field("body").highlighterType("fvh"))
-            .execute()
-            .actionGet();
+        ).highlighter(new HighlightBuilder().field("body").highlighterType("fvh")).execute().actionGet();
         assertHighlight(
             search,
             0,

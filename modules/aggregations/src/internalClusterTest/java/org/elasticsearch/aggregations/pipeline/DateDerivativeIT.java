@@ -555,14 +555,12 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
+        ).get();
 
         assertNoFailures(response);
 

@@ -388,7 +388,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             // no exception
             prepareSearch("test1").get();
 
-            e = expectThrows(IllegalArgumentException.class, () -> client().prepareSearch("test1", "test2").get());
+            e = expectThrows(IllegalArgumentException.class, () -> prepareSearch("test1", "test2").get());
             assertThat(
                 e.getMessage(),
                 containsString(

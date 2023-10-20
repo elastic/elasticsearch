@@ -526,8 +526,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
                 try {
-                    final var profileResults = client().prepareSearch()
-                        .setPointInTime(new PointInTimeBuilder(pitId))
+                    final var profileResults = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId))
                         .setProfile(true)
                         .get()
                         .getProfileResults();

@@ -207,8 +207,7 @@ public class TDigestPercentileRanksIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         final double[] pcts = randomPercents(minValue, maxValue);
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(randomCompression(percentileRanks("percentile_ranks", pcts)).field("value"))
             .get();
 

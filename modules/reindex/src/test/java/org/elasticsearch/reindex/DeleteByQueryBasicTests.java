@@ -125,12 +125,12 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             assertHitCount(prepareSearch("test-" + i).setSize(0), remaining);
         }
 
-        assertHitCount(client().prepareSearch().setSize(0), (indices * docs) - deletions);
+        assertHitCount(prepareSearch().setSize(0), (indices * docs) - deletions);
     }
 
     public void testDeleteByQueryWithMissingIndex() throws Exception {
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "a"));
-        assertHitCount(client().prepareSearch().setSize(0), 1);
+        assertHitCount(prepareSearch().setSize(0), 1);
 
         try {
             deleteByQuery().source("missing").filter(QueryBuilders.matchAllQuery()).get();
@@ -154,19 +154,19 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         indexRandom(true, true, true, builders);
 
         logger.info("--> counting documents with no routing, should be equal to [{}]", docs);
-        assertHitCount(client().prepareSearch().setSize(0), docs);
+        assertHitCount(prepareSearch().setSize(0), docs);
 
         String routing = String.valueOf(randomIntBetween(2, docs));
 
         logger.info("--> counting documents with routing [{}]", routing);
-        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
+        long expected = prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery());
         delete.source().setRouting(routing);
         assertThat(delete.refresh(true).get(), matcher().deleted(expected));
 
-        assertHitCount(client().prepareSearch().setSize(0), docs - expected);
+        assertHitCount(prepareSearch().setSize(0), docs - expected);
     }
 
     public void testDeleteByMatchQuery() throws Exception {

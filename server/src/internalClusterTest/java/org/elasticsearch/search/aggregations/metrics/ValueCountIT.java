@@ -114,8 +114,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(count("count").field("value"))
             .get();
 

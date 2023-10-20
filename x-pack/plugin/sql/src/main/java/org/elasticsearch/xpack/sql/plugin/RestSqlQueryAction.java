@@ -28,13 +28,12 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.ql.util.LoggingUtils.wrapWithFailureLogging;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestSqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestSqlQueryAction.class);
-    private static final String LOGGING_PREFIX = "SQL request";
 
     @Override
     public List<Route> routes() {
@@ -60,7 +59,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
             cancellableClient.execute(
                 SqlQueryAction.INSTANCE,
                 sqlRequest,
-                wrapWithFailureLogging(new SqlResponseListener(channel, request, sqlRequest), LOGGER, LOGGING_PREFIX)
+                new SqlResponseListener(channel, request, sqlRequest).delegateResponse((l, ex) -> {
+                    logOnFailure(LOGGER, ex);
+                    l.onFailure(ex);
+                })
             );
         };
     }

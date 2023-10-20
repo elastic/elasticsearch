@@ -32,13 +32,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.ql.util.LoggingUtils.logQueryFailure;
-import static org.elasticsearch.xpack.ql.util.LoggingUtils.wrapWithFailureLogging;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestEqlSearchAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEqlSearchAction.class);
-    private static final String LOGGING_PREFIX = "EQL request";
     private static final String SEARCH_PATH = "/{index}/_eql/search";
 
     @Override
@@ -70,7 +68,7 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(EqlSearchAction.INSTANCE, eqlRequest, wrapWithFailureLogging(new ActionListener<>() {
+            cancellableClient.execute(EqlSearchAction.INSTANCE, eqlRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse response) {
                     try {
@@ -96,14 +94,15 @@ public class RestEqlSearchAction extends BaseRestHandler {
                             finalException = new IndexNotFoundException(indices, infe.getCause());
                         }
                     }
+                    logOnFailure(LOGGER, finalException);
                     try {
                         channel.sendResponse(new RestResponse(channel, finalException));
                     } catch (Exception inner) {
                         inner.addSuppressed(finalException);
-                        logQueryFailure(LOGGER, LOGGING_PREFIX, inner, "failed to send failure response");
+                        LOGGER.error("failed to send failure response", inner);
                     }
                 }
-            }, LOGGER, LOGGING_PREFIX));
+            });
         };
     }
 

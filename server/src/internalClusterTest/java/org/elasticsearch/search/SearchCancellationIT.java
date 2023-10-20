@@ -65,9 +65,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
+        ).execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
@@ -82,9 +82,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").addScriptField(
+            "test_field",
+            new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+        ).execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
@@ -110,8 +111,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             termsAggregationBuilder.field("field.keyword");
         }
 
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addAggregation(
                 termsAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(
@@ -144,8 +144,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setScroll(TimeValue.timeValueSeconds(10))
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
@@ -171,8 +170,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeValue keepAlive = TimeValue.timeValueSeconds(5);
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setScroll(keepAlive)
+        SearchResponse searchResponse = prepareSearch("test").setScroll(keepAlive)
             .setSize(2)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
@@ -209,11 +207,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
         ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
             .add(
-                client().prepareSearch("test")
-                    .addScriptField(
-                        "test_field",
-                        new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
-                    )
+                prepareSearch("test").addScriptField(
+                    "test_field",
+                    new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+                )
             )
             .execute();
         awaitForBlock(plugins);
@@ -244,8 +241,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         Thread searchThread = new Thread(() -> {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                () -> prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false)
                     .setSize(1000)

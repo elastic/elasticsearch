@@ -57,16 +57,16 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))).get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))).get();
+        searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))).get();
+        searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))).get();
+        searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 

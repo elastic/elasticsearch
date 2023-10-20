@@ -685,7 +685,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField("field1").addStoredField("_routing").get();
+        SearchResponse searchResponse = prepareSearch("my-index").addStoredField("field1").addStoredField("_routing").get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
@@ -753,7 +753,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         String field = "field1.field2.field3.field4";
 
-        SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField(field).get();
+        SearchResponse searchResponse = prepareSearch("my-index").addStoredField(field).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
@@ -765,9 +765,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field")
+        ).get();
         assertHitCount(searchResponse, 1);
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat(fields.get("test_field").getValue(), equalTo("foobar"));
@@ -1024,7 +1024,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         }
         indexRandom(true, reqs);
         ensureSearchable();
-        SearchRequestBuilder req = client().prepareSearch("index");
+        SearchRequestBuilder req = prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
             req.addScriptField(
                 field,
@@ -1269,7 +1269,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
         );
 
-        SearchResponse response = client().prepareSearch("test").addStoredField("field1").get();
+        SearchResponse response = prepareSearch("test").addStoredField("field1").get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 

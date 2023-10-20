@@ -61,9 +61,9 @@ public class IpTermsIT extends AbstractTermsTestCase {
         );
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip'].value", Collections.emptyMap());
-        SearchResponse response = client().prepareSearch("index")
-            .addAggregation(new TermsAggregationBuilder("my_terms").script(script).executionHint(randomExecutionHint()))
-            .get();
+        SearchResponse response = prepareSearch("index").addAggregation(
+            new TermsAggregationBuilder("my_terms").script(script).executionHint(randomExecutionHint())
+        ).get();
         assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
@@ -89,9 +89,9 @@ public class IpTermsIT extends AbstractTermsTestCase {
         );
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip']", Collections.emptyMap());
-        SearchResponse response = client().prepareSearch("index")
-            .addAggregation(new TermsAggregationBuilder("my_terms").script(script).executionHint(randomExecutionHint()))
-            .get();
+        SearchResponse response = prepareSearch("index").addAggregation(
+            new TermsAggregationBuilder("my_terms").script(script).executionHint(randomExecutionHint())
+        ).get();
         assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
@@ -116,9 +116,9 @@ public class IpTermsIT extends AbstractTermsTestCase {
             client().prepareIndex("index").setId("3").setSource("ip", "127.0.0.1"),
             client().prepareIndex("index").setId("4").setSource("not_ip", "something")
         );
-        SearchResponse response = client().prepareSearch("index")
-            .addAggregation(new TermsAggregationBuilder("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint()))
-            .get();
+        SearchResponse response = prepareSearch("index").addAggregation(
+            new TermsAggregationBuilder("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint())
+        ).get();
 
         assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("my_terms");

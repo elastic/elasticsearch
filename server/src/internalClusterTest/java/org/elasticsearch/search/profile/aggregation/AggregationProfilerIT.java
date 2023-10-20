@@ -123,8 +123,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testSimpleProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L))
             .get();
         assertNoFailures(response);
@@ -159,8 +158,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -246,8 +244,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfileBreadthFirst() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -320,8 +317,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDiversifiedAggProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 diversifiedSampler("diversify").shardSize(10)
                     .field(STRING_FIELD)
@@ -376,8 +372,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testComplexProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -593,8 +588,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testNoProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(false)
+        SearchResponse response = prepareSearch("idx").setProfile(false)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -642,8 +636,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
         indexRandom(true, false, builders);
 
-        SearchResponse response = client().prepareSearch("dateidx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("dateidx").setProfile(true)
             .addAggregation(
                 new DateHistogramAggregationBuilder("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
@@ -720,8 +713,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             }
             indexRandom(true, false, builders);
 
-            SearchResponse response = client().prepareSearch("date_filter_by_filter_disabled")
-                .setProfile(true)
+            SearchResponse response = prepareSearch("date_filter_by_filter_disabled").setProfile(true)
                 .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
                 .get();
             assertNoFailures(response);

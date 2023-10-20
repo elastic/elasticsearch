@@ -49,6 +49,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -1064,8 +1065,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
+                    long count = prepareSearch().setTrackTotalHits(true)
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get()
@@ -1093,6 +1093,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    public static SearchRequestBuilder prepareSearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
     /**

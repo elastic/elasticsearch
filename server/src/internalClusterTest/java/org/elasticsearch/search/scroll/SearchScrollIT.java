@@ -469,8 +469,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE), "index");
 
         for (SearchType searchType : SearchType.values()) {
-            SearchRequestBuilder builder = client().prepareSearch("index")
-                .setSearchType(searchType)
+            SearchRequestBuilder builder = prepareSearch("index").setSearchType(searchType)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSize(Integer.MAX_VALUE)
                 .setScroll("1m");
@@ -491,7 +490,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         client().prepareIndex("index").setId("1").setSource("field", "value").execute().get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("index").setSize(1).setScroll("1m").get();
+        SearchResponse searchResponse = prepareSearch("index").setSize(1).setScroll("1m").get();
         assertThat(searchResponse.getScrollId(), is(notNullValue()));
 
         ClearScrollResponse clearScrollResponse = client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
@@ -507,7 +506,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
+        SearchResponse response = prepareSearch("test")
 
             .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
             .setScroll("1m")
@@ -520,7 +519,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertHitCount(response, 1);
         assertNoSearchHits(response);
 
-        response = client().prepareSearch("test")
+        response = prepareSearch("test")
 
             .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first"))
             .setScroll("1m")
@@ -650,8 +649,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         SearchResponse resp = null;
         try {
             int totalHits = 0;
-            resp = client().prepareSearch("test")
-                .setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
+            resp = prepareSearch("test").setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                 .setMaxConcurrentShardRequests(randomIntBetween(1, 3)) // sometimes fan out shard requests one by one
                 .setSize(randomIntBetween(1, 2))
                 .setScroll(TimeValue.timeValueMinutes(1))
@@ -680,16 +678,14 @@ public class SearchScrollIT extends ESIntegTestCase {
             index("prod", "prod-" + i, Map.of());
         }
         indicesAdmin().prepareRefresh().get();
-        SearchResponse respFromDemoIndex = client().prepareSearch("demo")
-            .setSize(randomIntBetween(1, 10))
+        SearchResponse respFromDemoIndex = prepareSearch("demo").setSize(randomIntBetween(1, 10))
             .setQuery(new MatchAllQueryBuilder())
             .setScroll(TimeValue.timeValueMinutes(5))
             .get();
 
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback());
         ensureGreen("demo", "prod");
-        SearchResponse respFromProdIndex = client().prepareSearch("prod")
-            .setSize(randomIntBetween(1, 10))
+        SearchResponse respFromProdIndex = prepareSearch("prod").setSize(randomIntBetween(1, 10))
             .setQuery(new MatchAllQueryBuilder())
             .setScroll(TimeValue.timeValueMinutes(5))
             .get();

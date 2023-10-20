@@ -152,18 +152,12 @@ public class AliasRoutingIT extends ESIntegTestCase {
             );
 
             assertThat(
-                client().prepareSearch("alias1")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(0L)
             );
 
             assertThat(
-                client().prepareSearch("alias1")
-                    .setSize(0)
+                prepareSearch("alias1").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -198,17 +192,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias0")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias0")
-                    .setSize(0)
+                prepareSearch("alias0").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -263,17 +251,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias0")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias0")
-                    .setSize(0)
+                prepareSearch("alias0").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -307,17 +289,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias1")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias1")
-                    .setSize(0)
+                prepareSearch("alias1").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -351,17 +327,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch("alias01")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch("alias01")
-                    .setSize(0)
+                prepareSearch("alias01").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -511,17 +481,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
         logger.info("--> search with alias-ab, should find two");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch("alias-ab")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias-ab").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch("alias-ab")
-                    .setSize(0)
+                prepareSearch("alias-ab").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -574,12 +538,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         logger.info("--> search all on index_* should find two");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch("index_*")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("index_*").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(2L)
             );
         }
@@ -602,8 +561,7 @@ public class AliasRoutingIT extends ESIntegTestCase {
         logger.info("--> indexing on index_2 which is a concrete index");
         client().prepareIndex("index_2").setId("2").setSource("field", "value2").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
-        SearchResponse searchResponse = client().prepareSearch("index_*")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("index_*").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setSize(1)
             .setQuery(QueryBuilders.matchAllQuery())
             .execute()
@@ -630,17 +588,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
             assertThat(
-                client().prepareSearch("alias")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch("alias")
-                    .setSize(0)
+                prepareSearch("alias").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -656,17 +608,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
         logger.info("--> verifying search with wrong routing should not find");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch("alias")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(0L)
             );
             assertThat(
-                client().prepareSearch("alias")
-                    .setSize(0)
+                prepareSearch("alias").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -691,17 +637,11 @@ public class AliasRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet("test", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
             assertThat(client().prepareGet("test", "1").setRouting("4").execute().actionGet().isExists(), equalTo(true));
             assertThat(
-                client().prepareSearch("alias")
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch("alias")
-                    .setSize(0)
+                prepareSearch("alias").setSize(0)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()

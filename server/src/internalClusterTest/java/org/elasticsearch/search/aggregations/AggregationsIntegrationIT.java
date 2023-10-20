@@ -39,8 +39,7 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
 
     public void testScroll() {
         final int size = randomIntBetween(1, 4);
-        SearchResponse response = client().prepareSearch("index")
-            .setSize(size)
+        SearchResponse response = prepareSearch("index").setSize(size)
             .setScroll(TimeValue.timeValueMinutes(1))
             .addAggregation(terms("f").field("f"))
             .get();

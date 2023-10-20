@@ -34,8 +34,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     protected abstract ValuesSourceAggregationBuilder<?> centroidAgg(String name);
 
     public void testEmptyAggregation() {
-        SearchResponse response = client().prepareSearch(EMPTY_IDX_NAME)
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch(EMPTY_IDX_NAME).setQuery(matchAllQuery())
             .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
         assertNoFailures(response);
@@ -49,8 +48,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
-            .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+        SearchResponse response = prepareSearch(UNMAPPED_IDX_NAME).addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
         assertNoFailures(response);
 
@@ -75,8 +73,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     }
 
     public void testSingleValuedField() {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch(IDX_NAME).setQuery(matchAllQuery())
             .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
             .get();
         assertNoFailures(response);
@@ -89,8 +86,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     }
 
     public void testSingleValueFieldGetProperty() {
-        SearchResponse response = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch(IDX_NAME).setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)))
             .get();
         assertNoFailures(response);
@@ -116,8 +112,7 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch(IDX_NAME).setQuery(matchAllQuery())
             .addAggregation(centroidAgg(aggName()).field(MULTI_VALUED_FIELD_NAME))
             .get();
         assertNoFailures(searchResponse);

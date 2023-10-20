@@ -372,15 +372,17 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertFalse(bulkResponse.hasFailures());
 
         assertSearchHits(
-            client().prepareSearch("test")
-                .setQuery(new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))),
+            prepareSearch("test").setQuery(
+                new GeoBoundingBoxQueryBuilder("location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))
+            ),
             "1",
             "2",
             "4"
         );
         assertSearchHits(
-            client().prepareSearch("test")
-                .setQuery(new GeoBoundingBoxQueryBuilder("address.location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))),
+            prepareSearch("test").setQuery(
+                new GeoBoundingBoxQueryBuilder("address.location").setCorners(new GeoPoint(42, -72), new GeoPoint(40, -74))
+            ),
             "3"
         );
     }
@@ -460,15 +462,15 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")).get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)).get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")).get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
     }
@@ -508,21 +510,19 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)).get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")).get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")).get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1"))
-                .get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1")).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
 
@@ -569,9 +569,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
 
         {
-            SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1))
-                .get();
+            SearchResponse searchResponse = prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1)).get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
 

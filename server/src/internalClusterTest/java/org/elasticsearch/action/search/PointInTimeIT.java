@@ -96,7 +96,7 @@ public class PointInTimeIT extends ESIntegTestCase {
         }
         refresh("test");
         if (randomBoolean()) {
-            SearchResponse resp2 = client().prepareSearch("test").setPreference(null).setQuery(new MatchAllQueryBuilder()).get();
+            SearchResponse resp2 = prepareSearch("test").setPreference(null).setQuery(new MatchAllQueryBuilder()).get();
             assertNoFailures(resp2);
             assertHitCount(resp2, numDocs - deletedDocs);
         }
@@ -259,7 +259,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             assertHitCount(resp, index1 + index2);
             indicesAdmin().prepareDelete("index-1").get();
             if (randomBoolean()) {
-                resp = client().prepareSearch("index-*").get();
+                resp = prepareSearch("index-*").get();
                 assertNoFailures(resp);
                 assertHitCount(resp, index2);
             }

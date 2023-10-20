@@ -560,10 +560,10 @@ public class DataStreamIT extends ESIntegTestCase {
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareRefresh(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().prepareSearch(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, prepareSearch(dataStreamName), false, 1);
         verifyResolvability(
             dataStreamName,
-            client().prepareMultiSearch().add(client().prepareSearch(dataStreamName).setQuery(matchAllQuery())),
+            client().prepareMultiSearch().add(prepareSearch(dataStreamName).setQuery(matchAllQuery())),
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareClearCache(dataStreamName), false);
@@ -606,10 +606,10 @@ public class DataStreamIT extends ESIntegTestCase {
 
         String wildcardExpression = "logs*";
         verifyResolvability(wildcardExpression, indicesAdmin().prepareRefresh(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().prepareSearch(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, prepareSearch(wildcardExpression), false, 2);
         verifyResolvability(
             wildcardExpression,
-            client().prepareMultiSearch().add(client().prepareSearch(wildcardExpression).setQuery(matchAllQuery())),
+            client().prepareMultiSearch().add(prepareSearch(wildcardExpression).setQuery(matchAllQuery())),
             false
         );
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClearCache(wildcardExpression), false);
@@ -754,9 +754,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        assertSearchHits(client().prepareSearch("logs-foobar"), "1", "2");
+        assertSearchHits(prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 2, because it matches with the defined filter in the alias:
-        assertSearchHits(client().prepareSearch("foo"), "2");
+        assertSearchHits(prepareSearch("foo"), "2");
 
         // Update alias:
         addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
@@ -784,9 +784,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        assertSearchHits(client().prepareSearch("logs-foobar"), "1", "2");
+        assertSearchHits(prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 1, because it matches with the defined filter in the alias:
-        assertSearchHits(client().prepareSearch("foo"), "1");
+        assertSearchHits(prepareSearch("foo"), "1");
     }
 
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {

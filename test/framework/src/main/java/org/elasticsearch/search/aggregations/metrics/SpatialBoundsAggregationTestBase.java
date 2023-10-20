@@ -39,7 +39,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     protected abstract void assertBoundsLimits(SpatialBounds<T> spatialBounds);
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
+        SearchResponse response = prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
 
         assertNoFailures(response);
 
@@ -55,8 +55,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testSingleValuedField_getProperty() {
-        SearchResponse searchResponse = client().prepareSearch(IDX_NAME)
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch(IDX_NAME).setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)))
             .get();
 
@@ -98,7 +97,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), MULTI_VALUED_FIELD_NAME)).get();
+        SearchResponse response = prepareSearch(IDX_NAME).addAggregation(boundsAgg(aggName(), MULTI_VALUED_FIELD_NAME)).get();
 
         assertNoFailures(response);
 
@@ -114,9 +113,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch(UNMAPPED_IDX_NAME)
-            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
-            .get();
+        SearchResponse response = prepareSearch(UNMAPPED_IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
 
         assertNoFailures(response);
 
@@ -148,8 +145,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch(EMPTY_IDX_NAME)
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch(EMPTY_IDX_NAME).setQuery(matchAllQuery())
             .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
@@ -167,9 +163,9 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
      * This test forces the bounds {@link MetricsAggregator} to resize the {@link BigArray}s it uses to ensure they are resized correctly
      */
     public void testSingleValuedFieldAsSubAggToHighCardTermsAgg() {
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(terms("terms").field(NUMBER_FIELD_NAME).subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)))
-            .get();
+        SearchResponse response = prepareSearch(HIGH_CARD_IDX_NAME).addAggregation(
+            terms("terms").field(NUMBER_FIELD_NAME).subAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
+        ).get();
 
         assertNoFailures(response);
 
@@ -190,9 +186,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testSingleValuedFieldWithZeroLon() {
-        SearchResponse response = client().prepareSearch(IDX_ZERO_NAME)
-            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
-            .get();
+        SearchResponse response = prepareSearch(IDX_ZERO_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME)).get();
 
         assertNoFailures(response);
 

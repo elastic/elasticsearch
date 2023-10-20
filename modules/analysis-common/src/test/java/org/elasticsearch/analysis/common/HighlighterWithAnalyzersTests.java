@@ -114,8 +114,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
-        SearchResponse search = client().prepareSearch("test")
-            .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
+        SearchResponse search = prepareSearch("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
             .highlighter(new HighlightBuilder().field("name.autocomplete"))
             .get();
         assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));

@@ -29,12 +29,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GeoCentroidIT extends CentroidAggregationTestBase {
 
     public void testSingleValueFieldAsSubAggToGeohashGrid() {
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(
-                geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
-                    .subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
+        SearchResponse response = prepareSearch(HIGH_CARD_IDX_NAME).addAggregation(
+            geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME).subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+        ).get();
         assertNoFailures(response);
 
         GeoGrid grid = response.getAggregations().get("geoGrid");

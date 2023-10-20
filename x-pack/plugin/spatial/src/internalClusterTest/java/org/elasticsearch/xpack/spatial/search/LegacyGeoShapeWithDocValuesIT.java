@@ -103,7 +103,7 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         }));
 
         // test self crossing of circles
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 }

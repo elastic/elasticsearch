@@ -91,8 +91,7 @@ public class SamplerIT extends ESIntegTestCase {
         // Tests that we can refer to nested elements under a sample in a path
         // statement
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(
                 terms("genres").field("genre")
                     .order(BucketOrder.aggregation("sample>max_price.value", asc))
@@ -122,8 +121,7 @@ public class SamplerIT extends ESIntegTestCase {
     public void testSimpleSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)
@@ -144,8 +142,7 @@ public class SamplerIT extends ESIntegTestCase {
     public void testUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("idx_unmapped").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)
@@ -179,8 +176,7 @@ public class SamplerIT extends ESIntegTestCase {
     public void testRidiculousShardSizeSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(Integer.MAX_VALUE);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)

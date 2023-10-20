@@ -138,9 +138,9 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testEmptyAggregation() throws Exception {
-        final SearchResponse response = client().prepareSearch("empty_bucket_idx")
-            .addAggregation(histogram("histogram").field("value").interval(1).minDocCount(0).subAggregation(randomBuilder().field("value")))
-            .get();
+        final SearchResponse response = prepareSearch("empty_bucket_idx").addAggregation(
+            histogram("histogram").field("value").interval(1).minDocCount(0).subAggregation(randomBuilder().field("value"))
+        ).get();
 
         assertHitCount(response, 2);
 
@@ -162,10 +162,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedField() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(randomBuilder().field("value"))
-            .get();
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(randomBuilder().field("value")).get();
 
         assertHitCount(response, NUMBER_OF_DOCS);
 
@@ -177,8 +174,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(randomBuilder().field("value")))
             .get();
 
@@ -214,8 +210,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().field("value")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
@@ -237,8 +232,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().field("value")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
@@ -257,8 +251,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testMultiValuedField() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(randomBuilder().field("values"))
             .get();
 
@@ -272,8 +265,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().field("values")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
@@ -294,8 +286,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().field("values")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + inc", params))
@@ -313,8 +304,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptSingleValued() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().script(
                     new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value", Collections.emptyMap())
@@ -335,8 +325,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['value'].value + inc", params))
             )
@@ -354,8 +343,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testScriptMultiValued() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().script(
                     new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap())
@@ -376,8 +364,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         final Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
 
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 randomBuilder().script(
                     new Script(
@@ -404,8 +391,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     public void testAsSubAggregation() throws Exception {
         final int rangeBoundary = (MAX_SAMPLE_VALUE + MIN_SAMPLE_VALUE) / 2;
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 range("range").field("value")
                     .addRange(MIN_SAMPLE_VALUE, rangeBoundary)
@@ -448,8 +434,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         final int numberOfBuckets = 10;
-        final SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 terms("terms").field("value")
                     .size(numberOfBuckets)
@@ -510,8 +495,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 randomBuilder().field("d")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", emptyMap()))
@@ -529,8 +513,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 randomBuilder().field("d")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value - 1", emptyMap()))
@@ -548,7 +531,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(randomBuilder().field("d")).get();
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(randomBuilder().field("d")).get();
         assertNoFailures(r);
 
         assertThat(

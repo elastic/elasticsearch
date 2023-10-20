@@ -67,8 +67,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(count("count").field("value"))
             .get();
 
@@ -81,10 +80,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(count("count").field("value"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(count("count").field("value")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -95,8 +91,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldGetProperty() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(count("count").field("value")))
             .get();
 
@@ -133,10 +128,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(count("count").field("values"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(count("count").field("values")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -147,8 +139,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.emptyMap()))
             )
@@ -163,8 +154,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap()))
             )
@@ -180,8 +170,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("field", "value");
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
             .get();
 
@@ -195,8 +184,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("field", "values");
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
             .get();
 
@@ -235,8 +223,7 @@ public class ValueCountIT extends ESIntegTestCase {
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 count("foo").field("d").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, RANDOM_SCRIPT, Collections.emptyMap()))
             )
@@ -253,8 +240,7 @@ public class ValueCountIT extends ESIntegTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 count("foo").field("d")
                     .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.emptyMap()))
@@ -272,7 +258,7 @@ public class ValueCountIT extends ESIntegTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(count("foo").field("d")).get();
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(count("foo").field("d")).get();
         assertNoFailures(r);
 
         assertThat(
@@ -286,8 +272,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testOrderByEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 terms("terms").field("value")
                     .order(BucketOrder.compound(BucketOrder.aggregation("filter>count", true)))

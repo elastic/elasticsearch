@@ -100,8 +100,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
      */
     public void testGappyIndexWithSigma() {
         double sigma = randomDoubleBetween(1.0, 6.0, true);
-        SearchResponse response = client().prepareSearch("idx_gappy")
-            .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
+        SearchResponse response = prepareSearch("idx_gappy").addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1L))
             .addAggregation(extendedStatsBucket("extended_stats_bucket", "histo>_count").sigma(sigma))
             .get();
         assertNoFailures(response);
@@ -151,19 +150,17 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
     public void testBadSigmaAsSubAgg() throws Exception {
         Exception ex = expectThrows(
             Exception.class,
-            () -> client().prepareSearch("idx")
-                .addAggregation(
-                    terms("terms").field("tag")
-                        .order(BucketOrder.key(true))
-                        .subAggregation(
-                            histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
-                                .interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue)
-                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                        )
-                        .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").sigma(-1.0))
-                )
-                .get()
+            () -> prepareSearch("idx").addAggregation(
+                terms("terms").field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    )
+                    .subAggregation(extendedStatsBucket("extended_stats_bucket", "histo>sum").sigma(-1.0))
+            ).get()
         );
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
         if (cause == null) {

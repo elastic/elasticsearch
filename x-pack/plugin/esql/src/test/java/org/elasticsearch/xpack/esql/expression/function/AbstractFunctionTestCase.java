@@ -220,7 +220,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
         assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
         assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
         assertThat(result, testCase.getMatcher());
         if (testCase.getExpectedWarnings() != null) {

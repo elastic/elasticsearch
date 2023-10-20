@@ -619,9 +619,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                     Collections.singletonList(GeoQueryContext.builder().setGeoPoint(new GeoPoint(52.52, 13.4)).build())
                 )
             );
-        SearchResponse searchResponse = client().prepareSearch(INDEX)
-            .suggest(new SuggestBuilder().addSuggestion(suggestionName, context))
-            .get();
+        SearchResponse searchResponse = prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, context)).get();
 
         assertEquals(searchResponse.getSuggest().size(), 1);
         assertEquals(
@@ -671,8 +669,7 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     public void assertSuggestions(String suggestionName, SuggestionBuilder<?> suggestBuilder, String... suggestions) {
-        SearchResponse searchResponse = client().prepareSearch(INDEX)
-            .suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder))
+        SearchResponse searchResponse = prepareSearch(INDEX).suggest(new SuggestBuilder().addSuggestion(suggestionName, suggestBuilder))
             .get();
         CompletionSuggestSearchIT.assertSuggestions(searchResponse, suggestionName, suggestions);
     }

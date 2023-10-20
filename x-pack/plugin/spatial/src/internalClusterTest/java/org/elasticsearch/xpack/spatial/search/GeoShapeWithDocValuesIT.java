@@ -18,6 +18,7 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.percolator.PercolateQueryBuilder;
 import org.elasticsearch.percolator.PercolatorPlugin;
@@ -85,7 +86,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
               }
             }""";
 
-        if (version.before(IndexVersion.V_8_0_0)) {
+        if (version.before(IndexVersions.V_8_0_0)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> indicesAdmin().preparePutMapping("test").setSource(update, XContentType.JSON).get()
@@ -149,8 +150,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         refresh();
 
         BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", "POINT(4.51 52.20)").endObject());
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
+        SearchResponse response = prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(response, 3);
@@ -177,7 +177,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setFetchSource(false).addStoredField("shape").get();
+        SearchResponse searchResponse = prepareSearch("test").setFetchSource(false).addStoredField("shape").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         SearchHit searchHit = searchResponse.getHits().getAt(0);
         assertThat(searchHit.field("shape").getValue(), instanceOf(BytesRef.class));

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -181,6 +182,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         final String transformId = params.getId();
         final TransformTask buildTask = (TransformTask) task;
+        final ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, buildTask.getParentTaskId());
         // NOTE: TransformPersistentTasksExecutor#createTask pulls in the stored task state from the ClusterState when the object
         // is created. TransformTask#ctor takes into account setting the task as failed if that is passed in with the
         // persisted state.
@@ -189,7 +191,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(buildTask.getParentTaskClient())
+        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setClient(parentTaskClient)
             .setTransformServices(transformServices);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
@@ -346,7 +348,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
         TransformInternalIndex.createLatestVersionedIndexIfRequired(
             clusterService,
-            buildTask.getParentTaskClient(),
+            parentTaskClient,
             transformInternalIndexAdditionalSettings,
             templateCheckListener
         );
@@ -420,7 +422,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             type,
             action,
             parentTaskId,
-            client,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
             transformServices.getScheduler(),

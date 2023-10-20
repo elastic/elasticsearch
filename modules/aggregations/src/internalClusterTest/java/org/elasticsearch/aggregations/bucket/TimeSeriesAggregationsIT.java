@@ -57,7 +57,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -176,8 +176,8 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
     }
 
     public void testStandAloneTimeSeriesAgg() {
-        SearchResponse response = client().prepareSearch("index").setSize(0).addAggregation(timeSeries("by_ts")).get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch("index").setSize(0).addAggregation(timeSeries("by_ts")).get();
+        assertNoFailures(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
         InternalTimeSeries timeSeries = aggregations.get("by_ts");
@@ -194,8 +194,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     public void testTimeSeriesGroupedByADimension() {
         String groupBy = "dim_" + randomIntBetween(0, numberOfDimensions - 1);
-        SearchResponse response = client().prepareSearch("index")
-            .setSize(0)
+        SearchResponse response = prepareSearch("index").setSize(0)
             .addAggregation(
                 terms("by_dim").field(groupBy)
                     .size(data.size())
@@ -203,7 +202,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
                     .subAggregation(timeSeries("by_ts"))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
         Terms terms = aggregations.get("by_dim");
@@ -223,15 +222,14 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
     public void testTimeSeriesGroupedByDateHistogram() {
         DateHistogramInterval fixedInterval = DateHistogramInterval.days(randomIntBetween(10, 100));
-        SearchResponse response = client().prepareSearch("index")
-            .setSize(0)
+        SearchResponse response = prepareSearch("index").setSize(0)
             .addAggregation(
                 dateHistogram("by_time").field("@timestamp")
                     .fixedInterval(fixedInterval)
                     .subAggregation(timeSeries("by_ts").subAggregation(stats("timestamp").field("@timestamp")))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
         Histogram histogram = aggregations.get("by_time");
@@ -266,12 +264,8 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         if (include == false) {
             queryBuilder = QueryBuilders.boolQuery().mustNot(queryBuilder);
         }
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(queryBuilder)
-            .setSize(0)
-            .addAggregation(timeSeries("by_ts"))
-            .get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")).get();
+        assertNoFailures(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
         InternalTimeSeries timeSeries = aggregations.get("by_ts");
@@ -296,14 +290,13 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         if (include == false) {
             queryBuilder = QueryBuilders.boolQuery().mustNot(queryBuilder);
         }
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(queryBuilder)
+        SearchResponse response = prepareSearch("index").setQuery(queryBuilder)
             .setSize(0)
             .addAggregation(timeSeries("by_ts").subAggregation(sum("filter_sum").field("metric_" + metric)))
             .addAggregation(global("everything").subAggregation(sum("all_sum").field("metric_" + metric)))
             .addAggregation(PipelineAggregatorBuilders.sumBucket("total_filter_sum", "by_ts>filter_sum"))
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
         InternalTimeSeries timeSeries = aggregations.get("by_ts");
@@ -326,8 +319,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
 
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> client().prepareSearch("index")
-                .setQuery(QueryBuilders.termQuery("dim_" + dim, val))
+            () -> prepareSearch("index").setQuery(QueryBuilders.termQuery("dim_" + dim, val))
                 .setSize(0)
                 .addAggregation(global("everything").subAggregation(timeSeries("by_ts")))
                 .get()
@@ -345,12 +337,8 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         } else {
             queryBuilder.lte(val);
         }
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(queryBuilder)
-            .setSize(0)
-            .addAggregation(timeSeries("by_ts"))
-            .get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch("index").setQuery(queryBuilder).setSize(0).addAggregation(timeSeries("by_ts")).get();
+        assertNoFailures(response);
         Aggregations aggregations = response.getAggregations();
         assertNotNull(aggregations);
         InternalTimeSeries timeSeries = aggregations.get("by_ts");
@@ -380,8 +368,7 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
         int expectedSize = count(filteredData);
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> client().prepareSearch("index")
-                .setQuery(queryBuilder)
+            () -> prepareSearch("index").setQuery(queryBuilder)
                 .setSize(expectedSize * 2)
                 .addAggregation(timeSeries("by_ts").subAggregation(topHits("hits").size(100)))
                 .addAggregation(topHits("top_hits").size(100)) // top level top hits
@@ -513,16 +500,11 @@ public class TimeSeriesAggregationsIT extends AggregationIntegTestCase {
             .get();
 
         QueryBuilder queryBuilder = QueryBuilders.rangeQuery("@timestamp").lte("2021-01-01T00:10:00Z");
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(queryBuilder)
-            .setSize(10)
-            .addSort("key", SortOrder.ASC)
-            .addSort("@timestamp", SortOrder.ASC)
-            .get();
-        assertSearchResponse(response);
 
-        response = client().prepareSearch("test").setQuery(queryBuilder).setSize(10).addAggregation(timeSeries("by_ts")).get();
-        assertSearchResponse(response);
+        assertNoFailures(
+            prepareSearch("test").setQuery(queryBuilder).setSize(10).addSort("key", SortOrder.ASC).addSort("@timestamp", SortOrder.ASC)
+        );
+        assertNoFailures(prepareSearch("test").setQuery(queryBuilder).setSize(10).addAggregation(timeSeries("by_ts")));
 
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest("test")).actionGet());
     }

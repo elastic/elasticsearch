@@ -224,7 +224,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : input.size();
+        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
         Page page = input.get(0);
@@ -296,7 +296,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();

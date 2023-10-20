@@ -36,7 +36,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -45,19 +44,17 @@ import static org.hamcrest.Matchers.sameInstance;
 public class ChildrenIT extends AbstractParentChildTestCase {
 
     public void testSimpleChildrenAgg() {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setQuery(matchQuery("randomized", true))
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setQuery(matchQuery("randomized", true))
             .addAggregation(children("to_comment", "comment"));
         final SearchResponse searchResponse = searchRequest.get();
         long count = categoryToControl.values().stream().mapToLong(control -> control.commentIds.size()).sum();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         Children childrenAgg = searchResponse.getAggregations().get("to_comment");
         assertThat("Request: " + searchRequest + "\nResponse: " + searchResponse + "\n", childrenAgg.getDocCount(), equalTo(count));
     }
 
     public void testChildrenAggs() {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(matchQuery("randomized", true))
+        SearchResponse searchResponse = prepareSearch("test").setQuery(matchQuery("randomized", true))
             .addAggregation(
                 terms("category").field("category")
                     .size(10000)
@@ -68,7 +65,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                     )
             )
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(categoryToControl.size()));
@@ -99,15 +96,14 @@ public class ChildrenIT extends AbstractParentChildTestCase {
     }
 
     public void testParentWithMultipleBuckets() {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(matchQuery("randomized", false))
+        SearchResponse searchResponse = prepareSearch("test").setQuery(matchQuery("randomized", false))
             .addAggregation(
                 terms("category").field("category")
                     .size(10000)
                     .subAggregation(children("to_comment", "comment").subAggregation(topHits("top_comments").sort("id", SortOrder.ASC)))
             )
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         Terms categoryTerms = searchResponse.getAggregations().get("category");
         assertThat(categoryTerms.getBuckets().size(), equalTo(3));
@@ -174,9 +170,9 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         indexRandom(true, requests);
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch(indexName)
-                .addAggregation(children("children", "child").subAggregation(sum("counts").field("count")))
-                .get();
+            SearchResponse searchResponse = prepareSearch(indexName).addAggregation(
+                children("children", "child").subAggregation(sum("counts").field("count"))
+            ).get();
 
             assertNoFailures(searchResponse);
             Children children = searchResponse.getAggregations().get("children");
@@ -203,8 +199,8 @@ public class ChildrenIT extends AbstractParentChildTestCase {
     }
 
     public void testNonExistingChildType() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test").addAggregation(children("non-existing", "xyz")).get();
-        assertSearchResponse(searchResponse);
+        SearchResponse searchResponse = prepareSearch("test").addAggregation(children("non-existing", "xyz")).get();
+        assertNoFailures(searchResponse);
 
         Children children = searchResponse.getAggregations().get("non-existing");
         assertThat(children.getName(), equalTo("non-existing"));
@@ -255,8 +251,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest(indexName, childType, "16", "2", "color", "green", "size", "44"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch(indexName)
-            .setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
+        SearchResponse response = prepareSearch(indexName).setQuery(hasChildQuery(childType, termQuery("color", "orange"), ScoreMode.None))
             .addAggregation(
                 children("my-refinements", childType).subAggregation(terms("my-colors").field("color"))
                     .subAggregation(terms("my-sizes").field("size"))
@@ -305,8 +300,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         createIndexRequest(indexName, childType, "3", "2", "name", "brussels").setRouting("1").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch(indexName)
-            .setQuery(matchQuery("name", "europe"))
+        SearchResponse response = prepareSearch(indexName).setQuery(matchQuery("name", "europe"))
             .addAggregation(
                 children(parentType, parentType).subAggregation(children(childType, childType).subAggregation(terms("name").field("name")))
             )
@@ -356,8 +350,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
         requests.add(createIndexRequest("index", "childType", "8", "3", "name", "Dan", "age", 1));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("index")
-            .setSize(0)
+        SearchResponse response = prepareSearch("index").setSize(0)
             .addAggregation(
                 AggregationBuilders.terms("towns")
                     .field("town")

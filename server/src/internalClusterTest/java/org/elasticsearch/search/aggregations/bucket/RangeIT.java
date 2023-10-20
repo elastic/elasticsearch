@@ -133,14 +133,12 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testRangeAsSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").field(MULTI_VALUED_FIELD_NAME)
-                    .size(100)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .subAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms("terms").field(MULTI_VALUED_FIELD_NAME)
+                .size(100)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .subAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
+        ).get();
 
         assertNoFailures(response);
         Terms terms = response.getAggregations().get("terms");
@@ -196,9 +194,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -237,9 +235,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueFieldWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6).format("#"))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6).format("#")
+        ).get();
 
         assertNoFailures(response);
 
@@ -278,11 +276,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueFieldWithCustomKey() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo("r1", 3).addRange("r2", 3, 6).addUnboundedFrom("r3", 6)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo("r1", 3).addRange("r2", 3, 6).addUnboundedFrom("r3", 6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -321,15 +317,13 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                range("range").field(SINGLE_VALUED_FIELD_NAME)
-                    .addUnboundedTo(3)
-                    .addRange(3, 6)
-                    .addUnboundedFrom(6)
-                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME)
+                .addUnboundedTo(3)
+                .addRange(3, 6)
+                .addUnboundedFrom(6)
+                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+        ).get();
 
         assertNoFailures(response);
 
@@ -393,15 +387,13 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                range("range").field(SINGLE_VALUED_FIELD_NAME)
-                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
-                    .addUnboundedTo(3)
-                    .addRange(3, 6)
-                    .addUnboundedFrom(6)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME)
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+                .addUnboundedTo(3)
+                .addRange(3, 6)
+                .addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -453,9 +445,9 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -507,15 +499,13 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                range("range").field(MULTI_VALUED_FIELD_NAME)
-                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
-                    .addUnboundedTo(3)
-                    .addRange(3, 6)
-                    .addUnboundedFrom(6)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(MULTI_VALUED_FIELD_NAME)
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+                .addUnboundedTo(3)
+                .addRange(3, 6)
+                .addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -577,9 +567,9 @@ public class RangeIT extends ESIntegTestCase {
             "doc['" + SINGLE_VALUED_FIELD_NAME + "'].value",
             Collections.emptyMap()
         );
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(range("range").script(script).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").script(script).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -618,9 +608,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testEmptyRange() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(-1).addUnboundedFrom(1000))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(-1).addUnboundedFrom(1000)
+        ).get();
 
         assertNoFailures(response);
 
@@ -651,7 +641,7 @@ public class RangeIT extends ESIntegTestCase {
 
     public void testNoRangesInQuery() {
         try {
-            client().prepareSearch("idx").addAggregation(range("foobar").field(SINGLE_VALUED_FIELD_NAME)).get();
+            prepareSearch("idx").addAggregation(range("foobar").field(SINGLE_VALUED_FIELD_NAME)).get();
             fail();
         } catch (SearchPhaseExecutionException spee) {
             Throwable rootCause = spee.getCause().getCause();
@@ -668,9 +658,9 @@ public class RangeIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(range("range").script(script).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").script(script).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -726,9 +716,9 @@ public class RangeIT extends ESIntegTestCase {
      */
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -810,11 +800,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testOverlappingRanges() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(5).addRange(3, 6).addRange(4, 5).addUnboundedFrom(4)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            range("range").field(MULTI_VALUED_FIELD_NAME).addUnboundedTo(5).addRange(3, 6).addRange(4, 5).addUnboundedFrom(4)
+        ).get();
 
         assertNoFailures(response);
 
@@ -862,8 +850,7 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(
                 histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
                     .interval(1L)
@@ -922,8 +909,7 @@ public class RangeIT extends ESIntegTestCase {
         // Test that a request using a nondeterministic script does not get cached
         Map<String, Object> params = new HashMap<>();
         params.put("fieldname", "date");
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 range("foo").field("i")
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))
@@ -942,8 +928,7 @@ public class RangeIT extends ESIntegTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 range("foo").field("i")
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
@@ -962,7 +947,7 @@ public class RangeIT extends ESIntegTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(range("foo").field("i").addRange(0, 10)).get();
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(range("foo").field("i").addRange(0, 10)).get();
         assertNoFailures(r);
 
         assertThat(

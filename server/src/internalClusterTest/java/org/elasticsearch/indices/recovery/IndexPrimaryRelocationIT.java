@@ -105,10 +105,9 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         finished.set(true);
         indexingThread.join();
         refresh("test");
-        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test").setTrackTotalHits(true), numAutoGenDocs.get());
+        ElasticsearchAssertions.assertHitCount(prepareSearch("test").setTrackTotalHits(true), numAutoGenDocs.get());
         ElasticsearchAssertions.assertHitCount(
-            client().prepareSearch("test")
-                .setTrackTotalHits(true)// extra paranoia ;)
+            prepareSearch("test").setTrackTotalHits(true)// extra paranoia ;)
                 .setQuery(QueryBuilders.termQuery("auto", true)),
             numAutoGenDocs.get()
         );

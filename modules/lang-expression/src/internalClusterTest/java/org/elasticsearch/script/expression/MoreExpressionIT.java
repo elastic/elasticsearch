@@ -565,30 +565,22 @@ public class MoreExpressionIT extends ESIntegTestCase {
             client().prepareIndex("agg_index").setId("4").setSource("one", 4.0, "two", 2.0, "three", 3.0, "four", 4.0),
             client().prepareIndex("agg_index").setId("5").setSource("one", 5.0, "two", 2.0, "three", 3.0, "four", 4.0)
         );
-        SearchResponse response = client().prepareSearch("agg_index")
-            .addAggregation(
-                histogram("histogram").field("one")
-                    .interval(2)
-                    .subAggregation(sum("twoSum").field("two"))
-                    .subAggregation(sum("threeSum").field("three"))
-                    .subAggregation(sum("fourSum").field("four"))
-                    .subAggregation(
-                        bucketScript(
-                            "totalSum",
-                            new Script(
-                                ScriptType.INLINE,
-                                ExpressionScriptEngine.NAME,
-                                "_value0 + _value1 + _value2",
-                                Collections.emptyMap()
-                            ),
-                            "twoSum",
-                            "threeSum",
-                            "fourSum"
-                        )
+        SearchResponse response = prepareSearch("agg_index").addAggregation(
+            histogram("histogram").field("one")
+                .interval(2)
+                .subAggregation(sum("twoSum").field("two"))
+                .subAggregation(sum("threeSum").field("three"))
+                .subAggregation(sum("fourSum").field("four"))
+                .subAggregation(
+                    bucketScript(
+                        "totalSum",
+                        new Script(ScriptType.INLINE, ExpressionScriptEngine.NAME, "_value0 + _value1 + _value2", Collections.emptyMap()),
+                        "twoSum",
+                        "threeSum",
+                        "fourSum"
                     )
-            )
-            .execute()
-            .actionGet();
+                )
+        ).execute().actionGet();
 
         Histogram histogram = response.getAggregations().get("histogram");
         assertThat(histogram, notNullValue());

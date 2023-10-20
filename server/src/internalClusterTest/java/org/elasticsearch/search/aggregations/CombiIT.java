@@ -61,8 +61,7 @@ public class CombiIT extends ESIntegTestCase {
         ensureSearchable();
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(missing("missing_values").field("value"))
+        SearchResponse response = prepareSearch("idx").addAggregation(missing("missing_values").field("value"))
             .addAggregation(terms("values").field("value").collectMode(aggCollectionMode))
             .get();
 
@@ -109,11 +108,9 @@ public class CombiIT extends ESIntegTestCase {
         ensureSearchable("idx");
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .addAggregation(
-                histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
-            )
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").addAggregation(
+            histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
+        ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");

@@ -115,7 +115,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             .precision(15)
             .setGeoBoundingBox(boundingBox)
             .size(256 * 256);
-        SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
+        SearchResponse response = prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
         InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
         for (InternalGeoGridBucket bucket : gridPoint.getBuckets()) {
             assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
@@ -123,7 +123,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 GeoGridQueryBuilder.Grid.GEOHEX,
                 bucket.getKeyAsString()
             );
-            response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
+            response = prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
             assertThat(
                 "Bucket " + bucket.getKeyAsString(),
                 response.getHits().getTotalHits().value,
@@ -166,7 +166,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             .precision(precision)
             .setGeoBoundingBox(boundingBox)
             .size(256 * 256);
-        SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
+        SearchResponse response = prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
         InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
         for (InternalGeoGridBucket bucket : gridPoint.getBuckets()) {
             assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
@@ -174,7 +174,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 GeoGridQueryBuilder.Grid.GEOHEX,
                 bucket.getKeyAsString()
             );
-            response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
+            response = prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
             assertThat(response.getHits().getTotalHits().value, Matchers.equalTo(bucket.getDocCount()));
         }
     }
@@ -269,7 +269,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
         for (int i = minPrecision; i <= maxPrecision; i++) {
             GeoGridAggregationBuilder builderPoint = aggBuilder.apply("geometry").field("geometry").precision(i);
-            SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
+            SearchResponse response = prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
             InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
             assertQuery(gridPoint.getBuckets(), queryBuilder, i);
         }
@@ -297,7 +297,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 .precision(i)
                 .setGeoBoundingBox(boundingBox)
                 .size(256 * 256);
-            SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
+            SearchResponse response = prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
             InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
             assertQuery(gridPoint.getBuckets(), queryBuilder, i);
         }
@@ -307,7 +307,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         for (InternalGeoGridBucket bucket : buckets) {
             assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
             QueryBuilder queryBuilder = queryFunction.apply("geometry", bucket.getKeyAsString());
-            SearchResponse response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
+            SearchResponse response = prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
             assertThat(
                 "Expected hits at precision " + precision + " for H3 cell " + bucket.getKeyAsString(),
                 response.getHits().getTotalHits().value,

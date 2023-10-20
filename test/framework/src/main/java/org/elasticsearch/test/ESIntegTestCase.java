@@ -749,10 +749,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
-    public SearchRequestBuilder prepareSearch(String... indices) {
-        return client().prepareSearch(indices);
-    }
-
     /**
      * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
      * already exists this method will fail and wipe all the indices created so far.
@@ -1068,8 +1064,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
+                    long count = prepareSearch().setTrackTotalHits(true)
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get()
@@ -1097,6 +1092,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    public static SearchRequestBuilder prepareSearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
     /**

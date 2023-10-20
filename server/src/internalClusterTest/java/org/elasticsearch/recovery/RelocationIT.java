@@ -133,7 +133,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         indicesAdmin().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        assertThat(prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -157,7 +157,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         indicesAdmin().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        assertThat(prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
     public void testRelocationWhileIndexingRandom() throws Exception {
@@ -236,8 +236,7 @@ public class RelocationIT extends ESIntegTestCase {
             boolean ranOnce = false;
             for (int i = 0; i < 10; i++) {
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client().prepareSearch("test")
-                    .setQuery(matchAllQuery())
+                SearchHits hits = prepareSearch("test").setQuery(matchAllQuery())
                     .setSize((int) indexer.totalIndexedDocs())
                     .storedFields()
                     .execute()
@@ -486,7 +485,7 @@ public class RelocationIT extends ESIntegTestCase {
         for (int i = 0; i < searchThreads.length; i++) {
             searchThreads[i] = new Thread(() -> {
                 while (stopped.get() == false) {
-                    assertNoFailures(client().prepareSearch("test").setRequestCache(false));
+                    assertNoFailures(prepareSearch("test").setRequestCache(false));
                 }
             });
             searchThreads[i].start();
@@ -501,7 +500,7 @@ public class RelocationIT extends ESIntegTestCase {
             docs[i] = client().prepareIndex("test").setId(id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
-        assertHitCount(client().prepareSearch("test"), numDocs);
+        assertHitCount(prepareSearch("test"), numDocs);
 
         logger.info(" --> moving index to new nodes");
         updateIndexSettings(
@@ -580,7 +579,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         indicesAdmin().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
+        assertThat(prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
@@ -650,7 +649,7 @@ public class RelocationIT extends ESIntegTestCase {
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
         }, 1, TimeUnit.MINUTES);
 
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
+        assertThat(prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(120L));
     }
 
     public void testRelocationEstablishedPeerRecoveryRetentionLeases() throws Exception {

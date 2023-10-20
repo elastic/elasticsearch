@@ -48,8 +48,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(stats("stats").field("value")))
             .get();
 
@@ -73,10 +72,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(stats("stats").field("value"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(stats("stats").field("value")).get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -94,8 +90,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     public void testSingleValuedField_WithFormatter() throws Exception {
 
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(stats("stats").format("0000.0").field("value"))
             .get();
 
@@ -117,8 +112,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldGetProperty() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(stats("stats").field("value")))
             .get();
 
@@ -156,10 +150,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testMultiValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(stats("stats").field("values"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(stats("stats").field("values")).get();
 
         assertShardExecutionState(searchResponse, 0);
 
@@ -180,8 +171,7 @@ public class StatsIT extends AbstractNumericTestCase {
 
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 terms("terms").field("value")
                     .order(BucketOrder.compound(BucketOrder.aggregation("filter>stats.avg", true)))
@@ -254,8 +244,7 @@ public class StatsIT extends AbstractNumericTestCase {
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 stats("foo").field("d")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "Math.random()", Collections.emptyMap()))
@@ -273,8 +262,7 @@ public class StatsIT extends AbstractNumericTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 stats("foo").field("d")
                     .script(new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "_value + 1", Collections.emptyMap()))
@@ -292,7 +280,7 @@ public class StatsIT extends AbstractNumericTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(stats("foo").field("d")).get();
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(stats("foo").field("d")).get();
         assertNoFailures(r);
 
         assertThat(

@@ -33,8 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ParentIT extends AbstractParentChildTestCase {
 
     public void testSimpleParentAgg() {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(0)
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(0)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(parent("to_article", "comment"));
         SearchResponse searchResponse = searchRequest.get();
@@ -53,8 +52,7 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testSimpleParentAggWithSubAgg() {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
         SearchResponse searchResponse = searchRequest.get();
@@ -108,8 +106,7 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testParentAggs() throws Exception {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
                 terms("to_commenter").field("commenter")
@@ -200,7 +197,7 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testNonExistingParentType() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test").addAggregation(parent("non-existing", "xyz")).get();
+        SearchResponse searchResponse = prepareSearch("test").addAggregation(parent("non-existing", "xyz")).get();
         assertNoFailures(searchResponse);
 
         Parent parent = searchResponse.getAggregations().get("non-existing");
@@ -209,8 +206,7 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testTermsParentAggTerms() throws Exception {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
                 terms("to_commenter").field("commenter")

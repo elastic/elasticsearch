@@ -1184,7 +1184,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     // see #2926
-    public void testMustNot() throws IOException, ExecutionException, InterruptedException {
+    public void testMustNot() throws InterruptedException {
         assertAcked(
             prepareCreate("test")
                 // issue manifested only with shards>=2

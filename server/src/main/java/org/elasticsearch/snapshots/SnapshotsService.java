@@ -74,6 +74,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -130,16 +131,16 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersion.V_7_6_0;
+    public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_6_0;
 
-    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersion.V_7_9_0;
+    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_9_0;
 
-    public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersion.V_7_12_0;
+    public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersions.V_7_12_0;
     public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
-    public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersion.V_7_16_0;
+    public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersions.V_7_16_0;
 
-    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersion.V_7_5_0;
+    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
 
     public static final String POLICY_ID_METADATA_FIELD = "policy";
 

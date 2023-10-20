@@ -692,7 +692,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 1);
     }
 
-    public void testMoreLikeThisUnlike() throws ExecutionException, InterruptedException, IOException {
+    public void testMoreLikeThisUnlike() throws InterruptedException, IOException {
         createIndex("test");
         ensureGreen();
         int numFields = randomIntBetween(5, 10);

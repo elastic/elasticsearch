@@ -464,7 +464,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")), 1);
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)), 1);
         assertHitCount(prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")), 1);
-
     }
 
     public void testDynamicRuntimeObjectFields() {

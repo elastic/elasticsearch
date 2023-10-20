@@ -139,7 +139,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
-        assertHitCount(client().prepareSearch(indexName), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         logger.info("--> will temporarily interrupt recovery action between blue & red on [{}]", recoveryActionToBlock);
 
@@ -241,7 +241,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
 
-        assertHitCount(client().prepareSearch(indexName), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         final boolean dropRequests = randomBoolean();
         logger.info("--> will {} between blue & red on [{}]", dropRequests ? "drop requests" : "break connection", recoveryActionToBlock);
@@ -342,7 +342,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
-        assertHitCount(client().prepareSearch(indexName), numDocs);
+        assertHitCount(prepareSearch(indexName), numDocs);
 
         if (useSnapshotBasedRecoveries) {
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
@@ -457,7 +457,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         }
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch(indexName), numDocs);
+            assertHitCount(prepareSearch(indexName), numDocs);
         }
     }
 

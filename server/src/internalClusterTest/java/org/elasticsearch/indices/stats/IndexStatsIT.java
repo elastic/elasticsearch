@@ -374,7 +374,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesAdmin().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(), equalTo(0L));
         for (int i = 0; i < 10; i++) {
             assertThat(
-                client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
+                prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
                 equalTo((long) numDocs)
             );
             assertThat(
@@ -409,7 +409,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             assertThat(
-                client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
+                prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
                 equalTo((long) numDocs)
             );
             assertThat(
@@ -427,8 +427,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // test explicit request parameter
 
         assertThat(
-            client().prepareSearch("idx")
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
+            prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setSize(0)
                 .setRequestCache(false)
                 .get()
@@ -442,8 +441,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         );
 
         assertThat(
-            client().prepareSearch("idx")
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
+            prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setSize(0)
                 .setRequestCache(true)
                 .get()
@@ -462,7 +460,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false), "idx");
 
         assertThat(
-            client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
+            prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits().value,
             equalTo((long) numDocs)
         );
         assertThat(
@@ -471,8 +469,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         );
 
         assertThat(
-            client().prepareSearch("idx")
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
+            prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setSize(0)
                 .setRequestCache(true)
                 .get()
@@ -1013,7 +1010,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().prepareIndex("test1").setId(Integer.toString(1)).setSource("foo", "bar").execute().actionGet();
         refresh();
 
-        client().prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
+        prepareSearch("_all").setStats("bar", "baz").execute().actionGet();
 
         IndicesStatsRequestBuilder builder = indicesAdmin().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
@@ -1163,9 +1160,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         // the query cache has an optimization that disables it automatically if there is contention,
         // so we run it in an assertBusy block which should eventually succeed
         assertBusy(() -> {
-            assertNoFailures(
-                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz")))
-            );
+            assertNoFailures(prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))));
             IndicesStatsResponse stats = indicesAdmin().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
             assertThat(stats.getTotal().queryCache.getHitCount(), equalTo(0L));
@@ -1174,9 +1169,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         });
 
         assertBusy(() -> {
-            assertNoFailures(
-                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz")))
-            );
+            assertNoFailures(prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))));
             IndicesStatsResponse stats = indicesAdmin().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
             assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));
@@ -1224,9 +1217,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         );
 
         assertBusy(() -> {
-            assertNoFailures(
-                client().prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz")))
-            );
+            assertNoFailures(prepareSearch("index").setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("foo", "baz"))));
             IndicesStatsResponse stats = indicesAdmin().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
             assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));

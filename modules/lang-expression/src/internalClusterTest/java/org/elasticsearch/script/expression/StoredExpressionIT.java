@@ -61,13 +61,11 @@ public class StoredExpressionIT extends ESIntegTestCase {
             assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));
         }
         try {
-            client().prepareSearch("test")
-                .setSource(
-                    new SearchSourceBuilder().aggregation(
-                        AggregationBuilders.terms("test").script(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
-                    )
+            prepareSearch("test").setSource(
+                new SearchSourceBuilder().aggregation(
+                    AggregationBuilders.terms("test").script(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
                 )
-                .get();
+            ).get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [aggs] context"));
         }

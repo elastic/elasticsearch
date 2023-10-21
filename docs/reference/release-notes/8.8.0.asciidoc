@@ -3,6 +3,26 @@
 
 Also see <<breaking-changes-8.8,Breaking changes in 8.8>>.
 
+[[known-issues-8.8.0]]
+[float]
+=== Known issues
+
+// tag::repo-analysis-missing-timeout[]
+* Missing timeout in repository analysis API
++
+Version 8.8.0 introduced to the <<repo-analysis-api>> API some additional
+checks for repository behaviour, but did not adapt the API's timeout mechanism
+for the new checks since it was expected that they would complete very quickly
+whether successful or not. However we have since encountered some repository
+implementations which behave incorrectly in a surprising manner that may cause
+these new checks to loop endlessly instead of failing, ignoring the timeout.
++
+To work around this issue, implement a client-side timeout when requesting a
+repository analysis, and treat a client-side timeout as indicative of a
+repository incompatibility which you should work with your storage supplier to
+address. See {es-issue}101182[#101182] for more information.
+// end::repo-analysis-missing-timeout[]
+
 [[bug-8.8.0]]
 [float]
 === Bug fixes

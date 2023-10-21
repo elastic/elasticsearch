@@ -3,6 +3,12 @@
 
 Also see <<breaking-changes-8.8,Breaking changes in 8.8>>.
 
+[[known-issues-8.8.1]]
+[float]
+=== Known issues
+
+include::8.8.0.asciidoc[tag=repo-analysis-missing-timeout]
+
 [[bug-8.8.1]]
 [float]
 === Bug fixes

@@ -22,6 +22,12 @@ For more information, see our related
 https://discuss.elastic.co/t/elasticsearch-8-9-2-and-7-17-13-security-update/342479[security
 announcement].
 
+[[known-issues-8.9.2]]
+[float]
+=== Known issues
+
+include::8.8.0.asciidoc[tag=repo-analysis-missing-timeout]
+
 [[bug-8.9.2]]
 [float]
 === Bug fixes

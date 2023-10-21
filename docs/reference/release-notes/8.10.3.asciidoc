@@ -7,6 +7,8 @@
 
 include::8.10.0.asciidoc[tag=repositorydata-format-change]
 
+include::8.8.0.asciidoc[tag=repo-analysis-missing-timeout]
+
 Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 
 [[bug-8.10.3]]

@@ -355,8 +355,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         blobStore.setDisruption(new Disruption() {
             @Override
-            public boolean compareAndExchangeFails() {
-                return true;
+            public boolean compareAndExchangeReturnsWitness() {
+                return false;
             }
         });
         final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
@@ -484,8 +484,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default boolean compareAndExchangeFails() {
-            return false;
+        default boolean compareAndExchangeReturnsWitness() {
+            return true;
         }
 
         default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
@@ -661,11 +661,11 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ActionListener<OptionalBytesReference> listener
         ) {
             assertPurpose(purpose);
-            if (disruption.compareAndExchangeFails()) {
-                listener.onResponse(OptionalBytesReference.MISSING);
-            } else {
+            if (disruption.compareAndExchangeReturnsWitness()) {
                 final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
                 listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
+            } else {
+                listener.onResponse(OptionalBytesReference.MISSING);
             }
         }
     }

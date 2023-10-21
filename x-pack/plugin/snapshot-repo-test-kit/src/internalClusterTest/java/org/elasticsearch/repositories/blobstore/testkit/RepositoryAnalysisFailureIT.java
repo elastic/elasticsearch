@@ -60,6 +60,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -300,9 +302,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
 
             @Override
-            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (registerWasCorrupted.compareAndSet(false, true)) {
-                    register.updateAndGet(bytes -> RegisterAnalyzeAction.bytesFromLong(RegisterAnalyzeAction.longFromBytes(bytes) + 1));
+                    register.updateAndGet(bytes -> bytesFromLong(longFromBytes(bytes) + 1));
                 }
                 return register.compareAndExchange(expected, updated);
             }
@@ -317,11 +319,11 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
         blobStore.setDisruption(new Disruption() {
             @Override
-            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
-                    final var currentValue = RegisterAnalyzeAction.longFromBytes(register.get());
+                    final var currentValue = longFromBytes(register.get());
                     if (currentValue == expectedMax) {
-                        return RegisterAnalyzeAction.bytesFromLong(
+                        return bytesFromLong(
                             randomFrom(
                                 randomLongBetween(0L, expectedMax - 1),
                                 randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
@@ -329,7 +331,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                             )
                         );
                     } else {
-                        return RegisterAnalyzeAction.bytesFromLong(
+                        return bytesFromLong(
                             randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1))
                         );
                     }
@@ -464,7 +466,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+        default BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
             return register.compareAndExchange(expected, updated);
         }
     }
@@ -638,7 +640,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         ) {
             assertPurpose(purpose);
             final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
-            listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
+            listener.onResponse(OptionalBytesReference.of(disruption.onContendedCompareAndExchange(register, expected, updated)));
         }
     }
 

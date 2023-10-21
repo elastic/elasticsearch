@@ -34,7 +34,7 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
             new ActionHandler<>(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.TransportAction.class),
             new ActionHandler<>(BlobAnalyzeAction.INSTANCE, BlobAnalyzeAction.TransportAction.class),
             new ActionHandler<>(GetBlobChecksumAction.INSTANCE, GetBlobChecksumAction.TransportAction.class),
-            new ActionHandler<>(RegisterAnalyzeAction.INSTANCE, RegisterAnalyzeAction.TransportAction.class)
+            new ActionHandler<>(ContendedRegisterAnalyzeAction.INSTANCE, ContendedRegisterAnalyzeAction.TransportAction.class)
         );
     }
 

@@ -181,7 +181,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 source.put(RETURN_NOOP_FIELD, true);
                 noopDocs++;
             }
-            indexRequests.add(client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
+            indexRequests.add(prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
 

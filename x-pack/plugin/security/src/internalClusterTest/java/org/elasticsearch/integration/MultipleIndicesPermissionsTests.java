@@ -303,7 +303,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
                 .addAlias(new Alias("alias1").filter(QueryBuilders.termQuery("field1", "public")))
         );
 
-        client().prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("index1").setId("1").setSource("field1", "private").setRefreshPolicy(IMMEDIATE).get();
 
         final Client userAClient = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD))

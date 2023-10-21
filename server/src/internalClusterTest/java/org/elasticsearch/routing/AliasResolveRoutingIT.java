@@ -37,9 +37,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         indicesAdmin().prepareClose("test-1").get();
         indexRandom(
             true,
-            client().prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex("test-0").setId("2").setSource("field1", "quick brown"),
-            client().prepareIndex("test-0").setId("3").setSource("field1", "quick")
+            prepareIndex("test-0").setId("1").setSource("field1", "the quick brown fox jumps"),
+            prepareIndex("test-0").setId("2").setSource("field1", "quick brown"),
+            prepareIndex("test-0").setId("3").setSource("field1", "quick")
         );
         refresh("test-*");
         assertHitCount(

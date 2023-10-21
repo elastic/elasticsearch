@@ -34,10 +34,10 @@ import static org.mockito.Mockito.when;
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteWithAggs() throws Exception {
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:00").get();
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:10").get();
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:20").get();
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:00").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:10").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:20").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
         refresh();
 
         SearchResponse response = prepareSearch("my-index").addAggregation(
@@ -61,7 +61,7 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         assertThat(resolvedValues.size(), is(1));
         assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.rate.buckets.0.doc_count", (Object) 4));
 
-        client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
+        prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
         refresh();
 
         response = prepareSearch("my-index").addAggregation(

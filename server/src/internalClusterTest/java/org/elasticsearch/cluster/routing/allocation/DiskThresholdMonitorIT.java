@@ -60,10 +60,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
         assertBusy(() -> {
-            assertBlocked(
-                client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
+            assertBlocked(prepareIndex(indexName).setId("1").setSource("f", "g"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
@@ -115,10 +112,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         getTestFileStore(dataNodeName).setTotalSpace(1L);
         refreshClusterInfo();
         assertBusy(() -> {
-            assertBlocked(
-                client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
-                IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
-            );
+            assertBlocked(prepareIndex(indexName).setId("1").setSource("f", "g"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 

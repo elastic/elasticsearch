@@ -201,7 +201,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(10, 20);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex(index).setSource("field", "value");
+            builders[i] = prepareIndex(index).setSource("field", "value");
         }
         indexRandom(true, builders);
         indicesAdmin().prepareFlush().setForce(true).execute().actionGet();

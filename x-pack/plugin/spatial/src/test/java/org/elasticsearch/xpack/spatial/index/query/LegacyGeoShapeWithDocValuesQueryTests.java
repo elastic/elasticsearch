@@ -116,16 +116,14 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         // MULTIPOINT
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("1")
+        prepareIndex("geo_points_only").setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
         // POINT
         Point point = GeometryTestUtils.randomPoint(false);
-        client().prepareIndex("geo_points_only")
-            .setId("2")
+        prepareIndex("geo_points_only").setId("2")
             .setSource(GeoJson.toXContent(point, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -171,8 +169,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
 
         Geometry geometry = GeometryTestUtils.randomGeometry(false);
         try {
-            client().prepareIndex("geo_points_only")
-                .setId("1")
+            prepareIndex("geo_points_only").setId("1")
                 .setSource(GeoJson.toXContent(geometry, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
@@ -221,8 +218,7 @@ public class LegacyGeoShapeWithDocValuesQueryTests extends GeoShapeQueryTestCase
         ensureGreen();
 
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        client().prepareIndex(defaultIndexName)
-            .setId("1")
+        prepareIndex(defaultIndexName).setId("1")
             .setSource(GeoJson.toXContent(multiPoint, jsonBuilder().startObject().field(defaultFieldName), null).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();

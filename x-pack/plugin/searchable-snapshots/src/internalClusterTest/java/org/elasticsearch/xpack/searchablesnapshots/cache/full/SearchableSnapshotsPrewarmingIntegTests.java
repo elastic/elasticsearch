@@ -137,7 +137,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             if (nbDocs > 0) {
                 final BulkRequestBuilder bulkRequest = client().prepareBulk();
                 for (int i = 0; i < nbDocs; i++) {
-                    bulkRequest.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+                    bulkRequest.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
                 }
                 final BulkResponse bulkResponse = bulkRequest.get();
                 assertThat(bulkResponse.hasFailures(), is(false));

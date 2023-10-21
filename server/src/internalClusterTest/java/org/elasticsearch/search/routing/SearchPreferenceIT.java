@@ -55,7 +55,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(indexSettings(cluster().numDataNodes() + 2, 0)));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
+            prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
@@ -93,7 +93,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         );
         ensureGreen();
 
-        client().prepareIndex("test").setSource("field1", "value1").get();
+        prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -109,7 +109,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
-        client().prepareIndex("test").setSource("field1", "value1").get();
+        prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
@@ -142,7 +142,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test").setSource("field1", "value1").get();
+        prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final Client client = internalCluster().smartClient();
@@ -212,7 +212,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test").setSource("field1", "value1").get();
+        prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final String customPreference = randomAlphaOfLength(10);

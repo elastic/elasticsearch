@@ -61,7 +61,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         );
         ensureGreen();
 
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
+        indexRandom(true, prepareIndex("test").setId("0").setSource("shape", (ToXContent) (builder, params) -> {
             builder.startObject()
                 .field("type", "circle")
                 .startArray("coordinates")

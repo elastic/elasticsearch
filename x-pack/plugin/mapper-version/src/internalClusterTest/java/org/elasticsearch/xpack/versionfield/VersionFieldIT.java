@@ -59,14 +59,11 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
             .get();
         ensureGreen();
 
-        client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
+        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
         // terms aggs
@@ -104,14 +101,11 @@ public class VersionFieldIT extends ESSingleNodeTestCase {
             .get();
         ensureGreen();
 
-        client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
+        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
         indicesAdmin().prepareRefresh().get();
 
         {

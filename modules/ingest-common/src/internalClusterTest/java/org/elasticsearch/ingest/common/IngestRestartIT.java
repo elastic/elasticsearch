@@ -93,8 +93,7 @@ public class IngestRestartIT extends ESIntegTestCase {
 
         Exception e = expectThrows(
             Exception.class,
-            () -> client().prepareIndex("index")
-                .setId("1")
+            () -> prepareIndex("index").setId("1")
                 .setSource("x", 0)
                 .setPipeline(pipelineId)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -149,8 +148,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 
-        client().prepareIndex("index")
-            .setId("1")
+        prepareIndex("index").setId("1")
             .setSource("x", 0)
             .setPipeline(pipelineIdWithoutScript)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -158,8 +156,7 @@ public class IngestRestartIT extends ESIntegTestCase {
 
         IllegalStateException exception = expectThrows(
             IllegalStateException.class,
-            () -> client().prepareIndex("index")
-                .setId("2")
+            () -> prepareIndex("index").setId("2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -199,12 +196,7 @@ public class IngestRestartIT extends ESIntegTestCase {
             }""");
         clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index")
-            .setId("1")
-            .setSource("x", 0)
-            .setPipeline("_id")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        prepareIndex("index").setId("1").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -218,12 +210,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow("index");
 
-        client().prepareIndex("index")
-            .setId("2")
-            .setSource("x", 0)
-            .setPipeline("_id")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        prepareIndex("index").setId("2").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         source = client().prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -243,12 +230,7 @@ public class IngestRestartIT extends ESIntegTestCase {
             }""");
         clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index")
-            .setId("1")
-            .setSource("x", 0)
-            .setPipeline("_id")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        prepareIndex("index").setId("1").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -309,8 +291,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertThat(
             expectThrows(
                 ClusterBlockException.class,
-                () -> client().prepareIndex("index")
-                    .setId("fails")
+                () -> prepareIndex("index").setId("fails")
                     .setSource("x", 1)
                     .setTimeout(TimeValue.timeValueMillis(100)) // 100ms, to fail quickly
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -321,8 +302,7 @@ public class IngestRestartIT extends ESIntegTestCase {
 
         // but this one should pass since it has a longer timeout
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        client().prepareIndex("index")
-            .setId("passes1")
+        prepareIndex("index").setId("passes1")
             .setSource("x", 2)
             .setTimeout(TimeValue.timeValueSeconds(60)) // wait for second node to start in below
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -336,7 +316,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
         assertThat(indexResponse.getResult(), equalTo(DocWriteResponse.Result.CREATED));
 
-        client().prepareIndex("index").setId("passes2").setSource("x", 3).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("index").setId("passes2").setSource("x", 3).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         // successfully indexed documents should have the value field set by the pipeline
         Map<String, Object> source = client().prepareGet("index", "passes1").get(timeout).getSource();

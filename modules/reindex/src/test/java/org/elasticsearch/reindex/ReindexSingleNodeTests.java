@@ -30,7 +30,7 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
     public void testDeprecatedSort() {
         int max = between(2, 20);
         for (int i = 0; i < max; i++) {
-            client().prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
+            prepareIndex("source").setId(Integer.toString(i)).setSource("foo", i).get();
         }
 
         indicesAdmin().prepareRefresh("source").get();

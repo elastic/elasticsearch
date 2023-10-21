@@ -366,7 +366,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
                         builder.field("int_" + j, randomInt());
                     }
                     builder.endObject();
-                    indexRequestBuilders.add(client().prepareIndex(indexName).setSource(builder));
+                    indexRequestBuilders.add(prepareIndex(indexName).setSource(builder));
                 }
                 indexRandom(true, indexRequestBuilders);
 

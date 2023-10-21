@@ -93,8 +93,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
                 .endObject();
 
             try {
-                client().prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
-                client().prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
+                prepareIndex(INDEX).setSource(geoJson).setRefreshPolicy(IMMEDIATE).get();
+                prepareIndex(IGNORE_MALFORMED_INDEX).setRefreshPolicy(IMMEDIATE).setSource(geoJson).get();
             } catch (Exception e) {
                 // sometimes GeoTestUtil will create invalid geometry; catch and continue:
                 if (queryGeometry == geometry) {
@@ -109,8 +109,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
         Rectangle rectangle = new Rectangle(-45, 45, 45, -45);
-        client().prepareIndex(IGNORE_MALFORMED_INDEX)
-            .setId("Big_Rectangle")
+        prepareIndex(IGNORE_MALFORMED_INDEX).setId("Big_Rectangle")
             .setSource(jsonBuilder().startObject().field(FIELD, WellKnownText.toWKT(rectangle)).endObject())
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -133,11 +132,10 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         String location = """
             "location" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex(indexName).setId("1").setSource(Strings.format("""
+        prepareIndex(indexName).setId("1").setSource(Strings.format("""
             { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
             """, location, location, location, location), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
-        client().prepareIndex(searchIndex)
-            .setId("1")
+        prepareIndex(searchIndex).setId("1")
             .setSource(
                 jsonBuilder().startObject()
                     .startObject("location")
@@ -236,7 +234,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
                 }
             }""", args);
 
-        client().prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
+        prepareIndex(INDEX).setId("0").setSource(source, XContentType.JSON).setRouting("ABC").get();
         indicesAdmin().prepareRefresh(INDEX).get();
 
         SearchResponse searchResponse = client().prepareSearch(INDEX)
@@ -248,13 +246,8 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
     public void testNullShape() {
         // index a null shape
-        client().prepareIndex(INDEX)
-            .setId("aNullshape")
-            .setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-        client().prepareIndex(IGNORE_MALFORMED_INDEX)
-            .setId("aNullshape")
+        prepareIndex(INDEX).setId("aNullshape").setSource("{\"" + FIELD + "\": null}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(IGNORE_MALFORMED_INDEX).setId("aNullshape")
             .setSource("{\"" + FIELD + "\": null}", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
@@ -282,7 +275,7 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
 
         String doc = """
             {"location" : {"type":"envelope", "coordinates":[ [-100.0, 100.0], [100.0, -100.0]]}}""";
-        client().prepareIndex("test_contains").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test_contains").setId("1").setSource(doc, XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         // index the mbr of the collection
         Rectangle rectangle = new Rectangle(-50, 50, 50, -50);

@@ -40,18 +40,12 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.0.0").endObject()).get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject())
-            .get();
-        client().prepareIndex(indexName)
-            .setId("4")
-            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("6").setSource(jsonBuilder().startObject().field("version", "21.11.0").endObject()).get();
+        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "11.1.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.0.0").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject()).get();
+        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        prepareIndex(indexName).setId("6").setSource(jsonBuilder().startObject().field("version", "21.11.0").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
         return indexName;
     }
@@ -168,8 +162,8 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
     public void testSort() throws IOException {
         String indexName = setUpIndex("test");
         // also adding some invalid versions that should be sorted after legal ones
-        client().prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.2.3alpha").endObject()).get();
-        client().prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.3.567#12").endObject()).get();
+        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.2.3alpha").endObject()).get();
+        prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", "1.3.567#12").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         // sort based on version field
@@ -206,20 +200,13 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        client().prepareIndex(indexName)
-            .setId("1")
+        prepareIndex(indexName).setId("1")
             .setSource(jsonBuilder().startObject().field("version", "1.0.0alpha2.1.0-rc.1").endObject())
             .get();
-        client().prepareIndex(indexName)
-            .setId("2")
-            .setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject())
-            .get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.regexpQuery("version", "2.*0")).get();
@@ -259,21 +246,14 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        client().prepareIndex(indexName)
-            .setId("1")
+        prepareIndex(indexName).setId("1")
             .setSource(jsonBuilder().startObject().field("version", "1.0.0-alpha.2.1.0-rc.1").endObject())
             .get();
-        client().prepareIndex(indexName)
-            .setId("2")
-            .setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject())
-            .get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
-        client().prepareIndex(indexName).setId("6").setSource(jsonBuilder().startObject().field("version", "2.a3.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0+build.1234567").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha.beta").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "2.33.0").endObject()).get();
+        prepareIndex(indexName).setId("6").setSource(jsonBuilder().startObject().field("version", "2.a3.0").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         SearchResponse response = client().prepareSearch(indexName).setQuery(QueryBuilders.fuzzyQuery("version", "2.3.0")).get();
@@ -306,7 +286,7 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
             "3.1.1+b",
             "3.1.123"
         )) {
-            client().prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", version).endObject()).get();
+            prepareIndex(indexName).setSource(jsonBuilder().startObject().field("version", version).endObject()).get();
         }
         client().admin().indices().prepareRefresh(indexName).get();
 
@@ -354,16 +334,10 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        client().prepareIndex(indexName)
-            .setId("1")
-            .setSource(jsonBuilder().startObject().field("version", "1.invalid.0").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "2.2.0").endObject()).get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "2.2.0-badchar!").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "").endObject()).get();
+        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.invalid.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "2.2.0").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.2.0-badchar!").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         SearchResponse response = client().prepareSearch(indexName).addDocValueField("version").get();
@@ -426,14 +400,11 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        client().prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
-        client().prepareIndex(indexName)
-            .setId("3")
-            .setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject())
-            .get();
-        client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
-        client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
+        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().field("version", "1.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().field("version", "1.3.0").endObject()).get();
+        prepareIndex(indexName).setId("3").setSource(jsonBuilder().startObject().field("version", "2.1.0-alpha").endObject()).get();
+        prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
+        prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
         client().admin().indices().prepareRefresh(indexName).get();
 
         // terms aggs
@@ -469,16 +440,9 @@ public class VersionStringFieldTests extends ESSingleNodeTestCase {
         createIndex(indexName, Settings.builder().put("index.number_of_shards", 1).build(), "_doc", "version", "type=version");
         ensureGreen(indexName);
 
-        client().prepareIndex(indexName)
-            .setId("1")
-            .setSource(jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject())
-            .get();
-        client().prepareIndex(indexName)
-            .setId("2")
-            .setSource(jsonBuilder().startObject().array("version", "2.0.0", "4.alpha.0").endObject())
-            .get();
-        client().prepareIndex(indexName)
-            .setId("3")
+        prepareIndex(indexName).setId("1").setSource(jsonBuilder().startObject().array("version", "1.0.0", "3.0.0").endObject()).get();
+        prepareIndex(indexName).setId("2").setSource(jsonBuilder().startObject().array("version", "2.0.0", "4.alpha.0").endObject()).get();
+        prepareIndex(indexName).setId("3")
             .setSource(jsonBuilder().startObject().array("version", "2.1.0", "2.2.0", "5.99.0").endObject())
             .get();
         client().admin().indices().prepareRefresh(indexName).get();

@@ -89,7 +89,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 v.incrementAndGet();
                 return v;
             });
-            reqs.add(client().prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
+            reqs.add(prepareIndex(indexName).setSource("terms", keyword, "metric", metric));
         }
         indexRandom(true, true, reqs);
     }

@@ -74,8 +74,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMatchQuery() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -96,8 +95,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testMultiMatchQuery() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -117,8 +115,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testQueryStringQuery() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -140,8 +137,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQueryStringQuery() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -160,8 +156,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testExists() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -202,7 +197,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         }
 
         for (int i = 0; i < 10; i++) {
-            bulkRequest.add(client().prepareIndex("test").setSource("other_field", "1"));
+            bulkRequest.add(prepareIndex("test").setSource("other_field", "1"));
         }
 
         BulkResponse bulkResponse = bulkRequest.get();
@@ -331,8 +326,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testLoadDocValuesFields() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -361,8 +355,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldSort() throws Exception {
-        client().prepareIndex("test")
-            .setId("1")
+        prepareIndex("test").setId("1")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -375,8 +368,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("2")
+        prepareIndex("test").setId("2")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(
                 XContentFactory.jsonBuilder()
@@ -389,8 +381,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
             )
             .get();
 
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("3")
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
             .setSource(XContentFactory.jsonBuilder().startObject().startObject("flattened").field("other_key", "E").endObject().endObject())
             .get();
@@ -417,7 +408,7 @@ public class FlattenedFieldSearchTests extends ESSingleNodeTestCase {
         headers.put("origin", "https://www.elastic.co");
         Map<String, Object> source = Collections.singletonMap("headers", headers);
 
-        client().prepareIndex("test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource(source).get();
+        prepareIndex("test").setId("1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).setSource(source).get();
 
         SearchResponse response = client().prepareSearch("test").setFetchSource(true).get();
         assertThat(response.getHits().getAt(0).getSourceAsMap(), equalTo(source));

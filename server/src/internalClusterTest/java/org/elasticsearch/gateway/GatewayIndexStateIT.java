@@ -132,7 +132,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").get();
 
         logger.info("--> closing test index...");
         assertAcked(indicesAdmin().prepareClose("test"));
@@ -146,14 +146,14 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test").setId("1").setSource("field1", "value1").execute().actionGet();
+            prepareIndex("test").setId("1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
         }
 
         logger.info("--> creating another index (test2) by indexing into it");
-        client().prepareIndex("test2").setId("1").setSource("field1", "value1").execute().actionGet();
+        prepareIndex("test2").setId("1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> verifying that the state is green");
         ensureGreen();
 
@@ -192,7 +192,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test").setId("1").setSource("field1", "value1").execute().actionGet();
+            prepareIndex("test").setId("1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -217,7 +217,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("2").setSource("field1", "value1").execute().actionGet();
+        prepareIndex("test").setId("2").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testJustMasterNode() throws Exception {
@@ -260,7 +260,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         indicesAdmin().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test").setSource("field1", "value1").execute().actionGet();
+        prepareIndex("test").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {
@@ -270,7 +270,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
 
         logger.info("--> waiting for green status");
         ClusterHealthResponse health = clusterAdmin().prepareHealth()
@@ -380,7 +380,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> starting one node");
         internalCluster().startNode();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -457,7 +457,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
               }
             }""").get();
         logger.info("--> indexing a simple document");
-        client().prepareIndex("test").setId("1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value one").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();
@@ -505,7 +505,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     public void testArchiveBrokenClusterSettings() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();
-        client().prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("test").setId("1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
         logger.info("--> waiting for green status");
         if (usually()) {
             ensureYellow();

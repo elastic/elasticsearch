@@ -126,7 +126,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             source.startObject().field("field2", value1).endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx1").setRouting("1").setSource(source));
+        indexRandom(false, prepareIndex("idx1").setRouting("1").setSource(source));
     }
 
     private void insertIdx2(String[][] values) throws Exception {
@@ -139,7 +139,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             source.endArray().endObject();
         }
         source.endArray().endObject();
-        indexRandom(false, client().prepareIndex("idx2").setRouting("1").setSource(source));
+        indexRandom(false, prepareIndex("idx2").setRouting("1").setSource(source));
     }
 
     public void testSimpleReverseNestedToRoot() throws Exception {
@@ -526,8 +526,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
             .endObject();
         assertAcked(prepareCreate("idx3").setSettings(indexSettings(1, 0)).setMapping(mapping));
 
-        client().prepareIndex("idx3")
-            .setId("1")
+        prepareIndex("idx3").setId("1")
             .setRefreshPolicy(IMMEDIATE)
             .setSource(
                 jsonBuilder().startObject()

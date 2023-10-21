@@ -91,8 +91,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx")
-                .setRouting(shard)
+            builders[i] = prepareIndex("idx").setRouting(shard)
                 .setSource(jsonBuilder().startObject().field("key", key).field("value", 1).endObject());
         }
         return Arrays.asList(builders);

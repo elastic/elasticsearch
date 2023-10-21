@@ -65,7 +65,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1");
         logger.info("--> indexing some data");
-        indexRandom(true, client().prepareIndex("test-idx-1").setSource("foo", "bar"));
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"));
 
         final String snapshot = "test-snap";
 
@@ -111,11 +111,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         final String snapshot = "test-snap";
 
@@ -186,11 +182,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         final String snapshot = "test-snap";
 
@@ -555,11 +547,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final String[] indices = { "test-idx-1", "test-idx-2" };
         createIndex(indices);
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -608,11 +596,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -655,11 +639,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()
@@ -714,9 +694,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         createIndex("test-idx-1", "test-idx-2");
         indexRandom(
             true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
+            prepareIndex("test-idx-1").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar"),
+            prepareIndex("test-idx-2").setSource("foo", "bar")
         );
         flushAndRefresh("test-idx-1", "test-idx-2");
 
@@ -760,11 +740,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         createIndex("test-idx-1", "test-idx-2");
         logger.info("--> indexing some data");
-        indexRandom(
-            true,
-            client().prepareIndex("test-idx-1").setSource("foo", "bar"),
-            client().prepareIndex("test-idx-2").setSource("foo", "bar")
-        );
+        indexRandom(true, prepareIndex("test-idx-1").setSource("foo", "bar"), prepareIndex("test-idx-2").setSource("foo", "bar"));
 
         logger.info("--> creating snapshot");
         clusterAdmin().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("test-idx-*").get();

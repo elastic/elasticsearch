@@ -38,8 +38,8 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         int numberOfDocuments = randomIntBetween(1, 100);
         int numberOfDocumentsWatchingFor = 1 + numberOfDocuments;
         for (int i = 0; i < numberOfDocuments; i++) {
-            client().prepareIndex(index).setSource(source("elastic", "you know, for search", i)).get();
-            client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
+            prepareIndex(index).setSource(source("elastic", "you know, for search", i)).get();
+            prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", i)).get();
         }
 
         refresh();
@@ -77,7 +77,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
             hasEntry("ctx.payload.aggregations.top_tweeters.buckets", (Object) Arrays.asList(elastic, fightsForTheUsers))
         );
 
-        client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
+        prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
         refresh();
 
         response = prepareSearch(index).addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3))

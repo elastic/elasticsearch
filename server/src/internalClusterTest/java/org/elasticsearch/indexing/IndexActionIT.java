@@ -47,7 +47,7 @@ public class IndexActionIT extends ESIntegTestCase {
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
+                builders.add(prepareIndex("test").setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
@@ -103,15 +103,15 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, indexResponse.getResult());
 
         client().prepareDelete("test", "1").execute().actionGet();
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
     }
@@ -120,14 +120,14 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         client().prepareDelete("test", "1").execute().actionGet();
 
         flush();
 
-        indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
+        indexResponse = prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
@@ -169,8 +169,7 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        DocWriteResponse indexResponse = client().prepareIndex("test")
-            .setId("1")
+        DocWriteResponse indexResponse = prepareIndex("test").setId("1")
             .setSource("field1", "value1_1")
             .setVersion(123)
             .setVersionType(VersionType.EXTERNAL)
@@ -184,7 +183,7 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         BulkResponse bulkResponse = client().prepareBulk()
-            .add(client().prepareIndex("test").setId("1").setSource("field1", "value1_1"))
+            .add(prepareIndex("test").setId("1").setSource("field1", "value1_1"))
             .execute()
             .actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
@@ -208,7 +207,7 @@ public class IndexActionIT extends ESIntegTestCase {
         }
 
         try {
-            client().prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
+            prepareIndex(randomAlphaOfLengthBetween(min, max).toLowerCase(Locale.ROOT)).setSource("foo", "bar").get();
             fail("exception should have been thrown on too-long index name");
         } catch (InvalidIndexNameException e) {
             assertThat(
@@ -220,7 +219,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         try {
             // Catch chars that are more than a single byte
-            client().prepareIndex(
+            prepareIndex(
                 randomAlphaOfLength(MetadataCreateIndexService.MAX_INDEX_NAME_BYTES - 1).toLowerCase(Locale.ROOT) + "Ϟ".toLowerCase(
                     Locale.ROOT
                 )
@@ -264,7 +263,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
     public void testDocumentWithBlankFieldName() {
         Exception e = expectThrows(DocumentParsingException.class, () -> {
-            client().prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet();
+            prepareIndex("test").setId("1").setSource("", "value1_2").execute().actionGet();
         });
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getCause().getMessage(), containsString("field name cannot be an empty string"));

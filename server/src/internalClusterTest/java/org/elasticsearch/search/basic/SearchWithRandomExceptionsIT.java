@@ -99,8 +99,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         boolean[] added = new boolean[numDocs];
         for (int i = 0; i < numDocs; i++) {
             try {
-                DocWriteResponse indexResponse = client().prepareIndex("test")
-                    .setId("" + i)
+                DocWriteResponse indexResponse = prepareIndex("test").setId("" + i)
                     .setTimeout(TimeValue.timeValueSeconds(1))
                     .setSource("test", English.intToEnglish(i))
                     .get();

@@ -77,7 +77,7 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
             Map.of("uid", "j2", "name", "Jack", "city", "Austin/TX", "joined", "1999-11-03")
         );
         for (Map<String, String> user : users) {
-            client().prepareIndex("users").setSource(user).get();
+            prepareIndex("users").setSource(user).get();
             if (randomBoolean()) {
                 client().admin().indices().prepareRefresh("users").get();
             }

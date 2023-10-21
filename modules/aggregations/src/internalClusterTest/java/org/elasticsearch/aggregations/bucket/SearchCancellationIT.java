@@ -80,8 +80,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < numberOfDocsPerRefresh; j++) {
                 bulkRequestBuilder.add(
-                    client().prepareIndex("test")
-                        .setOpType(DocWriteRequest.OpType.CREATE)
+                    prepareIndex("test").setOpType(DocWriteRequest.OpType.CREATE)
                         .setSource(
                             "@timestamp",
                             now + (long) i * numberOfDocsPerRefresh + j,

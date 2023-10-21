@@ -72,7 +72,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {
-        DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
+        DocWriteResponse indexResponse = prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 

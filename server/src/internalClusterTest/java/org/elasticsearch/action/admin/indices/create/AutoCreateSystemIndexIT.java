@@ -116,7 +116,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        DocWriteResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -135,7 +135,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        DocWriteResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 

@@ -53,8 +53,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                 false,
                 IntStream.range(1, 100)
                     .mapToObj(
-                        unused -> client().prepareIndex(dsName)
-                            .setCreate(true)
+                        unused -> prepareIndex(dsName).setCreate(true)
                             .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
                     )
                     .toArray(IndexRequestBuilder[]::new)

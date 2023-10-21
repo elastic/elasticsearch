@@ -57,8 +57,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         int numUniqueTerms = between(2, numDocs / 2);
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx")
-                    .setId("" + i)
+                prepareIndex("idx").setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .field(STRING_FIELD_NAME, "val" + randomInt(numUniqueTerms))
@@ -74,8 +73,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         );
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx_single_shard")
-                    .setId("" + i)
+                prepareIndex("idx_single_shard").setId("" + i)
                     .setSource(
                         jsonBuilder().startObject()
                             .field(STRING_FIELD_NAME, "val" + randomInt(numUniqueTerms))
@@ -89,8 +87,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
         assertAcked(prepareCreate("idx_with_routing").setMapping("{ \"_routing\" : { \"required\" : true } }"));
         for (int i = 0; i < numDocs; i++) {
             builders.add(
-                client().prepareIndex("idx_single_shard")
-                    .setId("" + i)
+                prepareIndex("idx_single_shard").setId("" + i)
                     .setRouting(String.valueOf(randomInt(numRoutingValues)))
                     .setSource(
                         jsonBuilder().startObject()
@@ -162,8 +159,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
             for (int i = 0; i < entry.getValue(); i++) {
                 String term = entry.getKey();
                 builders.add(
-                    client().prepareIndex(index)
-                        .setId(term + "-" + i)
+                    prepareIndex(index).setId(term + "-" + i)
                         .setSource(jsonBuilder().startObject().field(STRING_FIELD_NAME, term).field("shard", shard).endObject())
                 );
             }

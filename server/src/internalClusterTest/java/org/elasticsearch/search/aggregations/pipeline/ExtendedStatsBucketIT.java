@@ -85,8 +85,7 @@ public class ExtendedStatsBucketIT extends BucketMetricsPipeLineAggregationTestC
             // creates 6 documents where the value of the field is 0, 1, 2, 3,
             // 3, 5
             builders.add(
-                client().prepareIndex("idx_gappy")
-                    .setId("" + i)
+                prepareIndex("idx_gappy").setId("" + i)
                     .setSource(jsonBuilder().startObject().field(SINGLE_VALUED_FIELD_NAME, i == 4 ? 3 : i).endObject())
             );
         }

@@ -63,7 +63,7 @@ public class SearchAfterIT extends ESIntegTestCase {
     public void testsShouldFail() throws Exception {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=long", "field2", "type=keyword").get());
         ensureGreen();
-        indexRandom(true, client().prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
+        indexRandom(true, prepareIndex("test").setId("0").setSource("field1", 0, "field2", "toto"));
         {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
@@ -154,8 +154,8 @@ public class SearchAfterIT extends ESIntegTestCase {
         ensureGreen();
         indexRandom(
             true,
-            client().prepareIndex("test").setId("0").setSource("field1", 0),
-            client().prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
+            prepareIndex("test").setId("0").setSource("field1", 0),
+            prepareIndex("test").setId("1").setSource("field1", 100, "field2", "toto")
         );
         SearchResponse searchResponse = prepareSearch("test").addSort("field1", SortOrder.ASC)
             .addSort("field2", SortOrder.ASC)
@@ -314,7 +314,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                     builder.field("field" + Integer.toString(j), documents.get(i).get(j));
                 }
                 builder.endObject();
-                requests.add(client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
+                requests.add(prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource(builder));
             }
             indexRandom(true, requests);
         }

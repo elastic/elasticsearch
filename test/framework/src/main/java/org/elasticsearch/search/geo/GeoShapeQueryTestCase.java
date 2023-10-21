@@ -155,7 +155,7 @@ public abstract class GeoShapeQueryTestCase extends BaseShapeQueryTestCase<GeoSh
         Rectangle envelope = new Rectangle(178, -178, 10, -10);
 
         XContentBuilder docSource = GeoJson.toXContent(envelope, jsonBuilder().startObject().field(defaultFieldName), null).endObject();
-        client().prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(defaultIndexName).setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
 
         Point filterShape = new Point(179, 0);
 

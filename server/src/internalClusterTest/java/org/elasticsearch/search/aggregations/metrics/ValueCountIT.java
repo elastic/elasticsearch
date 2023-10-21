@@ -49,8 +49,7 @@ public class ValueCountIT extends ESIntegTestCase {
         createIndex("idx");
         createIndex("idx_unmapped");
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("idx")
-                .setId("" + i)
+            prepareIndex("idx").setId("" + i)
                 .setSource(
                     jsonBuilder().startObject().field("value", i + 1).startArray("values").value(i + 2).value(i + 3).endArray().endObject()
                 )
@@ -208,8 +207,8 @@ public class ValueCountIT extends ESIntegTestCase {
         );
         indexRandom(
             true,
-            client().prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
-            client().prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
+            prepareIndex("cache_test_idx").setId("1").setSource("s", 1),
+            prepareIndex("cache_test_idx").setId("2").setSource("s", 2)
         );
 
         // Make sure we are starting with a clear cache
@@ -299,7 +298,6 @@ public class ValueCountIT extends ESIntegTestCase {
             ValueCount count = filter.getAggregations().get("count");
             assertThat(count, notNullValue());
             assertThat(count.value(), equalTo(0.0));
-
         }
     }
 }

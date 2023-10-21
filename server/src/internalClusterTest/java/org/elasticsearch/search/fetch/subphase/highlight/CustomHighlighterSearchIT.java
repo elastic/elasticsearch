@@ -39,8 +39,8 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     protected void setup() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
-            client().prepareIndex("test").setId("2").setSource("other_name", "foo", "other_other_name", "bar")
+            prepareIndex("test").setId("1").setSource("name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
+            prepareIndex("test").setId("2").setSource("other_name", "foo", "other_other_name", "bar")
         );
     }
 

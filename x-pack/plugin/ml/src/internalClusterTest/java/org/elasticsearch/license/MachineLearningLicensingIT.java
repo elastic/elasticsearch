@@ -540,8 +540,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         AcknowledgedResponse putPipelineResponse = putPipelineListener.actionGet();
         assertTrue(putPipelineResponse.isAcknowledged());
 
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline")
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline")
             .setSource("{}", XContentType.JSON)
             .execute()
             .actionGet();
@@ -573,8 +572,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the previous pipeline should still work
         try {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline")
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline")
                 .setSource("{}", XContentType.JSON)
                 .execute()
                 .actionGet();
@@ -598,8 +596,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // Inference against the new pipeline should fail since it has never previously succeeded
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
-            client().prepareIndex("infer_license_test")
-                .setPipeline("test_infer_license_pipeline_again")
+            prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again")
                 .setSource("{}", XContentType.JSON)
                 .execute()
                 .actionGet();
@@ -645,13 +642,11 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
         // both ingest pipelines should work
 
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline")
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline")
             .setSource("{}", XContentType.JSON)
             .execute()
             .actionGet();
-        client().prepareIndex("infer_license_test")
-            .setPipeline("test_infer_license_pipeline_again")
+        prepareIndex("infer_license_test").setPipeline("test_infer_license_pipeline_again")
             .setSource("{}", XContentType.JSON)
             .execute()
             .actionGet();

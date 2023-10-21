@@ -125,7 +125,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(docs[i][j]);
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx").setSource(source).get();
+            prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get());
 
@@ -248,7 +248,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(Integer.toString(values[j]));
             }
             source = source.endArray().endObject();
-            indexingRequests.add(client().prepareIndex("idx").setSource(source));
+            indexingRequests.add(prepareIndex("idx").setSource(source));
         }
         indexRandom(true, indexingRequests);
 
@@ -348,7 +348,7 @@ public class EquivalenceIT extends ESIntegTestCase {
                 source = source.value(randomFrom(values));
             }
             source = source.endArray().endObject();
-            client().prepareIndex("idx").setSource(source).get();
+            prepareIndex("idx").setSource(source).get();
         }
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
@@ -394,7 +394,7 @@ public class EquivalenceIT extends ESIntegTestCase {
         logger.info("Indexing [{}] docs", numDocs);
         List<IndexRequestBuilder> indexingRequests = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            indexingRequests.add(client().prepareIndex("idx").setId(Integer.toString(i)).setSource("double_value", randomDouble()));
+            indexingRequests.add(prepareIndex("idx").setId(Integer.toString(i)).setSource("double_value", randomDouble()));
         }
         indexRandom(true, indexingRequests);
 
@@ -411,7 +411,7 @@ public class EquivalenceIT extends ESIntegTestCase {
     public void testReduce() throws Exception {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
-        indexRandom(true, client().prepareIndex("idx").setSource("f", value));
+        indexRandom(true, prepareIndex("idx").setSource("f", value));
         SearchResponse response = prepareSearch("idx").addAggregation(
             filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
                 range("range").field("f").addUnboundedTo(6).addUnboundedFrom(6).subAggregation(sum("sum").field("f"))
@@ -469,7 +469,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             final int v1 = randomInt(1 << randomInt(7));
             final int v2 = randomInt(1 << randomInt(7));
             final int v3 = randomInt(1 << randomInt(7));
-            reqs.add(client().prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
+            reqs.add(prepareIndex("idx").setSource("f1", v1, "f2", v2, "f3", v3));
         }
         indexRandom(true, reqs);
 

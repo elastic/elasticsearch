@@ -55,9 +55,9 @@ public class IpTermsIT extends AbstractTermsTestCase {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
         indexRandom(
             true,
-            client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
+            prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
+            prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
+            prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
         );
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip'].value", Collections.emptyMap());
@@ -83,9 +83,9 @@ public class IpTermsIT extends AbstractTermsTestCase {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
         indexRandom(
             true,
-            client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
+            prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
+            prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
+            prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
         );
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip']", Collections.emptyMap());
@@ -111,10 +111,10 @@ public class IpTermsIT extends AbstractTermsTestCase {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
         indexRandom(
             true,
-            client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
-            client().prepareIndex("index").setId("3").setSource("ip", "127.0.0.1"),
-            client().prepareIndex("index").setId("4").setSource("not_ip", "something")
+            prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
+            prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
+            prepareIndex("index").setId("3").setSource("ip", "127.0.0.1"),
+            prepareIndex("index").setId("4").setSource("not_ip", "something")
         );
         SearchResponse response = prepareSearch("index").addAggregation(
             new TermsAggregationBuilder("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint())

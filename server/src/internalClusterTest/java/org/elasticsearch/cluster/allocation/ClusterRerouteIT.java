@@ -289,7 +289,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         );
 
         if (closed == false) {
-            client().prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
+            prepareIndex("test").setId("1").setSource("field", "value").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         }
         final Index index = resolveIndex("test");
 

@@ -53,8 +53,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setId(Integer.toString(doc)).setSource("vector", randomVector(), "text", "hello world").get();
-            client().prepareIndex("index").setSource("text", "goodnight world").get();
+            prepareIndex("index").setId(Integer.toString(doc)).setSource("vector", randomVector(), "text", "hello world").get();
+            prepareIndex("index").setSource("text", "goodnight world").get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
@@ -96,8 +96,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
-            client().prepareIndex("index").setSource("text", "goodnight world").get();
+            prepareIndex("index").setSource("vector", randomVector(), "text", "hello world").get();
+            prepareIndex("index").setSource("text", "goodnight world").get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
@@ -141,7 +141,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
         for (int doc = 0; doc < 10; doc++) {
             String value = doc % 2 == 0 ? "first" : "second";
-            client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", value).get();
+            prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", value).get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
@@ -183,9 +183,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "value").get();
+            prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "value").get();
         }
-        client().prepareIndex("index").setId("lookup-doc").setSource("other-field", "value").get();
+        prepareIndex("index").setId("lookup-doc").setSource("other-field", "value").get();
 
         indicesAdmin().prepareRefresh("index").get();
 
@@ -230,9 +230,9 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(1.0f, 2.0f), "text", "hello world", "number", 1).get();
-            client().prepareIndex("index").setSource("vector_2", randomVector(20f, 21f), "text", "hello world", "number", 2).get();
-            client().prepareIndex("index").setSource("text", "goodnight world", "number", 3).get();
+            prepareIndex("index").setSource("vector", randomVector(1.0f, 2.0f), "text", "hello world", "number", 1).get();
+            prepareIndex("index").setSource("vector_2", randomVector(20f, 21f), "text", "hello world", "number", 2).get();
+            prepareIndex("index").setSource("text", "goodnight world", "number", 3).get();
         }
         indicesAdmin().prepareRefresh("index").get();
 
@@ -290,7 +290,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         for (int doc = 0; doc < 10; doc++) {
             // Make them have hte same vector. This will allow us to test the recall is the same but scores take into account both fields
             float[] vector = randomVector();
-            client().prepareIndex("index").setSource("vector", vector, "vector_2", vector, "number", doc).get();
+            prepareIndex("index").setSource("vector", vector, "vector_2", vector, "number", doc).get();
         }
         indicesAdmin().prepareRefresh("index").get();
 
@@ -356,10 +356,10 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         int expectedHits = 0;
         for (int doc = 0; doc < 10; doc++) {
             if (randomBoolean()) {
-                client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "hit").get();
+                prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "hit").get();
                 ++expectedHits;
             } else {
-                client().prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "not hit").get();
+                prepareIndex("index").setId(String.valueOf(doc)).setSource("vector", randomVector(), "field", "not hit").get();
             }
         }
         indicesAdmin().prepareRefresh("index").get();
@@ -389,8 +389,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index2", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index1").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
-            client().prepareIndex("index2").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
+            prepareIndex("index1").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
+            prepareIndex("index2").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
         }
 
         indicesAdmin().prepareForceMerge("index1", "index2").setMaxNumSegments(1).get();
@@ -427,7 +427,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(4096)).get();
+            prepareIndex("index").setSource("vector", randomVector(4096)).get();
         }
 
         indicesAdmin().prepareRefresh("index").get();

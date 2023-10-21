@@ -74,7 +74,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = shards * 3;
         for (int i = 0; i < totalDocuments; ++i) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final GetGlobalCheckpointsAction.Request request2 = new GetGlobalCheckpointsAction.Request(
@@ -118,7 +118,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         final int totalDocuments = between(25, 50);
         new Thread(() -> {
             for (int i = 0; i < totalDocuments; ++i) {
-                client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
+                prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).execute();
             }
         }).start();
 
@@ -147,7 +147,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
 
         final int totalDocuments = 30;
         for (int i = 0; i < totalDocuments; ++i) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
         }
 
         final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
@@ -258,7 +258,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate(indexName)
             .setSettings(indexSettings(1, 0).put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST))
             .get();
-        client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+        prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
@@ -335,7 +335,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
         Thread.sleep(randomIntBetween(10, 100));
         updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""), indexName);
-        client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+        prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         GetGlobalCheckpointsAction.Response response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
@@ -361,7 +361,7 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         Thread.sleep(randomIntBetween(10, 100));
 
         updateClusterSettings(Settings.builder().putNull(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey()));
-        client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+        prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
 
         var response = future.actionGet();
         long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();

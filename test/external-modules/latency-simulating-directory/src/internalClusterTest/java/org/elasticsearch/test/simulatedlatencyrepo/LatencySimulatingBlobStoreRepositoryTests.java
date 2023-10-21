@@ -109,7 +109,7 @@ public class LatencySimulatingBlobStoreRepositoryTests extends AbstractSnapshotI
         int numDocs = randomIntBetween(10, 20);
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+            prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
         }
         indicesAdmin().prepareFlush(indexName).get();
 

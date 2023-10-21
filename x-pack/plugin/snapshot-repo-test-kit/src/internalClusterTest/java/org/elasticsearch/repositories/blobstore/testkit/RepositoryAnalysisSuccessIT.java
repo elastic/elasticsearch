@@ -442,10 +442,13 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
             assertPurpose(purpose);
-            if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+            if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)
+                && firstRegisterRead.compareAndSet(true, false)
+                && randomBoolean()
+                && randomBoolean()) {
                 // only fail the first read, we must not fail the final check
                 listener.onResponse(OptionalBytesReference.EMPTY);
-            } else if (randomBoolean()) {
+            } else if (key.startsWith(RepositoryAnalyzeAction.UNCONTENDED_REGISTER_NAME_PREFIX) || randomBoolean()) {
                 listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
             } else {
                 final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
@@ -463,7 +466,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         ) {
             assertPurpose(purpose);
             firstRegisterRead.set(false);
-            if (updated.length() > 1 && randomBoolean() && randomBoolean()) {
+            if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)
+                && updated.length() > 1
+                && randomBoolean()
+                && randomBoolean()) {
                 // updated.length() > 1 so we don't fail the final check because we know there can be no concurrent operations at that point
                 listener.onResponse(OptionalBytesReference.MISSING);
             } else {

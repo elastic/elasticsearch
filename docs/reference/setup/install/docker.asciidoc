@@ -116,7 +116,7 @@ curl --cacert http_ca.crt -u elastic:$ELASTIC_PASSWORD https://localhost:9200
 
 ===== Add more nodes
 
-. Use an existing node to generate a enrollment token for the new node.
+. Use an existing node to generate an enrollment token for the new node.
 +
 [source,sh]
 ----

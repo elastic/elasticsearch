@@ -522,7 +522,7 @@ public class RelocationIT extends ESIntegTestCase {
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
             logger.info(" --> checking iteration {}", i);
-            assertSearchHitsWithoutFailures(client().prepareSearch().setSize(ids.size()), ids.toArray(Strings.EMPTY_ARRAY));
+            assertSearchHitsWithoutFailures(prepareSearch().setSize(ids.size()), ids.toArray(Strings.EMPTY_ARRAY));
         }
         stopped.set(true);
         for (Thread searchThread : searchThreads) {

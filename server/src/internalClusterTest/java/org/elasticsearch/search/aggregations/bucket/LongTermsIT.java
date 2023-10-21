@@ -457,11 +457,9 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped", "idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -480,13 +478,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .format("0000")
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped", "idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .format("0000")
+        ).get();
 
         assertNoFailures(response);
 

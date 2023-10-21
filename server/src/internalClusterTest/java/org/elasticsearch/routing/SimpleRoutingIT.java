@@ -135,7 +135,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with no routing, should fine one");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
+                prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(1L)
             );
         }
@@ -143,8 +143,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with wrong routing, should not find");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch()
-                    .setRouting("1")
+                prepareSearch().setRouting("1")
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -153,8 +152,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 equalTo(0L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
+                prepareSearch().setSize(0)
                     .setRouting("1")
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
@@ -168,8 +166,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with correct routing, should find");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch()
-                    .setRouting(routingValue)
+                prepareSearch().setRouting(routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -178,8 +175,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
+                prepareSearch().setSize(0)
                     .setRouting(routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
@@ -201,17 +197,11 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
+                prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .execute()
-                    .actionGet()
-                    .getHits()
-                    .getTotalHits().value,
+                prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
                 equalTo(2L)
             );
         }
@@ -219,8 +209,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with {} routing, should find one", routingValue);
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch()
-                    .setRouting(routingValue)
+                prepareSearch().setRouting(routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -229,8 +218,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
+                prepareSearch().setSize(0)
                     .setRouting(routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
@@ -244,8 +232,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with {} routing, should find one", secondRoutingValue);
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch()
-                    .setRouting("1")
+                prepareSearch().setRouting("1")
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -254,8 +241,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 equalTo(1L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
+                prepareSearch().setSize(0)
                     .setRouting(secondRoutingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
@@ -269,8 +255,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with {},{} indexRoutings , should find two", routingValue, "1");
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch()
-                    .setRouting(routingValue, secondRoutingValue)
+                prepareSearch().setRouting(routingValue, secondRoutingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -279,8 +264,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
+                prepareSearch().setSize(0)
                     .setRouting(routingValue, secondRoutingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
@@ -294,8 +278,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> search with {},{},{} indexRoutings , should find two", routingValue, secondRoutingValue, routingValue);
         for (int i = 0; i < 5; i++) {
             assertThat(
-                client().prepareSearch()
-                    .setRouting(routingValue, secondRoutingValue, routingValue)
+                prepareSearch().setRouting(routingValue, secondRoutingValue, routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()
                     .actionGet()
@@ -304,8 +287,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 equalTo(2L)
             );
             assertThat(
-                client().prepareSearch()
-                    .setSize(0)
+                prepareSearch().setSize(0)
                     .setRouting(routingValue, secondRoutingValue, routingValue)
                     .setQuery(QueryBuilders.matchAllQuery())
                     .execute()

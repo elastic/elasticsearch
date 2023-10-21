@@ -160,8 +160,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             .get()
             .getAggregations()
             .get("stats");
-        ExtendedStats s2 = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(extendedStats("stats").field("value").sigma(sigma))
+        ExtendedStats s2 = prepareSearch("idx", "idx_unmapped").addAggregation(extendedStats("stats").field("value").sigma(sigma))
             .get()
             .getAggregations()
             .get("stats");
@@ -343,8 +342,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(extendedStats("stats").field("value").sigma(sigma))
             .get();
 

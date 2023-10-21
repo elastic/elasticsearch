@@ -78,8 +78,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .addSort("field", SortOrder.ASC)
@@ -131,8 +130,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(matchAllQuery())
             .setSize(3)
             .setScroll(TimeValue.timeValueMinutes(2))
@@ -198,26 +196,13 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
-        assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
-            equalTo(500L)
-        );
-        assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
-            equalTo(500L)
-        );
-        assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
-            equalTo(0L)
-        );
-        assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
-            equalTo(0L)
-        );
+        assertThat(prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
+        assertThat(prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value, equalTo(500L));
+        assertThat(prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value, equalTo(500L));
+        assertThat(prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value, equalTo(0L));
+        assertThat(prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value, equalTo(0L));
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(queryStringQuery("user:kimchy"))
+        SearchResponse searchResponse = prepareSearch().setQuery(queryStringQuery("user:kimchy"))
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .addSort("postDate", SortOrder.ASC)
@@ -233,21 +218,15 @@ public class SearchScrollIT extends ESIntegTestCase {
             } while (searchResponse.getHits().getHits().length > 0);
 
             indicesAdmin().prepareRefresh().get();
-            assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
+            assertThat(prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
+            assertThat(prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value, equalTo(0L));
+            assertThat(prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value, equalTo(0L));
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
-                equalTo(0L)
-            );
-            assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
-                equalTo(0L)
-            );
-            assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
                 equalTo(500L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
                 equalTo(500L)
             );
         } finally {
@@ -267,16 +246,14 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse searchResponse1 = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse1 = prepareSearch().setQuery(matchAllQuery())
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .addSort("field", SortOrder.ASC)
             .get();
 
-        SearchResponse searchResponse2 = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse2 = prepareSearch().setQuery(matchAllQuery())
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -384,16 +361,14 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse searchResponse1 = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse1 = prepareSearch().setQuery(matchAllQuery())
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .addSort("field", SortOrder.ASC)
             .get();
 
-        SearchResponse searchResponse2 = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse2 = prepareSearch().setQuery(matchAllQuery())
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -528,8 +503,7 @@ public class SearchScrollIT extends ESIntegTestCase {
             prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).get();
         }
         refresh();
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setSize(35)
             .setScroll(TimeValue.timeValueMinutes(2))
             .addSort("field", SortOrder.ASC)
@@ -589,7 +563,7 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> client().prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueHours(2)).get()
+            () -> prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueHours(2)).get()
         );
         IllegalArgumentException illegalArgumentException = (IllegalArgumentException) ExceptionsHelper.unwrap(
             exc,
@@ -598,11 +572,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertNotNull(illegalArgumentException);
         assertThat(illegalArgumentException.getMessage(), containsString("Keep alive for request (2h) is too large"));
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .setSize(1)
-            .setScroll(TimeValue.timeValueMinutes(5))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).setSize(1).setScroll(TimeValue.timeValueMinutes(5)).get();
         assertNotNull(searchResponse.getScrollId());
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));

@@ -60,9 +60,9 @@ public abstract class CentroidAggregationTestBase extends AbstractGeoTestCase {
     }
 
     public void testPartiallyUnmapped() {
-        SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
-            .addAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            .get();
+        SearchResponse response = prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME).addAggregation(
+            centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME)
+        ).get();
         assertNoFailures(response);
 
         CentroidAggregation geoCentroid = response.getAggregations().get(aggName());

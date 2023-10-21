@@ -50,7 +50,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 2L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2L);
         }
         logger.info("--> restart all nodes");
         internalCluster().fullRestart(new RestartCallback() {
@@ -90,7 +90,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 3L);
         }
     }
 }

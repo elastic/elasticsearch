@@ -590,13 +590,12 @@ public class InnerHitsIT extends ParentChildTestCase {
         prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
         assertSearchHitsWithoutFailures(
-            client().prepareSearch("index1", "index2")
-                .setQuery(
-                    boolQuery().should(
-                        hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                            .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
-                    ).should(termQuery("key", "value"))
-                ),
+            prepareSearch("index1", "index2").setQuery(
+                boolQuery().should(
+                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
+                ).should(termQuery("key", "value"))
+            ),
             "1",
             "3"
         );

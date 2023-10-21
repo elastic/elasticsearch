@@ -125,24 +125,21 @@ public class GeoDistanceIT extends ESIntegTestCase {
         refresh();
 
         // Test doc['location'].arcDistance(lat, lon)
-        SearchResponse searchResponse1 = client().prepareSearch()
-            .addStoredField("_source")
+        SearchResponse searchResponse1 = prepareSearch().addStoredField("_source")
             .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance", Collections.emptyMap()))
             .get();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1, closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon), 0.01d));
 
         // Test doc['location'].planeDistance(lat, lon)
-        SearchResponse searchResponse2 = client().prepareSearch()
-            .addStoredField("_source")
+        SearchResponse searchResponse2 = prepareSearch().addStoredField("_source")
             .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "planeDistance", Collections.emptyMap()))
             .get();
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2, closeTo(GeoUtils.planeDistance(src_lat, src_lon, tgt_lat, tgt_lon), 0.01d));
 
         // Test doc['location'].geohashDistance(lat, lon)
-        SearchResponse searchResponse4 = client().prepareSearch()
-            .addStoredField("_source")
+        SearchResponse searchResponse4 = prepareSearch().addStoredField("_source")
             .addScriptField("distance", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "geohashDistance", Collections.emptyMap()))
             .get();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
@@ -155,8 +152,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         );
 
         // Test doc['location'].arcDistance(lat, lon + 360)/1000d
-        SearchResponse searchResponse5 = client().prepareSearch()
-            .addStoredField("_source")
+        SearchResponse searchResponse5 = prepareSearch().addStoredField("_source")
             .addScriptField(
                 "distance",
                 new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance(lat, lon + 360)/1000d", Collections.emptyMap())
@@ -166,8 +162,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(resultArcDistance5, closeTo(GeoUtils.arcDistance(src_lat, src_lon, tgt_lat, tgt_lon) / 1000d, 0.01d));
 
         // Test doc['location'].arcDistance(lat + 360, lon)/1000d
-        SearchResponse searchResponse6 = client().prepareSearch()
-            .addStoredField("_source")
+        SearchResponse searchResponse6 = prepareSearch().addStoredField("_source")
             .addScriptField(
                 "distance",
                 new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "arcDistance(lat + 360, lon)/1000d", Collections.emptyMap())

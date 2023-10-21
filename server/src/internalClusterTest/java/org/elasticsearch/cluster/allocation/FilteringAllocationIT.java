@@ -52,13 +52,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
         indicesAdmin().prepareRefresh().execute().actionGet();
         assertThat(
-            client().prepareSearch()
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute()
-                .actionGet()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
             equalTo(100L)
         );
 
@@ -89,13 +83,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().execute().actionGet();
         assertThat(
-            client().prepareSearch()
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute()
-                .actionGet()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
             equalTo(100L)
         );
     }
@@ -151,13 +139,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
         indicesAdmin().prepareRefresh().execute().actionGet();
         assertThat(
-            client().prepareSearch()
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute()
-                .actionGet()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().getTotalHits().value,
             equalTo(100L)
         );
 

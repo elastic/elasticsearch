@@ -801,13 +801,11 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         // the field name (comments.message) used for source filtering should be the same as when using that field for
         // other features (like in the query dsl or aggs) in order for consistency:
-        SearchResponse response = client().prepareSearch()
-            .setQuery(
-                nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.of(true, new String[] { "comments.message" }, null))
-                )
+        SearchResponse response = prepareSearch().setQuery(
+            nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(
+                new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.of(true, new String[] { "comments.message" }, null))
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -823,9 +821,9 @@ public class InnerHitsIT extends ESIntegTestCase {
             equalTo("fox ate rabbit x y z")
         );
 
-        response = client().prepareSearch()
-            .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder()))
-            .get();
+        response = prepareSearch().setQuery(
+            nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder())
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -843,23 +841,18 @@ public class InnerHitsIT extends ESIntegTestCase {
 
         // Source filter on a field that does not exist inside the nested document and just check that we do not fail and
         // return an empty _source:
-        response = client().prepareSearch()
-            .setQuery(
-                nestedQuery("comments", matchQuery("comments.message", "away"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(
-                        FetchSourceContext.of(true, new String[] { "comments.missing_field" }, null)
-                    )
-                )
+        response = prepareSearch().setQuery(
+            nestedQuery("comments", matchQuery("comments.message", "away"), ScoreMode.None).innerHit(
+                new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.of(true, new String[] { "comments.missing_field" }, null))
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getSourceAsMap().size(), equalTo(0));
 
         // Check that inner hits contain _source even when it's disabled on the root request.
-        response = client().prepareSearch()
-            .setFetchSource(false)
+        response = prepareSearch().setFetchSource(false)
             .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder()))
             .get();
         assertNoFailures(response);
@@ -876,13 +869,12 @@ public class InnerHitsIT extends ESIntegTestCase {
         refresh();
 
         assertSearchHitsWithoutFailures(
-            client().prepareSearch("index1", "index2")
-                .setQuery(
-                    boolQuery().should(
-                        nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                            .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
-                    ).should(termQuery("key", "value"))
-                ),
+            prepareSearch("index1", "index2").setQuery(
+                boolQuery().should(
+                    nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                        .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
+                ).should(termQuery("key", "value"))
+            ),
             "1",
             "3"
         );

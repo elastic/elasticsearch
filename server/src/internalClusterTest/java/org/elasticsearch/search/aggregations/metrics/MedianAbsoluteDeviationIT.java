@@ -193,8 +193,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(randomBuilder().field("value"))
             .get();
 

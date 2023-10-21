@@ -145,8 +145,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
             int expectedDocuments = routingEntry.getValue().size();
 
-            SearchResponse response = client().prepareSearch()
-                .setQuery(QueryBuilders.termQuery("_routing", routing))
+            SearchResponse response = prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing))
                 .setRouting(routing)
                 .setIndices(index)
                 .setSize(100)
@@ -183,8 +182,7 @@ public class PartitionedRoutingIT extends ESIntegTestCase {
             String routing = routingEntry.getKey();
             int expectedDocuments = routingEntry.getValue().size();
 
-            SearchResponse response = client().prepareSearch()
-                .setQuery(QueryBuilders.termQuery("_routing", routing))
+            SearchResponse response = prepareSearch().setQuery(QueryBuilders.termQuery("_routing", routing))
                 .setIndices(index)
                 .setSize(100)
                 .execute()

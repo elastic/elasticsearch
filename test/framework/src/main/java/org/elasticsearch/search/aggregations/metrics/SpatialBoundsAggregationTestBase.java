@@ -127,8 +127,7 @@ public abstract class SpatialBoundsAggregationTestBase<T extends SpatialPoint> e
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME)
-            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
+        SearchResponse response = prepareSearch(IDX_NAME, UNMAPPED_IDX_NAME).addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME))
             .get();
 
         assertNoFailures(response);

@@ -776,8 +776,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         refresh();
 
         // access id = 1, read, max value, asc, should use matt and shay
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.username")
                     .setNestedSort(
@@ -800,8 +799,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("shay"));
 
         // access id = 1, read, min value, asc, should now use adrien and luca
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.username")
                     .setNestedSort(
@@ -824,8 +822,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("luca"));
 
         // execute, by matt or luca, by user id, sort missing first
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.id")
                     .setNestedSort(
@@ -851,8 +848,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("1"));
 
         // execute, by matt or luca, by username, sort missing last (default)
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("acl.operation.user.username")
                     .setNestedSort(
@@ -936,8 +932,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(termQuery("_id", 2))
+        SearchResponse searchResponse = prepareSearch().setQuery(termQuery("_id", 2))
             .addSort(
                 SortBuilders.fieldSort("nested1.nested2.sortVal")
                     .setNestedSort(
@@ -1116,8 +1111,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         refresh();
 
         // Without nested filter
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child"))
@@ -1136,8 +1130,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         // With nested filter
         NestedSortBuilder nestedSort = new NestedSortBuilder("parent.child");
         nestedSort.setFilter(QueryBuilders.termQuery("parent.child.filter", true));
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("parent.child.child_values").setNestedSort(nestedSort).order(SortOrder.ASC))
             .get();
         assertHitCount(searchResponse, 3);
@@ -1150,8 +1143,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
         // Nested path should be automatically detected, expect same results as above search request
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("parent.child.child_values").setNestedSort(nestedSort).order(SortOrder.ASC))
             .get();
 
@@ -1165,8 +1157,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
         nestedSort.setFilter(QueryBuilders.termQuery("parent.filter", false));
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(SortBuilders.fieldSort("parent.parent_values").setNestedSort(nestedSort).order(SortOrder.ASC))
             .get();
 
@@ -1179,8 +1170,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(
@@ -1202,8 +1192,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("6"));
 
         // Check if closest nested type is resolved
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_obj.value")
                     .setNestedSort(new NestedSortBuilder("parent.child").setFilter(QueryBuilders.termQuery("parent.child.filter", true)))
@@ -1221,8 +1210,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
         // Sort mode: sum
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child"))
@@ -1240,8 +1228,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("11"));
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child"))
@@ -1260,8 +1247,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("2"));
 
         // Sort mode: sum with filter
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child").setFilter(QueryBuilders.termQuery("parent.child.filter", true)))
@@ -1280,8 +1266,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
         // Sort mode: avg
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child"))
@@ -1299,8 +1284,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child"))
@@ -1319,8 +1303,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("1"));
 
         // Sort mode: avg with filter
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addSort(
                 SortBuilders.fieldSort("parent.child.child_values")
                     .setNestedSort(new NestedSortBuilder("parent.child").setFilter(QueryBuilders.termQuery("parent.child.filter", true)))

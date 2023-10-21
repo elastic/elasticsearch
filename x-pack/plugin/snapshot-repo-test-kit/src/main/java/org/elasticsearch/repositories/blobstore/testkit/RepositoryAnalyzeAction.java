@@ -22,6 +22,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -364,6 +365,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private final DiscoveryNodes discoveryNodes;
         private final LongSupplier currentTimeMillisSupplier;
         private final ActionListener<Response> listener;
+        private final SubscribableListener<Void> cancellationListener;
         private final long timeoutTimeMillis;
 
         // choose the blob path nondeterministically to avoid clashes, assuming that the actual path doesn't matter for reproduction
@@ -394,7 +396,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             this.discoveryNodes = discoveryNodes;
             this.currentTimeMillisSupplier = currentTimeMillisSupplier;
             this.timeoutTimeMillis = currentTimeMillisSupplier.getAsLong() + request.getTimeout().millis();
-            this.listener = listener;
+
+            this.cancellationListener = new SubscribableListener<>();
+            this.listener = ActionListener.runBefore(listener, () -> cancellationListener.onResponse(null));
 
             responses = new ArrayList<>(request.blobCount);
         }
@@ -430,7 +434,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                 return false;
             }
 
-            if (timeoutTimeMillis < currentTimeMillisSupplier.getAsLong()) {
+            if (cancellationListener.isDone()) {
                 if (failure.compareAndSet(
                     null,
                     new RepositoryVerificationException(request.repositoryName, "analysis timed out after [" + request.getTimeout() + "]")
@@ -444,11 +448,28 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             return true;
         }
 
+        private class CheckForCancelListener implements ActionListener<Void> {
+            @Override
+            public void onResponse(Void unused) {
+                // task complete, nothing to do
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // trigger another isRunning check which will cancel the task if not already failed or cancelled
+                var isNowRunning = isRunning();
+                assert isNowRunning == false;
+            }
+        }
+
         public void run() {
             assert queue.isEmpty() : "must only run action once";
             assert failure.get() == null : "must only run action once";
 
             logger.info("running analysis of repository [{}] using path [{}]", request.getRepositoryName(), blobPath);
+
+            cancellationListener.addTimeout(request.getTimeout(), repository.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            cancellationListener.addListener(new CheckForCancelListener());
 
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
@@ -536,7 +557,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     BlobAnalyzeAction.NAME,
                     request,
                     task,
-                    TransportRequestOptions.timeout(TimeValue.timeValueMillis(timeoutTimeMillis - currentTimeMillisSupplier.getAsLong())),
+                    TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(BlobAnalyzeAction.Response response) {

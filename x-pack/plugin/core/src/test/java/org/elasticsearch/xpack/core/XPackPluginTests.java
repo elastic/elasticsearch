@@ -74,9 +74,6 @@ public class XPackPluginTests extends ESTestCase {
     public void testXPackInstalledAttrClash() throws Exception {
         Settings.Builder builder = Settings.builder();
         builder.put("node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR, randomBoolean());
-        if (randomBoolean()) {
-            builder.put(Client.CLIENT_TYPE_SETTING_S.getKey(), "transport");
-        }
         XPackPlugin xpackPlugin = createXPackPlugin(builder.put("path.home", createTempDir()).build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, xpackPlugin::additionalSettings);
         assertThat(

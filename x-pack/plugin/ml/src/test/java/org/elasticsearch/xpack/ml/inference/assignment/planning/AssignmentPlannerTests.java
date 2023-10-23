@@ -766,8 +766,8 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     public void testModelWithoutCurrentAllocationsGetsAssignedIfAllocatedPreviously() {
-        Node node1 = new Node("n_1", scaleNodeSize(ByteSizeValue.ofGb(4).getMb()), 2);
-        Node node2 = new Node("n_2", scaleNodeSize(ByteSizeValue.ofGb(4).getMb()), 2);
+        Node node1 = new Node("n_1", ByteSizeValue.ofGb(6).getBytes(), 2);
+        Node node2 = new Node("n_2", ByteSizeValue.ofGb(6).getBytes(), 2);
         AssignmentPlan.Deployment deployment1 = new Deployment(
             "m_1",
             ByteSizeValue.ofMb(1200).getBytes(),
@@ -793,8 +793,13 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(assignmentPlan);
         assertThat(indexedBasedPlan.keySet(), hasItems("m_1", "m_2"));
-        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
-        assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+        if (indexedBasedPlan.get("m_2").containsKey("n_1")) {
+            assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_2", 2)));
+            assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_1", 1)));
+        } else {
+            assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2)));
+            assertThat(indexedBasedPlan.get("m_2"), equalTo(Map.of("n_2", 1)));
+        }
         assertThat(assignmentPlan.getRemainingNodeMemory("n_1"), greaterThanOrEqualTo(0L));
         assertThat(assignmentPlan.getRemainingNodeMemory("n_2"), greaterThanOrEqualTo(0L));
     }

@@ -98,15 +98,24 @@ public class AssignmentPlanTests extends ESTestCase {
     }
 
     public void testAssignModelToNode_GivenNewPlanSatisfiesCurrentAssignment() {
-        Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 2, 2, Map.of("n_1", 1), 0, 0, 0);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(350).getBytes(), 4);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(30).getBytes(),
+            2,
+            2,
+            Map.of("n_1", 1),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
         builder.assignModelToNode(m, n, 1);
 
         assertThat(builder.getRemainingCores(n), equalTo(2));
-        assertThat(builder.getRemainingMemory(n), equalTo(100L));
+        assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(350).getBytes()));
         assertThat(builder.getRemainingAllocations(m), equalTo(1));
         assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -118,15 +127,24 @@ public class AssignmentPlanTests extends ESTestCase {
     }
 
     public void testAssignModelToNode_GivenNewPlanDoesNotSatisfyCurrentAssignment() {
-        Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 40, 2, 2, Map.of("n_1", 2), 0, 0, 0);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 4);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(30).getBytes(),
+            2,
+            2,
+            Map.of("n_1", 2),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
         builder.assignModelToNode(m, n, 1);
 
         assertThat(builder.getRemainingCores(n), equalTo(2));
-        assertThat(builder.getRemainingMemory(n), equalTo(100L));
+        assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(300).getBytes()));
         assertThat(builder.getRemainingAllocations(m), equalTo(1));
         assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -144,14 +162,29 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
 
-        assertThat(e.getMessage(), equalTo("not enough memory on node [n_1] to assign [1] allocations to model [m_1]"));
+        assertThat(e.getMessage(), equalTo("not enough memory on node [n_1] to assign [1] allocations to deployment [m_1]"));
     }
 
     public void testAssignModelToNode_GivenPreviouslyAssignedModelDoesNotFit() {
-        Node n = new Node("n_1", 100, 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 101, 2, 2, Map.of("n_1", 1), 0, 0, 0);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(50).getBytes(),
+            2,
+            2,
+            Map.of("n_1", 1),
+            0,
+            0,
+            0
+        );
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+        // Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
+
+        // assertThat(e.getMessage(),
+        // equalTo("not enough memory on node [n_1] to assign [1] allocations to deployment [m_1]; required threads per allocation [2]"));
+
+        // assertThat(builder.canAssign(m, n, 1), is(false));
         builder.assignModelToNode(m, n, 2);
         AssignmentPlan plan = builder.build();
 
@@ -239,8 +272,8 @@ public class AssignmentPlanTests extends ESTestCase {
     }
 
     public void testCanAssign_GivenPreviouslyAssignedModelDoesNotFit() {
-        Node n = new Node("n_1", 100, 5);
-        Deployment m = new AssignmentPlan.Deployment("m_1", 101, 1, 1, Map.of("n_1", 1), 0, 0, 0);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
+        Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofBytes(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, 0, 0);
 
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -261,16 +294,25 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testCompareTo_GivenDifferenceInPreviousAssignments() {
         AssignmentPlan planSatisfyingPreviousAssignments;
         AssignmentPlan planNotSatisfyingPreviousAssignments;
-        Node n = new Node("n_1", 100, 5);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
 
         {
-            Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 2), 0, 0, 0);
+            Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 3, 2, Map.of("n_1", 2), 0, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planSatisfyingPreviousAssignments = builder.build();
         }
         {
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 3), 0, 0, 0);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(30).getBytes(),
+                3,
+                2,
+                Map.of("n_1", 3),
+                0,
+                0,
+                0
+            );
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planNotSatisfyingPreviousAssignments = builder.build();
@@ -283,8 +325,17 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testCompareTo_GivenDifferenceInAllocations() {
         AssignmentPlan planWithMoreAllocations;
         AssignmentPlan planWithFewerAllocations;
-        Node n = new Node("n_1", 100, 5);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 1), 0, 0, 0);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
+        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(30).getBytes(),
+            3,
+            2,
+            Map.of("n_1", 1),
+            0,
+            0,
+            0
+        );
 
         {
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
@@ -304,16 +355,25 @@ public class AssignmentPlanTests extends ESTestCase {
     public void testCompareTo_GivenDifferenceInMemory() {
         AssignmentPlan planUsingMoreMemory;
         AssignmentPlan planUsingLessMemory;
-        Node n = new Node("n_1", 100, 5);
+        Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
 
         {
-            Deployment m = new AssignmentPlan.Deployment("m_1", 100, 3, 2, Map.of("n_1", 1), 0, 0, 0);
+            Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 3, 2, Map.of("n_1", 1), 0, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planUsingMoreMemory = builder.build();
         }
         {
-            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment("m_1", 99, 3, 2, Map.of("n_1", 1), 0, 0, 0);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(29).getBytes(),
+                3,
+                2,
+                Map.of("n_1", 1),
+                0,
+                0,
+                0
+            );
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             builder.assignModelToNode(m, n, 2);
             planUsingLessMemory = builder.build();

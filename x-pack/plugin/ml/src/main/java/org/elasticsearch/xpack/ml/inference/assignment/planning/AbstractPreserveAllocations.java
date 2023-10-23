@@ -70,38 +70,56 @@ abstract class AbstractPreserveAllocations {
         // they will not match the models/nodes members we have in this class.
         // Therefore, we build a lookup table based on the ids so we can merge the plan
         // with its preserved allocations.
-        final Map<Tuple<String, String>, Integer> assignmentsByModelNodeIdPair = new HashMap<>();
+        final Map<Tuple<String, String>, Integer> plannedAssignmentsByModelNodeIdPair = new HashMap<>();
         for (Deployment m : assignmentPlan.models()) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
             for (Map.Entry<Node, Integer> nodeAssignment : assignments.entrySet()) {
-                assignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
+                plannedAssignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
             }
         }
 
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
-        for (Deployment m : deployments) {
-            for (Node n : nodes) {
-                int newAllocations = assignmentsByModelNodeIdPair.getOrDefault(Tuple.tuple(m.id(), n.id()), 0);
+        for (Node n : nodes) {
+            for (Deployment deploymentAllocationsToPreserve : deployments) {
+
                 int preservedAllocations = 0;
-                if (m.currentAllocationsByNodeId().containsKey(n.id())) {
-                    preservedAllocations = addPreservedAllocations(n, m);
-                    if (mergedPlanBuilder.getRemainingMemory(n) >= m.estimateMemoryUsageBytes(preservedAllocations)) {
-                        newAllocations += preservedAllocations;
-                        // As the node has all its available memory we need to manually account memory of models with
-                        // current allocations.
-                        mergedPlanBuilder.accountMemory(m, n, preservedAllocations);
-                    } else {
-                        preservedAllocations = 0;
+                // if the model m is already allocated on the node n
+                if (deploymentAllocationsToPreserve.currentAllocationsByNodeId().containsKey(n.id())) {
+                    preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
+                    if (mergedPlanBuilder.canAssign(deploymentAllocationsToPreserve, n, preservedAllocations)) {
+                        mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations);
+                        mergedPlanBuilder.accountMemory(deploymentAllocationsToPreserve, n, preservedAllocations);
                     }
+                    // if (mergedPlanBuilder.getRemainingMemory(n) >=
+                    // deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations)) {
+                    // // As the node has all its available memory we need to manually account memory of models with
+                    // // current allocations.
+                    // mergedPlanBuilder.accountMemory(deploymentAllocationsToPreserve, n, preservedAllocations);
+                    // } else {
+                    // // TODO can this ever happen (e.g. in unit tests)?
+                    // preservedAllocations = 0;
+                    // }
                 }
-                if (newAllocations > 0
-                    && ((preservedAllocations == 0 && m.estimateMemoryUsageBytes(newAllocations) <= mergedPlanBuilder.getRemainingMemory(n))
-                        || (preservedAllocations > 0
-                            && m.estimateAdditionalMemoryUsageBytes(
-                                (newAllocations - preservedAllocations),
-                                newAllocations
-                            ) <= assignmentPlan.getRemainingNodeMemory(n.id())))) {
-                    mergedPlanBuilder.assignModelToNode(m, n, newAllocations);
+            }
+            for (Deployment deploymentNewAllocations : deployments) {
+                int newAllocations = plannedAssignmentsByModelNodeIdPair.getOrDefault(
+                    Tuple.tuple(deploymentNewAllocations.id(), n.id()),
+                    0
+                );
+                // int totalllocations = newAllocations + preservedAllocations;
+
+                // if (newAllocations > 0
+                // && ((preservedAllocations == 0 && deploymentNewAllocations.estimateMemoryUsageBytes(newAllocations) <=
+                // mergedPlanBuilder.getRemainingMemory(n))
+                // || (preservedAllocations > 0
+                // && deploymentNewAllocations.estimateAdditionalMemoryUsageBytes(
+                // (newAllocations - preservedAllocations),
+                // newAllocations
+                // ) <= assignmentPlan.getRemainingNodeMemory(n.id())))) {
+                // mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
+                // }
+                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations)) {
+                    mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
                 }
             }
         }

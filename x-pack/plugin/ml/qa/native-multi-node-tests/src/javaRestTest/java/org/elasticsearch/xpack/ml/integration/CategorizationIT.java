@@ -303,9 +303,9 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
         // before closing the job to prove that it was persisted in the background at the
         // end of lookback rather than when the job was closed.
         assertBusy(() -> {
-            SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-                .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1)))
-                .get();
+            SearchResponse stateDocsResponse = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+                QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1))
+            ).get();
 
             SearchHit[] hits = stateDocsResponse.getHits().getHits();
             assertThat(hits, arrayWithSize(1));
@@ -554,14 +554,11 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
 
     private List<CategorizerStats> getCategorizerStats(String jobId) throws IOException {
 
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), CategorizerStats.RESULT_TYPE_VALUE))
-                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-            )
-            .setSize(1000)
-            .get();
+        SearchResponse searchResponse = prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), CategorizerStats.RESULT_TYPE_VALUE))
+                .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+        ).setSize(1000).get();
 
         List<CategorizerStats> stats = new ArrayList<>();
         for (SearchHit hit : searchResponse.getHits().getHits()) {

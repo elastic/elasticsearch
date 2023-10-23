@@ -315,12 +315,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected long docCount(String index, SearchSourceBuilder source) {
-        SearchRequestBuilder builder = client().prepareSearch(index).setSource(source).setSize(0);
+        SearchRequestBuilder builder = prepareSearch(index).setSource(source).setSize(0);
         return builder.get().getHits().getTotalHits().value;
     }
 
     protected SearchResponse searchHistory(SearchSourceBuilder builder) {
-        return client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(builder).get();
+        return prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(builder).get();
     }
 
     protected <T> T getInstanceFromMaster(Class<T> type) {
@@ -371,8 +371,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 }
 
                 refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(
+                    IndicesOptions.lenientExpandOpen()
+                )
                     .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
                     .get();
                 lastResponse.set(searchResponse);
@@ -403,17 +404,16 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected SearchResponse searchWatchRecords(Consumer<SearchRequestBuilder> requestBuilderCallback) {
-        SearchRequestBuilder builder = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*");
+        SearchRequestBuilder builder = prepareSearch(HistoryStoreField.DATA_STREAM + "*");
         requestBuilderCallback.accept(builder);
         return builder.get();
     }
 
     protected long findNumberOfPerformedActions(String watchName) {
         refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
-            .get();
+        SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(
+            IndicesOptions.lenientExpandOpen()
+        ).setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id()))).get();
         return searchResponse.getHits().getTotalHits().value;
     }
 
@@ -438,8 +438,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
                 refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(
+                    IndicesOptions.lenientExpandOpen()
+                )
                     .setQuery(
                         boolQuery().must(matchQuery("watch_id", watchName))
                             .must(matchQuery("state", ExecutionState.EXECUTION_NOT_NEEDED.id()))
@@ -477,10 +478,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             refresh();
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id())))
-                .get();
+            SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setIndicesOptions(
+                IndicesOptions.lenientExpandOpen()
+            ).setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id()))).get();
             assertThat(
                 "could not find executed watch record",
                 searchResponse.getHits().getTotalHits().value,

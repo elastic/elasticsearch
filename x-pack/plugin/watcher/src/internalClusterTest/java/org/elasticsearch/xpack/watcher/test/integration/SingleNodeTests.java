@@ -67,7 +67,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         assertBusy(() -> {
             RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
             assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
+            SearchResponse searchResponse = prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
         }, 30, TimeUnit.SECONDS);
     }

@@ -39,30 +39,24 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
 
     public void testRankFeaturesTermQuery() throws IOException {
         init();
-        SearchResponse response = client().prepareSearch(INDEX_NAME)
-            .setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE))
-            .get();
+        SearchResponse response = prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE)).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(2L));
         for (SearchHit hit : response.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(20f));
         }
 
-        response = client().prepareSearch(INDEX_NAME)
-            .setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(100f))
-            .get();
+        response = prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE).boost(100f)).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(2L));
         for (SearchHit hit : response.getHits().getHits()) {
             assertThat(hit.getScore(), equalTo(2000f));
         }
 
-        response = client().prepareSearch(INDEX_NAME)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .should(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE))
-                    .should(QueryBuilders.termQuery(FIELD_NAME, LOWER_RANKED_FEATURE).boost(3f))
-                    .minimumShouldMatch(1)
-            )
-            .get();
+        response = prepareSearch(INDEX_NAME).setQuery(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery(FIELD_NAME, HIGHER_RANKED_FEATURE))
+                .should(QueryBuilders.termQuery(FIELD_NAME, LOWER_RANKED_FEATURE).boost(3f))
+                .minimumShouldMatch(1)
+        ).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(3L));
         for (SearchHit hit : response.getHits().getHits()) {
             if (hit.getId().equals("all")) {
@@ -76,7 +70,7 @@ public class RankFeaturesMapperIntegrationIT extends ESIntegTestCase {
             }
         }
 
-        response = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, "missing_feature")).get();
+        response = prepareSearch(INDEX_NAME).setQuery(QueryBuilders.termQuery(FIELD_NAME, "missing_feature")).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
     }
 

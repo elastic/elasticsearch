@@ -66,11 +66,9 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = bulk.get();
         assertNoFailures(bulkItemResponses);
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
-            .setSize(500)
-            .highlighter(new HighlightBuilder().field("message"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(
+            QueryBuilders.matchPhraseQuery("message", "marking and sending shard")
+        ).setSize(500).highlighter(new HighlightBuilder().field("message")).get();
         assertNoFailures(searchResponse);
         for (SearchHit searchHit : searchResponse.getHits()) {
             assertThat(
@@ -114,11 +112,9 @@ public class MatchOnlyTextMapperIT extends ESIntegTestCase {
         BulkResponse bulkItemResponses = bulk.get();
         assertNoFailures(bulkItemResponses);
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchPhraseQuery("message", "marking and sending shard"))
-            .setSize(500)
-            .highlighter(new HighlightBuilder().field("message"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(
+            QueryBuilders.matchPhraseQuery("message", "marking and sending shard")
+        ).setSize(500).highlighter(new HighlightBuilder().field("message")).get();
         assertNoFailures(searchResponse);
         for (SearchHit searchHit : searchResponse.getHits()) {
             assertThat(

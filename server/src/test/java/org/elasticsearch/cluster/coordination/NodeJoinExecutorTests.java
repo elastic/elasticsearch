@@ -53,6 +53,7 @@ import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -838,6 +839,38 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         assertThat(resultingState.term(), greaterThan(term));
         assertEquals(0L, resultingState.nodes().getNodeLeftGeneration());
+    }
+
+    public void testSetsNodeFeaturesWhenRejoining() throws Exception {
+        final AllocationService allocationService = createAllocationService();
+        //when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final NodeJoinExecutor executor = new NodeJoinExecutor(allocationService, rerouteService);
+
+        final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+
+        final DiscoveryNode actualNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(actualNode))
+            .build();
+
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterState,
+            executor,
+            List.of(
+                JoinTask.singleNode(
+                    actualNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1", "f2"),
+                    TEST_REASON,
+                    NOT_COMPLETED_LISTENER,
+                    0L
+                )
+            )
+        );
+
+        assertThat(resultingState.clusterFeatures().nodeFeatures().get(actualNode.getId()), containsInAnyOrder("f1", "f2"));
     }
 
     private DesiredNodeWithStatus createActualizedDesiredNode() {

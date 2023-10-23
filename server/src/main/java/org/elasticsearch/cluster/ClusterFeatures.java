@@ -61,7 +61,13 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
         return Set.copyOf(allNodeFeatures);
     }
 
-    Map<String, Set<String>> nodeFeatures() {
+    /**
+     * Returns the features reported by each node in the cluster.
+     * <p>
+     * NOTE: This should not be used directly.
+     * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
+     */
+    public Map<String, Set<String>> nodeFeatures() {
         return nodeFeatures;
     }
 

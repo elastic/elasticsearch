@@ -139,6 +139,12 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 final DiscoveryNode node = nodeJoinTask.node();
                 if (currentNodes.nodeExistsWithSameRoles(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
+
+                    // update the nodes feature set if it has one
+                    if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
+                        nodeFeatures.put(node.getId(), nodeJoinTask.features());
+                        nodesChanged = true;
+                    }
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();

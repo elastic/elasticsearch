@@ -120,7 +120,7 @@ These pipelines can also be viewed, edited, and deleted in Kibana via *Stack Man
 You may also use the <<ingest-apis,Ingest pipeline APIs>>.
 If you delete any of these pipelines outside of the {ents} product in Kibana, please make sure to edit the ML inference pipelines that reference them.
 
-[discrete#ingest-pipeline-search-inference-update-mapping-ingest-pipeline-search-inference-update-mappings]
+[discrete#ingest-pipeline-search-inference-update-mapping]
 ==== Update mappings to use ML inference pipelines
 
 After setting up an ML inference pipeline or attaching an existing one, it may be necessary to manually create the field mappings in order to support the referenced trained ML model's output.

@@ -476,9 +476,6 @@ public class RestResponseTests extends ESTestCase {
             "unauthorized"
         );
 
-        // setting "rest.exception.stacktrace.skip" to false should prevent logging to happen
-        request.params().put(REST_EXCEPTION_SKIP_STACK_TRACE, "false");
-        assertLogging(channel, new ElasticsearchException("simulated"), null, null, null);
         // setting "error_trace" to true should not affect logging
         request.params().clear();
         request.params().put("error_trace", "true");

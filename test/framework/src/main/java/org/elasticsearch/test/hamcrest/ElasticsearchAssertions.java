@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -57,6 +58,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
@@ -224,12 +226,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoSearchHits(SearchRequestBuilder searchRequestBuilder) {
-        var searchResponse = searchRequestBuilder.get();
-        try {
-            assertNoSearchHits(searchResponse);
-        } finally {
-            searchResponse.decRef();
-        }
+        assertResponse(searchRequestBuilder, ElasticsearchAssertions::assertNoSearchHits);
     }
 
     public static void assertNoSearchHits(SearchResponse searchResponse) {
@@ -237,12 +234,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertSearchHits(SearchRequestBuilder searchRequestBuilder, String... ids) {
-        var res = searchRequestBuilder.get();
-        try {
-            assertSearchHits(res, ids);
-        } finally {
-            res.decRef();
-        }
+        assertResponse(searchRequestBuilder, res -> assertSearchHits(res, ids));
     }
 
     public static void assertSearchHits(SearchResponse searchResponse, String... ids) {
@@ -254,38 +246,27 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertSearchHitsWithoutFailures(SearchRequestBuilder requestBuilder, String... ids) {
-        var res = requestBuilder.get();
-        try {
+        assertResponse(requestBuilder, res -> {
             assertNoFailures(res);
             assertHitCount(res, ids.length);
             assertSearchHits(res, ids);
-        } finally {
-            res.decRef();
-        }
+        });
     }
 
     public static void assertSortValues(SearchRequestBuilder searchRequestBuilder, Object[]... sortValues) {
-        var searchResponse = searchRequestBuilder.get();
-        try {
-            assertNoFailures(searchResponse);
-            SearchHit[] hits = searchResponse.getHits().getHits();
+        assertResponse(searchRequestBuilder, res -> {
+            assertNoFailures(res);
+            SearchHit[] hits = res.getHits().getHits();
             assertEquals(sortValues.length, hits.length);
             for (int i = 0; i < sortValues.length; ++i) {
                 final Object[] hitsSortValues = hits[i].getSortValues();
                 assertArrayEquals("Offset " + i + ", id " + hits[i].getId(), sortValues[i], hitsSortValues);
             }
-        } finally {
-            searchResponse.decRef();
-        }
+        });
     }
 
     public static void assertOrderedSearchHits(SearchRequestBuilder searchRequestBuilder, String... ids) {
-        var res = searchRequestBuilder.get();
-        try {
-            assertOrderedSearchHits(res, ids);
-        } finally {
-            res.decRef();
-        }
+        assertResponse(searchRequestBuilder, res -> assertOrderedSearchHits(res, ids));
     }
 
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
@@ -297,12 +278,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCount(SearchRequestBuilder searchRequestBuilder, long expectedHitCount) {
-        var res = searchRequestBuilder.get();
-        try {
-            assertHitCount(res, expectedHitCount);
-        } finally {
-            res.decRef();
-        }
+        assertResponse(searchRequestBuilder, res -> assertHitCount(res, expectedHitCount));
     }
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
@@ -313,13 +289,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCountAndNoFailures(SearchRequestBuilder searchRequestBuilder, long expectedHitCount) {
-        var res = searchRequestBuilder.get();
-        try {
-            assertHitCount(res, expectedHitCount);
-            assertNoFailures(res);
-        } finally {
-            res.decRef();
-        }
+        assertNoFailuresAndResponse(searchRequestBuilder, response -> assertHitCount(response, expectedHitCount));
     }
 
     public static void assertExists(GetResponse response) {
@@ -350,9 +320,32 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(SearchRequestBuilder searchRequestBuilder) {
+        assertNoFailuresAndResponse(searchRequestBuilder, r -> {});
+    }
+
+    public static void assertNoFailuresAndResponse(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
+        assertResponse(searchRequestBuilder, res -> {
+            assertNoFailures(res);
+            consumer.accept(res);
+        });
+    }
+
+    public static void assertResponse(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
         var res = searchRequestBuilder.get();
         try {
-            assertNoFailures(res);
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertCheckedResponse(
+        SearchRequestBuilder searchRequestBuilder,
+        CheckedConsumer<SearchResponse, IOException> consumer
+    ) throws IOException {
+        var res = searchRequestBuilder.get();
+        try {
+            consumer.accept(res);
         } finally {
             res.decRef();
         }
@@ -377,23 +370,24 @@ public class ElasticsearchAssertions {
     public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
         // when the number for shards is randomized and we expect failures
         // we can either run into partial or total failures depending on the current number of shards
-        try {
-            SearchResponse searchResponse = searchRequestBuilder.get();
-            assertThat("Expected shard failures, got none", searchResponse.getShardFailures(), not(emptyArray()));
-            for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                assertThat(shardSearchFailure.status(), equalTo(restStatus));
-                assertThat(shardSearchFailure.reason(), reasonMatcher);
+        assertResponse(searchRequestBuilder, response -> {
+            try {
+                assertThat("Expected shard failures, got none", response.getShardFailures(), not(emptyArray()));
+                for (ShardSearchFailure shardSearchFailure : response.getShardFailures()) {
+                    assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                    assertThat(shardSearchFailure.reason(), reasonMatcher);
+                }
+            } catch (SearchPhaseExecutionException e) {
+                assertThat(e.status(), equalTo(restStatus));
+                assertThat(e.toString(), reasonMatcher);
+                for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
+                    assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                    assertThat(shardSearchFailure.reason(), reasonMatcher);
+                }
+            } catch (Exception e) {
+                fail("SearchPhaseExecutionException expected but got " + e.getClass());
             }
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(restStatus));
-            assertThat(e.toString(), reasonMatcher);
-            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.status(), equalTo(restStatus));
-                assertThat(shardSearchFailure.reason(), reasonMatcher);
-            }
-        } catch (Exception e) {
-            fail("SearchPhaseExecutionException expected but got " + e.getClass());
-        }
+        });
     }
 
     public static void assertNoFailures(BaseBroadcastResponse response) {

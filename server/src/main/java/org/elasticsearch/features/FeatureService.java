@@ -12,6 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,12 +26,14 @@ import java.util.TreeMap;
 
 public class FeatureService {
 
-    static final Version MAX_HISTORICAL_VERSION_EXCLUSIVE = Version.V_8_12_0;
+    private static final Logger logger = LogManager.getLogger(FeatureService.class);
+
+    public static final Version CLUSTER_FEATURES_ADDED_VERSION = Version.V_8_12_0;
 
     private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Set<String> nodeFeatures;
 
-    public FeatureService(List<FeatureSpecification> specs) {
+    public FeatureService(List<? extends FeatureSpecification> specs) {
         Map<String, FeatureSpecification> allFeatures = new HashMap<>();
 
         NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
@@ -37,13 +41,14 @@ public class FeatureService {
         for (var spec : specs) {
             for (var hfe : spec.getHistoricalFeatures().entrySet()) {
                 var existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);
-                if (existing != null) {
+                // the same SPI class can be loaded multiple times if it's in the base classloader
+                if (existing != null && existing.getClass() != spec.getClass()) {
                     throw new IllegalArgumentException(
                         Strings.format("Duplicate feature - [%s] is declared by both [%s] and [%s]", hfe.getKey().id(), existing, spec)
                     );
                 }
 
-                if (hfe.getValue().onOrAfter(MAX_HISTORICAL_VERSION_EXCLUSIVE)) {
+                if (hfe.getValue().onOrAfter(CLUSTER_FEATURES_ADDED_VERSION)) {
                     throw new IllegalArgumentException(
                         Strings.format(
                             "Historical feature [%s] declared by [%s] for version [%s] is not a historical version",
@@ -59,7 +64,7 @@ public class FeatureService {
 
             for (NodeFeature f : spec.getFeatures()) {
                 var existing = allFeatures.putIfAbsent(f.id(), spec);
-                if (existing != null) {
+                if (existing != null && existing.getClass() != spec.getClass()) {
                     throw new IllegalArgumentException(
                         Strings.format("Duplicate feature - [%s] is declared by both [%s] and [%s]", f.id(), existing, spec)
                     );
@@ -71,6 +76,8 @@ public class FeatureService {
 
         this.historicalFeatures = consolidateHistoricalFeatures(historicalFeatures);
         this.nodeFeatures = Set.copyOf(nodeFeatures);
+
+        logger.info("Registered local node features {}", nodeFeatures.stream().sorted().toList());
     }
 
     private static NavigableMap<Version, Set<String>> consolidateHistoricalFeatures(

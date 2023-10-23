@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
@@ -107,6 +108,7 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * Security-sensitive data such as passwords or private keys should not be stored in the cluster state, since the contents of the cluster
  * state are exposed in various APIs.
  */
+@SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
 public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.DEFAULT).build();
@@ -669,7 +671,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             ),
 
             // per-node feature information
-            // ensure its all sorted for ease of debugging
+            // ensure it's all sorted for ease of debugging
             chunkedSection(
                 metrics.contains(Metric.NODES),
                 (builder, params) -> builder.startArray("nodes_features"),
@@ -765,6 +767,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return copyAndUpdate(builder -> builder.metadata(metadata().copyAndUpdate(updater)));
     }
 
+    @SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
     public static class Builder {
 
         private ClusterState previous;
@@ -869,7 +872,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         }
 
         public Map<String, Set<String>> nodeFeatures() {
-            return this.nodeFeatures;
+            return Collections.unmodifiableMap(this.nodeFeatures);
         }
 
         public Builder routingTable(RoutingTable.Builder routingTableBuilder) {
@@ -950,6 +953,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             } else {
                 routingNodes = null;
             }
+
+            // ensure every node in the cluster has a feature set
+            for (DiscoveryNode node : nodes) {
+                nodeFeatures.putIfAbsent(node.getId(), Set.of());
+            }
+
             return new ClusterState(
                 clusterName,
                 version,

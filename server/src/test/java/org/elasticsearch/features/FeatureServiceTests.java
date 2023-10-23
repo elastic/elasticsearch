@@ -68,7 +68,7 @@ public class FeatureServiceTests extends ESTestCase {
     public void testFailsNonHistoricalVersion() {
         FeatureSpecification fs = new TestFeatureSpecification(
             Set.of(),
-            Map.of(new NodeFeature("f1"), FeatureService.MAX_HISTORICAL_VERSION_EXCLUSIVE)
+            Map.of(new NodeFeature("f1"), FeatureService.CLUSTER_FEATURES_ADDED_VERSION)
         );
 
         assertThat(

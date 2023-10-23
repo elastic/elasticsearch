@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -141,8 +140,9 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 if (currentNodes.nodeExistsWithSameRoles(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
 
-                    // update the nodes feature set if it has one
+                    // update the node's feature set if it has one
                     if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
+                        logger.debug("updating node [{}] features {}", node.getId(), nodeJoinTask.features());
                         nodeFeatures.put(node.getId(), nodeJoinTask.features());
                         nodesChanged = true;
                     }
@@ -251,11 +251,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         }
     }
 
-    @SuppressForbidden(reason = "maintaining ClusterState#compatibilityVersions requires reading them")
-    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
-        return clusterState.compatibilityVersions();
-    }
-
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
         List<? extends TaskContext<JoinTask>> taskContexts,
@@ -275,9 +270,13 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
-        DiscoveryNodes currentNodes = currentState.nodes();
+
+        ClusterState.Builder builder = ClusterState.builder(currentState);
+
+        DiscoveryNodes currentNodes = builder.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-        Map<String, CompatibilityVersions> compatibilityVersions = new HashMap<>(getCompatibilityVersions(currentState));
+        Map<String, CompatibilityVersions> compatibilityVersions = new HashMap<>(builder.compatibilityVersions());
+        Map<String, Set<String>> nodeFeatures = new HashMap<>(builder.nodeFeatures());
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
         nodesBuilder.resetNodeLeftGeneration();
 
@@ -288,6 +287,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
                     compatibilityVersions.remove(nodeWithSameId.getId());
+                    nodeFeatures.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
@@ -298,15 +298,16 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     );
                     nodesBuilder.remove(nodeWithSameAddress.getId());
                     compatibilityVersions.remove(nodeWithSameAddress.getId());
+                    nodeFeatures.remove(nodeWithSameAddress.getId());
                 }
             }
         }
 
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above
-        ClusterState tmpState = ClusterState.builder(currentState)
-            .nodes(nodesBuilder)
+        ClusterState tmpState = builder.nodes(nodesBuilder)
             .nodeIdsToCompatibilityVersions(compatibilityVersions)
+            .nodeFeatures(nodeFeatures)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())

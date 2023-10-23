@@ -55,7 +55,6 @@ import org.elasticsearch.telemetry.DelegatingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterService;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -610,11 +609,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 @Override
                 public MeterRegistry getMeterRegistry() {
                     return meterRegistry;
-                }
-
-                @Override
-                public MeterService getMeterService() {
-                    return MeterService.NOOP;
                 }
             };
         }

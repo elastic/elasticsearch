@@ -8,7 +8,9 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.LongHistogram;
 import io.opentelemetry.api.metrics.Meter;
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +18,7 @@ import java.util.Objects;
 /**
  * LongHistogramAdapter wraps an otel LongHistogram
  */
-public class LongHistogramAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.LongHistogram>
+public class LongHistogramAdapter extends AbstractInstrument<LongHistogram>
     implements
         org.elasticsearch.telemetry.metric.LongHistogram {
 

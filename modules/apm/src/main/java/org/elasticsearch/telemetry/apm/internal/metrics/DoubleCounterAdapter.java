@@ -8,7 +8,9 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.DoubleCounter;
 import io.opentelemetry.api.metrics.Meter;
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +18,7 @@ import java.util.Objects;
 /**
  * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
  */
-public class DoubleCounterAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.DoubleCounter>
+public class DoubleCounterAdapter extends AbstractInstrument<DoubleCounter>
     implements
         org.elasticsearch.telemetry.metric.DoubleCounter {
 

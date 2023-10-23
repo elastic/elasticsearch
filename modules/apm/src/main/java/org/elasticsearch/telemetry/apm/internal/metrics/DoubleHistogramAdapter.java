@@ -8,7 +8,9 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.DoubleHistogram;
 import io.opentelemetry.api.metrics.Meter;
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +18,7 @@ import java.util.Objects;
 /**
  * DoubleHistogramAdapter wraps an otel DoubleHistogram
  */
-public class DoubleHistogramAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.DoubleHistogram>
+public class DoubleHistogramAdapter extends AbstractInstrument<DoubleHistogram>
     implements
         org.elasticsearch.telemetry.metric.DoubleHistogram {
 

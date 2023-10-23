@@ -12,7 +12,6 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.telemetry.apm.internal.metrics.AbstractInstrument;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;

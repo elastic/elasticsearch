@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics;
+package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
@@ -16,15 +16,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
-import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
-import org.elasticsearch.telemetry.metric.MeterService;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.function.Supplier;
 
-public class APMMeterService extends AbstractLifecycleComponent implements MeterService {
+public class APMMeterService extends AbstractLifecycleComponent {
     private final APMMeterRegistry meterRegistry;
 
     private final Supplier<Meter> otelMeterSupplier;
@@ -52,9 +49,9 @@ public class APMMeterService extends AbstractLifecycleComponent implements Meter
     }
 
     /**
-     * @see APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider)
+     * @see APMAgentSettings#addClusterSettingsListeners(ClusterService, APMTelemetryProvider, APMMeterService)
      */
-    public void setEnabled(boolean enabled) {
+    void setEnabled(boolean enabled) {
         this.enabled = enabled;
         if (enabled) {
             meterRegistry.setProvider(createOtelMeter());

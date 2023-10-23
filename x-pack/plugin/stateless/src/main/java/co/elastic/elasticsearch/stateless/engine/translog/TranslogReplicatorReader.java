@@ -56,6 +56,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     private final BlobContainer translogBlobContainer;
     private final Iterator<? extends Translog.Operation> operations;
+    private boolean shortCircuitDueToHole = false;
     private long previousTranslogShardGeneration = -1;
     private final List<BlobMetadata> blobsToRead;
     private final List<BlobMetadata> blobsMissed = new ArrayList<>();
@@ -133,6 +134,10 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     private Iterator<Translog.Operation> getOperationIterator(String name, StreamInput streamInput, CompoundTranslogHeader translogHeader)
         throws IOException {
+        if (shortCircuitDueToHole) {
+            return Collections.emptyIterator();
+        }
+
         Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
 
         // Check if the compound translog file contains eligible operations for this shard
@@ -146,11 +151,15 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                 if (currentShardGeneration != -1L && diff == 1L) {
                     previousTranslogShardGeneration = currentShardGeneration;
                 } else {
-                    logger.error(
+                    shortCircuitDueToHole = true;
+
+                    logger.warn(
                         format(
-                            "translog recovery failed due to hole in files while reading file [%s]. went from "
+                            "translog recovery for shard [%s] hit hole in files while reading file [%s][%s]. went from "
                                 + "[translog_shard_generation=%s] to [translog_shard_generation=%s]. at beginning of recovery listed "
                                 + "files: %s. files missing during recovery: %s",
+                            shardId,
+                            translogBlobContainer.path(),
                             name,
                             previousTranslogShardGeneration,
                             currentShardGeneration,
@@ -159,14 +168,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                         )
                     );
 
-                    throw new TranslogCorruptedException(
-                        name,
-                        "missing translog file went from [translog_shard_generation="
-                            + previousTranslogShardGeneration
-                            + "] to [translog_shard_generation="
-                            + currentShardGeneration
-                            + "]"
-                    );
+                    return Collections.emptyIterator();
                 }
             }
             // Check if at least one of the operations fall within the eligible range

@@ -534,10 +534,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final Map<ShardId, TranslogMetadata> checkpoints;
         private final Set<ShardId> includedShards;
 
-        BlobTranslogFile(long generation, String blobName, Set<ShardId> includedShards) {
-            this(generation, blobName, Collections.emptyMap(), includedShards);
-        }
-
         BlobTranslogFile(long generation, String blobName, Map<ShardId, TranslogMetadata> checkpoints, Set<ShardId> includedShards) {
             this.generation = generation;
             this.blobName = blobName;

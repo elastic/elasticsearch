@@ -688,7 +688,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static boolean isContendedRegisterKey(String key) {
+    static boolean isContendedRegisterKey(String key) {
         if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)) {
             return true;
         }

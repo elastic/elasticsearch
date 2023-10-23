@@ -57,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.testkit.RepositoryAnalysisFailureIT.isContendedRegisterKey;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -442,18 +443,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
             assertPurpose(purpose);
-            if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)
-                && firstRegisterRead.compareAndSet(true, false)
-                && randomBoolean()
-                && randomBoolean()) {
-                // only fail the first read, we must not fail the final check
-                listener.onResponse(OptionalBytesReference.EMPTY);
-            } else if (key.startsWith(RepositoryAnalyzeAction.UNCONTENDED_REGISTER_NAME_PREFIX) || randomBoolean()) {
-                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
-            } else {
-                final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
-                compareAndExchangeRegister(purpose, key, bogus, bogus, listener);
+
+            if (isContendedRegisterKey(key)) {
+                // it's ok if _contended_ register accesses are a little disrupted since they retry until success
+
+                if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+                    // only fail the first read, we must not fail the final check
+                    listener.onResponse(OptionalBytesReference.EMPTY);
+                    return;
+                } else if (randomBoolean()) {
+                    final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
+                    compareAndExchangeRegister(purpose, key, bogus, bogus, listener);
+                    return;
+                }
             }
+
+            listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
         }
 
         @Override
@@ -465,20 +470,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ActionListener<OptionalBytesReference> listener
         ) {
             assertPurpose(purpose);
-            firstRegisterRead.set(false);
-            if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)
-                && updated.length() > 1
-                && randomBoolean()
-                && randomBoolean()) {
-                // updated.length() > 1 so we don't fail the final check because we know there can be no concurrent operations at that point
-                listener.onResponse(OptionalBytesReference.MISSING);
-            } else {
-                listener.onResponse(
-                    OptionalBytesReference.of(
-                        registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated)
-                    )
-                );
+            if (isContendedRegisterKey(key)) {
+                // it's ok if _contended_ register accesses are a little disrupted since they retry until success
+
+                firstRegisterRead.set(false);
+                if (updated.length() > 1 && randomBoolean() && randomBoolean()) {
+                    // updated.length() > 1 so the final check succeeds because we know there can be no concurrent operations at that point
+                    listener.onResponse(OptionalBytesReference.MISSING);
+                    return;
+                }
             }
+
+            listener.onResponse(
+                OptionalBytesReference.of(
+                    registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated)
+                )
+            );
         }
     }
 

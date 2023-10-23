@@ -19,6 +19,7 @@ POST /_query
   """
 }
 ----
+// TEST[setup:library]
 
 [discrete]
 [[esql-query-api-request]]

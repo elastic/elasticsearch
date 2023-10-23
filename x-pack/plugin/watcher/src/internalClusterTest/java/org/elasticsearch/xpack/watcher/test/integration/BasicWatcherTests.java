@@ -236,7 +236,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                     ),
                     XContentType.JSON
                 )
-                .get()
         );
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());

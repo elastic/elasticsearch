@@ -500,7 +500,6 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                         .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
                         .put("compress", false)
                 )
-                .get()
         );
 
         // create snapshot

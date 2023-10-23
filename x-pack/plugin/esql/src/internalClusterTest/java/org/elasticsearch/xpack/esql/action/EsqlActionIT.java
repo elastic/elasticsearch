@@ -703,7 +703,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put("index.routing.rebalance.enable", "none")
                 )
-                .get()
         );
         ensureYellow(indexName);
         AtomicLong totalValues = new AtomicLong();
@@ -766,7 +765,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
-                .get()
         );
         ensureYellow(indexName);
         int numDocs = randomIntBetween(1, 5000);
@@ -807,7 +805,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("val", "type=long", "tag", "type=keyword")
-                .get()
         );
         int numDocs = randomIntBetween(1, 100);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
@@ -896,7 +893,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     .prepareCreate(indexName)
                     .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                     .setMapping("data", "type=long", "count", "type=long")
-                    .get()
             );
             ensureYellow(indexName);
             client().prepareBulk()
@@ -957,7 +953,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate("test_overlapping_index_patterns_1")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("field", "type=long")
-                .get()
         );
         ensureYellow("test_overlapping_index_patterns_1");
         client().prepareBulk()
@@ -971,7 +966,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate("test_overlapping_index_patterns_2")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
                 .setMapping("field", "type=keyword")
-                .get()
         );
         ensureYellow("test_overlapping_index_patterns_2");
         client().prepareBulk()
@@ -1295,7 +1289,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put("index.number_of_shards", ESTestCase.randomIntBetween(1, 3)))
                 .setMapping(builder)
-                .get()
         );
     }
 
@@ -1372,7 +1365,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     "color",
                     "type=keyword"
                 )
-                .get()
         );
         long timestamp = epoch;
         for (int i = 0; i < 10; i++) {

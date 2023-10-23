@@ -193,7 +193,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        // TODO add http client here
         return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpRequestSenderFactory));
     }
 

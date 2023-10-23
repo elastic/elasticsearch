@@ -44,7 +44,7 @@ public class HttpClientManager implements Closeable {
         Setting.Property.Dynamic
     );
 
-    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueMinutes(10);
+    private static final TimeValue DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME = TimeValue.timeValueMinutes(1);
     public static final Setting<TimeValue> CONNECTION_EVICTION_THREAD_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.inference.http.connection_eviction_interval",
         DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME,

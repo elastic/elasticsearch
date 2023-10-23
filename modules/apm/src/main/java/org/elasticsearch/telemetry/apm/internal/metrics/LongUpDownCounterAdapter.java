@@ -10,6 +10,7 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.LongUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
+
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
@@ -27,7 +28,7 @@ public class LongUpDownCounterAdapter extends AbstractInstrument<LongUpDownCount
     }
 
     @Override
-    io.opentelemetry.api.metrics.LongUpDownCounter buildInstrument(Meter meter) {
+    protected io.opentelemetry.api.metrics.LongUpDownCounter buildInstrument(Meter meter) {
         var builder = Objects.requireNonNull(meter).upDownCounterBuilder(getName());
         return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }

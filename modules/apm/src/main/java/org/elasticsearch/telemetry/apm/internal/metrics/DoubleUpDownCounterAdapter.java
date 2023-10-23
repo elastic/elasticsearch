@@ -10,6 +10,7 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.DoubleUpDownCounter;
 import io.opentelemetry.api.metrics.Meter;
+
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
@@ -27,7 +28,7 @@ public class DoubleUpDownCounterAdapter extends AbstractInstrument<DoubleUpDownC
     }
 
     @Override
-    io.opentelemetry.api.metrics.DoubleUpDownCounter buildInstrument(Meter meter) {
+    protected io.opentelemetry.api.metrics.DoubleUpDownCounter buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .upDownCounterBuilder(getName())
             .ofDoubles()

@@ -62,5 +62,5 @@ public abstract class AbstractInstrument<T> implements Instrument {
         delegate.set(doBuildInstrument(Objects.requireNonNull(meter)));
     }
 
-    abstract T buildInstrument(Meter meter);
+    protected abstract T buildInstrument(Meter meter);
 }

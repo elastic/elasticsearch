@@ -67,10 +67,10 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             "_prefer_nodes:somenode,server2" };
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
-            SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).get();
+            SearchResponse searchResponse = prepareSearch().setSize(0).setPreference(pref).get();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
-            searchResponse = client().prepareSearch().setPreference(pref).get();
+            searchResponse = prepareSearch().setPreference(pref).get();
             assertThat(RestStatus.OK, equalTo(searchResponse.status()));
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
         }
@@ -112,13 +112,13 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
@@ -127,7 +127,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         ensureGreen();
 
         try {
-            client().prepareSearch().setQuery(matchAllQuery()).setPreference("_only_nodes:DOES-NOT-EXIST").get();
+            prepareSearch().setQuery(matchAllQuery()).setPreference("_only_nodes:DOES-NOT-EXIST").get();
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e, hasToString(containsString("no data nodes with criteria [DOES-NOT-EXIST] found for shard: [test][")));
@@ -217,8 +217,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         final String customPreference = randomAlphaOfLength(10);
 
-        final String nodeId = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        final String nodeId = prepareSearch("test").setQuery(matchAllQuery())
             .setPreference(customPreference)
             .get()
             .getHits()
@@ -260,7 +259,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     private static void assertSearchesSpecificNode(String index, String customPreference, String nodeId) {
-        final SearchResponse searchResponse = client().prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
+        final SearchResponse searchResponse = prepareSearch(index).setQuery(matchAllQuery()).setPreference(customPreference).get();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getShard().getNodeId(), equalTo(nodeId));
     }

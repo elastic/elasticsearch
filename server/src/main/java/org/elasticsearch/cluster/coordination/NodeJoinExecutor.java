@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -338,7 +339,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * Ensures that all indices are compatible with the given index version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see IndexVersion#MINIMUM_COMPATIBLE
+     * @see IndexVersions#MINIMUM_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
     public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {

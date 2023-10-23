@@ -78,11 +78,9 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
             flush(ALL_MONITORING_INDICES);
             refresh();
 
-            SearchResponse response = client().prepareSearch(ALL_MONITORING_INDICES)
-                .setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
-                .setSize(0)
-                .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
-                .get();
+            SearchResponse response = prepareSearch(ALL_MONITORING_INDICES).setQuery(
+                QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE)
+            ).setSize(0).addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id")).get();
 
             for (Aggregation aggregation : response.getAggregations()) {
                 assertThat(aggregation, instanceOf(StringTerms.class));

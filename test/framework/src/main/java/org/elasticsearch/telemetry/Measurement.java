@@ -17,9 +17,6 @@ import java.util.stream.Collectors;
 
 /**
  * A single measurement from an {@link org.elasticsearch.telemetry.metric.Instrument}.
- * @param value
- * @param attributes
- * @param isDouble
  */
 public record Measurement(Number value, Map<String, Object> attributes, boolean isDouble) {
     public Measurement {

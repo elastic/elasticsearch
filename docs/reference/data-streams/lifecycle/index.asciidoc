@@ -28,6 +28,7 @@ each data stream and performs the following steps:
 1. Checks if the data stream has a data stream lifecycle configured, skipping any indices not part of a managed data stream.
 2. Rolls over the write index of the data stream, if it fulfills the conditions defined by
 <<cluster-lifecycle-default-rollover,`cluster.lifecycle.default.rollover`>>.
+
 [[data-stream-lifecycle-tail-merge]]
 3. After an index is not the write index anymore (i.e. the data stream has been rolled over),
 automatically tail merges the index. Data stream lifecycle executes a merge operation that only targets

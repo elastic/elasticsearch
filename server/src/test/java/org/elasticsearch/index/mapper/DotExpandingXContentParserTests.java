@@ -384,14 +384,6 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.map(HashMap::new, XContentParser::text));
     }
 
-    public void testNextFieldNameUOE() throws Exception {
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, ""),
-            new ContentPath()
-        );
-        expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.nextFieldName());
-    }
-
     public void testParseMap() throws Exception {
         String jsonInput = """
             {"params":{"one":"one",

@@ -1231,7 +1231,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         public static CustomParserQueryBuilder fromXContent(XContentParser parser) throws IOException {
             {
-                assertEquals("list", parser.nextFieldName());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("list", parser.currentName());
                 List<Object> list = parser.list();
                 assertEquals(3, list.size());
                 for (int i = 0; i < 3; i++) {

@@ -39,12 +39,9 @@ public class MetadataIT extends ESIntegTestCase {
         final var nestedMetadata = Map.of("nested", "value");
         var metadata = Map.of("key", "value", "numeric", 1.2, "bool", true, "complex", nestedMetadata);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
-            )
-            .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
+        ).addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata)).get();
 
         assertNoFailures(response);
 

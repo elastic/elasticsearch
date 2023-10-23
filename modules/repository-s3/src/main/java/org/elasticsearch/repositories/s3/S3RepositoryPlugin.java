@@ -69,7 +69,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final SetOnce<MeterRegistry> meter = new SetOnce<>();
+    private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -88,7 +88,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meter.get());
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
     }
 
     @Override
@@ -110,7 +110,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     ) {
         service.set(s3Service(environment, clusterService.getSettings()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        meter.set(telemetryProvider.getMeterRegistry());
+        meterRegistry.set(telemetryProvider.getMeterRegistry());
         return List.of(service);
     }
 
@@ -169,6 +169,6 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     protected MeterRegistry getMeterRegistry() {
-        return meter.get();
+        return meterRegistry.get();
     }
 }

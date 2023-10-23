@@ -96,7 +96,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("idx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
-                .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -123,8 +122,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testSimpleProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L))
             .get();
         assertNoFailures(response);
@@ -159,8 +157,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -246,8 +243,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfileBreadthFirst() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -320,8 +316,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDiversifiedAggProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 diversifiedSampler("diversify").shardSize(10)
                     .field(STRING_FIELD)
@@ -376,8 +371,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testComplexProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -593,8 +587,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testNoProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(false)
+        SearchResponse response = prepareSearch("idx").setProfile(false)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -633,7 +626,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("dateidx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping("date", "type=date")
-                .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
@@ -642,8 +634,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
         indexRandom(true, false, builders);
 
-        SearchResponse response = client().prepareSearch("dateidx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("dateidx").setProfile(true)
             .addAggregation(
                 new DateHistogramAggregationBuilder("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
@@ -708,7 +699,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 indicesAdmin().prepareCreate("date_filter_by_filter_disabled")
                     .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                     .setMapping("date", "type=date", "keyword", "type=keyword")
-                    .get()
             );
             List<IndexRequestBuilder> builders = new ArrayList<>();
             for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
@@ -720,8 +710,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             }
             indexRandom(true, false, builders);
 
-            SearchResponse response = client().prepareSearch("date_filter_by_filter_disabled")
-                .setProfile(true)
+            SearchResponse response = prepareSearch("date_filter_by_filter_disabled").setProfile(true)
                 .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
                 .get();
             assertNoFailures(response);

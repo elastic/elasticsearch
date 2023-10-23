@@ -142,7 +142,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         for (Consumer<GeoDistanceAggregationBuilder> range : ranges) {
             range.accept(builder);
         }
-        SearchResponse response = client().prepareSearch("idx").addAggregation(builder).get();
+        SearchResponse response = prepareSearch("idx").addAggregation(builder).get();
 
         assertNoFailures(response);
 
@@ -181,15 +181,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testSimpleWithCustomKeys() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .addUnboundedTo("ring1", 500)
-                    .addRange("ring2", 500, 1000)
-                    .addUnboundedFrom("ring3", 1000)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                .unit(DistanceUnit.KILOMETERS)
+                .addUnboundedTo("ring1", 500)
+                .addRange("ring2", 500, 1000)
+                .addUnboundedFrom("ring3", 1000)
+        ).get();
 
         assertNoFailures(response);
 
@@ -230,15 +228,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
     public void testUnmapped() throws Exception {
         clusterAdmin().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .addUnboundedTo(500)
-                    .addRange(500, 1000)
-                    .addUnboundedFrom(1000)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped").addAggregation(
+            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                .unit(DistanceUnit.KILOMETERS)
+                .addUnboundedTo(500)
+                .addRange(500, 1000)
+                .addUnboundedFrom(1000)
+        ).get();
 
         assertNoFailures(response);
 
@@ -277,15 +273,13 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .addUnboundedTo(500)
-                    .addRange(500, 1000)
-                    .addUnboundedFrom(1000)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                .unit(DistanceUnit.KILOMETERS)
+                .addUnboundedTo(500)
+                .addRange(500, 1000)
+                .addUnboundedFrom(1000)
+        ).get();
 
         assertNoFailures(response);
 
@@ -324,16 +318,14 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testWithSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .addUnboundedTo(500)
-                    .addRange(500, 1000)
-                    .addUnboundedFrom(1000)
-                    .subAggregation(terms("cities").field("city").collectMode(randomFrom(SubAggCollectionMode.values())))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                .unit(DistanceUnit.KILOMETERS)
+                .addUnboundedTo(500)
+                .addRange(500, 1000)
+                .addUnboundedFrom(1000)
+                .subAggregation(terms("cities").field("city").collectMode(randomFrom(SubAggCollectionMode.values())))
+        ).get();
 
         assertNoFailures(response);
 
@@ -409,8 +401,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(
                 histogram("histo").field("value")
                     .interval(1L)
@@ -441,7 +432,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     public void testNoRangesInQuery() {
         try {
-            client().prepareSearch("idx").addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")).get();
+            prepareSearch("idx").addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)).field("location")).get();
             fail();
         } catch (SearchPhaseExecutionException spee) {
             Throwable rootCause = spee.getCause().getCause();
@@ -451,16 +442,14 @@ public class GeoDistanceIT extends ESIntegTestCase {
     }
 
     public void testMultiValues() throws Exception {
-        SearchResponse response = client().prepareSearch("idx-multi")
-            .addAggregation(
-                geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
-                    .unit(DistanceUnit.KILOMETERS)
-                    .distanceType(org.elasticsearch.common.geo.GeoDistance.ARC)
-                    .addUnboundedTo(500)
-                    .addRange(500, 1000)
-                    .addUnboundedFrom(1000)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx-multi").addAggregation(
+            geoDistance("amsterdam_rings", new GeoPoint(52.3760, 4.894)).field("location")
+                .unit(DistanceUnit.KILOMETERS)
+                .distanceType(org.elasticsearch.common.geo.GeoDistance.ARC)
+                .addUnboundedTo(500)
+                .addRange(500, 1000)
+                .addUnboundedFrom(1000)
+        ).get();
 
         assertNoFailures(response);
 

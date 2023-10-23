@@ -13,7 +13,8 @@ import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
-import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterService;
+import org.elasticsearch.telemetry.apm.internal.APMMeterService;
+import org.elasticsearch.telemetry.apm.internal.TestAPMMeterService;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.test.ESTestCase;
 
@@ -47,7 +48,7 @@ public class APMMeterRegistryTests extends ESTestCase {
     }
 
     public void testMeterIsOverridden() {
-        APMMeterService apmMeter = new APMMeterService(Settings.EMPTY, () -> testOtel, () -> noopOtel);
+        TestAPMMeterService apmMeter = new TestAPMMeterService(Settings.EMPTY, () -> testOtel, () -> noopOtel);
 
         Meter meter = apmMeter.getMeterRegistry().getMeter();
         assertThat(meter, sameInstance(noopOtel));

@@ -111,6 +111,6 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         if (randomBoolean()) {
             source.trackTotalHitsUpTo(randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 1000));
         }
-        ElasticsearchAssertions.assertSearchHits(client().prepareSearch("test").setSource(source), "d1");
+        ElasticsearchAssertions.assertSearchHits(prepareSearch("test").setSource(source), "d1");
     }
 }

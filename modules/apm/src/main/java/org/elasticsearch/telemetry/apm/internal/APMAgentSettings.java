@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
-import org.elasticsearch.telemetry.metric.MeterService;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -48,17 +47,20 @@ public class APMAgentSettings {
         "true"
     );
 
-    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
+    public void addClusterSettingsListeners(
+        ClusterService clusterService,
+        APMTelemetryProvider apmTelemetryProvider,
+        APMMeterService apmMeterService
+    ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
-        final MeterService meterService = apmTelemetryProvider.getMeterService();
 
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
             this.setAgentSetting("instrument", Boolean.toString(enabled));
         });
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
-            meterService.setEnabled(enabled);
+            apmMeterService.setEnabled(enabled);
             // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
             // minimise its impact to a running Elasticsearch.
             this.setAgentSetting("recording", Boolean.toString(enabled));

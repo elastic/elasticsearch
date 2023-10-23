@@ -282,7 +282,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         );
 
         // Checks that the all documents have been indexed and correctly counted
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0), numDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numDocs);
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)

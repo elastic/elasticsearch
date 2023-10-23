@@ -98,9 +98,9 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")))
+        ).get();
 
         assertNoFailures(response);
 
@@ -130,9 +130,9 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testCustomSeparator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(adjacencyMatrix("tags", "\t", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            adjacencyMatrix("tags", "\t", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")))
+        ).get();
 
         assertNoFailures(response);
 
@@ -153,9 +153,9 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(adjacencyMatrix("tags", newMap("all", emptyFilter).add("tag1", termQuery("tag", "tag1"))))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            adjacencyMatrix("tags", newMap("all", emptyFilter).add("tag1", termQuery("tag", "tag1")))
+        ).get();
 
         assertNoFailures(response);
 
@@ -173,12 +173,10 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
         BoolQueryBuilder boolQ = new BoolQueryBuilder();
         boolQ.must(termQuery("tag", "tag1"));
         boolQ.must(termQuery("tag", "tag2"));
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")).add("both", boolQ))
-                    .subAggregation(avg("avg_value").field("value"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2")).add("both", boolQ))
+                .subAggregation(avg("avg_value").field("value"))
+        ).get();
 
         assertNoFailures(response);
 
@@ -291,7 +289,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
             }
 
             try {
-                client().prepareSearch("idx").addAggregation(adjacencyMatrix("tags", "\t", filtersMap)).get();
+                prepareSearch("idx").addAggregation(adjacencyMatrix("tags", "\t", filtersMap)).get();
                 fail("SearchPhaseExecutionException should have been thrown");
             } catch (SearchPhaseExecutionException ex) {
                 assertThat(ex.getCause().getMessage(), containsString("Number of filters is too large"));
@@ -303,11 +301,9 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testAsSubAggregation() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                histogram("histo").field("value").interval(2L).subAggregation(adjacencyMatrix("matrix", newMap("all", matchAllQuery())))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            histogram("histo").field("value").interval(2L).subAggregation(adjacencyMatrix("matrix", newMap("all", matchAllQuery())))
+        ).get();
 
         assertNoFailures(response);
 
@@ -327,13 +323,11 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     public void testWithContextBasedSubAggregation() throws Exception {
 
         try {
-            client().prepareSearch("idx")
-                .addAggregation(
-                    adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))).subAggregation(
-                        avg("avg_value")
-                    )
+            prepareSearch("idx").addAggregation(
+                adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1")).add("tag2", termQuery("tag", "tag2"))).subAggregation(
+                    avg("avg_value")
                 )
-                .get();
+            ).get();
 
             fail(
                 "expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
@@ -346,8 +340,7 @@ public class AdjacencyMatrixIT extends AggregationIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(
                 histogram("histo").field("value")
                     .interval(1L)

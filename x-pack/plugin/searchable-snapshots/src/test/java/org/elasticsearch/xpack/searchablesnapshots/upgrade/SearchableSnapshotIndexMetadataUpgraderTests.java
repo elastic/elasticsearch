@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
@@ -118,8 +119,8 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         return searchableSnapshotSettings(
             IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_12_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+                IndexVersions.V_7_12_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             ),
             true
         );
@@ -131,7 +132,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
     private Settings partial_7_13plus() {
         return shardLimitGroupFrozen(
             searchableSnapshotSettings(
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_13_0, IndexVersion.current()),
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_13_0, IndexVersion.current()),
                 true
             )
         );
@@ -142,7 +143,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
      */
     private Settings partial_8plusNoShardLimit() {
         return searchableSnapshotSettings(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.current()),
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current()),
             true
         );
     }

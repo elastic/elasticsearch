@@ -24,7 +24,7 @@ import java.util.Map;
 
 public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
-    protected final MeterRegistry meter;
+    protected final MeterRegistry meterRegistry;
 
     public MeteredBlobStoreRepository(
         RepositoryMetadata metadata,
@@ -34,10 +34,10 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
         RecoverySettings recoverySettings,
         BlobPath basePath,
         Map<String, String> location,
-        MeterRegistry meter
+        MeterRegistry meterRegistry
     ) {
         super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
-        this.meter = meter;
+        this.meterRegistry = meterRegistry;
         ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
         this.repositoryInfo = new RepositoryInfo(
             UUIDs.randomBase64UUID(),

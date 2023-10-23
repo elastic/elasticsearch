@@ -73,11 +73,9 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -107,11 +105,9 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testMultiValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -141,13 +137,11 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .size(between(1, 5))
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .size(between(1, 5))
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 

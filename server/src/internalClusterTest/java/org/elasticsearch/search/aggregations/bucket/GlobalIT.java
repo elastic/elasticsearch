@@ -60,8 +60,7 @@ public class GlobalIT extends ESIntegTestCase {
     }
 
     public void testWithStatsSubAggregator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(QueryBuilders.termQuery("tag", "tag1"))
+        SearchResponse response = prepareSearch("idx").setQuery(QueryBuilders.termQuery("tag", "tag1"))
             .addAggregation(global("global").subAggregation(stats("value_stats").field("value")))
             .get();
 
@@ -91,8 +90,7 @@ public class GlobalIT extends ESIntegTestCase {
 
     public void testNonTopLevel() throws Exception {
         try {
-            client().prepareSearch("idx")
-                .setQuery(QueryBuilders.termQuery("tag", "tag1"))
+            prepareSearch("idx").setQuery(QueryBuilders.termQuery("tag", "tag1"))
                 .addAggregation(global("global").subAggregation(global("inner_global")))
                 .get();
 

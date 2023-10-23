@@ -349,9 +349,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         if (readOnlyAllowDelete) {
             settingsBuilder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
         }
-        assertAcked(
-            clusterAdmin().prepareUpdateSettings().setPersistentSettings(settingsBuilder).setTransientSettings(settingsBuilder).get()
-        );
+        assertAcked(clusterAdmin().prepareUpdateSettings().setPersistentSettings(settingsBuilder).setTransientSettings(settingsBuilder));
 
         ClusterState state = clusterAdmin().prepareState().get().getState();
         if (readOnly) {

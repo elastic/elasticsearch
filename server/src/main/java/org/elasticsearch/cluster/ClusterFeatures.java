@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 /**
@@ -213,6 +215,14 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
 
             return new ClusterFeatures(newFeatures);
         }
+    }
+
+    @Override
+    public String toString() {
+        // sort for ease of debugging
+        var features = new TreeMap<>(nodeFeatures);
+        features.replaceAll((k, v) -> new TreeSet<>(v));
+        return "ClusterFeatures" + features;
     }
 
     @Override

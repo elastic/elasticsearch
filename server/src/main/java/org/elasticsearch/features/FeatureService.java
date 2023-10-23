@@ -24,7 +24,7 @@ import java.util.TreeMap;
 
 public class FeatureService {
 
-    public static final Version MAX_HISTORICAL_VERSION_EXCLUSIVE = Version.V_8_12_0;
+    static final Version MAX_HISTORICAL_VERSION_EXCLUSIVE = Version.V_8_12_0;
 
     private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Set<String> nodeFeatures;

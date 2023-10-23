@@ -669,13 +669,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             ),
 
             // per-node feature information
+            // ensure its all sorted for ease of debugging
             chunkedSection(
                 metrics.contains(Metric.NODES),
                 (builder, params) -> builder.startArray("nodes_features"),
-                clusterFeatures.nodeFeatures().entrySet().iterator(),
+                clusterFeatures.nodeFeatures().entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
                 e -> Iterators.single((builder, params) -> {
                     String[] features = e.getValue().toArray(String[]::new);
-                    Arrays.sort(features);  // sort for ease of debugging
+                    Arrays.sort(features);
                     builder.startObject().field("node_id", e.getKey()).array("features", features);
                     return builder.endObject();
                 }),

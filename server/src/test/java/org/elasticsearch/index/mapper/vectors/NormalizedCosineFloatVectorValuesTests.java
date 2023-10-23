@@ -8,13 +8,10 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -75,17 +72,13 @@ public class NormalizedCosineFloatVectorValuesTests extends ESTestCase {
         return (float) Math.sqrt(magnitude);
     }
 
-    public static BinaryDocValues wrapMagnitudes(float[] magnitudes) {
-        return new BinaryDocValues() {
-            private final byte[] buff = new byte[4];
-            private final ByteBuffer buffer = ByteBuffer.wrap(buff).order(ByteOrder.LITTLE_ENDIAN);
+    public static NumericDocValues wrapMagnitudes(float[] magnitudes) {
+        return new NumericDocValues() {
             int index = -1;
 
             @Override
-            public BytesRef binaryValue() throws IOException {
-                buffer.putFloat(magnitudes[index]);
-                buffer.rewind();
-                return new BytesRef(buff);
+            public long longValue() throws IOException {
+                return Float.floatToRawIntBits(magnitudes[index]);
             }
 
             @Override

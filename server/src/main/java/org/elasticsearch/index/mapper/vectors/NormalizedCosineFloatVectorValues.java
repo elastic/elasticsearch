@@ -8,22 +8,19 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.FloatVectorValues;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.NumericDocValues;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 
 public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
 
     private final FloatVectorValues in;
-    private final BinaryDocValues magnitudeIn;
+    private final NumericDocValues magnitudeIn;
     private final float[] vector;
     private float magnitude = 1f;
 
-    public NormalizedCosineFloatVectorValues(FloatVectorValues in, BinaryDocValues magnitudeIn) {
+    public NormalizedCosineFloatVectorValues(FloatVectorValues in, NumericDocValues magnitudeIn) {
         this.in = in;
         this.magnitudeIn = magnitudeIn;
         this.vector = new float[in.dimension()];
@@ -94,11 +91,7 @@ public class NormalizedCosineFloatVectorValues extends FloatVectorValues {
         } else {
             currentDoc = magnitudeIn.advance(docId);
             if (currentDoc == docId) {
-                BytesRef magBytes = magnitudeIn.binaryValue();
-                magnitude = ByteBuffer.wrap(magBytes.bytes, magBytes.offset, magBytes.length)
-                    .order(ByteOrder.LITTLE_ENDIAN)
-                    .asFloatBuffer()
-                    .get();
+                magnitude = Float.intBitsToFloat((int) magnitudeIn.longValue());
                 return true;
             } else {
                 magnitude = 1f;

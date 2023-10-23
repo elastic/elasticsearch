@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -22,6 +23,7 @@ import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
@@ -40,7 +42,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -64,7 +65,6 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Locale;
@@ -470,7 +470,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                                 FloatVectorValues values = in.getFloatVectorValues(fieldName);
                                 return new NormalizedCosineFloatVectorValues(
                                     values,
-                                    in.getBinaryDocValues(fieldName + COSINE_MAGNITUDE_FIELD_SUFFIX)
+                                    in.getNumericDocValues(fieldName + COSINE_MAGNITUDE_FIELD_SUFFIX)
                                 );
                             }
                         } : r -> r
@@ -499,7 +499,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException(appender.apply(errorBuilder).toString());
                 }
 
-                if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > 1e-4f) {
+                if (similarity == VectorSimilarity.DOT_PRODUCT && Math.abs(squaredMagnitude - 1.0f) > EPS) {
                     errorBuilder = new StringBuilder(
                         "The [" + VectorSimilarity.DOT_PRODUCT + "] similarity can only be used with unit-length vectors."
                     );
@@ -531,32 +531,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 checkVectorBounds(vector);
                 checkVectorMagnitude(fieldMapper.fieldType().similarity, errorFloatElementsAppender(vector), squaredMagnitude);
                 if (fieldMapper.indexCreatedVersion.onOrAfter(NORMALIZE_COSINE)
-                    && fieldMapper.fieldType().similarity == VectorSimilarity.COSINE
+                    && fieldMapper.fieldType().similarity.equals(VectorSimilarity.COSINE)
                     && Math.abs(squaredMagnitude - 1f) > EPS) {
                     float length = (float) Math.sqrt(squaredMagnitude);
                     for (int i = 0; i < vector.length; i++) {
                         vector[i] /= length;
                     }
+                    Field magnitudeField = new FloatDocValuesField(fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX, length);
+                    context.doc().addWithKey(fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX, magnitudeField);
                 }
-
                 Field field = createKnnVectorField(
                     fieldMapper.fieldType().name(),
                     vector,
                     fieldMapper.fieldType().similarity.vectorSimilarityFunction(fieldMapper.indexCreatedVersion, this)
                 );
                 context.doc().addWithKey(fieldMapper.fieldType().name(), field);
-                if (fieldMapper.indexCreatedVersion.onOrAfter(NORMALIZE_COSINE)
-                    && fieldMapper.fieldType().similarity == VectorSimilarity.COSINE
-                    && Math.abs(squaredMagnitude - 1f) > EPS) {
-                    ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[Float.BYTES]).order(ByteOrder.LITTLE_ENDIAN);
-                    float length = (float) Math.sqrt(squaredMagnitude);
-                    byteBuffer.putFloat(length);
-                    Field magnitudeField = new BinaryDocValuesField(
-                        fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX,
-                        new BytesRef(byteBuffer.array())
-                    );
-                    context.doc().addWithKey(fieldMapper.fieldType().name() + COSINE_MAGNITUDE_FIELD_SUFFIX, magnitudeField);
-                }
             }
 
             @Override
@@ -973,7 +962,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
-                elementType.checkVectorMagnitude(similarity, elementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
+                elementType.checkVectorMagnitude(similarity, ElementType.errorFloatElementsAppender(queryVector), squaredMagnitude);
                 if (similarity == VectorSimilarity.COSINE
                     && ElementType.FLOAT.equals(elementType)
                     && indexVersionCreated.onOrAfter(NORMALIZE_COSINE)) {
@@ -1225,7 +1214,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
-        private BinaryDocValues magnitudeReader;
+        private NumericDocValues magnitudeReader;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
@@ -1242,14 +1231,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             values = leafReader.getFloatVectorValues(name());
             if (values != null) {
                 if (indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity)) {
-                    magnitudeReader = leafReader.getBinaryDocValues(name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                    magnitudeReader = leafReader.getNumericDocValues(name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
                 return docId -> {
                     hasValue = docId == values.advance(docId);
-                    hasMagnitude = false;
-                    if (hasValue && magnitudeReader != null && magnitudeReader.advance(docId) == docId) {
-                        hasMagnitude = true;
-                    }
+                    hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advance(docId) == docId;
                     return hasValue;
                 };
             }
@@ -1275,11 +1261,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             float magnitude = Float.NaN;
             if (hasMagnitude) {
-                BytesRef magBytes = magnitudeReader.binaryValue();
-                FloatBuffer fb = ByteBuffer.wrap(magBytes.bytes, magBytes.offset, magBytes.length)
-                    .order(ByteOrder.LITTLE_ENDIAN)
-                    .asFloatBuffer();
-                magnitude = fb.get();
+                magnitude = Float.intBitsToFloat((int) magnitudeReader.longValue());
             }
             b.startArray(simpleName());
             if (values != null) {

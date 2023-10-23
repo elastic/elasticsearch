@@ -27,8 +27,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.InferenceServicePlugin;
+import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -63,11 +66,12 @@ import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceE
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin {
+public class InferencePlugin extends Plugin implements ActionPlugin, InferenceServicePlugin, SystemIndexPlugin, IngestPlugin {
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -199,6 +203,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     @Override
     public List<NamedWriteableRegistry.Entry> getInferenceServiceNamedWriteables() {
         return InferenceNamedWriteablesProvider.getNamedWriteables();
+    }
+
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client);
+        return Map.of(InferenceProcessor.TYPE, inferenceFactory);
     }
 
     @Override

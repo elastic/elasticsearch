@@ -178,7 +178,8 @@ public class DfsPhase {
         }
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-        List<KnnSearchBuilder> knnSearch = source.knnSearch().stream().map(knn -> knn.adjustForExploration(context.size())).toList();
+        List<KnnSearchBuilder> knnSearch = source.knnSearch();
+        knnSearch.forEach(knn -> knn.adjustForExploration(source.size()));
         List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {

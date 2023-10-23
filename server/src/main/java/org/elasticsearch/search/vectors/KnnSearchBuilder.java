@@ -111,8 +111,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     final float[] queryVector;
     final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> querySupplier;
-    final Integer k;
-    final Integer numCands;
+    Integer k;
+    Integer numCands;
     final Float similarity;
     final List<QueryBuilder> filterQueries;
     float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -156,6 +156,18 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Integer numCands,
         Float similarity
     ) {
+        this.field = field;
+        this.queryVector = queryVector == null ? new float[0] : queryVector;
+        this.queryVectorBuilder = queryVectorBuilder;
+        this.k = k;
+        this.numCands = numCands;
+        this.filterQueries = new ArrayList<>();
+        this.querySupplier = null;
+        this.similarity = similarity;
+        this.validate();
+    }
+
+    private void validate() {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
         }
@@ -185,14 +197,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 )
             );
         }
-        this.field = field;
-        this.queryVector = queryVector == null ? new float[0] : queryVector;
-        this.queryVectorBuilder = queryVectorBuilder;
-        this.k = k;
-        this.numCands = numCands;
-        this.filterQueries = new ArrayList<>();
-        this.querySupplier = null;
-        this.similarity = similarity;
     }
 
     private KnnSearchBuilder(
@@ -439,16 +443,16 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         }
     }
 
-    public KnnSearchBuilder adjustForExploration(int size) {
+    public void adjustForExploration(int size) {
         if (k != null && numCands != null) {
-            return this;
+            return;
         }
         int adjustedK = k != null ? k : size;
         int adjustedNumCands = numCands != null
             ? numCands
             : Math.min(Math.max(NUM_CANDS_DEFAULT, (int) NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK), NUM_CANDS_LIMIT);
-        return new KnnSearchBuilder(field, queryVector, queryVectorBuilder, adjustedK, adjustedNumCands, similarity).addFilterQueries(
-            filterQueries
-        ).boost(boost);
+        k = adjustedK;
+        numCands = adjustedNumCands;
+        validate();
     }
 }

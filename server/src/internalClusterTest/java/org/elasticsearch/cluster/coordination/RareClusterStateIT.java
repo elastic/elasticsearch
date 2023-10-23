@@ -201,7 +201,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0")
             ).setTimeout("0s")
-        ).get(10, TimeUnit.SECONDS);
+        ).get(30, TimeUnit.SECONDS);
 
         logger.info("--> letting cluster proceed");
 

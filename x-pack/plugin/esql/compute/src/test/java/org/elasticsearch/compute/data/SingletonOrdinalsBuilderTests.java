@@ -7,35 +7,84 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SingletonOrdinalsBuilderTests extends ESTestCase {
-    public void testAppend() {
-        // NOCOMMIT real tests
-        try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(breakingDriverContext().blockFactory(), null, 5)) {
-            builder.appendOrd(0);
-            builder.appendOrd(0);
-            builder.appendOrd(1);
-            builder.appendOrd(2);
-        }
+    public void testReader() throws IOException {
+        testRead(breakingDriverContext().blockFactory());
     }
 
-    // NOCOMMIT tests with cranky
+    public void testReadWithCranky() throws IOException {
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BlockFactory factory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        try {
+            testRead(factory);
+            // If we made it this far cranky didn't fail us!
+        } catch (CircuitBreakingException e) {
+            logger.info("cranky", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+        assertThat(factory.breaker().getUsed(), equalTo(0L));
+    }
+
+    private void testRead(BlockFactory factory) throws IOException {
+        int count = 1000;
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            for (int i = 0; i < count; i++) {
+                for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
+                    indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
+                }
+            }
+            Map<String, Integer> counts = new HashMap<>();
+            try (IndexReader reader = indexWriter.getReader()) {
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
+                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
+                        for (int i = 0; i < ctx.reader().maxDoc(); i++) {
+                            if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
+                                assertThat(docValues.advanceExact(i), equalTo(true));
+                                builder.appendOrd(docValues.ordValue());
+                            }
+                        }
+                        try (BytesRefBlock build = builder.build()) {
+                            for (int i = 0; i < build.getPositionCount(); i++) {
+                                counts.merge(build.getBytesRef(i, new BytesRef()).utf8ToString(), 1, (lhs, rhs) -> lhs + rhs);
+                            }
+                        }
+                    }
+                }
+            }
+            assertMap(counts, matchesMap().entry("a", count).entry("b", count).entry("c", count).entry("d", count));
+        }
+    }
 
     public void testCompactWithNulls() {
         assertCompactToUnique(new int[] { -1, -1, -1, -1, 0, 1, 2 }, List.of(0, 1, 2));

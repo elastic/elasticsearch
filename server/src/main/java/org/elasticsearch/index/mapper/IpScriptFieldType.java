@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
@@ -211,7 +210,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
-        return IpScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return IpScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
     }
 }

@@ -64,4 +64,9 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "ScriptDoubles";
+    }
 }

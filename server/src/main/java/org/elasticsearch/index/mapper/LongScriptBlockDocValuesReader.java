@@ -64,4 +64,9 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "ScriptLongs";
+    }
 }

@@ -317,14 +317,14 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 return null;
             }
             if (hasDocValues()) {
                 return BlockDocValuesReader.longs(name());
             }
-            return BlockSourceReader.longs(new SourceValueFetcher(sourcePathsLookup.apply(name()), nullValueFormatted) {
+            return BlockSourceReader.longs(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

@@ -15,10 +15,12 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public final class BlockReaderFactories {
     private BlockReaderFactories() {}
@@ -42,7 +44,22 @@ public final class BlockReaderFactories {
                 factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));
                 continue;
             }
-            BlockLoader loader = fieldType.blockLoader(ctx.lookup(), ctx::sourcePath);
+            BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
+                @Override
+                public String indexName() {
+                    return ctx.getFullyQualifiedIndex().getName();
+                }
+
+                @Override
+                public SearchLookup lookup() {
+                    return ctx.lookup();
+                }
+
+                @Override
+                public Set<String> sourcePaths(String name) {
+                    return ctx.sourcePath(name);
+                }
+            });
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
                 factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));

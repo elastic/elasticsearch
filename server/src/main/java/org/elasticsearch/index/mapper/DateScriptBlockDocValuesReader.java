@@ -64,4 +64,9 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "ScriptDates";
+    }
 }

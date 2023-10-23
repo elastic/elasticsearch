@@ -66,4 +66,9 @@ public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "ScriptIps";
+    }
 }

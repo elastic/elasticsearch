@@ -384,7 +384,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected final List<Object> blockLoaderReadValues(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
-        BlockLoader loader = fieldType.blockLoader(mockContext().lookup(), null);
+        BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             TestBlock block = (TestBlock) loader.reader(ctx).readValues(TestBlock.FACTORY, TestBlock.docs(ctx));
@@ -396,7 +396,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected final List<Object> blockLoaderReadValuesFromSingleDoc(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
-        BlockLoader loader = fieldType.blockLoader(mockContext().lookup(), null);
+        BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             BlockDocValuesReader blockReader = loader.reader(ctx);
@@ -409,6 +409,25 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             }
         }
         return all;
+    }
+
+    private MappedFieldType.BlockLoaderContext blContext() {
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                return mockContext().lookup();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     private void assertQueryOnlyOnText(String queryName, ThrowingRunnable buildQuery) {

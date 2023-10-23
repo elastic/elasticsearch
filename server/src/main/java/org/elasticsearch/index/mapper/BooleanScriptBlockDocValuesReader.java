@@ -69,4 +69,9 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "ScriptBooleans";
+    }
 }

@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
@@ -56,8 +55,6 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -139,7 +136,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // TODO build a constant block directly
             BytesRef bytes = new BytesRef(value);
             return context -> new BlockDocValuesReader() {
@@ -168,6 +165,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
                     this.docId = docId;
                     ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(bytes);
+                }
+
+                @Override
+                public String toString() {
+                    return "ConstantKeyword";
                 }
             };
         }

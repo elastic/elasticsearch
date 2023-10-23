@@ -636,7 +636,28 @@ public abstract class MappedFieldType {
      * Returns a loader for ESQL or {@code null} if the field doesn't support
      * ESQL.
      */
-    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
         return null;
     }
+
+    /**
+     * Arguments for {@link #blockLoader}.
+     */
+    public interface BlockLoaderContext {
+        /**
+         * The name of the index.
+         */
+        String indexName();
+
+        /**
+         * {@link SearchLookup} used for building scripts.
+         */
+        SearchLookup lookup();
+
+        /**
+         * Find the paths in {@code _source} that contain values for the field named {@code name}.
+         */
+        Set<String> sourcePaths(String name);
+    }
+
 }

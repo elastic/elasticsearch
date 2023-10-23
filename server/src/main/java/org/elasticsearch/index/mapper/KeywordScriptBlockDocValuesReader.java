@@ -70,4 +70,9 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "ScriptKeywords";
+    }
 }

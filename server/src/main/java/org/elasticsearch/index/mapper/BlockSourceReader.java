@@ -43,6 +43,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
             protected void append(BlockLoader.Builder builder, Object v) {
                 ((BlockLoader.BooleanBuilder) builder).appendBoolean((Boolean) v);
             }
+
+            @Override
+            public String toString() {
+                return "SourceBooleans";
+            }
         };
     }
 
@@ -63,6 +68,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
             protected void append(BlockLoader.Builder builder, Object v) {
                 ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
             }
+
+            @Override
+            public String toString() {
+                return "SourceBytes";
+            }
         };
     }
 
@@ -80,6 +90,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
             @Override
             protected void append(BlockLoader.Builder builder, Object v) {
                 ((BlockLoader.DoubleBuilder) builder).appendDouble(((Number) v).doubleValue());
+            }
+
+            @Override
+            public String toString() {
+                return "SourceDoubles";
             }
         };
     }
@@ -99,6 +114,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
             protected void append(BlockLoader.Builder builder, Object v) {
                 ((BlockLoader.IntBuilder) builder).appendInt(((Number) v).intValue());
             }
+
+            @Override
+            public String toString() {
+                return "SourceInts";
+            }
         };
     }
 
@@ -116,6 +136,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
             @Override
             protected void append(BlockLoader.Builder builder, Object v) {
                 ((BlockLoader.LongBuilder) builder).appendLong(((Number) v).longValue());
+            }
+
+            @Override
+            public String toString() {
+                return "SourceLongs";
             }
         };
     }
@@ -169,10 +194,5 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     @Override
     public int docID() {
         return docID;
-    }
-
-    @Override
-    public String toString() {
-        return "SourceReader";
     }
 }

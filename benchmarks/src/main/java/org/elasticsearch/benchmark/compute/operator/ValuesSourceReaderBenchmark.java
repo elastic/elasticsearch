@@ -97,13 +97,13 @@ public class ValuesSourceReaderBenchmark {
             case "long" -> numericBlockLoader(name, NumberFieldMapper.NumberType.LONG);
             case "int" -> numericBlockLoader(name, NumberFieldMapper.NumberType.INTEGER);
             case "double" -> numericBlockLoader(name, NumberFieldMapper.NumberType.DOUBLE);
-            case "keyword" -> new KeywordFieldMapper.KeywordFieldType(name).blockLoader(null, null);
+            case "keyword" -> new KeywordFieldMapper.KeywordFieldType(name).blockLoader(null);
             default -> throw new IllegalArgumentException("can't read [" + name + "]");
         };
     }
 
     private static BlockLoader numericBlockLoader(String name, NumberFieldMapper.NumberType numberType) {
-        return new NumberFieldMapper.NumberFieldType(name, numberType).blockLoader(null, null);
+        return new NumberFieldMapper.NumberFieldType(name, numberType).blockLoader(null);
     }
 
     /**

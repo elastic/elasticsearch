@@ -111,8 +111,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
-        return KeywordScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return KeywordScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

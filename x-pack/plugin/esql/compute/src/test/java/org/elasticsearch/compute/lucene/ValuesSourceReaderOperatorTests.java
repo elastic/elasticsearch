@@ -91,7 +91,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft) {
         return new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
-            List.of(BlockReaderFactories.loaderToFactory(reader, ft.blockLoader(null, null))),
+            List.of(BlockReaderFactories.loaderToFactory(reader, ft.blockLoader(null))),
             0,
             ft.name()
         );

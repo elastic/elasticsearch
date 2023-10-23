@@ -180,8 +180,8 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
-        return DateScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return DateScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

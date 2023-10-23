@@ -36,7 +36,6 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -44,9 +43,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 
 /**
  * A mapper for the {@code _id} field that reads the from the
@@ -121,7 +118,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             return BlockStoredFieldsReader.id();
         }
 

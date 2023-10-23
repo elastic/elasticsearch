@@ -73,7 +73,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -580,7 +579,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
                 return BlockDocValuesReader.bytesRefsFromOrds(name());
             }
@@ -594,7 +593,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
                 return BlockStoredFieldsReader.bytesRefsFromBytesRefs(name());
             }
-            return BlockSourceReader.bytesRefs(sourceValueFetcher(sourcePathsLookup.apply(name())));
+            return BlockSourceReader.bytesRefs(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

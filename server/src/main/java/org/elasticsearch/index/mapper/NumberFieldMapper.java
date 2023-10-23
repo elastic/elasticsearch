@@ -1654,14 +1654,15 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                // Counters are not supported by ESQL so we load them in null
                 return BlockDocValuesReader.nulls();
             }
             if (hasDocValues()) {
                 return type.blockLoaderFromDocValues(name());
             }
-            return type.blockLoaderFromSource(sourceValueFetcher(sourcePathsLookup.apply(name())));
+            return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -40,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 
-@Seed("547006EFE4A1444A:1A1E8BB1AAA83CB8")
 public class UnsignedLongFieldMapperTests extends MapperTestCase {
 
     @Override

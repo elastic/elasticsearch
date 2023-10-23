@@ -773,11 +773,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
                 return BlockDocValuesReader.longs(name());
             }
-            return BlockSourceReader.longs(sourceValueFetcher(sourcePathsLookup.apply(name())));
+            return BlockSourceReader.longs(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

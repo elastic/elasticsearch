@@ -66,7 +66,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
@@ -308,12 +307,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (hasDocValues()) {
                 double scalingFactorInverse = 1d / scalingFactor;
                 return BlockDocValuesReader.doubles(name(), l -> l * scalingFactorInverse);
             }
-            return BlockSourceReader.doubles(sourceValueFetcher(sourcePathsLookup.apply(name())));
+            return BlockSourceReader.doubles(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

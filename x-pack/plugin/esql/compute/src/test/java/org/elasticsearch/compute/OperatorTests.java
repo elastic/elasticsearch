@@ -226,10 +226,7 @@ public class OperatorTests extends MapperServiceTestCase {
                     },
                         new OrdinalsGroupingOperator(
                             List.of(
-                                BlockReaderFactories.loaderToFactory(
-                                    reader,
-                                    new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null, null)
-                                )
+                                BlockReaderFactories.loaderToFactory(reader, new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null))
                             ),
                             ElementType.BYTES_REF,
                             0,

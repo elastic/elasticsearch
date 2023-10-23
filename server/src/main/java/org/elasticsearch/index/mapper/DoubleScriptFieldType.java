@@ -106,8 +106,8 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     @Override
-    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
-        return DoubleScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return DoubleScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

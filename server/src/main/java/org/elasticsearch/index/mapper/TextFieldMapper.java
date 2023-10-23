@@ -69,7 +69,6 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -82,8 +81,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -939,9 +936,9 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (syntheticSourceDelegate != null) {
-                return syntheticSourceDelegate.blockLoader(lookup, sourcePathsLookup);
+                return syntheticSourceDelegate.blockLoader(blContext);
             }
             if (isSyntheticSource) {
                 if (isStored()) {
@@ -959,7 +956,7 @@ public class TextFieldMapper extends FieldMapper {
                         + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
-            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(sourcePathsLookup.apply(name())));
+            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
         }
 
         @Override

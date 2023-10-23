@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -1241,12 +1239,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
     }
 
-    @Repeat(iterations = 1000)
     public final void testBlockLoaderReadValues() throws IOException {
         testBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
     }
 
-    @Repeat(iterations = 1000)
     public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
         testBlockLoader(blockReader -> {
             TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
@@ -1262,7 +1258,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             example.mapping().accept(b);
             b.endObject();
         }));
-        BlockLoader loader = mapper.fieldType("field").blockLoader(null, mapper.mappingLookup()::sourcePaths);
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                return mapper.mappingLookup().sourcePaths(name);
+            }
+        });
         Function<Object, Object> valuesConvert = loadBlockExpected();
         if (valuesConvert == null) {
             assertNull(loader);

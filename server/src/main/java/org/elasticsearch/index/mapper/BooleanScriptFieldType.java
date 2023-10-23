@@ -30,7 +30,6 @@ import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
@@ -112,8 +111,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public BlockLoader blockLoader(SearchLookup lookup, Function<String, Set<String>> sourcePathsLookup) {
-        return BooleanScriptBlockDocValuesReader.blockLoader(leafFactory(lookup));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return BooleanScriptBlockDocValuesReader.blockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

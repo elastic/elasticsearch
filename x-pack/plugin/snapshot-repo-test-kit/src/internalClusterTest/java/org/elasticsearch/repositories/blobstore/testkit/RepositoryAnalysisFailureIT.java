@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -61,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -347,8 +349,26 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
-        return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+    public void testTimesOutSpinningRegisterAnalysis() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.timeout(TimeValue.timeValueMillis(between(1, 1000)));
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean compareAndExchangeReturnsWitness() {
+                return false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, exception.getCause()).getMessage(),
+            containsString("analysis timed out")
+        );
+    }
+
+    private void analyseRepository(RepositoryAnalyzeAction.Request request) {
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
     }
 
     private static void assertPurpose(OperationPurpose purpose) {
@@ -462,6 +482,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         default boolean createBlobOnAbort() {
             return false;
+        }
+
+        default boolean compareAndExchangeReturnsWitness() {
+            return true;
         }
 
         default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
@@ -637,8 +661,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ActionListener<OptionalBytesReference> listener
         ) {
             assertPurpose(purpose);
-            final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
-            listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
+            if (disruption.compareAndExchangeReturnsWitness()) {
+                final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
+                listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
+            } else {
+                listener.onResponse(OptionalBytesReference.MISSING);
+            }
         }
     }
 

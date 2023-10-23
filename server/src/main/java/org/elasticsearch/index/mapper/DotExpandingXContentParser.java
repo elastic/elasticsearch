@@ -181,14 +181,6 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
          */
 
         @Override
-        public String nextFieldName() throws IOException {
-            if (contentPath.isWithinLeafObject()) {
-                return super.nextFieldName();
-            }
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         public Map<String, Object> map() throws IOException {
             if (contentPath.isWithinLeafObject()) {
                 return super.map();

@@ -56,41 +56,94 @@ public interface BlockLoader {
      */
     interface BuilderFactory {
         /**
-         * Build a builder for booleans as loaded from doc values. Doc values
-         * load booleans in sorted order.
+         * Build a builder to load booleans as loaded from doc values. Doc values
+         * load booleans deduplicated and in sorted order.
          */
         BooleanBuilder booleansFromDocValues(int expectedCount);
 
+        /**
+         * Build a builder to load booleans without any loading constraints.
+         */
         BooleanBuilder booleans(int expectedCount);
 
+        /**
+         * Build a builder to load {@link BytesRef}s as loaded from doc values.
+         * Doc values load {@linkplain BytesRef}s deduplicated and in sorted order.
+         */
         BytesRefBuilder bytesRefsFromDocValues(int expectedCount);
 
+        /**
+         * Build a builder to load {@link BytesRef}s without any loading constraints.
+         */
         BytesRefBuilder bytesRefs(int expectedCount);
 
+        /**
+         * Build a builder to load doubles as loaded from doc values.
+         * Doc values load doubles deduplicated and in sorted order.
+         */
         DoubleBuilder doublesFromDocValues(int expectedCount);
 
+        /**
+         * Build a builder to load doubles without any loading constraints.
+         */
         DoubleBuilder doubles(int expectedCount);
 
+        /**
+         * Build a builder to load ints as loaded from doc values.
+         * Doc values load ints deduplicated and in sorted order.
+         */
         IntBuilder intsFromDocValues(int expectedCount);
 
+        /**
+         * Build a builder to load ints without any loading constraints.
+         */
         IntBuilder ints(int expectedCount);
 
+        /**
+         * Build a builder to load longs as loaded from doc values.
+         * Doc values load longs deduplicated and in sorted order.
+         */
         LongBuilder longsFromDocValues(int expectedCount);
 
+        /**
+         * Build a builder to load longs without any loading constraints.
+         */
         LongBuilder longs(int expectedCount);
 
+        /**
+         * Build a builder that can only load null values.
+         * TODO this should return a block directly instead of a builder
+         */
         Builder nulls(int expectedCount);
 
+        /**
+         * Build a reader for reading keyword ordinals.
+         */
         SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count);
 
         // TODO support non-singleton ords
     }
 
+    /**
+     * A builder for typed values. For each document you may either call
+     * {@link #appendNull}, {@code append<Type>}, or
+     * {@link #beginPositionEntry} followed by two or more {@code append<Type>}
+     * calls, and then {@link #endPositionEntry}.
+     */
     interface Builder {
+        /**
+         * Insert a null value.
+         */
         Builder appendNull();
 
+        /**
+         * Start a multivalued field.
+         */
         Builder beginPositionEntry();
 
+        /**
+         * End a multivalued field.
+         */
         Builder endPositionEntry();
     }
 

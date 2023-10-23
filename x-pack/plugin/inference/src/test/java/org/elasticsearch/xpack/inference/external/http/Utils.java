@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -37,5 +39,9 @@ public class Utils {
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
 
         return clusterService;
+    }
+
+    public static String getUrl(MockWebServer webServer) {
+        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 }

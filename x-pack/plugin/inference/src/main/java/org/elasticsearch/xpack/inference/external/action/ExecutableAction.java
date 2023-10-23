@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.inference.external.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
 
+/**
+ * Defines an inference request to a 3rd party service. The success or failure response is communicated through the provided listener.
+ */
 public interface ExecutableAction {
     void execute(ActionListener<InferenceResults> listener);
 }

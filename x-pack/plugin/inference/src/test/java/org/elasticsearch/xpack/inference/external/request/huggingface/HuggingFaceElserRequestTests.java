@@ -24,10 +24,7 @@ import static org.hamcrest.Matchers.is;
 
 public class HuggingFaceElserRequestTests extends ESTestCase {
     public void testCreateRequest() throws URISyntaxException, IOException {
-        var account = new HuggingFaceAccount(new URI("www.google.com"), new SecureString("secret".toCharArray()));
-        var entity = new HuggingFaceElserRequestEntity("abc");
-
-        var huggingFaceRequest = new HuggingFaceElserRequest(account, entity);
+        var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
         var httpRequest = huggingFaceRequest.createRequest();
         httpRequest.getAllHeaders();
 
@@ -44,5 +41,12 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
             {
               "inputs" : "abc"
             }"""));
+    }
+
+    public static HuggingFaceElserRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {
+        var account = new HuggingFaceAccount(new URI(url), new SecureString(apiKey.toCharArray()));
+        var entity = new HuggingFaceElserRequestEntity(input);
+
+        return new HuggingFaceElserRequest(account, entity);
     }
 }

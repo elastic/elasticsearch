@@ -48,7 +48,6 @@ public class HuggingFaceElserAction implements ExecutableAction {
         try {
             URI url = new URI(serviceSettings.url());
             HuggingFaceAccount account = new HuggingFaceAccount(url, secretSettings.apiKey());
-            // TODO wire up model
             HuggingFaceElserRequestEntity entity = new HuggingFaceElserRequestEntity(input);
             HuggingFaceElserRequest request = new HuggingFaceElserRequest(account, entity);
             HuggingFaceClient client = new HuggingFaceClient(sender);
@@ -61,7 +60,9 @@ public class HuggingFaceElserAction implements ExecutableAction {
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchStatusException("Failed to send open ai request", RestStatus.INTERNAL_SERVER_ERROR, e));
+            listener.onFailure(
+                new ElasticsearchStatusException("Failed to send request ELSER Hugging Face request", RestStatus.INTERNAL_SERVER_ERROR, e)
+            );
         }
     }
 }

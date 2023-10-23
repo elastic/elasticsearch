@@ -67,7 +67,14 @@ public class HuggingFaceElserResponseEntity {
 
     private static void parseBaseArrayNode(ArrayNode arrayNode, List<TextExpansionResults.WeightedToken> tokens) throws IOException {
         for (JsonNode baseObjectNode : arrayNode) {
-            JsonNode outputs = baseObjectNode.required("outputs");
+            JsonNode outputs;
+            try {
+                outputs = baseObjectNode.required("outputs");
+            } catch (IllegalArgumentException e) {
+                // add a more informative error message
+                throw new IllegalArgumentException("Expected ELSER Hugging Face response to have an [outputs] field");
+            }
+
             validateArray(
                 outputs,
                 format("Expected ELSER Hugging Face response node [outputs] to be an array but was [%s], skipping", outputs.getNodeType()),
@@ -126,7 +133,7 @@ public class HuggingFaceElserResponseEntity {
         if (resultTupleArray.size() != 2) {
             logger.warn(format("Expected Elser Hugging Face response result tuple to be of size 2, but was [%s]", resultTupleArray.size()));
 
-            throw new IllegalArgumentException("Expected Elser Hugging Face response result tuple to be of size 2");
+            throw new IllegalArgumentException("Expected Elser Hugging Face response result tuple to be of size two");
         }
     }
 

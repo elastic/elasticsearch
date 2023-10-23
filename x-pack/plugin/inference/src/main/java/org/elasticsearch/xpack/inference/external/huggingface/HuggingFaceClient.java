@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.huggingface;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -36,8 +37,9 @@ public class HuggingFaceClient {
             try {
                 listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
             } catch (Exception e) {
-                logger.warn(format("Failed to parse the Hugging Face ELSER response for request [%s]", httpRequest.getRequestLine()), e);
-                listener.onFailure(e);
+                String msg = format("Failed to parse the Hugging Face ELSER response for request [%s]", httpRequest.getRequestLine());
+                logger.warn(msg, e);
+                listener.onFailure(new ElasticsearchException(msg, e));
             }
         }, listener::onFailure);
 

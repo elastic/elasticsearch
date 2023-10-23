@@ -451,14 +451,17 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                     // only fail the first read, we must not fail the final check
                     listener.onResponse(OptionalBytesReference.EMPTY);
                     return;
-                } else if (randomBoolean()) {
-                    final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
-                    compareAndExchangeRegister(purpose, key, bogus, bogus, listener);
-                    return;
                 }
             }
 
-            listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
+            if (randomBoolean()) {
+                // read using a compare-and-exchange that cannot succeed, but which returns the current value anyway
+                final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
+                compareAndExchangeRegister(purpose, key, bogus, bogus, listener);
+            } else {
+                // read the register directly
+                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
+            }
         }
 
         @Override

@@ -74,38 +74,6 @@ public class Murmur3Hasher {
         }
     }
 
-    public void updateOld(byte[] inputBytes) {
-        int totalLength = remainderLength + inputBytes.length;
-        if (totalLength >= 16) {
-            // hash as many bytes as available in integer multiples of 16
-            int numBytesToHash = totalLength & 0xFFFFFFF0;
-            byte[] bytesToHash;
-            if (remainderLength > 0) {
-                bytesToHash = new byte[numBytesToHash];
-                System.arraycopy(remainder, 0, bytesToHash, 0, remainderLength);
-                System.arraycopy(inputBytes, 0, bytesToHash, remainderLength, numBytesToHash - remainderLength);
-            } else {
-                bytesToHash = inputBytes;
-            }
-
-            MurmurHash3.IntermediateResult result = MurmurHash3.intermediateHash(bytesToHash, 0, numBytesToHash, h1, h2);
-            h1 = result.h1;
-            h2 = result.h2;
-            this.length += numBytesToHash;
-
-            // save the remaining bytes, if any
-            if (totalLength > numBytesToHash) {
-                System.arraycopy(inputBytes, numBytesToHash - remainderLength, remainder, 0, totalLength - numBytesToHash);
-                remainderLength = totalLength - numBytesToHash;
-            } else {
-                remainderLength = 0;
-            }
-        } else {
-            System.arraycopy(inputBytes, 0, remainder, remainderLength, inputBytes.length);
-            remainderLength += inputBytes.length;
-        }
-    }
-
     /**
      * Clears all bytes previously passed to {@link #update(byte[])} and prepares for the calculation
      * of a new hash.

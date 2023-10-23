@@ -389,24 +389,24 @@ public class ElasticsearchAssertions {
     public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
         // when the number for shards is randomized and we expect failures
         // we can either run into partial or total failures depending on the current number of shards
-        assertResponse(searchRequestBuilder, response -> {
-            try {
+        try {
+            assertResponse(searchRequestBuilder, response -> {
                 assertThat("Expected shard failures, got none", response.getShardFailures(), not(emptyArray()));
                 for (ShardSearchFailure shardSearchFailure : response.getShardFailures()) {
                     assertThat(shardSearchFailure.status(), equalTo(restStatus));
                     assertThat(shardSearchFailure.reason(), reasonMatcher);
                 }
-            } catch (SearchPhaseExecutionException e) {
-                assertThat(e.status(), equalTo(restStatus));
-                assertThat(e.toString(), reasonMatcher);
-                for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                    assertThat(shardSearchFailure.status(), equalTo(restStatus));
-                    assertThat(shardSearchFailure.reason(), reasonMatcher);
-                }
-            } catch (Exception e) {
-                fail("SearchPhaseExecutionException expected but got " + e.getClass());
+            });
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.status(), equalTo(restStatus));
+            assertThat(e.toString(), reasonMatcher);
+            for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
+                assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
-        });
+        } catch (Exception e) {
+            fail("SearchPhaseExecutionException expected but got " + e.getClass());
+        }
     }
 
     public static void assertNoFailures(BaseBroadcastResponse response) {

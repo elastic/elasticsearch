@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -80,6 +82,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.blobstore.testkit.BlobAnalyzeAction.MAX_ATOMIC_WRITE_SIZE;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
 /**
@@ -93,6 +97,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
     public static final RepositoryAnalyzeAction INSTANCE = new RepositoryAnalyzeAction();
     public static final String NAME = "cluster:admin/repository/analyze";
+
+    static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
 
     private RepositoryAnalyzeAction() {
         super(NAME, Response::new);
@@ -364,6 +370,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         private final DiscoveryNodes discoveryNodes;
         private final LongSupplier currentTimeMillisSupplier;
         private final ActionListener<Response> listener;
+        private final SubscribableListener<Void> cancellationListener;
         private final long timeoutTimeMillis;
 
         // choose the blob path nondeterministically to avoid clashes, assuming that the actual path doesn't matter for reproduction
@@ -394,15 +401,24 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             this.discoveryNodes = discoveryNodes;
             this.currentTimeMillisSupplier = currentTimeMillisSupplier;
             this.timeoutTimeMillis = currentTimeMillisSupplier.getAsLong() + request.getTimeout().millis();
-            this.listener = listener;
+
+            this.cancellationListener = new SubscribableListener<>();
+            this.listener = ActionListener.runBefore(listener, () -> cancellationListener.onResponse(null));
 
             responses = new ArrayList<>(request.blobCount);
         }
 
-        private void fail(Exception e) {
+        private boolean setFirstFailure(Exception e) {
             if (failure.compareAndSet(null, e)) {
                 transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
+                return true;
             } else {
+                return false;
+            }
+        }
+
+        private void fail(Exception e) {
+            if (setFirstFailure(e) == false) {
                 if (innerFailures.tryAcquire()) {
                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof TaskCancelledException || cause instanceof ReceiveTimeoutTransportException) {
@@ -424,24 +440,34 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
 
             if (task.isCancelled()) {
-                failure.compareAndSet(null, new RepositoryVerificationException(request.repositoryName, "verification cancelled"));
+                setFirstFailure(new RepositoryVerificationException(request.repositoryName, "verification cancelled"));
                 // if this CAS failed then we're failing for some other reason, nbd; also if the task is cancelled then its descendants are
                 // also cancelled, so no further action is needed either way.
                 return false;
             }
 
-            if (timeoutTimeMillis < currentTimeMillisSupplier.getAsLong()) {
-                if (failure.compareAndSet(
-                    null,
-                    new RepositoryVerificationException(request.repositoryName, "analysis timed out after [" + request.getTimeout() + "]")
-                )) {
-                    transportService.getTaskManager().cancelTaskAndDescendants(task, "timed out", false, ActionListener.noop());
-                }
-                // if this CAS failed then we're already failing for some other reason, nbd
-                return false;
+            return true;
+        }
+
+        private class CheckForCancelListener implements ActionListener<Void> {
+            @Override
+            public void onResponse(Void unused) {
+                // task complete, nothing to do
             }
 
-            return true;
+            @Override
+            public void onFailure(Exception e) {
+                assert e instanceof ElasticsearchTimeoutException : e;
+                if (isRunning()) {
+                    // if this CAS fails then we're already failing for some other reason, nbd
+                    setFirstFailure(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "analysis timed out after [" + request.getTimeout() + "]"
+                        )
+                    );
+                }
+            }
         }
 
         public void run() {
@@ -450,23 +476,28 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             logger.info("running analysis of repository [{}] using path [{}]", request.getRepositoryName(), blobPath);
 
+            cancellationListener.addTimeout(request.getTimeout(), repository.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            cancellationListener.addListener(new CheckForCancelListener());
+
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
-            final String registerName = "test-register-" + UUIDs.randomBase64UUID(random);
-            try (var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(registerName, random, requestRefs.acquire()))) {
+            final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
+            try (
+                var registerRefs = new RefCountingRunnable(finalRegisterValueVerifier(contendedRegisterName, random, requestRefs.acquire()))
+            ) {
                 final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
                 for (int i = 0; i < registerOperations; i++) {
-                    final RegisterAnalyzeAction.Request registerAnalyzeRequest = new RegisterAnalyzeAction.Request(
+                    final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
                         request.getRepositoryName(),
                         blobPath,
-                        registerName,
+                        contendedRegisterName,
                         registerOperations,
                         random.nextInt((registerOperations + 1) * 2)
                     );
                     final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
                     final Releasable registerRef = registerRefs.acquire();
-                    queue.add(ref -> runRegisterAnalysis(Releasables.wrap(registerRef, ref), registerAnalyzeRequest, node));
+                    queue.add(ref -> runContendedRegisterAnalysis(Releasables.wrap(registerRef, ref), registerAnalyzeRequest, node));
                 }
             }
 
@@ -536,7 +567,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                     BlobAnalyzeAction.NAME,
                     request,
                     task,
-                    TransportRequestOptions.timeout(TimeValue.timeValueMillis(timeoutTimeMillis - currentTimeMillisSupplier.getAsLong())),
+                    TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
                         public void onResponse(BlobAnalyzeAction.Response response) {
@@ -568,11 +599,11 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             return repository.blobStore().blobContainer(repository.basePath().add(blobPath));
         }
 
-        private void runRegisterAnalysis(Releasable ref, RegisterAnalyzeAction.Request request, DiscoveryNode node) {
+        private void runContendedRegisterAnalysis(Releasable ref, ContendedRegisterAnalyzeAction.Request request, DiscoveryNode node) {
             if (node.getVersion().onOrAfter(Version.V_8_8_0) && isRunning()) {
                 transportService.sendChildRequest(
                     node,
-                    RegisterAnalyzeAction.NAME,
+                    ContendedRegisterAnalyzeAction.NAME,
                     request,
                     task,
                     TransportRequestOptions.EMPTY,
@@ -604,9 +635,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             @Override
                             public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
                                 if (actualFinalRegisterValue.isPresent() == false
-                                    || RegisterAnalyzeAction.longFromBytes(
-                                        actualFinalRegisterValue.bytesReference()
-                                    ) != expectedFinalRegisterValue) {
+                                    || longFromBytes(actualFinalRegisterValue.bytesReference()) != expectedFinalRegisterValue) {
                                     fail(
                                         new RepositoryVerificationException(
                                             request.getRepositoryName(),
@@ -634,18 +663,18 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
                                     OperationPurpose.REPOSITORY_ANALYSIS,
                                     registerName,
-                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
                                     OperationPurpose.REPOSITORY_ANALYSIS,
                                     registerName,
-                                    RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener.map(
                                         b -> b
-                                            ? OptionalBytesReference.of(RegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue))
+                                            ? OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue))
                                             : OptionalBytesReference.MISSING
                                     )
                                 );

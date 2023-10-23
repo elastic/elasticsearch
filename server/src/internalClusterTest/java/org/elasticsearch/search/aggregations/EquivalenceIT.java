@@ -152,7 +152,7 @@ public class EquivalenceIT extends ESIntegTestCase {
             }
         }
 
-        SearchRequestBuilder reqBuilder = client().prepareSearch("idx").addAggregation(query);
+        SearchRequestBuilder reqBuilder = prepareSearch("idx").addAggregation(query);
         for (int i = 0; i < ranges.length; ++i) {
             RangeQueryBuilder filter = QueryBuilders.rangeQuery("values");
             if (ranges[i][0] != Double.NEGATIVE_INFINITY) {
@@ -254,13 +254,12 @@ public class EquivalenceIT extends ESIntegTestCase {
 
         assertNoFailures(indicesAdmin().prepareRefresh("idx").setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
 
-        SearchResponse resp = client().prepareSearch("idx")
-            .addAggregation(
-                terms("long").field("long_values")
-                    .size(maxNumTerms)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .subAggregation(min("min").field("num"))
-            )
+        SearchResponse resp = prepareSearch("idx").addAggregation(
+            terms("long").field("long_values")
+                .size(maxNumTerms)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .subAggregation(min("min").field("num"))
+        )
             .addAggregation(
                 terms("double").field("double_values")
                     .size(maxNumTerms)
@@ -356,15 +355,12 @@ public class EquivalenceIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("interval", interval);
 
-        SearchResponse resp = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").field("values")
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", params))
-                    .size(maxNumTerms)
-            )
-            .addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1))
-            .get();
+        SearchResponse resp = prepareSearch("idx").addAggregation(
+            terms("terms").field("values")
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / interval)", params))
+                .size(maxNumTerms)
+        ).addAggregation(histogram("histo").field("values").interval(interval).minDocCount(1)).get();
 
         assertNoFailures(resp);
 
@@ -402,13 +398,11 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
         indexRandom(true, indexingRequests);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("terms").field("double_value")
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .subAggregation(percentiles("pcts").field("double_value"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms("terms").field("double_value")
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .subAggregation(percentiles("pcts").field("double_value"))
+        ).get();
         assertAllSuccessful(response);
         assertEquals(numDocs, response.getHits().getTotalHits().value);
     }
@@ -418,13 +412,11 @@ public class EquivalenceIT extends ESIntegTestCase {
         createIndex("idx");
         final int value = randomIntBetween(0, 10);
         indexRandom(true, client().prepareIndex("idx").setSource("f", value));
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
-                    range("range").field("f").addUnboundedTo(6).addUnboundedFrom(6).subAggregation(sum("sum").field("f"))
-                )
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            filter("filter", QueryBuilders.matchAllQuery()).subAggregation(
+                range("range").field("f").addUnboundedTo(6).addUnboundedFrom(6).subAggregation(sum("sum").field("f"))
             )
-            .get();
+        ).get();
 
         assertNoFailures(response);
 
@@ -481,29 +473,25 @@ public class EquivalenceIT extends ESIntegTestCase {
         }
         indexRandom(true, reqs);
 
-        final SearchResponse r1 = client().prepareSearch("idx")
-            .addAggregation(
-                terms("f1").field("f1")
-                    .collectMode(SubAggCollectionMode.DEPTH_FIRST)
-                    .subAggregation(
-                        terms("f2").field("f2")
-                            .collectMode(SubAggCollectionMode.DEPTH_FIRST)
-                            .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.DEPTH_FIRST))
-                    )
-            )
-            .get();
+        final SearchResponse r1 = prepareSearch("idx").addAggregation(
+            terms("f1").field("f1")
+                .collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                .subAggregation(
+                    terms("f2").field("f2")
+                        .collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                        .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.DEPTH_FIRST))
+                )
+        ).get();
         assertNoFailures(r1);
-        final SearchResponse r2 = client().prepareSearch("idx")
-            .addAggregation(
-                terms("f1").field("f1")
-                    .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                    .subAggregation(
-                        terms("f2").field("f2")
-                            .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                            .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST))
-                    )
-            )
-            .get();
+        final SearchResponse r2 = prepareSearch("idx").addAggregation(
+            terms("f1").field("f1")
+                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                .subAggregation(
+                    terms("f2").field("f2")
+                        .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                        .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST))
+                )
+        ).get();
         assertNoFailures(r2);
 
         final Terms t1 = r1.getAggregations().get("f1");

@@ -40,21 +40,19 @@ public class HiddenIndexIT extends ESIntegTestCase {
         client().prepareIndex("hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         // default not visible to wildcard expansion
-        SearchResponse searchResponse = client().prepareSearch(randomFrom("*", "_all", "h*", "*index"))
-            .setSize(1000)
+        SearchResponse searchResponse = prepareSearch(randomFrom("*", "_all", "h*", "*index")).setSize(1000)
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
         boolean matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> "hidden-index".equals(hit.getIndex()));
         assertFalse(matchedHidden);
 
         // direct access allowed
-        searchResponse = client().prepareSearch("hidden-index").setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("hidden-index").setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> "hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);
 
         // with indices option to include hidden
-        searchResponse = client().prepareSearch(randomFrom("*", "_all", "h*", "*index"))
-            .setSize(1000)
+        searchResponse = prepareSearch(randomFrom("*", "_all", "h*", "*index")).setSize(1000)
             .setQuery(QueryBuilders.matchAllQuery())
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_HIDDEN)
             .get();
@@ -64,16 +62,13 @@ public class HiddenIndexIT extends ESIntegTestCase {
         // implicit based on use of pattern starting with . and a wildcard
         assertAcked(indicesAdmin().prepareCreate(".hidden-index").setSettings(Settings.builder().put("index.hidden", true).build()).get());
         client().prepareIndex(".hidden-index").setSource("foo", "bar").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
-        searchResponse = client().prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch(randomFrom(".*", ".hidden-*")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> ".hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);
 
         // make index not hidden
         updateIndexSettings(Settings.builder().put("index.hidden", false), "hidden-index");
-        searchResponse = client().prepareSearch(randomFrom("*", "_all", "h*", "*index"))
-            .setSize(1000)
-            .setQuery(QueryBuilders.matchAllQuery())
-            .get();
+        searchResponse = prepareSearch(randomFrom("*", "_all", "h*", "*index")).setSize(1000).setQuery(QueryBuilders.matchAllQuery()).get();
         matchedHidden = Arrays.stream(searchResponse.getHits().getHits()).anyMatch(hit -> "hidden-index".equals(hit.getIndex()));
         assertTrue(matchedHidden);
     }

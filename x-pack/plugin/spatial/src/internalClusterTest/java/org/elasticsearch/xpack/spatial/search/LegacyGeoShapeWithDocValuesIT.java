@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -25,8 +24,8 @@ import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
@@ -103,7 +102,6 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         }));
 
         // test self crossing of circles
-        SearchResponse searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))), 1L);
     }
 }

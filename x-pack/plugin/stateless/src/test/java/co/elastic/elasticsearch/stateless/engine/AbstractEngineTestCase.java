@@ -73,7 +73,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -292,7 +292,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             threadPool,
             ThreadPool.Names.GENERIC
         );
-        var directory = new SearchDirectory(cache, shardId, Meter.NOOP);
+        var directory = new SearchDirectory(cache, shardId, MeterRegistry.NOOP);
         directory.setBlobContainer(primaryTerm -> storeBlobContainer(indexEngine.getEngineConfig().getStore()));
         if (copyInitialMetadata) {
             Store.MetadataSnapshot latestMetadata = indexEngine.getEngineConfig().getStore().getMetadata(null);
@@ -350,7 +350,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
-        var directory = new SearchDirectory(null, shardId, Meter.NOOP);
+        var directory = new SearchDirectory(null, shardId, MeterRegistry.NOOP);
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         return new EngineConfig(
             shardId,

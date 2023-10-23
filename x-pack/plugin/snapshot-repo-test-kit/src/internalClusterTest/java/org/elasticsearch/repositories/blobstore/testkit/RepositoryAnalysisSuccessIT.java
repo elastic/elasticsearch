@@ -443,24 +443,17 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         @Override
         public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
             assertPurpose(purpose);
-
-            if (isContendedRegisterKey(key)) {
-                // it's ok if _contended_ register accesses are a little disrupted since they retry until success
-
-                if (firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
-                    // only fail the first read, we must not fail the final check
-                    listener.onResponse(OptionalBytesReference.EMPTY);
-                    return;
-                }
-            }
-
-            if (randomBoolean()) {
+            if (isContendedRegisterKey(key) && firstRegisterRead.compareAndSet(true, false) && randomBoolean() && randomBoolean()) {
+                // it's ok if _contended_ register accesses are a little disrupted since they retry until success, however,
+                // only fail the first read, we must not fail the final check
+                listener.onResponse(OptionalBytesReference.EMPTY);
+            } else if (randomBoolean()) {
+                // read the register directly
+                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
+            } else {
                 // read using a compare-and-exchange that cannot succeed, but which returns the current value anyway
                 final var bogus = randomFrom(BytesArray.EMPTY, new BytesArray(new byte[] { randomByte() }));
                 compareAndExchangeRegister(purpose, key, bogus, bogus, listener);
-            } else {
-                // read the register directly
-                listener.onResponse(OptionalBytesReference.of(registers.computeIfAbsent(key, ignored -> new BytesRegister()).get()));
             }
         }
 

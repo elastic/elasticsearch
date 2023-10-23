@@ -15,24 +15,50 @@ import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
+/**
+ * Interface for loading data in a block shape. Instances of this class
+ * must be immutable and thread safe.
+ */
 public interface BlockLoader {
+    /**
+     * Build a {@link LeafReaderContext leaf} level reader.
+     */
     BlockDocValuesReader reader(LeafReaderContext context) throws IOException;
 
+    /**
+     * Does this loader support loading bytes via calling {@link #ordinals}.
+     */
     default boolean supportsOrdinals() {
         return false;
     }
 
+    /**
+     * Load ordinals for the provided context.
+     */
     default SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
         throw new IllegalStateException("ordinals not supported");
     }
 
+    /**
+     * A list of documents to load.
+     */
     interface Docs {
         int count();
 
         int get(int i);
     }
 
+    /**
+     * Builds block "builders" for loading data into blocks for the compute engine.
+     * It's important for performance that this only have one implementation in
+     * production code. That implementation sits in the "compute" project. The is
+     * also a test implementation, but there may be no more other implementations.
+     */
     interface BuilderFactory {
+        /**
+         * Build a builder for booleans as loaded from doc values. Doc values
+         * load booleans in sorted order.
+         */
         BooleanBuilder booleansFromDocValues(int expectedCount);
 
         BooleanBuilder booleans(int expectedCount);

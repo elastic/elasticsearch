@@ -140,7 +140,7 @@ unsupported:
   - match: { values.0.8: 10 }
   - match: { values.0.9: 10 }
   - match: { values.0.10: "192.168.0.1" }
-  - match: { values.0.11: null}
+  - match: { values.0.11: null }
   - match: { values.0.12: "foo" }
   - match: { values.0.13: "foo" }
   - match: { values.0.14: 20 }

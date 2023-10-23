@@ -338,7 +338,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     }
                 }
 
-                // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two factories (regular + stats) + union
+                // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
                 // use the stats since the attributes are larger in size (due to seen)
                 if (tuple.v2().size() == aggregateExec.aggregates().size()) {
                     plan = new EsStatsQueryExec(

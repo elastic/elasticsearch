@@ -61,6 +61,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -304,9 +306,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             @Override
             public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (registerWasCorrupted.compareAndSet(false, true)) {
-                    register.updateAndGet(
-                        bytes -> ContendedRegisterAnalyzeAction.bytesFromLong(ContendedRegisterAnalyzeAction.longFromBytes(bytes) + 1)
-                    );
+                    register.updateAndGet(bytes -> bytesFromLong(longFromBytes(bytes) + 1));
                 }
                 return register.compareAndExchange(expected, updated);
             }
@@ -323,9 +323,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             @Override
             public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
-                    final var currentValue = ContendedRegisterAnalyzeAction.longFromBytes(register.get());
+                    final var currentValue = longFromBytes(register.get());
                     if (currentValue == expectedMax) {
-                        return ContendedRegisterAnalyzeAction.bytesFromLong(
+                        return bytesFromLong(
                             randomFrom(
                                 randomLongBetween(0L, expectedMax - 1),
                                 randomLongBetween(expectedMax + 1, Long.MAX_VALUE),
@@ -333,7 +333,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                             )
                         );
                     } else {
-                        return ContendedRegisterAnalyzeAction.bytesFromLong(
+                        return bytesFromLong(
                             randomFrom(expectedMax, randomLongBetween(expectedMax, Long.MAX_VALUE), randomLongBetween(Long.MIN_VALUE, -1))
                         );
                     }

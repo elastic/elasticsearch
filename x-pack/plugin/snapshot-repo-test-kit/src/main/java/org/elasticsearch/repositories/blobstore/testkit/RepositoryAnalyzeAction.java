@@ -83,6 +83,8 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.repositories.blobstore.testkit.BlobAnalyzeAction.MAX_ATOMIC_WRITE_SIZE;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
+import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit.humanReadableNanos;
 
 /**
@@ -652,9 +654,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             @Override
                             public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
                                 if (actualFinalRegisterValue.isPresent() == false
-                                    || ContendedRegisterAnalyzeAction.longFromBytes(
-                                        actualFinalRegisterValue.bytesReference()
-                                    ) != expectedFinalRegisterValue) {
+                                    || longFromBytes(actualFinalRegisterValue.bytesReference()) != expectedFinalRegisterValue) {
                                     fail(
                                         new RepositoryVerificationException(
                                             request.getRepositoryName(),
@@ -682,20 +682,18 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                                 case 1 -> getBlobContainer().compareAndExchangeRegister(
                                     OperationPurpose.REPOSITORY_ANALYSIS,
                                     registerName,
-                                    ContendedRegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener
                                 );
                                 case 2 -> getBlobContainer().compareAndSetRegister(
                                     OperationPurpose.REPOSITORY_ANALYSIS,
                                     registerName,
-                                    ContendedRegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue),
+                                    bytesFromLong(expectedFinalRegisterValue),
                                     new BytesArray(new byte[] { (byte) 0xff }),
                                     listener.map(
                                         b -> b
-                                            ? OptionalBytesReference.of(
-                                                ContendedRegisterAnalyzeAction.bytesFromLong(expectedFinalRegisterValue)
-                                            )
+                                            ? OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue))
                                             : OptionalBytesReference.MISSING
                                     )
                                 );

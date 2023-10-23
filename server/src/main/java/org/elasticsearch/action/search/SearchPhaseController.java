@@ -63,6 +63,8 @@ import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
@@ -163,7 +165,8 @@ public final class SearchPhaseController {
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
             Integer topK = source.knnSearch().get(i).k();
-            TopDocs mergedTopDocs = TopDocs.merge(topK != null ? topK : source.size(), topDocsLists.get(i).toArray(new TopDocs[0]));
+            int size = source.size() == -1 ? DEFAULT_SIZE : source.size();
+            TopDocs mergedTopDocs = TopDocs.merge(topK != null ? topK : size, topDocsLists.get(i).toArray(new TopDocs[0]));
             mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
         }
         return mergedResults;
@@ -689,10 +692,10 @@ public final class SearchPhaseController {
      */
     static int getTopDocsSize(SearchRequest request) {
         if (request.source() == null) {
-            return SearchService.DEFAULT_SIZE;
+            return DEFAULT_SIZE;
         }
         SearchSourceBuilder source = request.source();
-        return (source.size() == -1 ? SearchService.DEFAULT_SIZE : source.size()) + (source.from() == -1
+        return (source.size() == -1 ? DEFAULT_SIZE : source.size()) + (source.from() == -1
             ? SearchService.DEFAULT_FROM
             : source.from());
     }

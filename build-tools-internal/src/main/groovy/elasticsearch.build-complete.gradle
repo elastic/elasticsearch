@@ -10,6 +10,10 @@ import org.elasticsearch.gradle.util.GradleUtils
 
 import java.nio.file.Files
 
+gradle.getSharedServices().getRegistrations().configureEach {
+  println "it = ${it.name}"
+}
+
 String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
 Boolean isNested = System.getProperty("scan.tag.NESTED") != null
@@ -27,6 +31,7 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
       ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
         fileset(dir: projectDir) {
           Set<File> fileSet = fileTree(projectDir) {
+            followSymlinks = false
             include("**/*.hprof")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")

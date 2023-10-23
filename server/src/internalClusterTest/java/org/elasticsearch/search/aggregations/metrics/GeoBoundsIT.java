@@ -26,9 +26,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
 
     public void testSingleValuedFieldNearDateLine() {
-        SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
-            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
-            .get();
+        SearchResponse response = prepareSearch(DATELINE_IDX_NAME).addAggregation(
+            boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(false)
+        ).get();
 
         assertNoFailures(response);
 
@@ -50,9 +50,9 @@ public class GeoBoundsIT extends SpatialBoundsAggregationTestBase<GeoPoint> {
 
         GeoPoint geoValuesTopLeft = new GeoPoint(38, 170);
         GeoPoint geoValuesBottomRight = new GeoPoint(-24, -175);
-        SearchResponse response = client().prepareSearch(DATELINE_IDX_NAME)
-            .addAggregation(boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(true))
-            .get();
+        SearchResponse response = prepareSearch(DATELINE_IDX_NAME).addAggregation(
+            boundsAgg(aggName(), SINGLE_VALUED_FIELD_NAME).wrapLongitude(true)
+        ).get();
 
         assertNoFailures(response);
 

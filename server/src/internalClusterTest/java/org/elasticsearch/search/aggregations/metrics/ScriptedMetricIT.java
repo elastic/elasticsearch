@@ -359,8 +359,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op aggregation", Collections.emptyMap());
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op list aggregation", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(scriptedMetric("scripted").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
         assertNoFailures(response);
@@ -402,8 +401,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op aggregation", Collections.emptyMap());
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op list aggregation", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(aggregationParams)
                     .mapScript(mapScript)
@@ -451,8 +449,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("vars", varsMap);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params)
                     .initScript(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "vars.multiplier = 3", Collections.emptyMap()))
@@ -511,8 +508,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op list aggregation", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
@@ -570,8 +566,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op list aggregation", Collections.emptyMap());
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params)
                     .initScript(initScript)
@@ -638,8 +633,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params)
                     .initScript(initScript)
@@ -694,8 +688,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 global("global").subAggregation(
                     scriptedMetric("scripted").params(params)
@@ -759,8 +752,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
@@ -805,8 +797,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params)
                     .initScript(initScript)
@@ -853,8 +844,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
@@ -907,8 +897,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             reduceParams
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params)
                     .initScript(initScript)
@@ -942,8 +931,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("vars", varsMap);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params)
                     .initScript(new Script(ScriptType.STORED, null, "initScript_stored", Collections.emptyMap()))
@@ -997,8 +985,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch("idx").setQuery(matchAllQuery())
             .setSize(1000)
             .addAggregation(
                 histogram("histo").field("l_value")
@@ -1070,8 +1057,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(
                 histogram("histo").field("value")
                     .interval(1L)
@@ -1125,7 +1111,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,
@@ -1144,8 +1129,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
 
         // Test that a non-deterministic init script causes the result to not be cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 scriptedMetric("foo").initScript(ndInitScript).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             )
@@ -1162,8 +1146,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
 
         // Test that a non-deterministic map script causes the result to not be cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(ndMapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
         assertNoFailures(r);
@@ -1178,8 +1161,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
 
         // Test that a non-deterministic combine script causes the result to not be cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(ndRandom).reduceScript(reduceScript))
             .get();
         assertNoFailures(r);
@@ -1194,8 +1176,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
 
         // NOTE: random reduce scripts don't hit the query shard context (they are done on the coordinator) and so can be cached.
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(ndRandom))
             .get();
         assertNoFailures(r);
@@ -1210,8 +1191,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         );
 
         // Test that all deterministic scripts cause the request to be cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(scriptedMetric("foo").mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript))
             .get();
         assertNoFailures(r);
@@ -1232,8 +1212,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         Script combineScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op aggregation", Collections.emptyMap());
         Script reduceScript = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "no-op list aggregation", Collections.emptyMap());
 
-        SearchRequestBuilder builder = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchRequestBuilder builder = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 scriptedMetric("scripted").params(params).mapScript(mapScript).combineScript(combineScript).reduceScript(reduceScript)
             );

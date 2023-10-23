@@ -99,8 +99,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
         for (String index : new String[] { "idx", "idx-sort" }) {
             // asc sort
             {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .get();
@@ -114,8 +113,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // desc sort
             {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.DESC)
                     .get();
@@ -129,8 +127,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // asc sort with search_after as Long
             {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new Long[] { 100L })
@@ -145,8 +142,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // asc sort with search_after as BigInteger
             {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new BigInteger[] { new BigInteger("18446744073709551614") })
@@ -161,8 +157,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // asc sort with search_after as BigInteger in String format
             {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new String[] { "18446744073709551614" })
@@ -177,8 +172,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // asc sort with search_after of negative value should fail
             {
-                SearchRequestBuilder srb = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchRequestBuilder srb = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new Long[] { -1L });
@@ -187,8 +181,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // asc sort with search_after of value>=2^64 should fail
             {
-                SearchRequestBuilder srb = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchRequestBuilder srb = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.ASC)
                     .searchAfter(new BigInteger[] { new BigInteger("18446744073709551616") });
@@ -197,8 +190,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
             }
             // desc sort with search_after as BigInteger
             {
-                SearchResponse response = client().prepareSearch(index)
-                    .setQuery(QueryBuilders.matchAllQuery())
+                SearchResponse response = prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numDocs)
                     .addSort("ul_field", SortOrder.DESC)
                     .searchAfter(new BigInteger[] { new BigInteger("18446744073709551615") })
@@ -217,7 +209,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
     public void testAggs() {
         // terms agg
         {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(terms("ul_terms").field("ul_field")).get();
+            SearchResponse response = prepareSearch("idx").setSize(0).addAggregation(terms("ul_terms").field("ul_field")).get();
             assertNoFailures(response);
             Terms terms = response.getAggregations().get("ul_terms");
 
@@ -240,8 +232,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
 
         // histogram agg
         {
-            SearchResponse response = client().prepareSearch("idx")
-                .setSize(0)
+            SearchResponse response = prepareSearch("idx").setSize(0)
                 .addAggregation(histogram("ul_histo").field("ul_field").interval(9E18).minDocCount(0))
                 .get();
             assertNoFailures(response);
@@ -259,8 +250,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
 
         // range agg
         {
-            SearchResponse response = client().prepareSearch("idx")
-                .setSize(0)
+            SearchResponse response = prepareSearch("idx").setSize(0)
                 .addAggregation(
                     range("ul_range").field("ul_field").addUnboundedTo(9.0E18).addRange(9.0E18, 1.8E19).addUnboundedFrom(1.8E19)
                 )
@@ -280,7 +270,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
 
         // sum agg
         {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(sum("ul_sum").field("ul_field")).get();
+            SearchResponse response = prepareSearch("idx").setSize(0).addAggregation(sum("ul_sum").field("ul_field")).get();
             assertNoFailures(response);
             Sum sum = response.getAggregations().get("ul_sum");
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
@@ -288,14 +278,14 @@ public class UnsignedLongTests extends ESIntegTestCase {
         }
         // max agg
         {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
+            SearchResponse response = prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
             assertNoFailures(response);
             Max max = response.getAggregations().get("ul_max");
             assertEquals(1.8446744073709551615E19, max.value(), 0.001);
         }
         // min agg
         {
-            SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")).get();
+            SearchResponse response = prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")).get();
             assertNoFailures(response);
             Min min = response.getAggregations().get("ul_min");
             assertEquals(0, min.value(), 0.001);
@@ -305,11 +295,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
     public void testSortDifferentFormatsShouldFail() {
         Exception exception = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch()
-                .setIndices("idx", "idx2")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .addSort("ul_field", SortOrder.ASC)
-                .get()
+            () -> prepareSearch().setIndices("idx", "idx2").setQuery(QueryBuilders.matchAllQuery()).addSort("ul_field", SortOrder.ASC).get()
         );
         assertEquals(
             exception.getCause().getMessage(),
@@ -318,17 +304,15 @@ public class UnsignedLongTests extends ESIntegTestCase {
     }
 
     public void testRangeQuery() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setSize(0)
+        SearchResponse response = prepareSearch("idx").setSize(0)
             .setQuery(new RangeQueryBuilder("ul_field").to("9.0E18").includeUpper(false))
             .get();
         assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        response = client().prepareSearch("idx")
-            .setSize(0)
+        response = prepareSearch("idx").setSize(0)
             .setQuery(new RangeQueryBuilder("ul_field").from("9.0E18").to("1.8E19").includeUpper(false))
             .get();
         assertThat(response.getHits().getTotalHits().value, equalTo(3L));
-        response = client().prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")).get();
+        response = prepareSearch("idx").setSize(0).setQuery(new RangeQueryBuilder("ul_field").from("1.8E19")).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(4L));
     }
 }

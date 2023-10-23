@@ -782,15 +782,15 @@ public class TasksIT extends ESIntegTestCase {
 
         assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
-        SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action())))
-            .get();
+        SearchResponse searchResponse = prepareSearch(TaskResultsService.TASK_INDEX).setSource(
+            SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action()))
+        ).get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
-        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.taskId().getNodeId())))
-            .get();
+        searchResponse = prepareSearch(TaskResultsService.TASK_INDEX).setSource(
+            SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.taskId().getNodeId()))
+        ).get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 

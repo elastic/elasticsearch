@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.metrics.Meter;
 
@@ -50,11 +50,11 @@ public abstract class AbstractInstrument<T> implements Instrument {
         return unit.toString();
     }
 
-    T getInstrument() {
+    protected T getInstrument() {
         return delegate.get();
     }
 
-    String getDescription() {
+    protected String getDescription() {
         return description;
     }
 
@@ -62,5 +62,5 @@ public abstract class AbstractInstrument<T> implements Instrument {
         delegate.set(doBuildInstrument(Objects.requireNonNull(meter)));
     }
 
-    abstract T buildInstrument(Meter meter);
+    protected abstract T buildInstrument(Meter meter);
 }

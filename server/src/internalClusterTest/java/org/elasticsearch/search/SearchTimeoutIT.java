@@ -55,8 +55,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98369")
     public void testTopHitsTimeout() {
         indexDocs();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+        SearchResponse searchResponse = prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .get();
         assertThat(searchResponse.isTimedOut(), equalTo(true));
@@ -71,8 +70,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98053")
     public void testAggsTimeout() {
         indexDocs();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+        SearchResponse searchResponse = prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
             .setSize(0)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"))
@@ -96,8 +94,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
         ElasticsearchException ex = expectThrows(
             ElasticsearchException.class,
-            () -> client().prepareSearch("test")
-                .setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
+            () -> prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.MILLISECONDS))
                 .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
                 .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
                 .get()

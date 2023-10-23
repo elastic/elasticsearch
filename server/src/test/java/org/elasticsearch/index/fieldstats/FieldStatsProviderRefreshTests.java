@@ -29,7 +29,6 @@ public class FieldStatsProviderRefreshTests extends ESSingleNodeTestCase {
             indicesAdmin().prepareCreate("index")
                 .setMapping("s", "type=text")
                 .setSettings(indexSettings(1, 0).put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
 
         // Index some documents

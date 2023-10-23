@@ -107,7 +107,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         }
 
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("index").setSize(numDocs * 2).addStoredField("_id").get();
+        SearchResponse searchResponse = prepareSearch("index").setSize(numDocs * 2).addStoredField("_id").get();
 
         Set<String> uniqueIds = new HashSet<>();
         long dupCounter = 0;
@@ -115,10 +115,9 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             if (uniqueIds.add(searchResponse.getHits().getHits()[i].getId()) == false) {
                 if (found_duplicate_already == false) {
-                    SearchResponse dupIdResponse = client().prepareSearch("index")
-                        .setQuery(termQuery("_id", searchResponse.getHits().getHits()[i].getId()))
-                        .setExplain(true)
-                        .get();
+                    SearchResponse dupIdResponse = prepareSearch("index").setQuery(
+                        termQuery("_id", searchResponse.getHits().getHits()[i].getId())
+                    ).setExplain(true).get();
                     assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {

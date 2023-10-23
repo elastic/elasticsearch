@@ -52,6 +52,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1, supportsDedicatedMasters = false)
 public class DownsampleTransportFailureIT extends ESIntegTestCase {
 
@@ -222,11 +224,9 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         assertFalse(bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().hasFailures());
     }
 
-    public void blockIndexWrites(final String indexName) throws ExecutionException, InterruptedException {
+    public void blockIndexWrites(final String indexName) {
         final Settings blockWritesSetting = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-        assertTrue(
-            client().admin().indices().updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName)).get().isAcknowledged()
-        );
+        assertAcked(client().admin().indices().updateSettings(new UpdateSettingsRequest(blockWritesSetting, indexName)));
     }
 
     private void createTimeSeriesIndex(final String indexName) throws IOException {

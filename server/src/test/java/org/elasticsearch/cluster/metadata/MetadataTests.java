@@ -36,6 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.IngestMetadata;
@@ -774,19 +775,19 @@ public class MetadataTests extends ESTestCase {
 
     public void testOldestIndexComputation() {
         Metadata metadata = buildIndicesWithVersions(
-            IndexVersion.V_7_0_0,
+            IndexVersions.V_7_0_0,
             IndexVersion.current(),
             IndexVersion.fromId(IndexVersion.current().id() + 1)
         ).build();
 
-        assertEquals(IndexVersion.V_7_0_0, metadata.oldestIndexVersion());
+        assertEquals(IndexVersions.V_7_0_0, metadata.oldestIndexVersion());
 
         Metadata.Builder b = Metadata.builder();
         assertEquals(IndexVersion.current(), b.build().oldestIndexVersion());
 
         Throwable ex = expectThrows(
             IllegalArgumentException.class,
-            () -> buildIndicesWithVersions(IndexVersion.V_7_0_0, IndexVersion.ZERO, IndexVersion.fromId(IndexVersion.current().id() + 1))
+            () -> buildIndicesWithVersions(IndexVersions.V_7_0_0, IndexVersions.ZERO, IndexVersion.fromId(IndexVersion.current().id() + 1))
                 .build()
         );
 
@@ -1873,8 +1874,8 @@ public class MetadataTests extends ESTestCase {
     public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersion.V_7_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
@@ -1923,8 +1924,8 @@ public class MetadataTests extends ESTestCase {
     public void testSystemAliasOldSystemAndNewRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersion.V_7_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
         final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
         final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, IndexVersion.current(), false);
@@ -1936,8 +1937,8 @@ public class MetadataTests extends ESTestCase {
     public void testSystemIndexValidationAllRegular() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersion.V_7_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
@@ -1950,8 +1951,8 @@ public class MetadataTests extends ESTestCase {
     public void testSystemAliasValidationAllSystemSomeOld() {
         final IndexVersion random7xVersion = IndexVersionUtils.randomVersionBetween(
             random(),
-            IndexVersion.V_7_0_0,
-            IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+            IndexVersions.V_7_0_0,
+            IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
         );
         final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);
         final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, IndexVersion.current(), true);

@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.telemetry.apm.internal.metrics.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 import java.security.AccessController;
@@ -48,10 +47,13 @@ public class APMAgentSettings {
         "true"
     );
 
-    public void addClusterSettingsListeners(ClusterService clusterService, APMTelemetryProvider apmTelemetryProvider) {
+    public void addClusterSettingsListeners(
+        ClusterService clusterService,
+        APMTelemetryProvider apmTelemetryProvider,
+        APMMeterService apmMeterService
+    ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final APMTracer apmTracer = apmTelemetryProvider.getTracer();
-        final APMMeterService apmMeterService = apmTelemetryProvider.getMeterService();
 
         clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);

@@ -2,9 +2,9 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'Elasticsearch Expanded Pack Plugin - Data Streams'
@@ -22,25 +22,12 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
 }
 
-testClusters.configureEach {
-  module ':modules:reindex'
-  testDistribution = 'DEFAULT'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
 }
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
-}
-
-testClusters.matching { it.name == "javaRestTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'false'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
 }
 
 if (BuildParams.inFipsJvm){

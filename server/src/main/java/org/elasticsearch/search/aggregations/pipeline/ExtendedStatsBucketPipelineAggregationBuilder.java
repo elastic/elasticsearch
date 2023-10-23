@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -100,6 +101,6 @@ public class ExtendedStatsBucketPipelineAggregationBuilder extends BucketMetrics
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

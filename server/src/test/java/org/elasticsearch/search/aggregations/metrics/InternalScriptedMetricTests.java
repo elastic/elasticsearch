@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -283,8 +283,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
             InternalAggregation.class,
             TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersion.V_7_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_8_0)
+                TransportVersions.V_7_0_0,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_8_0)
             )
         );
         assertThat(roundTripped, equalTo(original));
@@ -299,8 +299,8 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
                 InternalAggregation.class,
                 TransportVersionUtils.randomVersionBetween(
                     random(),
-                    TransportVersion.V_7_0_0,
-                    TransportVersionUtils.getPreviousVersion(TransportVersion.V_7_8_0)
+                    TransportVersions.V_7_0_0,
+                    TransportVersionUtils.getPreviousVersion(TransportVersions.V_7_8_0)
                 )
             )
         );

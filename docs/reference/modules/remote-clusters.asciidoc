@@ -97,3 +97,5 @@ include::cluster/remote-clusters-cert.asciidoc[]
 include::cluster/remote-clusters-migration.asciidoc[]
 
 include::cluster/remote-clusters-settings.asciidoc[]
+
+include::cluster/remote-clusters-troubleshooting.asciidoc[]

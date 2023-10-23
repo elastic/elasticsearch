@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
@@ -158,8 +159,8 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         );
         DiscoveryNode remoteNode = remoteTransportService.getLocalDiscoNode();
         remoteTransportService.registerRequestHandler(
-            RemoteClusterNodesAction.NAME,
-            ThreadPool.Names.SAME,
+            RemoteClusterNodesAction.TYPE.name(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             RemoteClusterNodesAction.Request::new,
             (request, channel, task) -> channel.sendResponse(new RemoteClusterNodesAction.Response(List.of(remoteNode)))
         );
@@ -203,9 +204,12 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                         fail("No connection should be available if authn fails");
                     }, e -> {
                         logger.info("Expected: no connection could not be established");
-                        connectionTestDone.countDown();
-                        assertThat(e, instanceOf(RemoteTransportException.class));
-                        assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                        try {
+                            assertThat(e, instanceOf(RemoteTransportException.class));
+                            assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                        } finally {
+                            connectionTestDone.countDown();
+                        }
                     }));
                 assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
             }
@@ -260,9 +264,12 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
                         fail("No connection should be available if authn fails");
                     }, e -> {
                         logger.info("Expected: no connection could be established");
-                        connectionTestDone.countDown();
-                        assertThat(e, instanceOf(RemoteTransportException.class));
-                        assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                        try {
+                            assertThat(e, instanceOf(RemoteTransportException.class));
+                            assertThat(e.getCause(), instanceOf(authenticationException.get().getClass()));
+                        } finally {
+                            connectionTestDone.countDown();
+                        }
                     }));
                 assertTrue(connectionTestDone.await(10L, TimeUnit.SECONDS));
             }

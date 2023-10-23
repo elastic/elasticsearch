@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +54,13 @@ public class TransportSamlInitiateSingleSignOnAction extends HandledTransportAct
         SamlFactory factory,
         UserPrivilegeResolver privilegeResolver
     ) {
-        super(SamlInitiateSingleSignOnAction.NAME, transportService, actionFilters, SamlInitiateSingleSignOnRequest::new);
+        super(
+            SamlInitiateSingleSignOnAction.NAME,
+            transportService,
+            actionFilters,
+            SamlInitiateSingleSignOnRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.securityContext = securityContext;
         this.identityProvider = idp;
         this.samlFactory = factory;

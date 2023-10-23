@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -115,18 +114,16 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> str = toEvaluator.apply(left());
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
-            Supplier<EvalOperator.ExpressionEvaluator> delim = toEvaluator.apply(right());
-            return () -> new SplitVariableEvaluator(str.get(), delim.get(), new BytesRef());
+            var delim = toEvaluator.apply(right());
+            return dvrCtx -> new SplitVariableEvaluator(str.get(dvrCtx), delim.get(dvrCtx), new BytesRef(), dvrCtx);
         }
         BytesRef delim = (BytesRef) right().fold();
         if (delim.length != 1) {
             throw new QlIllegalArgumentException("for now delimiter must be a single byte");
         }
-        return () -> new SplitSingleByteEvaluator(str.get(), delim.bytes[delim.offset], new BytesRef());
+        return dvrCtx -> new SplitSingleByteEvaluator(str.get(dvrCtx), delim.bytes[delim.offset], new BytesRef(), dvrCtx);
     }
 }

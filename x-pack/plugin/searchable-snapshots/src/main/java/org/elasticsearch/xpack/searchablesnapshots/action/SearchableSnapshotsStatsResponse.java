@@ -35,7 +35,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
 
     SearchableSnapshotsStatsResponse(StreamInput in) throws IOException {
         super(in);
-        this.stats = in.readList(SearchableSnapshotShardStats::new);
+        this.stats = in.readCollectionAsList(SearchableSnapshotShardStats::new);
     }
 
     SearchableSnapshotsStatsResponse(

@@ -14,6 +14,7 @@ import io.netty.handler.ssl.SslHandshakeTimeoutException;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -189,14 +190,12 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
         try (TransportService service = buildService("TS_TPC", VersionInformation.CURRENT, TransportVersion.current(), Settings.EMPTY)) {
-            DiscoveryNode node = new DiscoveryNode(
-                "TS_TPC",
-                "TS_TPC",
-                service.boundAddress().publishAddress(),
-                emptyMap(),
-                emptySet(),
-                version0
-            );
+            DiscoveryNode node = DiscoveryNodeUtils.builder("TS_TPC")
+                .name("TS_TPC")
+                .address(service.boundAddress().publishAddress())
+                .roles(emptySet())
+                .version(version0)
+                .build();
             PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
             originalTransport.openConnection(node, connectionProfile, future);
             try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
@@ -875,7 +874,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                     // A read call will execute the ssl handshake
                     int byteRead = acceptedSocket.getInputStream().read();
                     assertEquals('E', byteRead);
-                    doneLatch.await();
+                    safeAwait(doneLatch);
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 } finally {
@@ -1069,7 +1068,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 super.executeHandshake(node, channel, profile, listener);
             } else {
                 assert getVersion().equals(TransportVersion.current());
-                listener.onResponse(TransportVersion.MINIMUM_COMPATIBLE);
+                listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
             }
         }
 

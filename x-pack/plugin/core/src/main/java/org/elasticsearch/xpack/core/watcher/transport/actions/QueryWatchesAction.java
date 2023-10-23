@@ -106,7 +106,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
             size = in.readOptionalVInt();
             query = in.readOptionalNamedWriteable(QueryBuilder.class);
             if (in.readBoolean()) {
-                sorts = in.readList(FieldSortBuilder::new);
+                sorts = in.readCollectionAsList(FieldSortBuilder::new);
             } else {
                 sorts = null;
             }
@@ -216,7 +216,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            watches = in.readList(Item::new);
+            watches = in.readCollectionAsList(Item::new);
             watchTotalCount = in.readVLong();
         }
 

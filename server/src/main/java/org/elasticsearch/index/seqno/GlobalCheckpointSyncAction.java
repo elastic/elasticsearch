@@ -62,7 +62,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             actionFilters,
             Request::new,
             Request::new,
-            ThreadPool.Names.WRITE,
+            threadPool.executor(ThreadPool.Names.WRITE),
             false,
             true
         );

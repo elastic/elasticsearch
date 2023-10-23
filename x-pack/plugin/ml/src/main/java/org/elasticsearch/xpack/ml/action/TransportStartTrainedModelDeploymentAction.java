@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -116,7 +117,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             StartTrainedModelDeploymentAction.Request::new,
             indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);

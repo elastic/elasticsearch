@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.AL
 
 public class QueryRuleCriteria implements Writeable, ToXContentObject {
 
-    public static final TransportVersion CRITERIA_METADATA_VALUES_TRANSPORT_VERSION = TransportVersion.V_8_500_046;
+    public static final TransportVersion CRITERIA_METADATA_VALUES_TRANSPORT_VERSION = TransportVersions.V_8_500_046;
     private final QueryRuleCriteriaType criteriaType;
     private final String criteriaMetadata;
     private final List<Object> criteriaValues;
@@ -74,7 +75,7 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         this.criteriaType = in.readEnum(QueryRuleCriteriaType.class);
         if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
             this.criteriaMetadata = in.readOptionalString();
-            this.criteriaValues = in.readOptionalList(StreamInput::readGenericValue);
+            this.criteriaValues = in.readOptionalCollectionAsList(StreamInput::readGenericValue);
         } else {
             this.criteriaMetadata = in.readString();
             this.criteriaValues = List.of(in.readGenericValue());

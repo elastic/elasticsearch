@@ -281,6 +281,7 @@ public class ValuesSourceConfig {
         throw new UnsupportedOperationException();
     }
 
+    @SuppressWarnings("this-escape")
     public ValuesSourceConfig(
         ValuesSourceType valuesSourceType,
         FieldContext fieldContext,

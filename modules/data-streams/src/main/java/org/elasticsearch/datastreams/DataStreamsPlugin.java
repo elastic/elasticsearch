@@ -70,8 +70,8 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -102,10 +102,19 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7),
         Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
     );
     public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
-
+    public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
+        "index.look_back_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
+    );
     // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
@@ -141,6 +150,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> pluginSettings = new ArrayList<>();
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
+        pluginSettings.add(LOOK_BACK_TIME);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
@@ -160,7 +170,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         AllocationService allocationService,
         IndicesService indicesService
     ) {
@@ -178,7 +188,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
                 getClock(),
                 threadPool,
                 threadPool::absoluteTimeInMillis,
-                errorStoreInitialisationService.get()
+                errorStoreInitialisationService.get(),
+                allocationService
             )
         );
         dataLifecycleInitialisationService.get().init();

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -26,6 +27,6 @@ public class EnrichFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_5_0;
+        return TransportVersions.V_7_5_0;
     }
 }

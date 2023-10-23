@@ -126,7 +126,7 @@ public class AnomalyCause implements ToXContentObject, Writeable {
         overFieldName = in.readOptionalString();
         overFieldValue = in.readOptionalString();
         if (in.readBoolean()) {
-            influencers = in.readList(Influence::new);
+            influencers = in.readCollectionAsList(Influence::new);
         }
         geoResults = in.readOptionalWriteable(GeoResults::new);
     }

@@ -25,6 +25,7 @@ public class Counters implements Writeable {
 
     private Map<String, Long> counters = new HashMap<>();
 
+    @SuppressWarnings("this-escape")
     public Counters(StreamInput in) throws IOException {
         int numCounters = in.readVInt();
         for (int i = 0; i < numCounters; i++) {
@@ -32,6 +33,7 @@ public class Counters implements Writeable {
         }
     }
 
+    @SuppressWarnings("this-escape")
     public Counters(String... names) {
         for (String name : names) {
             set(name);

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -25,8 +25,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,7 +64,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new);
+        super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -89,7 +92,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), listener).start();
     }
 
-    private Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
+    private static Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
         if (concreteIndices.length == 0) {
             return Collections.emptyMap();
         }
@@ -106,7 +109,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             }
             if (shard.assignedToNode() && nodes.get(shard.currentNodeId()) != null) {
                 // special case: The minimum TransportVersion in the cluster is on an old version
-                if (state.getMinTransportVersion().before(TransportVersion.V_8_2_0)) {
+                if (state.getMinTransportVersion().before(TransportVersions.V_8_2_0)) {
                     throw new ActionNotFoundTransportException(GetCheckpointNodeAction.NAME);
                 }
 
@@ -145,31 +148,23 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         public void start() {
             GroupedActionListener<GetCheckpointNodeAction.Response> groupedListener = new GroupedActionListener<>(
                 nodesAndShards.size(),
-                ActionListener.wrap(responses -> {
-                    // the final list should be ordered by key
-                    Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
-
-                    // merge the node responses
-                    for (GetCheckpointNodeAction.Response response : responses) {
-                        response.getCheckpoints().forEach((index, checkpoint) -> {
-                            if (checkpointsByIndexReduced.containsKey(index)) {
-                                long[] shardCheckpoints = checkpointsByIndexReduced.get(index);
-                                for (int i = 0; i < checkpoint.length; ++i) {
-                                    shardCheckpoints[i] = Math.max(shardCheckpoints[i], checkpoint[i]);
-                                }
-                            } else {
-                                checkpointsByIndexReduced.put(index, checkpoint);
-                            }
-                        });
-                    }
-
-                    listener.onResponse(new Response(checkpointsByIndexReduced));
-                }, listener::onFailure)
+                ActionListener.wrap(responses -> listener.onResponse(mergeNodeResponses(responses)), listener::onFailure)
             );
 
             for (Entry<String, Set<ShardId>> oneNodeAndItsShards : nodesAndShards.entrySet()) {
+                if (task instanceof CancellableTask) {
+                    // There is no point continuing this work if the task has been cancelled.
+                    if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                        return;
+                    }
+                }
                 if (localNodeId.equals(oneNodeAndItsShards.getKey())) {
-                    TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, oneNodeAndItsShards.getValue(), groupedListener);
+                    TransportGetCheckpointNodeAction.getGlobalCheckpoints(
+                        indicesService,
+                        task,
+                        oneNodeAndItsShards.getValue(),
+                        groupedListener
+                    );
                     continue;
                 }
 
@@ -205,6 +200,27 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                     )
                 );
             }
+        }
+
+        private static Response mergeNodeResponses(Collection<GetCheckpointNodeAction.Response> responses) {
+            // the final list should be ordered by key
+            Map<String, long[]> checkpointsByIndexReduced = new TreeMap<>();
+
+            // merge the node responses
+            for (GetCheckpointNodeAction.Response response : responses) {
+                response.getCheckpoints().forEach((index, checkpoint) -> {
+                    if (checkpointsByIndexReduced.containsKey(index)) {
+                        long[] shardCheckpoints = checkpointsByIndexReduced.get(index);
+                        for (int i = 0; i < checkpoint.length; ++i) {
+                            shardCheckpoints[i] = Math.max(shardCheckpoints[i], checkpoint[i]);
+                        }
+                    } else {
+                        checkpointsByIndexReduced.put(index, checkpoint);
+                    }
+                });
+            }
+
+            return new Response(checkpointsByIndexReduced);
         }
     }
 }

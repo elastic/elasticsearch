@@ -114,9 +114,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this(
             in.readString(),
             in.readOptionalWriteable(QuerySource::new),
-            in.readStringList(),
+            in.readStringCollectionAsList(),
             in.readString(),
-            in.readStringList(),
+            in.readStringCollectionAsList(),
             Version.readVersion(in)
         );
     }

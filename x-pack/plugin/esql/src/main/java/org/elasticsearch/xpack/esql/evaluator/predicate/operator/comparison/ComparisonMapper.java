@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison;
 
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
@@ -19,9 +21,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-
-import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
 
@@ -76,18 +75,18 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     ) {
     };
 
-    private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints;
-    private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs;
-    private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles;
-    private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> keywords;
-    private final BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> bools;
+    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints;
+    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs;
+    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles;
+    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords;
+    private final TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> bools;
 
     private ComparisonMapper(
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> keywords,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> bools
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> bools
     ) {
         this.ints = ints;
         this.longs = longs;
@@ -97,20 +96,20 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
     }
 
     ComparisonMapper(
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> ints,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> longs,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> doubles,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> keywords
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> ints,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> longs,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> doubles,
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> keywords
     ) {
         this.ints = ints;
         this.longs = longs;
         this.doubles = doubles;
         this.keywords = keywords;
-        this.bools = (lhs, rhs) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
+        this.bools = (lhs, rhs, dvrCtx) -> { throw EsqlIllegalArgumentException.illegalDataType(DataTypes.BOOLEAN); };
     }
 
     @Override
-    public final Supplier<EvalOperator.ExpressionEvaluator> map(BinaryComparison bc, Layout layout) {
+    public final ExpressionEvaluator.Factory map(BinaryComparison bc, Layout layout) {
         DataType leftType = bc.left().dataType();
         if (leftType.isNumeric()) {
             DataType type = EsqlDataTypeRegistry.INSTANCE.commonType(leftType, bc.right().dataType());
@@ -128,32 +127,32 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
                 return castToEvaluator(bc, layout, DataTypes.UNSIGNED_LONG, longs);
             }
         }
-        Supplier<EvalOperator.ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
-        Supplier<EvalOperator.ExpressionEvaluator> rightEval = toEvaluator(bc.right(), layout);
+        var leftEval = toEvaluator(bc.left(), layout);
+        var rightEval = toEvaluator(bc.right(), layout);
         if (leftType == DataTypes.KEYWORD || leftType == DataTypes.TEXT || leftType == DataTypes.IP || leftType == DataTypes.VERSION) {
-            return () -> keywords.apply(leftEval.get(), rightEval.get());
+            return dvrCtx -> keywords.apply(leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
         }
         if (leftType == DataTypes.BOOLEAN) {
-            return () -> bools.apply(leftEval.get(), rightEval.get());
+            return dvrCtx -> bools.apply(leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
         }
         if (leftType == DataTypes.DATETIME) {
-            return () -> longs.apply(leftEval.get(), rightEval.get());
+            return dvrCtx -> longs.apply(leftEval.get(dvrCtx), rightEval.get(dvrCtx), dvrCtx);
         }
         throw new EsqlIllegalArgumentException("resolved type for [" + bc + "] but didn't implement mapping");
     }
 
-    public static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(
+    public static ExpressionEvaluator.Factory castToEvaluator(
         BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,
-        BiFunction<EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator, EvalOperator.ExpressionEvaluator> buildEvaluator
+        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> buildEvaluator
     ) {
-        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
-        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
-        return () -> buildEvaluator.apply(lhs.get(), rhs.get());
+        var lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
+        var rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
+        return dvrCtx -> buildEvaluator.apply(lhs.get(dvrCtx), rhs.get(dvrCtx), dvrCtx);
     }
 
-    public static Supplier<EvalOperator.ExpressionEvaluator> castToEvaluator(
+    public static ExpressionEvaluator.Factory castToEvaluatorWithSource(
         BinaryOperator<?, ?, ?, ?> op,
         Layout layout,
         DataType required,
@@ -163,8 +162,8 @@ public abstract class ComparisonMapper<T extends BinaryComparison> extends Expre
             EvalOperator.ExpressionEvaluator,
             EvalOperator.ExpressionEvaluator> buildEvaluator
     ) {
-        Supplier<EvalOperator.ExpressionEvaluator> lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
-        Supplier<EvalOperator.ExpressionEvaluator> rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
-        return () -> buildEvaluator.apply(op.source(), lhs.get(), rhs.get());
+        var lhs = Cast.cast(op.left().dataType(), required, toEvaluator(op.left(), layout));
+        var rhs = Cast.cast(op.right().dataType(), required, toEvaluator(op.right(), layout));
+        return dvrCtx -> buildEvaluator.apply(op.source(), lhs.get(dvrCtx), rhs.get(dvrCtx));
     }
 }

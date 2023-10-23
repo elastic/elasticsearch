@@ -37,6 +37,7 @@ public class MonthTimes implements Times {
         this(DEFAULT_DAYS, DEFAULT_TIMES);
     }
 
+    @SuppressWarnings("this-escape")
     public MonthTimes(int[] days, DayTimes[] times) {
         this.days = days.length == 0 ? DEFAULT_DAYS : days;
         Arrays.sort(this.days);

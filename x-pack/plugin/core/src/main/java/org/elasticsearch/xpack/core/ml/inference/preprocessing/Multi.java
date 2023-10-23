@@ -122,7 +122,7 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     }
 
     public Multi(StreamInput in) throws IOException {
-        this.processors = in.readNamedWriteableList(PreProcessor.class).toArray(PreProcessor[]::new);
+        this.processors = in.readNamedWriteableCollectionAsList(PreProcessor.class).toArray(PreProcessor[]::new);
         this.custom = in.readBoolean();
         this.outputFields = in.readOrderedMap(StreamInput::readString, StreamInput::readString);
         this.inputFields = in.readStringArray();
@@ -130,9 +130,9 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(Arrays.asList(processors));
+        out.writeNamedWriteableCollection(Arrays.asList(processors));
         out.writeBoolean(custom);
-        out.writeMap(outputFields, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(outputFields, StreamOutput::writeString);
         out.writeStringArray(inputFields);
     }
 

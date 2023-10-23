@@ -27,6 +27,7 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     private final List<Object> arguments = new ArrayList<>();
     private String messagePattern;
 
+    @SuppressWarnings("this-escape")
     public ESLogMessage(String messagePattern, Object... args) {
         super(new LinkedHashMap<>());
         Collections.addAll(this.arguments, args);

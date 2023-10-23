@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 
@@ -15,10 +17,13 @@ import java.io.IOException;
  * Wrapper around {@link DocVector} to make a valid {@link Block}.
  */
 public class DocBlock extends AbstractVectorBlock implements Block {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocBlock.class);
+
     private final DocVector vector;
 
     DocBlock(DocVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -47,11 +52,38 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         return new DocBlock(asVector().filter(positions));
     }
 
+    @Override
+    public int hashCode() {
+        return vector.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocBlock == false) {
+            return false;
+        }
+        return this == obj || vector.equals(((DocBlock) obj).vector);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+    }
+
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
+    }
+
     /**
      * A builder the for {@link DocBlock}.
      */
-    public static Builder newBlockBuilder(int estimatedSize) {
-        return new Builder(estimatedSize);
+    public static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return new Builder(estimatedSize, blockFactory);
     }
 
     public static class Builder implements Block.Builder {
@@ -59,10 +91,10 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         private final IntVector.Builder segments;
         private final IntVector.Builder docs;
 
-        private Builder(int estimatedSize) {
-            shards = IntVector.newVectorBuilder(estimatedSize);
-            segments = IntVector.newVectorBuilder(estimatedSize);
-            docs = IntVector.newVectorBuilder(estimatedSize);
+        private Builder(int estimatedSize, BlockFactory blockFactory) {
+            shards = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            segments = IntVector.newVectorBuilder(estimatedSize, blockFactory);
+            docs = IntVector.newVectorBuilder(estimatedSize, blockFactory);
         }
 
         public Builder appendShard(int shard) {
@@ -120,6 +152,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
         public DocBlock build() {
             // Pass null for singleSegmentNonDecreasing so we calculate it when we first need it.
             return new DocVector(shards.build(), segments.build(), docs.build(), null).asBlock();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(shards, segments, docs);
         }
     }
 }

@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.Period;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -36,7 +38,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubIntsEvaluator::new,
             SubLongsEvaluator::new,
             SubUnsignedLongsEvaluator::new,
-            (s, l, r) -> new SubDoublesEvaluator(l, r),
+            (s, l, r, dvrCtx) -> new SubDoublesEvaluator(l, r, dvrCtx),
             SubDatetimesEvaluator::new
         );
     }
@@ -44,7 +46,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     @Override
     protected TypeResolution resolveType() {
         TypeResolution resolution = super.resolveType();
-        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataTypes.isDateTime(left().dataType()) == false) {
+        // As opposed to general date time arithmetics, we cannot subtract a datetime from something else.
+        if (resolution.resolved() && EsqlDataTypes.isDateTimeOrTemporal(dataType()) && DataTypes.isDateTime(right().dataType())) {
             return new TypeResolution(
                 format(
                     null,
@@ -99,5 +102,15 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime).minus(temporalAmount));
+    }
+
+    @Override
+    public Period fold(Period left, Period right) {
+        return left.minus(right);
+    }
+
+    @Override
+    public Duration fold(Duration left, Duration right) {
+        return left.minus(right);
     }
 }

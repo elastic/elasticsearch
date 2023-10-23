@@ -33,6 +33,7 @@ import java.util.Optional;
  */
 public class UnstableLocalStateSecurity extends LocalStateSecurity {
 
+    @SuppressWarnings("this-escape")
     public UnstableLocalStateSecurity(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
         // We reuse most of the initialization of LocalStateSecurity, we then just overwrite

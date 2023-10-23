@@ -1,3 +1,4 @@
+[discrete]
 [[esql-date_format]]
 === `DATE_FORMAT`
 Returns a string representation of a date in the provided format. If no format
@@ -7,5 +8,5 @@ is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used.
 ----
 FROM employees
 | KEEP first_name, last_name, hire_date
-| EVAL hired = DATE_FORMAT(hire_date, "YYYY-MM-dd")
+| EVAL hired = DATE_FORMAT("YYYY-MM-dd", hire_date)
 ----

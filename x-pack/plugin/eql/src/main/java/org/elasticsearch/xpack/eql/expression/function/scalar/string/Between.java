@@ -44,6 +44,7 @@ public class Between extends CaseInsensitiveScalarFunction implements OptionalAr
 
     private final Expression input, left, right, greedy;
 
+    @SuppressWarnings("this-escape")
     public Between(Source source, Expression input, Expression left, Expression right, Expression greedy, boolean caseInsensitive) {
         super(source, Arrays.asList(input, left, right, defaultGreedy(greedy)), caseInsensitive);
         this.input = input;

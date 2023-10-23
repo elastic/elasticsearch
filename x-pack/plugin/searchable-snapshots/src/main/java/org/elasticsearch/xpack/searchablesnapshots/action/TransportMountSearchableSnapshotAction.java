@@ -99,7 +99,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
             // Use SNAPSHOT_META pool since we are slow due to loading repository metadata in this action
-            ThreadPool.Names.SNAPSHOT_META
+            threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
         );
         this.client = client;
         this.repositoriesService = repositoriesService;

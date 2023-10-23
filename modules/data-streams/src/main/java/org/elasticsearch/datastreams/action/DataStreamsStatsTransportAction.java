@@ -70,7 +70,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
             actionFilters,
             indexNameExpressionResolver,
             DataStreamsStatsAction.Request::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.clusterService = clusterService;
         this.indicesService = indicesService;

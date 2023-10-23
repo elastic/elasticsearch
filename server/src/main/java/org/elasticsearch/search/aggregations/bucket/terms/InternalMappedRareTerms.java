@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -72,7 +73,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
     InternalMappedRareTerms(StreamInput in, Bucket.Reader<B> bucketReader) throws IOException {
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readList(stream -> bucketReader.read(stream, format));
+        buckets = in.readCollectionAsList(stream -> bucketReader.read(stream, format));
         filter = new SetBackedScalingCuckooFilter(in, Randomness.get());
     }
 
@@ -106,12 +107,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                 && terms.getClass().equals(UnmappedRareTerms.class) == false) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
-                throw new AggregationExecutionException(
-                    "Merging/Reducing the aggregations failed when computing the aggregation ["
-                        + referenceTerms.getName()
-                        + "] because the field you gave in the aggregation query existed as two different "
-                        + "types in two different indices"
-                );
+                throw AggregationErrors.reduceTypeMissmatch(referenceTerms.getName(), Optional.empty());
             }
             for (B bucket : terms.getBuckets()) {
                 List<B> bucketList = buckets.computeIfAbsent(bucket.getKey(), k -> new ArrayList<>());

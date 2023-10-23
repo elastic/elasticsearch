@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -156,7 +157,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
             job = threadPool.scheduleWithFixedDelay(
                 () -> perform(() -> LOGGER.debug("completed tsdb update task")),
                 pollInterval,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
     }

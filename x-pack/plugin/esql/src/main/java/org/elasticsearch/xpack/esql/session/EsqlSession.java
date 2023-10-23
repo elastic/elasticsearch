@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.type.InvalidMappedField;
 import org.elasticsearch.xpack.ql.util.Holder;
 
 import java.util.HashSet;
@@ -57,6 +59,7 @@ import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.xpack.ql.index.IndexResolver.UNMAPPED;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
@@ -173,7 +176,15 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed);
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener);
+            indexResolver.resolveAsMergedMapping(
+                table.index(),
+                fieldNames,
+                false,
+                Map.of(),
+                listener,
+                EsqlSession::specificValidity,
+                IndexResolver.PRESERVE_PROPERTIES
+            );
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -281,4 +292,36 @@ public class EsqlSession {
             return plan;
         }));
     }
+
+    public static InvalidMappedField specificValidity(String fieldName, Map<String, FieldCapabilities> types) {
+        boolean hasUnmapped = types.containsKey(UNMAPPED);
+        boolean hasTypeConflicts = types.size() > (hasUnmapped ? 2 : 1);
+        String metricConflictsTypeName = null;
+        boolean hasMetricConflicts = false;
+
+        if (hasTypeConflicts == false) {
+            for (Map.Entry<String, FieldCapabilities> type : types.entrySet()) {
+                if (UNMAPPED.equals(type.getKey())) {
+                    continue;
+                }
+                if (type.getValue().metricConflictsIndices() != null && type.getValue().metricConflictsIndices().length > 0) {
+                    hasMetricConflicts = true;
+                    metricConflictsTypeName = type.getKey();
+                    break;
+                }
+            }
+        }
+
+        InvalidMappedField result = null;
+        if (hasMetricConflicts) {
+            StringBuilder errorMessage = new StringBuilder();
+            errorMessage.append(
+                "mapped as different metric types in indices: ["
+                    + String.join(", ", types.get(metricConflictsTypeName).metricConflictsIndices())
+                    + "]"
+            );
+            result = new InvalidMappedField(fieldName, errorMessage.toString());
+        }
+        return result;
+    };
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -543,7 +544,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
             Set<Decision.Type> decisionTypes = allocation.routingNodes()
                 .stream()
-                .map(node -> DataTierAllocationDecider.shouldFilter(indexMetadata, node.node(), this::highestPreferenceTier, allocation))
+                .map(
+                    node -> DataTierAllocationDecider.shouldFilter(
+                        indexMetadata,
+                        node.node(),
+                        AllocationState::highestPreferenceTier,
+                        allocation
+                    )
+                )
                 .map(Decision::type)
                 .collect(Collectors.toSet());
             if (decisionTypes.contains(Decision.Type.NO)) {
@@ -578,11 +586,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return tierPreference.isEmpty() || DataTierAllocationDecider.allocationAllowed(highestPreferenceTier(tierPreference), roles);
         }
 
-        private IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
+        private static IndexMetadata indexMetadata(ShardRouting shard, RoutingAllocation allocation) {
             return allocation.metadata().getIndexSafe(shard.index());
         }
 
-        private Optional<String> highestPreferenceTier(
+        private static Optional<String> highestPreferenceTier(
             List<String> preferredTiers,
             DiscoveryNodes unused,
             DesiredNodes desiredNodes,
@@ -970,8 +978,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public static class ReactiveReason implements AutoscalingDeciderResult.Reason {
 
         static final int MAX_AMOUNT_OF_SHARDS = 512;
-        private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersion.V_8_4_0;
-        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersion.V_8_500_010;
+        private static final TransportVersion SHARD_IDS_OUTPUT_VERSION = TransportVersions.V_8_4_0;
+        private static final TransportVersion UNASSIGNED_NODE_DECISIONS_OUTPUT_VERSION = TransportVersions.V_8_500_020;
 
         private final String reason;
         private final long unassigned;
@@ -1008,8 +1016,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             this.unassigned = in.readLong();
             this.assigned = in.readLong();
             if (in.getTransportVersion().onOrAfter(SHARD_IDS_OUTPUT_VERSION)) {
-                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
-                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readSet(ShardId::new)));
+                unassignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
+                assignedShardIds = Collections.unmodifiableSortedSet(new TreeSet<>(in.readCollectionAsSet(ShardId::new)));
             } else {
                 unassignedShardIds = Collections.emptySortedSet();
                 assignedShardIds = Collections.emptySortedSet();

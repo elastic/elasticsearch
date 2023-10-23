@@ -7,11 +7,21 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlRestValidationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected String getInexistentIndexErrorMessage() {

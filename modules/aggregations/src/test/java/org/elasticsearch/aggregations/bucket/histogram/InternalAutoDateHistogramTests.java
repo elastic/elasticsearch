@@ -9,6 +9,7 @@
 package org.elasticsearch.aggregations.bucket.histogram;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
@@ -477,8 +478,8 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
         );
         TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersion.V_8_3_0)
+            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_3_0)
         );
         InternalAutoDateHistogram deserialized = copyInstance(instance, version);
         assertEquals(1, deserialized.getBucketInnerInterval());
@@ -504,7 +505,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
                     + "AAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
             );
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
-            in.setTransportVersion(TransportVersion.V_8_2_0);
+            in.setTransportVersion(TransportVersions.V_8_2_0);
             InternalAutoDateHistogram deserialized = new InternalAutoDateHistogram(in);
             assertEquals("name", deserialized.getName());
             assertEquals(1, deserialized.getBucketInnerInterval());

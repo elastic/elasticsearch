@@ -27,18 +27,36 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.join.aggregations.JoinAggregationBuilders.parent;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ParentIT extends AbstractParentChildTestCase {
 
-    public void testSimpleParentAgg() throws Exception {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+    public void testSimpleParentAgg() {
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(0)
+            .setQuery(matchQuery("randomized", true))
+            .addAggregation(parent("to_article", "comment"));
+        SearchResponse searchResponse = searchRequest.get();
+
+        assertNoFailures(searchResponse);
+        long articlesWithComment = articleToControl.values()
+            .stream()
+            .filter(parentControl -> parentControl.commentIds.isEmpty() == false)
+            .count();
+        Parent parentAgg = searchResponse.getAggregations().get("to_article");
+        assertThat(
+            "Request: " + searchRequest + "\nResponse: " + searchResponse + "\n",
+            parentAgg.getDocCount(),
+            equalTo(articlesWithComment)
+        );
+    }
+
+    public void testSimpleParentAggWithSubAgg() {
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(parent("to_article", "comment").subAggregation(terms("category").field("category").size(10000)));
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         long articlesWithComment = articleToControl.values()
             .stream()
@@ -88,8 +106,7 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testParentAggs() throws Exception {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
                 terms("to_commenter").field("commenter")
@@ -101,7 +118,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                     )
             );
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         final Set<String> commenters = getCommenters();
         final Map<String, Set<String>> commenterToComments = getCommenterToComments();
@@ -180,8 +197,8 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testNonExistingParentType() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test").addAggregation(parent("non-existing", "xyz")).get();
-        assertSearchResponse(searchResponse);
+        SearchResponse searchResponse = prepareSearch("test").addAggregation(parent("non-existing", "xyz")).get();
+        assertNoFailures(searchResponse);
 
         Parent parent = searchResponse.getAggregations().get("non-existing");
         assertThat(parent.getName(), equalTo("non-existing"));
@@ -189,8 +206,7 @@ public class ParentIT extends AbstractParentChildTestCase {
     }
 
     public void testTermsParentAggTerms() throws Exception {
-        final SearchRequestBuilder searchRequest = client().prepareSearch("test")
-            .setSize(10000)
+        final SearchRequestBuilder searchRequest = prepareSearch("test").setSize(10000)
             .setQuery(matchQuery("randomized", true))
             .addAggregation(
                 terms("to_commenter").field("commenter")
@@ -198,7 +214,7 @@ public class ParentIT extends AbstractParentChildTestCase {
                     .subAggregation(parent("to_article", "comment").subAggregation(terms("to_category").field("category").size(10000)))
             );
         SearchResponse searchResponse = searchRequest.get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         final Set<String> commenters = getCommenters();
         final Map<String, Set<String>> commenterToComments = getCommenterToComments();

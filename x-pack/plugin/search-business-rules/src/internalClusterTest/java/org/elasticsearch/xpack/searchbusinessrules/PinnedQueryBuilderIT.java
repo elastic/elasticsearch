@@ -113,8 +113,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     private void assertPinnedPromotions(PinnedQueryBuilder pqb, LinkedHashSet<String> pins, int iter, int numRelevantDocs) {
         int from = randomIntBetween(0, numRelevantDocs);
         int size = randomIntBetween(10, 100);
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb)
             .setTrackTotalHits(true)
             .setSize(size)
             .setFrom(from)
@@ -194,11 +193,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExhaustiveScoring(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         long numHits = searchResponse.getHits().getTotalHits().value;
         assertThat(numHits, equalTo(2L));
@@ -232,11 +227,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExplain(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(pqb)
-            .setExplain(true)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb).setExplain(true).get();
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("1"));
@@ -280,8 +271,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         testHighlighter.field("field1");
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setQuery(pqb)
             .highlighter(testHighlighter)
             .setExplain(true)
@@ -340,11 +330,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test1", "b")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, both(hasIndex("test2")).and(hasId("a")));
@@ -384,15 +370,70 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test", "a")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, both(hasIndex("test")).and(hasId("b")));
         assertSecondHit(searchResponse, both(hasIndex("test")).and(hasId("a")));
         assertThirdHit(searchResponse, both(hasIndex("test")).and(hasId("c")));
+    }
+
+    public void testMultiIndexWithAliasesAndDuplicateIds() throws Exception {
+        Alias alias = new Alias("test-alias");
+
+        assertAcked(
+            prepareCreate("test1").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))).addAlias(alias)
+        );
+
+        assertAcked(
+            prepareCreate("test2").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))).addAlias(alias)
+        );
+
+        client().prepareIndex("test1").setId("a").setSource("field1", "document a").get();
+        client().prepareIndex("test1").setId("b").setSource("field1", "document b").get();
+        client().prepareIndex("test1").setId("c").setSource("field1", "document c").get();
+
+        client().prepareIndex("test2").setId("a").setSource("field1", "document a").get();
+
+        refresh();
+
+        PinnedQueryBuilder pqb = new PinnedQueryBuilder(
+            QueryBuilders.queryStringQuery("document"),
+            new Item("test1", "b"),
+            new Item(null, "a"),
+            new Item("test1", "c"),
+            new Item("test1", "a"),
+            new Item("test-alias", "a")
+        );
+
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
+
+        assertHitCount(searchResponse, 4);
+        assertFirstHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));
+        assertSecondHit(searchResponse, hasId("a"));
+        assertThirdHit(searchResponse, hasId("a"));
+        assertFourthHit(searchResponse, both(hasIndex("test1")).and(hasId("c")));
     }
 }

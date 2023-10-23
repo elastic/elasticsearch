@@ -1,0 +1,6 @@
+pr: 100129
+summary: Refactor `SearchResponseClusters` to use CHM
+area: Search
+type: enhancement
+issues:
+ - 99101

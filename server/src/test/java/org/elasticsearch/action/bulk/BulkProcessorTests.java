@@ -554,11 +554,5 @@ public class BulkProcessorTests extends ESTestCase {
         public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
             throw new AssertionError("should not be called");
         }
-
-        @SuppressWarnings("removal")
-        @Override
-        public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executorName) {
-            throw new AssertionError("should not be called");
-        }
     }
 }

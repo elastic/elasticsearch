@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -142,7 +141,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
             );
 
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
             assertThat(createFuture.actionGet().getResult(), equalTo(DocWriteResponse.Result.CREATED));
 
@@ -264,7 +263,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         {
             circuitBreaker.adjustLimit(randomIntBetween(1, 64)); // small limit
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
             CircuitBreakingException e = expectThrows(CircuitBreakingException.class, createFuture::actionGet);
             assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
@@ -273,7 +272,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         {
             circuitBreaker.adjustLimit(randomIntBetween(16 * 1024, 1024 * 1024)); // large enough
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
             assertThat(createFuture.actionGet().getResult(), equalTo(DocWriteResponse.Result.CREATED));
             assertThat(circuitBreaker.getUsed(), equalTo(0L));
@@ -337,7 +336,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
             );
             TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
-            PlainActionFuture<IndexResponse> createFuture1 = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture1 = new PlainActionFuture<>();
             indexService.createResponse(executionId1.getDocId(), Map.of(), initialResponse, createFuture1);
             createFuture1.actionGet();
 
@@ -369,7 +368,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 Long.toString(randomNonNegativeLong()),
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong())
             );
-            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            PlainActionFuture<DocWriteResponse> createFuture = new PlainActionFuture<>();
             TestAsyncResponse initialResponse2 = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
             indexService.createResponse(executionId2.getDocId(), Map.of(), initialResponse2, createFuture);
             IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, createFuture::actionGet);

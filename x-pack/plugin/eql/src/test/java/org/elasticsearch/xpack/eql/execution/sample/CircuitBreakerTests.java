@@ -280,7 +280,7 @@ public class CircuitBreakerTests extends ESTestCase {
                     }
 
                     @Override
-                    public List<String> readStringList() throws IOException {
+                    public List<String> readStringCollectionAsList() throws IOException {
                         return emptyList();
                     }
 

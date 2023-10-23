@@ -17,6 +17,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,6 +26,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.Response> {
 
@@ -49,7 +53,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(getCheckpoints(), StreamOutput::writeString, StreamOutput::writeLongArray);
+            out.writeMap(getCheckpoints(), StreamOutput::writeLongArray);
         }
 
         public Map<String, long[]> getCheckpoints() {
@@ -94,7 +98,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.shards = in.readImmutableSet(ShardId::new);
+            this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
         }
 
@@ -146,5 +150,16 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             return originalIndices.indicesOptions();
         }
 
+        @Override
+        public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(
+                id,
+                type,
+                action,
+                format("get_checkpoint_node[%d;%d]", indices() != null ? indices().length : 0, shards != null ? shards.size() : 0),
+                parentTaskId,
+                headers
+            );
+        }
     }
 }

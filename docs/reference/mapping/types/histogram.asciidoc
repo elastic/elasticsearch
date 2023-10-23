@@ -10,7 +10,7 @@ This data is defined using two paired arrays:
 
 * A `values` array of <<number, `double`>> numbers, representing the buckets for
 the histogram. These values must be provided in ascending order.
-* A corresponding `counts` array of <<number, `integer`>> numbers, representing how
+* A corresponding `counts` array of <<number, `long`>> numbers, representing how
 many values fall into each bucket. These numbers must be positive or zero.
 
 Because the elements in the `values` array correspond to the elements in the
@@ -138,5 +138,5 @@ PUT my-index-000001/_doc/2
 <1> Values for each bucket. Values in the array are treated as doubles and must be given in
 increasing order. For <<search-aggregations-metrics-percentile-aggregation-approximation, T-Digest>>
 histograms this value represents the mean value. In case of HDR histograms this represents the value iterated to.
-<2> Count for each bucket. Values in the arrays are treated as integers and must be positive or zero.
+<2> Count for each bucket. Values in the arrays are treated as long integers and must be positive or zero.
 Negative values will be rejected. The relation between a bucket and a count is given by the position in the array.

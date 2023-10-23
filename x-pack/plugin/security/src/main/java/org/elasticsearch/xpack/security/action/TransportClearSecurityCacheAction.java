@@ -47,13 +47,11 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearSecurityCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearSecurityCacheRequest::new,
             ClearSecurityCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
     }

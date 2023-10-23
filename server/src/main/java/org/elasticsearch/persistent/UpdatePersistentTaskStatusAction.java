@@ -152,7 +152,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

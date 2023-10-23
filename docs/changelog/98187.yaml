@@ -1,5 +1,0 @@
-pr: 98187
-summary: Make `RestController` pluggable
-area: Infra/REST API
-type: enhancement
-issues: []

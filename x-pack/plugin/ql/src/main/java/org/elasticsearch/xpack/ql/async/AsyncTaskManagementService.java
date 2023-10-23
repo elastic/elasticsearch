@@ -324,7 +324,7 @@ public class AsyncTaskManagementService<
                 ListenerTimeouts.wrapWithTimeout(
                     threadPool,
                     timeout,
-                    ThreadPool.Names.SEARCH,
+                    threadPool.executor(ThreadPool.Names.SEARCH),
                     ActionListener.wrap(
                         r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
                         e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))

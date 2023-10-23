@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -182,13 +183,13 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     // Take into account only index files
                     if (blobName.startsWith("__") == false) {
-                        return super.readBlob(blobName);
+                        return super.readBlob(purpose, blobName);
                     }
 
-                    return new FilterInputStream(super.readBlob(blobName)) {
+                    return new FilterInputStream(super.readBlob(purpose, blobName)) {
                         @Override
                         public int read(byte[] b, int off, int len) throws IOException {
                             int read = super.read(b, off, len);
@@ -224,13 +225,13 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     // Fail only in index files
                     if (blobName.startsWith("__") == false) {
-                        return super.readBlob(blobName);
+                        return super.readBlob(purpose, blobName);
                     }
 
-                    return new FilterInputStream(super.readBlob(blobName)) {
+                    return new FilterInputStream(super.readBlob(purpose, blobName)) {
                         @Override
                         public int read(byte[] b, int off, int len) throws IOException {
                             if (randomBoolean()) {
@@ -287,9 +288,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 }
 
                 @Override
-                public InputStream readBlob(String blobName) throws IOException {
+                public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     BiFunction<String, InputStream, InputStream> delegateSupplier = delegateSupplierRef.get();
-                    return delegateSupplier.apply(blobName, super.readBlob(blobName));
+                    return delegateSupplier.apply(blobName, super.readBlob(purpose, blobName));
                 }
             };
         }
@@ -1631,9 +1632,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     private void assertDocumentsAreEqual(String indexName, int docCount) {
         assertDocCount(indexName, docCount);
         for (int testCase = 0; testCase < 3; testCase++) {
-            final SearchRequestBuilder searchRequestBuilder = client().prepareSearch(indexName)
-                .addSort("field", SortOrder.ASC)
-                .setSize(10_000);
+            final SearchRequestBuilder searchRequestBuilder = prepareSearch(indexName).addSort("field", SortOrder.ASC).setSize(10_000);
 
             SearchResponse searchResponse;
             switch (testCase) {

@@ -1,7 +1,8 @@
+[discrete]
 [[esql-ceil]]
 === `CEIL`
 [.text-center]
-image::esql/functions/signature/floor.svg[Embedded,opts=inline]
+image::esql/functions/signature/ceil.svg[Embedded,opts=inline]
 
 Round a number up to the nearest integer.
 

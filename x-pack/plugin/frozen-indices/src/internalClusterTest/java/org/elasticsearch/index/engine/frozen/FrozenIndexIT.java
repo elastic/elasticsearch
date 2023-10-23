@@ -8,7 +8,7 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
@@ -73,7 +73,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         createIndex("index", 1, 1);
 
-        final IndexResponse indexResponse = client().prepareIndex("index")
+        final DocWriteResponse indexResponse = client().prepareIndex("index")
             .setSource(DataStream.TIMESTAMP_FIELD_NAME, "2010-01-06T02:03:04.567Z")
             .get();
 
@@ -234,8 +234,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            SearchResponse resp = client().prepareSearch()
-                .setIndices(indexName)
+            SearchResponse resp = prepareSearch().setIndices(indexName)
                 .setPreference(null)
                 .setPointInTime(new PointInTimeBuilder(pitId))
                 .get();
@@ -244,8 +243,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             assertHitCount(resp, numDocs);
             internalCluster().restartNode(assignedNode);
             ensureGreen(indexName);
-            resp = client().prepareSearch()
-                .setIndices(indexName)
+            resp = prepareSearch().setIndices(indexName)
                 .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setPreference(null)
@@ -287,8 +285,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         try {
             indicesAdmin().prepareDelete("index-1").get();
             // Return partial results if allow partial search result is allowed
-            SearchResponse resp = client().prepareSearch()
-                .setPreference(null)
+            SearchResponse resp = prepareSearch().setPreference(null)
                 .setAllowPartialSearchResults(true)
                 .setPointInTime(new PointInTimeBuilder(pitId))
                 .get();
@@ -297,10 +294,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             // Fails if allow partial search result is not allowed
             expectThrows(
                 ElasticsearchException.class,
-                client().prepareSearch()
-                    .setPreference(null)
-                    .setAllowPartialSearchResults(false)
-                    .setPointInTime(new PointInTimeBuilder(pitId))::get
+                prepareSearch().setPreference(null).setAllowPartialSearchResults(false).setPointInTime(new PointInTimeBuilder(pitId))::get
             );
         } finally {
             client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
@@ -323,7 +317,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             ).keepAlive(TimeValue.timeValueMinutes(2));
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
+                SearchResponse resp = prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
                 assertNoFailures(resp);
                 assertHitCount(resp, numDocs);
             } finally {
@@ -337,7 +331,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             );
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                SearchResponse resp = client().prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
+                SearchResponse resp = prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)).get();
                 assertNoFailures(resp);
                 assertHitCount(resp, 0);
             } finally {

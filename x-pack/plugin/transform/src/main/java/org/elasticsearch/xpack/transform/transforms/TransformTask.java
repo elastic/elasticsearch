@@ -12,12 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -60,7 +62,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private static final Logger logger = LogManager.getLogger(TransformTask.class);
     private static final IndexerState[] RUNNING_STATES = new IndexerState[] { IndexerState.STARTED, IndexerState.INDEXING };
 
-    private final ParentTaskAssigningClient parentTaskClient;
     private final TransformTaskParams transform;
     private final TransformScheduler transformScheduler;
     private final ThreadPool threadPool;
@@ -70,12 +71,12 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     private final TransformContext context;
     private final SetOnce<ClientTransformIndexer> indexer = new SetOnce<>();
 
+    @SuppressWarnings("this-escape")
     public TransformTask(
         long id,
         String type,
         String action,
         TaskId parentTask,
-        Client client,
         TransformTaskParams transform,
         TransformState state,
         TransformScheduler transformScheduler,
@@ -84,7 +85,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         Map<String, String> headers
     ) {
         super(id, type, action, TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX + transform.getId(), parentTask, headers);
-        this.parentTaskClient = new ParentTaskAssigningClient(client, parentTask);
         this.transform = transform;
         this.transformScheduler = transformScheduler;
         this.threadPool = threadPool;
@@ -119,10 +119,6 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
         if (state != null) {
             this.context.setAuthState(state.getAuthState());
         }
-    }
-
-    public ParentTaskAssigningClient getParentTaskClient() {
-        return parentTaskClient;
     }
 
     public String getTransformId() {
@@ -179,18 +175,29 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
 
     public void getCheckpointingInfo(
         TransformCheckpointService transformsCheckpointService,
-        ActionListener<TransformCheckpointingInfo> listener
+        ParentTaskAssigningClient parentTaskClient,
+        ActionListener<TransformCheckpointingInfo> listener,
+        TimeValue timeout
     ) {
-        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ActionListener.wrap(infoBuilder -> {
-            if (context.getChangesLastDetectedAt() != null) {
-                infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
-            }
-            if (context.getLastSearchTime() != null) {
-                infoBuilder.setLastSearchTime(context.getLastSearchTime());
-            }
-            listener.onResponse(infoBuilder.build());
-        }, listener::onFailure);
+        ActionListener<TransformCheckpointingInfoBuilder> checkPointInfoListener = ListenerTimeouts.wrapWithTimeout(
+            threadPool,
+            timeout,
+            threadPool.generic(),
+            ActionListener.wrap(infoBuilder -> {
+                if (context.getChangesLastDetectedAt() != null) {
+                    infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
+                }
+                if (context.getLastSearchTime() != null) {
+                    infoBuilder.setLastSearchTime(context.getLastSearchTime());
+                }
+                listener.onResponse(infoBuilder.build());
+            }, listener::onFailure),
+            (ignore) -> listener.onFailure(
+                new ElasticsearchTimeoutException(format("Timed out retrieving checkpointing info after [%s]", timeout))
+            )
+        );
 
+        // TODO: pass `timeout` to the lower layers
         ClientTransformIndexer transformIndexer = getIndexer();
         if (transformIndexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
@@ -203,7 +210,7 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
             );
             return;
         }
-        transformIndexer.getCheckpointProvider()
+        transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformIndexer.getConfig())
             .getCheckpointingInfo(
                 transformIndexer.getLastCheckpoint(),
                 transformIndexer.getNextCheckpoint(),

@@ -61,7 +61,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);
-        allAliasActions = in.readList(AliasActions::new);
+        allAliasActions = in.readCollectionAsList(AliasActions::new);
         origin = in.readOptionalString();
     }
 

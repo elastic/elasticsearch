@@ -57,30 +57,27 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))).get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))).get();
+        searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))).get();
+        searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))).get();
+        searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 
     /** The testBulk method uses this only for Geo-specific tests */
     protected void doDistanceAndBoundingBoxTest(String key) {
-        SearchResponse world = client().prepareSearch()
-            .addStoredField("pin")
-            .setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999))
-            .get();
+        assertHitCount(
+            prepareSearch().addStoredField("pin").setQuery(geoBoundingBoxQuery("pin").setCorners(90, -179.99999, -90, 179.99999)),
+            53
+        );
 
-        assertHitCount(world, 53);
-
-        SearchResponse distance = client().prepareSearch()
-            .addStoredField("pin")
+        SearchResponse distance = prepareSearch().addStoredField("pin")
             .setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851))
             .get();
 
@@ -99,7 +96,7 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
         }
     }
 
-    private double distance(double lat1, double lon1, double lat2, double lon2) {
+    private static double distance(double lat1, double lon1, double lat2, double lon2) {
         return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
     }
 }

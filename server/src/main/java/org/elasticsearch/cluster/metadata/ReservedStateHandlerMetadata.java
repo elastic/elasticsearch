@@ -42,7 +42,7 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeCollection(keys, StreamOutput::writeString);
+        out.writeStringCollection(keys);
     }
 
     /**
@@ -53,7 +53,7 @@ public record ReservedStateHandlerMetadata(String name, Set<String> keys)
      * @throws IOException
      */
     public static ReservedStateHandlerMetadata readFrom(StreamInput in) throws IOException {
-        return new ReservedStateHandlerMetadata(in.readString(), in.readSet(StreamInput::readString));
+        return new ReservedStateHandlerMetadata(in.readString(), in.readCollectionAsSet(StreamInput::readString));
     }
 
     @Override

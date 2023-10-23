@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,8 +47,8 @@ import java.util.Objects;
 
 public class CommonStats implements Writeable, ToXContentFragment {
 
-    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersion.V_8_5_0;
-    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersion.V_8_500_058;
+    private static final TransportVersion VERSION_SUPPORTING_NODE_MAPPINGS = TransportVersions.V_8_5_0;
+    private static final TransportVersion VERSION_SUPPORTING_DENSE_VECTOR_STATS = TransportVersions.V_8_500_058;
 
     @Nullable
     public DocsStats docs;
@@ -208,7 +209,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
         shards = in.readOptionalWriteable(ShardCountStats::new);
@@ -238,7 +239,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(translog);
         out.writeOptionalWriteable(requestCache);
         out.writeOptionalWriteable(recoveryStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
         }
         out.writeOptionalWriteable(shards);

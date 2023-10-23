@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -40,19 +41,19 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    public static final TransportVersion SLM_POLICY_FILTERING_VERSION = TransportVersion.V_7_16_0;
+    public static final TransportVersion SLM_POLICY_FILTERING_VERSION = TransportVersions.V_7_16_0;
 
-    public static final TransportVersion FROM_SORT_VALUE_VERSION = TransportVersion.V_7_16_0;
+    public static final TransportVersion FROM_SORT_VALUE_VERSION = TransportVersions.V_7_16_0;
 
-    public static final TransportVersion MULTIPLE_REPOSITORIES_SUPPORT_ADDED = TransportVersion.V_7_14_0;
+    public static final TransportVersion MULTIPLE_REPOSITORIES_SUPPORT_ADDED = TransportVersions.V_7_14_0;
 
-    public static final TransportVersion PAGINATED_GET_SNAPSHOTS_VERSION = TransportVersion.V_7_14_0;
+    public static final TransportVersion PAGINATED_GET_SNAPSHOTS_VERSION = TransportVersions.V_7_14_0;
 
-    public static final TransportVersion NUMERIC_PAGINATION_VERSION = TransportVersion.V_7_15_0;
+    public static final TransportVersion NUMERIC_PAGINATION_VERSION = TransportVersions.V_7_15_0;
 
-    private static final TransportVersion SORT_BY_SHARDS_OR_REPO_VERSION = TransportVersion.V_7_16_0;
+    private static final TransportVersion SORT_BY_SHARDS_OR_REPO_VERSION = TransportVersions.V_7_16_0;
 
-    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersion.V_8_3_0;
+    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
 
     public static final int NO_LIMIT = -1;
 

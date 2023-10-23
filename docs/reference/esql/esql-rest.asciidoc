@@ -45,6 +45,7 @@ highly recommended), take advantage of the triple quotes `"""` when creating the
 query. This not only automatically escapes double quotes (`"`) inside the query
 string but also supports multi-line requests:
 
+// tag::esql-query-api[]
 [source,console]
 ----
 POST /_query?format=txt

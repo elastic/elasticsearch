@@ -12,6 +12,7 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
@@ -45,7 +46,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
          * Whether we can parse this type on indices with the given index created version.
          */
         default boolean supportsVersion(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersion.MINIMUM_COMPATIBLE);
+            return indexCreatedVersion.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE);
         }
     }
 

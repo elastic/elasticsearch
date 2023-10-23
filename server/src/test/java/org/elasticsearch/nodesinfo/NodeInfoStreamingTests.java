@@ -22,7 +22,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -115,7 +115,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;

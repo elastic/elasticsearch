@@ -46,6 +46,7 @@ public class DefaultOperatorOnlyRegistry implements OperatorOnlyRegistry {
         "cluster:admin/repository/analyze/blob",
         "cluster:admin/repository/analyze/blob/read",
         "cluster:admin/repository/analyze/register",
+        "cluster:admin/repository/analyze/register/uncontended",
         // Node shutdown APIs are operator only
         "cluster:admin/shutdown/create",
         "cluster:admin/shutdown/get",

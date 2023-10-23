@@ -327,7 +327,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     }
 
     private static HashMap<String, LongGaugeObserver> setupMetrics(Meter meter, String name, ExecutorHolder holder) {
-        // TODO(stu): do we want to save the gauge refs to close them?
         Map<String, Object> at = Map.of("author", "stu");
         HashMap<String, LongGaugeObserver> observers = new HashMap<>();
         if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
@@ -384,16 +383,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             );
             RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
             if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
-                observers.put(
-                    "rejected",
-                    meter.registerLongGaugeObserver(
-                        prefix + "rejected",
-                        "number of rejected threads for " + name,
-                        "count",
-                        handler::rejected,
-                        at
-                    )
-                );
+                handler.registerCounter(meter, prefix, name);
             }
         }
         return observers;
@@ -621,7 +611,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
-                if (this.observers.containsKey(executor.info.getName())) {
+              if (this.observers.containsKey(executor.info.getName())) {
                     this.observers.get(executor.info.getName()).forEach((k, v) -> {
                         try {
                             v.close();
@@ -650,6 +640,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         }
                     });
                 }
+                this.observers.remove(executor.info.getName());
                 executor.executor().shutdownNow();
             }
         }

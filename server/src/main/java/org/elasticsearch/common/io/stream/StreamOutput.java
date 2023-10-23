@@ -49,7 +49,7 @@ import java.util.Set;
 import java.util.function.IntFunction;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.TransportVersions.V_8_500_070;
+import static org.elasticsearch.TransportVersions.GENERIC_NAMED_WRITABLE_ADDED;
 
 /**
  * A stream from another node to this node. Technically, it can also be streamed from a byte array but that is mostly for testing.
@@ -768,7 +768,8 @@ public abstract class StreamOutput extends OutputStream {
             // Note that we do not rely on the checks in VersionCheckingStreamOutput because that only applies to CCS
             final var genericNamedWriteable = (GenericNamedWriteable) v;
             TransportVersion minSupportedVersion = genericNamedWriteable.getMinimalSupportedVersion();
-            assert minSupportedVersion.onOrAfter(V_8_500_070) : "[GenericNamedWriteable] requires [" + V_8_500_070 + "]";
+            assert minSupportedVersion.onOrAfter(GENERIC_NAMED_WRITABLE_ADDED)
+                : "[GenericNamedWriteable] requires [" + GENERIC_NAMED_WRITABLE_ADDED + "]";
             if (o.getTransportVersion().before(minSupportedVersion)) {
                 final var message = Strings.format(
                     "[%s] requires minimal transport version [%s] and cannot be sent using transport version [%s]",

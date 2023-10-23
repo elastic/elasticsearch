@@ -14,7 +14,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,6 +28,7 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.TransportService;
@@ -137,15 +141,15 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
         DateFormatter dateFmt = DateFormatter.forPattern("yyyy-MM-dd");
 
-        var runner = new DriverRunner() {
+        var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             final Executor executor = transportService.getThreadPool().executor(EsqlPlugin.ESQL_THREAD_POOL_NAME);
 
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(executor, driver, between(1, 1000), listener);
+                Driver.start(transportService.getThreadPool().getThreadContext(), executor, driver, between(1, 1000), listener);
             }
         };
-        Driver driver = new Driver(new DriverContext(), sourceOperator, List.of(enrichOperator), outputOperator, () -> {});
+        Driver driver = new Driver(driverContext(), sourceOperator, List.of(enrichOperator), outputOperator, () -> {});
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         runner.runToCompletion(List.of(driver), future);
         future.actionGet(TimeValue.timeValueSeconds(30));
@@ -223,5 +227,12 @@ public class EnrichLookupIT extends AbstractEsqlIntegTestCase {
 
     public void testMultipleMatches() {
 
+    }
+
+    static DriverContext driverContext() {
+        return new DriverContext(
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            BlockFactory.getNonBreakingInstance()
+        );
     }
 }

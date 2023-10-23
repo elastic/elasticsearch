@@ -11,6 +11,7 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.core.Releasables;
 
 $else$
 import org.apache.lucene.util.RamUsageEstimator;
@@ -24,7 +25,7 @@ $endif$
  */
 public final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayVector.class);
 
 $if(BytesRef)$
     private final BytesRefArray values;
@@ -33,18 +34,21 @@ $else$
     private final $type$[] values;
 $endif$
 
-$if(BytesRef)$
-    public $Type$ArrayVector(BytesRefArray values, int positionCount) {
-$else$
-    public $Type$ArrayVector($type$[] values, int positionCount) {
-$endif$
-        super(positionCount);
+    private final $Type$Block block;
+
+    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
 $if(BytesRef)$
@@ -72,7 +76,19 @@ $endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Filter$Type$Vector(this, positions);
+    $if(BytesRef)$
+        final var scratch = new BytesRef();
+    $endif$
+        try ($Type$Vector.Builder builder = blockFactory.new$Type$VectorBuilder(positions.length)) {
+            for (int pos : positions) {
+            $if(BytesRef)$
+                builder.append$Type$(values.get(pos, scratch));
+            $else$
+                builder.append$Type$(values[pos]);
+            $endif$
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
@@ -105,4 +121,16 @@ $else$
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
 $endif$
     }
+
+$if(BytesRef)$
+    @Override
+    public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
+        blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
+        Releasables.closeExpectNoException(values);
+    }
+$endif$
 }

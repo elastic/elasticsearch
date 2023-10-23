@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -44,7 +45,13 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
         NodeClient client,
         UsageService usageService
     ) {
-        super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
+        super(
+            MustachePlugin.MULTI_SEARCH_TEMPLATE_ACTION.name(),
+            transportService,
+            actionFilters,
+            MultiSearchTemplateRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;

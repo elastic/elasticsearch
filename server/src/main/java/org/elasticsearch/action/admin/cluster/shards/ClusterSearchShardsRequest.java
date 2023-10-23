@@ -31,6 +31,7 @@ public class ClusterSearchShardsRequest extends MasterNodeReadRequest<ClusterSea
 
     public ClusterSearchShardsRequest() {}
 
+    @SuppressWarnings("this-escape")
     public ClusterSearchShardsRequest(String... indices) {
         indices(indices);
     }

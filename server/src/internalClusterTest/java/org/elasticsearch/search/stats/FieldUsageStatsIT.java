@@ -73,8 +73,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertFalse(stats.hasField("field2"));
         assertFalse(stats.hasField("date_field"));
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.DEFAULT)
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
@@ -114,8 +113,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertEquals(Set.of(UsageContext.DOC_VALUES), stats.get("field.keyword").keySet());
         assertEquals(1L * numShards, stats.get("field.keyword").getDocValues());
 
-        client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        prepareSearch().setSearchType(SearchType.DEFAULT)
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .setSize(0)
@@ -144,8 +142,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
                 .getTotal()
                 .getQueryCount()
         );
-        client().prepareSearch()
-            .setSearchType(SearchType.DEFAULT)
+        prepareSearch().setSearchType(SearchType.DEFAULT)
             .setPreFilterShardSize(1)
             .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
             .setSize(100)

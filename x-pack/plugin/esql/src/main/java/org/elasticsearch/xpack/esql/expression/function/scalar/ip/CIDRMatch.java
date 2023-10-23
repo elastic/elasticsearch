@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -55,13 +55,12 @@ public class CIDRMatch extends ScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        Supplier<EvalOperator.ExpressionEvaluator> ipEvaluatorSupplier = toEvaluator.apply(ipField);
-        return () -> new CIDRMatchEvaluator(
-            ipEvaluatorSupplier.get(),
-            matches.stream().map(x -> toEvaluator.apply(x).get()).toArray(EvalOperator.ExpressionEvaluator[]::new)
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        var ipEvaluatorSupplier = toEvaluator.apply(ipField);
+        return dvrCtx -> new CIDRMatchEvaluator(
+            ipEvaluatorSupplier.get(dvrCtx),
+            matches.stream().map(x -> toEvaluator.apply(x).get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
+            dvrCtx
         );
     }
 

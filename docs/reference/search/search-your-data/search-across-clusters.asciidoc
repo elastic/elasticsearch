@@ -146,12 +146,15 @@ included to provide information about the search on each cluster.
     "skipped": 0
   },
   "_clusters": {
-    "total": 1,
+    "total": 1,  <1>
     "successful": 1,
     "skipped": 0,
+    "running": 0,
+    "partial": 0,
+    "failed": 0,
     "details": {
-      "cluster_one": {  <1>
-        "status": "successful", <2>
+      "cluster_one": {  <2>
+        "status": "successful",
         "indices": "my-index-000001", <3>
         "took": 148,  <4>
         "timed_out": false,
@@ -200,12 +203,13 @@ included to provide information about the search on each cluster.
 // TESTRESPONSE[s/"skipped": 0/"skipped": "$body._shards.skipped"/]
 // TESTRESPONSE[s/"took": 148/"took": "$body._clusters.details.cluster_one.took"/]
 
-<1> The `_clusters/details` section shows metadata about the search on each cluster.
-<2> The cluster status can be one of: *running*, *successful* (searches on all shards
-were successful), *partial* (searches on at least one shard of the cluster was successful
-and at least one failed), *skipped* (the search failed on a cluster marked with
-`skip_unavailable`=`true`) or *failed* (the search failed on a cluster marked with
-`skip_unavailable`=`false`).
+<1> This section of counters shows all possible cluster search states and how many cluster
+searches are currently in that state. The clusters can be one of the following statuses: *running*,
+*successful* (searches on all shards were successful), *partial* (searches on at least
+one shard of the cluster was successful and at least one failed), *skipped* (the search
+failed on a cluster marked with `skip_unavailable`=`true`) or *failed* (the search
+failed on a cluster marked with `skip_unavailable`=`false`).
+<2> The `_clusters/details` section shows metadata about the search on each cluster.
 <3> The index expression supplied by the user. If you provide a wildcard such as `logs-*`,
 this section will show the value with the wildcard, not the concrete indices being searched.
 <4> How long (in milliseconds) the sub-search took on that cluster.
@@ -258,6 +262,9 @@ The API returns the following response:
     "total": 3,
     "successful": 3,
     "skipped": 0,
+    "running": 0,
+    "partial": 0,
+    "failed": 0,
     "details": {
       "(local)": {            <1>
         "status": "successful",
@@ -434,6 +441,9 @@ The API returns the following response:
       "total" : 3,
       "successful" : 0,
       "skipped": 0,
+      "running": 3,
+      "partial": 0,
+      "failed": 0,
       "details": {
         "(local)": {
           "status": "running",
@@ -473,7 +483,7 @@ across all clusters only when the search is completed. When
 `ccs_minimize_roundtrips`= `false`, the total shard count is known up front and
 will be correct.
 <3> The `_clusters` section indicates that 3 clusters are in scope for the search
-and all are currently running.
+and all are currently in the "running" state.
 
 If you query the <<get-async-search,get async search>> endpoint while the query is
 still running, you will see an update in the `_clusters` and `_shards` section of
@@ -509,6 +519,9 @@ Response:
       "total": 3,
       "successful": 1,  <2>
       "skipped": 0,
+      "running": 2,
+      "partial": 0,
+      "failed": 0,
       "details": {
         "(local)": {
           "status": "successful",
@@ -550,7 +563,7 @@ Response:
 
 <1> All the local cluster shards have completed.
 <2> The local cluster search has completed, so the "successful" clusters entry
-is set to 1. The `_clusters` response metadata will be updated as each cluster
+is set to 1 and "running" clusters entry reduced to 2. The `_clusters` response metadata will be updated as each cluster
 finishes.
 <3> Number of hits from the local cluster search. Final hits are not
 shown until searches on all clusters have been completed and merged.
@@ -593,6 +606,9 @@ Response:
       "total": 3,
       "successful": 3,   <3>
       "skipped": 0,
+      "running": 0,
+      "partial": 0,
+      "failed": 0,
       "details": {
         "(local)": {
           "status": "successful",
@@ -742,8 +758,11 @@ Response:
     },
     "_clusters": {
       "total": 3,
-      "successful": 3,   <3>
+      "successful": 2,
       "skipped": 0,
+      "running": 0,
+      "partial": 1,   <3>
+      "failed": 0,
       "details": {
         "(local)": {
           "status": "successful",
@@ -810,7 +829,7 @@ Response:
 
 <1> The search results are marked as partial, since at least one shard search failed.
 <2> The `_shards` section includes shard failure info.
-<3> Clusters that have partial results are still marked as successful. They are
+<3> Clusters that have partial results are still marked as "partial". They are
 marked with status "skipped" (or "failed") only if no data was returned from the search.
 <4> The `partial` status has been applied to the cluster with partial results.
 <5> The failed shard count is shown.
@@ -858,7 +877,10 @@ Response:
     "_clusters": {
       "total": 3,
       "successful": 1,
-      "skipped": 2,   <2>
+      "skipped": 1,
+      "running": 0,
+      "partial": 0,
+      "failed": 1,
       "details": {
         "(local)": {
           "status": "successful",
@@ -873,7 +895,7 @@ Response:
           }
         },
         "cluster_one": {
-          "status": "skipped",   <3>
+          "status": "skipped",   <2>
           "indices": "my-index-000001",
           "timed_out": false,
           "failures": [
@@ -881,14 +903,14 @@ Response:
               "shard": -1,
               "index": null,
               "reason": {
-                "type": "node_disconnected_exception",   <4>
+                "type": "node_disconnected_exception",   <3>
                 "reason": "[myhostname1][35.238.149.1:9300][indices:data/read/search] disconnected"
               }
             }
           ]
         },
         "cluster_two": {
-          "status": "failed",   <5>
+          "status": "failed",   <4>
           "indices": "my-index-000001",
           "timed_out": false,
           "failures": [
@@ -907,7 +929,7 @@ Response:
     "hits": {
     },
   }
-  "error": {  <6>
+  "error": {  <5>
     "type": "status_exception",
     "reason": "error while executing search",
     "caused_by": {
@@ -921,15 +943,14 @@ Response:
 
 <1> The shard accounting will often be only partial when errors like this occur,
 since we need to be able to get shard info from remote clusters on each search.
-<2> The skipped counter is used for both "skipped" and "failed" clusters.
-<3> `cluster_one` disconnected during the search and it returned no results.
+<2> `cluster_one` disconnected during the search and it returned no results.
 Since it is marked in the remote cluster configuration as `skip_unavailable`=`true`,
 its status is "skipped", which will not fail the entire search.
-<4> The failures list shows that the remote cluster node disconnected from the
+<3> The failures list shows that the remote cluster node disconnected from the
 querying cluster.
-<5> `cluster_two` status is "failed", since it is marked in the remote cluster
+<4> `cluster_two` status is "failed", since it is marked in the remote cluster
 configuration as `skip_unavailable`=`false`.
-<6> A top level `error` entry is included when there is a "failed" cluster.
+<5> A top level `error` entry is included when there is a "failed" cluster.
 
 
 [discrete]
@@ -1060,7 +1081,10 @@ the `wait_for_completion_timeout` duration (see <<async-search>>).
       "total" : 3,
       "successful": 0,
       "skipped": 0,
-      "details": {    <2>
+      "running": 3,    <2>
+      "partial": 0,
+      "failed": 0,
+      "details": {    <3>
         "(local)": {
           "status": "running",
           "indices": "my-index-000001",
@@ -1112,7 +1136,8 @@ the `wait_for_completion_timeout` duration (see <<async-search>>).
 
 <1> All shards from all clusters in scope for the search are listed here. Watch this
 section and/or the _clusters section for updates to monitor search progress.
-<2> The `_clusters` section shows that shard information was successfully
+<2> From the `_clusters` section we can see that all the clusters are in "running" state.
+<3> The `_clusters` section shows that shard information was successfully
 gathered from all 3 clusters and the total shard count on each cluster is listed.
 
 

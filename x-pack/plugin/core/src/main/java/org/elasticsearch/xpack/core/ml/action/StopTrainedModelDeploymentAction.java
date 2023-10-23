@@ -79,7 +79,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             allowNoMatch = in.readBoolean();
             force = in.readBoolean();
 
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_068)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_FINISH_PENDING_WORK_ADDED)) {
                 finishPendingWork = in.readBoolean();
             } else {
                 finishPendingWork = false;
@@ -132,7 +132,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             out.writeBoolean(allowNoMatch);
             out.writeBoolean(force);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_068)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_FINISH_PENDING_WORK_ADDED)) {
                 out.writeBoolean(finishPendingWork);
             }
         }

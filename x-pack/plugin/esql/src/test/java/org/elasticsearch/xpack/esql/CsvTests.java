@@ -12,10 +12,16 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -40,7 +46,6 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -62,11 +67,9 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
@@ -82,12 +85,10 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -100,10 +101,12 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -145,13 +148,8 @@ public class CsvTests extends ESTestCase {
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
 
-    private final EsqlConfiguration configuration = new EsqlConfiguration(
-        ZoneOffset.UTC,
-        Locale.US,
-        null,
-        null,
-        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
+    private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
+        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
@@ -231,12 +229,15 @@ public class CsvTests extends ESTestCase {
     }
 
     private void doTest() throws Exception {
-        var actualResults = executePlan();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        var actualResults = executePlan(bigArrays);
         var expected = loadCsvSpecValues(testCase.expectedResults);
 
         var log = logResults() ? LOGGER : null;
         assertResults(expected, actualResults, testCase.ignoreOrder, log);
         assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+        Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
+        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
@@ -283,10 +284,7 @@ public class CsvTests extends ESTestCase {
     private PhysicalPlan physicalPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
         var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName());
         var enrichPolicies = loadEnrichPolicies();
-        var analyzer = new Analyzer(
-            new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies),
-            new Verifier(new Metrics())
-        );
+        var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
         var analyzed = analyzer.analyze(parsed);
         var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
@@ -317,7 +315,7 @@ public class CsvTests extends ESTestCase {
         return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
     }
 
-    private ActualResults executePlan() throws Exception {
+    private ActualResults executePlan(BigArrays bigArrays) throws Exception {
         var parsed = parser.createStatement(testCase.query);
         var testDataset = testsDataset(parsed);
 
@@ -327,7 +325,8 @@ public class CsvTests extends ESTestCase {
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
-            BigArrays.NON_RECYCLING_INSTANCE,
+            bigArrays,
+            new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -366,10 +365,11 @@ public class CsvTests extends ESTestCase {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
-                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-                    new LocalLogicalOptimizerContext(configuration, new DisabledSearchStats())
+                var searchStats = new DisabledSearchStats();
+                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+                    new LocalPhysicalOptimizerContext(configuration, searchStats)
                 );
-                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
 
                 var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
                 exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
@@ -378,17 +378,24 @@ public class CsvTests extends ESTestCase {
                 Randomness.shuffle(drivers);
             }
             // Execute the driver
-            DriverRunner runner = new DriverRunner() {
+            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
+                    Driver.start(
+                        threadPool.getThreadContext(),
+                        threadPool.executor(ESQL_THREAD_POOL_NAME),
+                        driver,
+                        between(1, 1000),
+                        driverListener
+                    );
                 }
             };
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
-            var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
-            return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
+                var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
+                return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            }));
+            return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
             Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
         }
@@ -421,7 +428,11 @@ public class CsvTests extends ESTestCase {
     private void assertWarnings(List<String> warnings) {
         List<String> normalized = new ArrayList<>(warnings.size());
         for (String w : warnings) {
-            normalized.add(HeaderWarning.extractWarningValueFromWarningHeader(w, false));
+            String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
+            if (normW.startsWith("No limit defined, adding default limit of [") == false) {
+                // too many tests do not have a LIMIT, we'll test this warning separately
+                normalized.add(normW);
+            }
         }
         assertMap(normalized, matchesList(testCase.expectedWarnings));
     }

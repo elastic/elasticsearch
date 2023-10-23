@@ -19,6 +19,7 @@ public class AggregateMetricFieldValueFetcher extends FieldValueFetcher {
 
     private final AbstractDownsampleFieldProducer fieldProducer;
 
+    @SuppressWarnings("this-escape")
     protected AggregateMetricFieldValueFetcher(
         MappedFieldType fieldType,
         AggregateDoubleMetricFieldType aggMetricFieldType,

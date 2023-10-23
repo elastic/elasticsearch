@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -143,7 +144,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
-                            ensureTransportVersionBarrier(compatibilityVersions, compatibilityVersionsMap.values());
+                            CompatibilityVersions.ensureVersionsCompatibility(compatibilityVersions, compatibilityVersionsMap.values());
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
@@ -222,7 +223,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             }
 
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
-                newState.nodes(nodesBuilder).compatibilityVersions(compatibilityVersionsMap).build()
+                newState.nodes(nodesBuilder).nodeIdsToCompatibilityVersions(compatibilityVersionsMap).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
@@ -295,7 +296,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
-            .compatibilityVersions(compatibilityVersions)
+            .nodeIdsToCompatibilityVersions(compatibilityVersions)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())
@@ -328,7 +329,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * Ensures that all indices are compatible with the given index version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see IndexVersion#MINIMUM_COMPATIBLE
+     * @see IndexVersions#MINIMUM_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
     public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {

@@ -405,11 +405,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(randomBoolean(), Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
             public void writeIndexingBuffer() throws IOException {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 super.writeIndexingBuffer();
             }
         });

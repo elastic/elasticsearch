@@ -721,15 +721,16 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     false,
                     IndexVersion.current(),
                     null
-                ).build(MapperBuilderContext.root(false)).fieldType();
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(MapperBuilderContext.root(false))
-                    .fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, IndexVersion.current()).build(
+                    MapperBuilderContext.root(false, false)
+                ).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -744,7 +745,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                     false,
                     IndexVersion.current(),
                     null
-                ).build(MapperBuilderContext.root(false)).fieldType();
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -898,11 +899,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         public List<IndexRequest> triggerAndWaitForCompletion(long now) throws Exception {
             assertTrue(maybeTriggerAsyncJob(now));
-            try {
-                latch.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(latch);
             if (exc != null) {
                 throw exc;
             }

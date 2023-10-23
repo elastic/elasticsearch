@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
-import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a $Type$Vector.
@@ -18,12 +18,10 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$VectorBlock.class);
-
     private final $Type$Vector vector;
 
     $Type$VectorBlock($Type$Vector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -54,12 +52,12 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new Filter$Type$Vector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -78,5 +76,19 @@ $endif$
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
+    public void close() {
+        if (released || vector.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

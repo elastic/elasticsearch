@@ -25,7 +25,14 @@ public class AtanTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("AtanEvaluator", "val", Math::atan);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "AtanEvaluator",
+            "val",
+            Math::atan,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

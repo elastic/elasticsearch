@@ -15,22 +15,21 @@ import org.elasticsearch.common.Strings;
  */
 public class MapperBuilderContext {
 
-    private static final MapperBuilderContext ROOT_SYNTHETIC = new MapperBuilderContext(null, true);
-    private static final MapperBuilderContext ROOT_NOT_SYNTHETIC = new MapperBuilderContext(null, false);
-
     /**
      * The root context, to be used when building a tree of mappers
      */
-    public static MapperBuilderContext root(boolean isSourceSynthetic) {
-        return isSourceSynthetic ? ROOT_SYNTHETIC : ROOT_NOT_SYNTHETIC;
+    public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
+        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream);
     }
 
     private final String path;
     private final boolean isSourceSynthetic;
+    private final boolean isDataStream;
 
-    MapperBuilderContext(String path, boolean isSourceSynthetic) {
+    MapperBuilderContext(String path, boolean isSourceSynthetic, boolean isDataStream) {
         this.path = path;
         this.isSourceSynthetic = isSourceSynthetic;
+        this.isDataStream = isDataStream;
     }
 
     /**
@@ -39,7 +38,7 @@ public class MapperBuilderContext {
      * @return a new MapperBuilderContext with this context as its parent
      */
     public MapperBuilderContext createChildContext(String name) {
-        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic);
+        return new MapperBuilderContext(buildFullName(name), isSourceSynthetic, isDataStream);
     }
 
     /**
@@ -59,4 +58,10 @@ public class MapperBuilderContext {
         return isSourceSynthetic;
     }
 
+    /**
+     * Are these mappings being built for a data stream index?
+     */
+    public boolean isDataStream() {
+        return isDataStream;
+    }
 }

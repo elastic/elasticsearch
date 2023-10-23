@@ -107,8 +107,8 @@ setup:
 ---
 "Add data stream lifecycle":
   - skip:
-      version: " - 8.9.99"
-      reason: "Data stream lifecycle in index templates was updated after 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -142,8 +142,8 @@ setup:
 ---
 "Get data stream lifecycle with default rollover":
   - skip:
-      version: " - 8.9.99"
-      reason: "Data stream lifecycle in index templates was updated after 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
       features: allowed_warnings
 
   - do:
@@ -171,8 +171,8 @@ setup:
 ---
 "Reject data stream lifecycle without data stream configuration":
   - skip:
-      version: " - 8.9.99"
-      reason: "Data stream lifecycle in index templates was updated after 8.9"
+      version: " - 8.10.99"
+      reason: "Data stream lifecycle in index templates was updated after 8.10"
   - do:
       catch:  bad_request
       indices.put_index_template:

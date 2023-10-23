@@ -327,6 +327,13 @@ emp_no:integer |job_positions:keyword |is_in:boolean
 10026          |Reporting Analyst     |null
 ;
 
+in3VLWithNull-99347_bugfix
+from employees | where emp_no == 10025 | keep emp_no, job_positions | eval is_in = job_positions in ("Accountant", "Internship", null);
+
+emp_no:integer |job_positions:keyword |is_in:boolean
+10025          |Accountant            |true
+;
+
 in3VLWithComputedNull
 from employees | sort emp_no | where mv_count(job_positions) <= 1 | where emp_no >= 10024 | limit 3 | keep emp_no, job_positions | eval nil = concat("", null) | eval is_in = job_positions in ("Accountant", "Internship", nil);
 
@@ -714,6 +721,75 @@ Gateway     | instances
 null        | null
 ;
 
+replaceSimple
+from employees | sort emp_no | limit 1 | eval name = replace(first_name, "Geo", "foo") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001 | foorgi
+;
+
+replaceText
+from hosts | where host == "epsilon" | limit 1 | eval name = replace(host, "ep", "") | keep name;
+
+name:keyword
+silon
+;
+
+replaceComplex
+from employees | where emp_no <= 10010 | eval f_l = replace(replace(substring(last_name, 1, 20), "al", "AB"), "a", "Z")  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | FZcello
+10002 | Simmel    | Simmel
+10003 | Bamford   | BZmford
+10004 | Koblick   | Koblick
+10005 | Maliniak  | MABiniZk
+10006 | Preusig   | Preusig
+10007 | Zielinski | Zielinski
+10008 | Kalloufi  | KABloufi
+10009 | Peac      | PeZc
+10010 | Piveteau  | PiveteZu
+;
+
+replaceComplex2
+from employees | where emp_no <= 10010 | eval f_l = substring(replace(last_name, "a", "Z"), 1, 1)  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | F
+10002 | Simmel    | S
+10003 | Bamford   | B
+10004 | Koblick   | K
+10005 | Maliniak  | M
+10006 | Preusig   | P
+10007 | Zielinski | Z
+10008 | Kalloufi  | K
+10009 | Peac      | P
+10010 | Piveteau  | P
+;
+
+replaceComplex3
+FROM employees | eval x = replace(to_string(emp_no), "(0+)", left(first_name, 1)), y = left(first_name, 1), is_match = y == substring(x, 2, 1) | keep first_name, y, x, is_match | sort is_match, x | limit 8;
+
+first_name:keyword|  y:keyword    |  x:keyword    |is_match:boolean    
+Alejandro         |A              |1A59           |true           
+Anneke            |A              |1A6            |true           
+Anoosh            |A              |1A62           |true           
+Amabile           |A              |1A91           |true           
+Arumugam          |A              |1A94           |true           
+Berni             |B              |1B14           |true           
+Bezalel           |B              |1B2            |true           
+Bojan             |B              |1B23           |true
+;
+
+replaceRegex
+from hosts | where host == "epsilon" | eval l1=replace(host_group, "\\s+", "") | sort l1 | keep l1, host_group;
+ 
+   l1:keyword   |host_group:text    
+Gatewayinstances|Gateway instances
+Gatewayinstances|Gateway instances
+null            |null             
+;
+
 left
 // tag::left[]
 FROM employees
@@ -752,4 +828,75 @@ Baek              |aek
 Bamford           |ord
 Bernatsky         |sky
 // end::right-result[]
+;
+
+endsWithConstant
+from employees | sort emp_no | limit 10 | eval f_a = ends_with(first_name, "a") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;
+
+endsWithSequence
+from employees | sort emp_no | limit 10 | eval f_a = ends_with(first_name, "an") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | true
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | true
+10008 | Saniya    | false
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;
+
+endsWithExpression
+from employees | sort emp_no | limit 10
+| eval last_name_last_letter = right(last_name, 1)
+| eval same_last_letters  = ends_with(first_name, last_name_last_letter)
+| keep emp_no, first_name, last_name, same_last_letters;
+
+emp_no:integer | first_name:keyword  | last_name:keyword | same_last_letters:boolean
+10001 | Georgi    | Facello   | false
+10002 | Bezalel   | Simmel    | true
+10003 | Parto     | Bamford   | false
+10004 | Chirstian | Koblick   | false
+10005 | Kyoichi   | Maliniak  | false
+10006 | Anneke    | Preusig   | false
+10007 | Tzvetan   | Zielinski | false
+10008 | Saniya    | Kalloufi  | false
+10009 | Sumant    | Peac      | false
+10010 | Duangkaew | Piveteau  | false
+;
+
+docsEndsWith
+// tag::endsWith[]
+FROM employees
+| KEEP last_name
+| EVAL ln_E = ENDS_WITH(last_name, "d")
+// end::endsWith[]
+| SORT last_name ASC
+| LIMIT 5
+;
+
+// tag::endsWith-result[]
+last_name:keyword | ln_E:boolean
+Awdeh          |false
+Azuma          |false
+Baek           |false
+Bamford        |true
+Bernatsky      |false
+// end::endsWith-result[]
 ;

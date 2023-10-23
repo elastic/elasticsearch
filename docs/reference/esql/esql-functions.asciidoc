@@ -26,6 +26,7 @@ these functions:
 * <<esql-date_parse>>
 * <<esql-date_trunc>>
 * <<esql-e>>
+* <<esql-ends_with>>
 * <<esql-floor>>
 * <<esql-greatest>>
 * <<esql-is_finite>>
@@ -47,6 +48,7 @@ these functions:
 * <<esql-now>>
 * <<esql-pi>>
 * <<esql-pow>>
+* <<esql-replace>>
 * <<esql-right>>
 * <<esql-round>>
 * <<esql-rtrim>>
@@ -89,6 +91,7 @@ include::functions/date_format.asciidoc[]
 include::functions/date_parse.asciidoc[]
 include::functions/date_trunc.asciidoc[]
 include::functions/e.asciidoc[]
+include::functions/ends_with.asciidoc[]
 include::functions/floor.asciidoc[]
 include::functions/greatest.asciidoc[]
 include::functions/is_finite.asciidoc[]
@@ -110,6 +113,7 @@ include::functions/mv_sum.asciidoc[]
 include::functions/now.asciidoc[]
 include::functions/pi.asciidoc[]
 include::functions/pow.asciidoc[]
+include::functions/replace.asciidoc[]
 include::functions/right.asciidoc[]
 include::functions/round.asciidoc[]
 include::functions/rtrim.asciidoc[]

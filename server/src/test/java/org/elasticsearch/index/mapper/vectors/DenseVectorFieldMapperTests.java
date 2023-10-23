@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
@@ -23,8 +22,11 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -64,7 +66,7 @@ import static org.mockito.Mockito.when;
 
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
-    private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersion.V_8_10_0;
+    private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersions.V_8_10_0;
     private final ElementType elementType;
     private final boolean indexed;
     private final boolean indexOptionsSet;
@@ -200,7 +202,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"
+                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 4096] but was [0]"
                 )
             );
         }
@@ -208,13 +210,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
-                b.field("dims", 3000);
+                b.field("dims", 5000);
             })));
             assertThat(
                 e.getMessage(),
                 equalTo(
                     "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
                 )
             );
         }
@@ -223,16 +225,36 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("index", "true");
-                b.field("dims", 3000);
+                b.field("dims", 5000);
             })));
             assertThat(
                 e.getMessage(),
                 equalTo(
                     "Failed to parse mapping: "
-                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                        + "The number of dimensions for field [field] should be in the range [1, 4096] but was [5000]"
                 )
             );
         }
+    }
+
+    public void testMergeDims() throws IOException {
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "dense_vector");
+            b.endObject();
+        });
+        MapperService mapperService = createMapperService(mapping);
+
+        mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "dense_vector").field("dims", 4).field("similarity", "cosine").field("index", true);
+            b.endObject();
+        });
+        merge(mapperService, mapping);
+        assertEquals(
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
+        );
     }
 
     public void testDefaults() throws Exception {
@@ -401,6 +423,40 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testMaxInnerProductWithValidNorm() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", VectorSimilarity.MAX_INNER_PRODUCT)
+            )
+        );
+        float[] vector = { -12.1f, 2.7f, -4 };
+        // Shouldn't throw
+        mapper.parse(source(b -> b.array("field", vector)));
+    }
+
+    public void testWithExtremeFloatVector() throws Exception {
+        for (VectorSimilarity vs : List.of(VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT, VectorSimilarity.COSINE)) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", vs))
+            );
+            float[] vector = { 0.07247924f, -4.310546E-11f, -1.7255947E30f };
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", vector)))
+            );
+            assertNotNull(e.getCause());
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "NaN or Infinite magnitude detected, this usually means the vector values are too extreme to fit within a float."
+                )
+            );
+        }
+    }
+
     public void testInvalidParameters() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
@@ -545,7 +601,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
-        IndexVersion indexVersion = IndexVersion.V_7_4_0;
+        IndexVersion indexVersion = IndexVersions.V_7_4_0;
         DocumentMapper mapper = createDocumentMapper(
             indexVersion,
             fieldMapping(b -> b.field("index", false).field("type", "dense_vector").field("dims", 3))
@@ -629,7 +685,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         final int dims = randomIntBetween(64, 2048);
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
-            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, IndexVersion.V_8_500_001),
+            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersions.NEW_SPARSE_VECTOR),
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
         );
         float[] vector = new float[dims];
@@ -648,10 +704,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     /**
      * Test that max dimensions limit for float dense_vector field
-     * is 2048 as defined by {@link DenseVectorFieldMapper#MAX_DIMS_COUNT}
+     * is 4096 as defined by {@link DenseVectorFieldMapper#MAX_DIMS_COUNT}
      */
     public void testMaxDimsFloatVector() throws IOException {
-        final int dims = 2048;
+        final int dims = 4096;
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", dims).field("index", true).field("similarity", similarity))
@@ -677,10 +733,10 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     /**
      * Test that max dimensions limit for byte dense_vector field
-     * is 2048 as defined by {@link KnnByteVectorField}
+     * is 4096 as defined by {@link KnnByteVectorField}
      */
     public void testMaxDimsByteVector() throws IOException {
-        final int dims = 2048;
+        final int dims = 4096;
         VectorSimilarity similarity = VectorSimilarity.COSINE;
         ;
         DocumentMapper mapper = createDocumentMapper(
@@ -720,7 +776,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertEquals(
             VectorSimilarityFunction.COSINE,
             VectorSimilarity.COSINE.vectorSimilarityFunction(
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_8_0_0, DenseVectorFieldMapper.NORMALIZE_COSINE),
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, DenseVectorFieldMapper.NORMALIZE_COSINE),
                 ElementType.FLOAT
             )
         );
@@ -796,7 +852,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     // TODO: add `byte` element_type tests
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 2048)).field("element_type", "float");
+        b.field("type", "dense_vector").field("dims", randomIntBetween(2, 4096)).field("element_type", "float");
         if (randomBoolean()) {
             b.field("index", true).field("similarity", randomFrom(VectorSimilarity.values()).toString());
         }
@@ -836,26 +892,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.endObject();
         })));
         assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
-    }
-
-    public void testNestedVectorsCannotBeIndexed() {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> createMapperService(
-                fieldMapping(
-                    b -> b.field("type", "nested")
-                        .startObject("properties")
-                        .startObject("vector")
-                        .field("type", "dense_vector")
-                        .field("dims", 4)
-                        .field("index", true)
-                        .field("similarity", "dot_product")
-                        .endObject()
-                        .endObject()
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("[dense_vector] fields cannot be indexed if they're within [nested] mappings"));
     }
 
     public void testByteVectorIndexBoundaries() throws IOException {
@@ -912,7 +948,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 128, 0, 0 }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 128, 0, 0 }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -921,7 +957,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0f, -129.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0f, -129.0f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -930,7 +966,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0.5f, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0.0f, 0.5f, 0.0f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -939,7 +975,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, 0.0f, -0.25f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, 0.0f, -0.25f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -948,13 +984,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null, null, null)
         );
         assertThat(e.getMessage(), containsString("element_type [byte] vectors do not support NaN values but found [NaN] at dim [0];"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -963,7 +999,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -989,13 +1025,13 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.NaN, 0f, 0.0f }, 3, null, null, null)
         );
         assertThat(e.getMessage(), containsString("element_type [float] vectors do not support NaN values but found [NaN] at dim [0];"));
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { Float.POSITIVE_INFINITY, 0f, 0.0f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1004,7 +1040,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         e = expectThrows(
             IllegalArgumentException.class,
-            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null, null)
+            () -> denseVectorFieldType.createKnnQuery(new float[] { 0, Float.NEGATIVE_INFINITY, 0.0f }, 3, null, null, null)
         );
         assertThat(
             e.getMessage(),
@@ -1030,7 +1066,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        assertThat(knnVectorsFormat, instanceOf(Lucene95HnswVectorsFormat.class));
         String expectedString = "Lucene95HnswVectorsFormat(name=Lucene95HnswVectorsFormat, maxConn="
             + m
             + ", beamWidth="

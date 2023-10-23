@@ -9,15 +9,17 @@ package org.elasticsearch.xpack.esql.evaluator;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BooleanArrayVector;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
@@ -34,8 +36,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.List;
-import java.util.function.IntFunction;
-import java.util.function.Supplier;
 
 public final class EvalMapper {
 
@@ -59,7 +59,7 @@ public final class EvalMapper {
     private EvalMapper() {}
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static Supplier<ExpressionEvaluator> toEvaluator(Expression exp, Layout layout) {
+    public static ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(e -> toEvaluator(e, layout));
         }
@@ -73,9 +73,9 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public Supplier<ExpressionEvaluator> map(BinaryLogic bc, Layout layout) {
-            Supplier<ExpressionEvaluator> leftEval = toEvaluator(bc.left(), layout);
-            Supplier<ExpressionEvaluator> rightEval = toEvaluator(bc.right(), layout);
+        public ExpressionEvaluator.Factory map(BinaryLogic bc, Layout layout) {
+            var leftEval = toEvaluator(bc.left(), layout);
+            var rightEval = toEvaluator(bc.right(), layout);
             /**
              * Evaluator for the <href a="https://en.wikipedia.org/wiki/Three-valued_logic">three-valued boolean expressions</href>.
              * We can't generate these with the {@link Evaluator} annotation because that
@@ -86,16 +86,15 @@ public final class EvalMapper {
                 implements
                     ExpressionEvaluator {
                 @Override
-                public Block eval(Page page) {
-                    Block lhs = leftEval.eval(page);
-                    Block rhs = rightEval.eval(page);
-
-                    Vector lhsVector = lhs.asVector();
-                    Vector rhsVector = rhs.asVector();
-                    if (lhsVector != null && rhsVector != null) {
-                        return eval((BooleanVector) lhsVector, (BooleanVector) rhsVector);
+                public Block.Ref eval(Page page) {
+                    try (Block.Ref lhs = leftEval.eval(page); Block.Ref rhs = rightEval.eval(page)) {
+                        Vector lhsVector = lhs.block().asVector();
+                        Vector rhsVector = rhs.block().asVector();
+                        if (lhsVector != null && rhsVector != null) {
+                            return Block.Ref.floating(eval((BooleanVector) lhsVector, (BooleanVector) rhsVector));
+                        }
+                        return Block.Ref.floating(eval(lhs.block(), rhs.block()));
                     }
-                    return eval(lhs, rhs);
                 }
 
                 /**
@@ -106,131 +105,158 @@ public final class EvalMapper {
                  */
                 private Block eval(Block lhs, Block rhs) {
                     int positionCount = lhs.getPositionCount();
-                    BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount);
-                    for (int p = 0; p < positionCount; p++) {
-                        if (lhs.getValueCount(p) > 1) {
-                            result.appendNull();
-                            continue;
+                    try (BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, lhs.blockFactory())) {
+                        for (int p = 0; p < positionCount; p++) {
+                            if (lhs.getValueCount(p) > 1) {
+                                result.appendNull();
+                                continue;
+                            }
+                            if (rhs.getValueCount(p) > 1) {
+                                result.appendNull();
+                                continue;
+                            }
+                            Boolean v = bl.function()
+                                .apply(
+                                    lhs.isNull(p) ? null : ((BooleanBlock) lhs).getBoolean(lhs.getFirstValueIndex(p)),
+                                    rhs.isNull(p) ? null : ((BooleanBlock) rhs).getBoolean(rhs.getFirstValueIndex(p))
+                                );
+                            if (v == null) {
+                                result.appendNull();
+                                continue;
+                            }
+                            result.appendBoolean(v);
                         }
-                        if (rhs.getValueCount(p) > 1) {
-                            result.appendNull();
-                            continue;
-                        }
-                        Boolean v = bl.function()
-                            .apply(
-                                lhs.isNull(p) ? null : ((BooleanBlock) lhs).getBoolean(lhs.getFirstValueIndex(p)),
-                                rhs.isNull(p) ? null : ((BooleanBlock) rhs).getBoolean(rhs.getFirstValueIndex(p))
-                            );
-                        if (v == null) {
-                            result.appendNull();
-                            continue;
-                        }
-                        result.appendBoolean(v);
+                        return result.build();
                     }
-                    return result.build();
                 }
 
                 private Block eval(BooleanVector lhs, BooleanVector rhs) {
                     int positionCount = lhs.getPositionCount();
-                    BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount);
-                    for (int p = 0; p < positionCount; p++) {
-                        result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                    try (var result = BooleanVector.newVectorFixedBuilder(positionCount, lhs.blockFactory())) {
+                        for (int p = 0; p < positionCount; p++) {
+                            result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                        }
+                        return result.build().asBlock();
                     }
-                    return result.build().asBlock();
                 }
 
+                @Override
+                public void close() {
+                    Releasables.closeExpectNoException(leftEval, rightEval);
+                }
             }
-            return () -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(), rightEval.get());
+            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
         }
     }
 
     static class Nots extends ExpressionMapper<Not> {
         @Override
-        public Supplier<ExpressionEvaluator> map(Not not, Layout layout) {
-            Supplier<ExpressionEvaluator> expEval = toEvaluator(not.field(), layout);
-            return () -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(expEval.get());
+        public ExpressionEvaluator.Factory map(Not not, Layout layout) {
+            var expEval = toEvaluator(not.field(), layout);
+            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
+                expEval.get(dvrCtx),
+                dvrCtx
+            );
         }
     }
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public Supplier<ExpressionEvaluator> map(Attribute attr, Layout layout) {
+        public ExpressionEvaluator.Factory map(Attribute attr, Layout layout) {
             record Attribute(int channel) implements ExpressionEvaluator {
                 @Override
-                public Block eval(Page page) {
-                    return page.getBlock(channel);
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(channel), page);
                 }
+
+                @Override
+                public void close() {}
             }
             int channel = layout.get(attr.id()).channel();
-            return () -> new Attribute(channel);
+            return driverContext -> new Attribute(channel);
         }
     }
 
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public Supplier<ExpressionEvaluator> map(Literal lit, Layout layout) {
-            record LiteralsEvaluator(IntFunction<Block> block) implements ExpressionEvaluator {
+        public ExpressionEvaluator.Factory map(Literal lit, Layout layout) {
+            record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
                 @Override
-                public Block eval(Page page) {
-                    return block.apply(page.getPositionCount());
-                }
-            }
-            // wrap the closure to provide a nice toString (used by tests)
-            var blockClosure = new IntFunction<Block>() {
-                @Override
-                public Block apply(int value) {
-                    return block(lit).apply(value);
+                public Block.Ref eval(Page page) {
+                    return Block.Ref.floating(block(lit, context.blockFactory(), page.getPositionCount()));
                 }
 
                 @Override
                 public String toString() {
-                    return lit.toString();
+                    return "LiteralsEvaluator[lit=" + lit + ']';
                 }
-            };
-            return () -> new LiteralsEvaluator(blockClosure);
+
+                @Override
+                public void close() {}
+            }
+            return context -> new LiteralsEvaluator(context, lit);
         }
 
-        private IntFunction<Block> block(Literal lit) {
+        private static Block block(Literal lit, BlockFactory blockFactory, int positions) {
             var value = lit.value();
             if (value == null) {
-                return Block::constantNullBlock;
+                return Block.constantNullBlock(positions, blockFactory);
             }
 
             if (value instanceof List<?> multiValue) {
                 if (multiValue.isEmpty()) {
-                    return Block::constantNullBlock;
+                    return Block.constantNullBlock(positions, blockFactory);
                 }
-                return positions -> {
-                    var wrapper = BlockUtils.wrapperFor(ElementType.fromJava(multiValue.get(0).getClass()), positions);
-                    wrapper.accept(multiValue);
-                    return wrapper.builder().build();
-                };
+                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
+                wrapper.accept(multiValue);
+                return wrapper.builder().build();
             }
-            return positions -> BlockUtils.constantBlock(value, positions);
+            return BlockUtils.constantBlock(blockFactory, value, positions);
         }
     }
 
     static class IsNulls extends ExpressionMapper<IsNull> {
 
         @Override
-        public Supplier<ExpressionEvaluator> map(IsNull isNull, Layout layout) {
-            Supplier<ExpressionEvaluator> field = toEvaluator(isNull.field(), layout);
-            return () -> new IsNullEvaluator(field.get());
+        public ExpressionEvaluator.Factory map(IsNull isNull, Layout layout) {
+            var field = toEvaluator(isNull.field(), layout);
+            return driverContext -> new IsNullEvaluator(driverContext, field.get(driverContext));
         }
 
-        record IsNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
+        record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
+            implements
+                EvalOperator.ExpressionEvaluator {
             @Override
-            public Block eval(Page page) {
-                Block fieldBlock = field.eval(page);
-                if (fieldBlock.asVector() != null) {
-                    return BooleanBlock.newConstantBlockWith(false, page.getPositionCount());
+            public Block.Ref eval(Page page) {
+                try (Block.Ref fieldBlock = field.eval(page)) {
+                    if (fieldBlock.block().asVector() != null) {
+                        return Block.Ref.floating(
+                            BooleanBlock.newConstantBlockWith(false, page.getPositionCount(), driverContext.blockFactory())
+                        );
+                    }
+                    try (
+                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
+                            page.getPositionCount(),
+                            driverContext.blockFactory()
+                        )
+                    ) {
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            builder.appendBoolean(fieldBlock.block().isNull(p));
+                        }
+                        return Block.Ref.floating(builder.build().asBlock());
+                    }
                 }
-                boolean[] result = new boolean[page.getPositionCount()];
-                for (int p = 0; p < page.getPositionCount(); p++) {
-                    result[p] = fieldBlock.isNull(p);
-                }
-                return new BooleanArrayVector(result, result.length).asBlock();
+            }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(field);
+            }
+
+            @Override
+            public String toString() {
+                return "IsNullEvaluator[" + "field=" + field + ']';
             }
         }
     }
@@ -238,23 +264,44 @@ public final class EvalMapper {
     static class IsNotNulls extends ExpressionMapper<IsNotNull> {
 
         @Override
-        public Supplier<ExpressionEvaluator> map(IsNotNull isNotNull, Layout layout) {
-            Supplier<ExpressionEvaluator> field = toEvaluator(isNotNull.field(), layout);
-            return () -> new IsNotNullEvaluator(field.get());
+        public ExpressionEvaluator.Factory map(IsNotNull isNotNull, Layout layout) {
+            var field = toEvaluator(isNotNull.field(), layout);
+            return driverContext -> new IsNotNullEvaluator(driverContext, field.get(driverContext));
         }
 
-        record IsNotNullEvaluator(EvalOperator.ExpressionEvaluator field) implements EvalOperator.ExpressionEvaluator {
+        record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
+            implements
+                EvalOperator.ExpressionEvaluator {
             @Override
-            public Block eval(Page page) {
-                Block fieldBlock = field.eval(page);
-                if (fieldBlock.asVector() != null) {
-                    return BooleanBlock.newConstantBlockWith(true, page.getPositionCount());
+            public Block.Ref eval(Page page) {
+                try (Block.Ref fieldBlock = field.eval(page)) {
+                    if (fieldBlock.block().asVector() != null) {
+                        return Block.Ref.floating(
+                            BooleanBlock.newConstantBlockWith(true, page.getPositionCount(), driverContext.blockFactory())
+                        );
+                    }
+                    try (
+                        BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(
+                            page.getPositionCount(),
+                            driverContext.blockFactory()
+                        )
+                    ) {
+                        for (int p = 0; p < page.getPositionCount(); p++) {
+                            builder.appendBoolean(fieldBlock.block().isNull(p) == false);
+                        }
+                        return Block.Ref.floating(builder.build().asBlock());
+                    }
                 }
-                boolean[] result = new boolean[page.getPositionCount()];
-                for (int p = 0; p < page.getPositionCount(); p++) {
-                    result[p] = fieldBlock.isNull(p) == false;
-                }
-                return new BooleanArrayVector(result, result.length).asBlock();
+            }
+
+            @Override
+            public void close() {
+                Releasables.closeExpectNoException(field);
+            }
+
+            @Override
+            public String toString() {
+                return "IsNotNullEvaluator[" + "field=" + field + ']';
             }
         }
     }

@@ -14,10 +14,10 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.junit.After;
 import org.junit.Before;
 
@@ -73,7 +73,7 @@ public class AzureStorageServiceTests extends ESTestCase {
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
         final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, Tracer.NOOP, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
         return plugin;
     }
 

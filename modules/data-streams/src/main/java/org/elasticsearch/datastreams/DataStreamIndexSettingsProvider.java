@@ -159,10 +159,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         tmpIndexMetadata.settings(finalResolvedSettings);
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
-            for (var mapping : combinedTemplateMappings) {
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
-            }
-
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
             List<String> routingPaths = new ArrayList<>();
             for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
                 extractPath(routingPaths, fieldMapper);
@@ -186,7 +183,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         // that only the first pathMatch passed in gets recognized as a time_series_dimension. To counteract
                         // that, we wrap the mappingSnippet in a new HashMap for each pathMatch instance.
                         .parse(pathMatch, new HashMap<>(mappingSnippet), parserContext)
-                        .build(MapperBuilderContext.root(false));
+                        .build(MapperBuilderContext.root(false, false));
                     extractPath(routingPaths, mapper);
                 }
             }

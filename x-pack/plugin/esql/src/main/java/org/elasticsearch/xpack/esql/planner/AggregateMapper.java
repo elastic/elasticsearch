@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.NumericAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
@@ -80,7 +81,7 @@ public class AggregateMapper {
     }
 
     public List<? extends NamedExpression> mapNonGrouping(List<? extends Expression> aggregates) {
-        return aggregates.stream().flatMap(agg -> map(agg, false)).toList();
+        return doMapping(aggregates, false);
     }
 
     public List<? extends NamedExpression> mapNonGrouping(Expression aggregate) {
@@ -88,7 +89,13 @@ public class AggregateMapper {
     }
 
     public List<? extends NamedExpression> mapGrouping(List<? extends Expression> aggregates) {
-        return aggregates.stream().flatMap(agg -> map(agg, true)).toList();
+        return doMapping(aggregates, true);
+    }
+
+    private List<? extends NamedExpression> doMapping(List<? extends Expression> aggregates, boolean grouping) {
+        AttributeMap<NamedExpression> attrToExpressions = new AttributeMap<>();
+        aggregates.stream().flatMap(agg -> map(agg, grouping)).forEach(ne -> attrToExpressions.put(ne.toAttribute(), ne));
+        return attrToExpressions.values().stream().toList();
     }
 
     public List<? extends NamedExpression> mapGrouping(Expression aggregate) {

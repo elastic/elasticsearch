@@ -11,12 +11,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -243,7 +245,7 @@ public class MessagesTests extends ESTestCase {
         );
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
-            new CompatibilityVersions(TransportVersionUtils.randomVersion()),
+            CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
@@ -263,7 +265,8 @@ public class MessagesTests extends ESTestCase {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
                         new CompatibilityVersions(
-                            TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion()))
+                            TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion())),
+                            Map.of()
                         ),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()

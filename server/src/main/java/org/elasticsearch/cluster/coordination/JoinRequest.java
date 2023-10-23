@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -66,7 +67,8 @@ public class JoinRequest extends TransportRequest {
             compatibilityVersions = CompatibilityVersions.readVersion(in);
         } else {
             // there's a 1-1 mapping from Version to TransportVersion before 8.8.0
-            compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id));
+            // no known mapping versions here
+            compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(sourceNode.getVersion().id), Map.of());
         }
         minimumTerm = in.readLong();
         optionalJoin = Optional.ofNullable(in.readOptionalWriteable(Join::new));

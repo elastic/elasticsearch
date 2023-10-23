@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -28,17 +27,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -48,7 +46,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.assertDesiredNodesStatusIsCorrect;
@@ -86,12 +83,12 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
 
         expectThrows(
             IllegalStateException.class,
             () -> NodeJoinExecutor.ensureIndexCompatibility(
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(IndexVersion.current()),
                 metadata
             )
@@ -110,7 +107,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         Metadata metadata = metaBuilder.build();
         expectThrows(
             IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata)
+            () -> NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata)
         );
     }
 
@@ -118,11 +115,13 @@ public class NodeJoinExecutorTests extends ESTestCase {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final Version version = randomCompatibleVersion(random(), Version.CURRENT);
         builder.add(
-            DiscoveryNodeUtils.builder(UUIDs.base64UUID()).version(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current()).build()
+            DiscoveryNodeUtils.builder(UUIDs.base64UUID())
+                .version(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                .build()
         );
         builder.add(
             DiscoveryNodeUtils.builder(UUIDs.base64UUID())
-                .version(randomCompatibleVersion(random(), version), IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current())
+                .version(randomCompatibleVersion(random(), version), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
                 .build()
         );
         DiscoveryNodes nodes = builder.build();
@@ -157,33 +156,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
         }
     }
 
-    public void testPreventJoinClusterWithUnsupportedTransportVersion() {
-        List<TransportVersion> versions = IntStream.range(0, randomIntBetween(2, 10))
-            .mapToObj(i -> TransportVersionUtils.randomCompatibleVersion(random()))
-            .toList();
-        TransportVersion min = Collections.min(versions);
-        List<CompatibilityVersions> compatibilityVersions = versions.stream().map(CompatibilityVersions::new).toList();
-
-        // should not throw
-        NodeJoinExecutor.ensureTransportVersionBarrier(
-            new CompatibilityVersions(TransportVersionUtils.randomVersionBetween(random(), min, TransportVersion.current())),
-            compatibilityVersions
-        );
-        expectThrows(
-            IllegalStateException.class,
-            () -> NodeJoinExecutor.ensureTransportVersionBarrier(
-                new CompatibilityVersions(
-                    TransportVersionUtils.randomVersionBetween(
-                        random(),
-                        TransportVersionUtils.getFirstVersion(),
-                        TransportVersionUtils.getPreviousVersion(min)
-                    )
-                ),
-                compatibilityVersions
-            )
-        );
-    }
-
     public void testSuccess() {
         Settings.builder().build();
         Metadata.Builder metaBuilder = Metadata.builder();
@@ -200,7 +172,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
         metaBuilder.put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
-        NodeJoinExecutor.ensureIndexCompatibility(IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
+        NodeJoinExecutor.ensureIndexCompatibility(IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current(), metadata);
     }
 
     public static Settings.Builder randomCompatibleVersionSettings() {
@@ -237,17 +209,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
         final DiscoveryNode masterNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
 
         final DiscoveryNode actualNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        final DiscoveryNode bwcNode = new DiscoveryNode(
-            actualNode.getName(),
-            actualNode.getId(),
-            actualNode.getEphemeralId(),
-            actualNode.getHostName(),
-            actualNode.getHostAddress(),
-            actualNode.getAddress(),
-            actualNode.getAttributes(),
-            new HashSet<>(randomSubsetOf(actualNode.getRoles())),
-            actualNode.getVersionInformation()
-        );
+        final DiscoveryNode bwcNode = DiscoveryNodeUtils.builder(actualNode.getId())
+            .name(actualNode.getName())
+            .ephemeralId(actualNode.getEphemeralId())
+            .address(actualNode.getHostName(), actualNode.getHostAddress(), actualNode.getAddress())
+            .attributes(actualNode.getAttributes())
+            .roles(new HashSet<>(randomSubsetOf(actualNode.getRoles())))
+            .version(actualNode.getVersionInformation())
+            .build();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).add(bwcNode))
             .build();
@@ -426,17 +395,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final var masterNode = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
         final var otherNodeOld = DiscoveryNodeUtils.create(UUIDs.randomBase64UUID(random()));
-        final var otherNodeNew = new DiscoveryNode(
-            otherNodeOld.getName(),
-            otherNodeOld.getId(),
-            UUIDs.randomBase64UUID(random()),
-            otherNodeOld.getHostName(),
-            otherNodeOld.getHostAddress(),
-            otherNodeOld.getAddress(),
-            otherNodeOld.getAttributes(),
-            otherNodeOld.getRoles(),
-            otherNodeOld.getVersionInformation()
-        );
+        final var otherNodeNew = DiscoveryNodeUtils.builder(otherNodeOld.getId())
+            .name(otherNodeOld.getName())
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .address(otherNodeOld.getHostName(), otherNodeOld.getHostAddress(), otherNodeOld.getAddress())
+            .attributes(otherNodeOld.getAttributes())
+            .roles(otherNodeOld.getRoles())
+            .version(otherNodeOld.getVersionInformation())
+            .build();
 
         final var afterElectionClusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             ClusterState.builder(ClusterName.DEFAULT)

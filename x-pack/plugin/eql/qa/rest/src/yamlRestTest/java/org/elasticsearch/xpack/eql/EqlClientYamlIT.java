@@ -19,7 +19,6 @@ public class EqlClientYamlIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .nodes(1)
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "basic")
         .setting("xpack.security.enabled", "false")

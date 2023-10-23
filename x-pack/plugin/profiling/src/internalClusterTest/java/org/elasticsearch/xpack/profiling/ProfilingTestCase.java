@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.profiling;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -37,9 +37,8 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            LocalStateCompositeXPackPlugin.class,
             DataStreamsPlugin.class,
-            ProfilingPlugin.class,
+            LocalStateProfilingXPackPlugin.class,
             IndexLifecycle.class,
             UnsignedLongMapperPlugin.class,
             VersionFieldPlugin.class,
@@ -58,6 +57,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
             // .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // Disable ILM history index so that the tests don't have to clean it up
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .build();
     }
 
@@ -72,7 +72,7 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     }
 
     private void indexDoc(String index, String id, Map<String, Object> source) {
-        IndexResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
+        DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());
     }
 
@@ -84,7 +84,16 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
      *
      * @return <code>true</code> iff this test should rely on only "profiling-events-all" being present.
      */
-    protected abstract boolean useOnlyAllEvents();
+    protected boolean useOnlyAllEvents() {
+        return randomBoolean();
+    }
+
+    /**
+     * @return <code>true</code> iff this test relies that data (and the corresponding indices / data streams) are present for this test.
+     */
+    protected boolean requiresDataSetup() {
+        return true;
+    }
 
     protected void waitForIndices() throws Exception {
         assertBusy(() -> {
@@ -110,6 +119,9 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
 
     @Before
     public void setupData() throws Exception {
+        if (requiresDataSetup() == false) {
+            return;
+        }
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);
         Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();

@@ -20,6 +20,7 @@ public class TranslogException extends ElasticsearchException {
         this(shardId, msg, null);
     }
 
+    @SuppressWarnings("this-escape")
     public TranslogException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);
         setShard(shardId);

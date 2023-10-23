@@ -1,5 +1,0 @@
-pr: 97602
-summary: Add tsdb metrics builtin component template
-area: "TSDB"
-type: enhancement
-issues: []

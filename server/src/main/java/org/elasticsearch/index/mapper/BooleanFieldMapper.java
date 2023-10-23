@@ -93,6 +93,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
 
+        @SuppressWarnings("this-escape")
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);

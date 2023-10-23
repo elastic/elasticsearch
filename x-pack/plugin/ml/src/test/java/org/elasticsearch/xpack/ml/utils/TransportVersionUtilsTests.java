@@ -23,13 +23,13 @@ public class TransportVersionUtilsTests extends ESTestCase {
 
     private static final Map<String, CompatibilityVersions> transportVersions = Map.of(
         "Alfredo",
-        new CompatibilityVersions(TransportVersions.V_7_0_0),
+        new CompatibilityVersions(TransportVersions.V_7_0_0, Map.of()),
         "Bertram",
-        new CompatibilityVersions(TransportVersions.V_7_0_1),
+        new CompatibilityVersions(TransportVersions.V_7_0_1, Map.of()),
         "Charles",
-        new CompatibilityVersions(TransportVersions.V_8_500_020),
+        new CompatibilityVersions(TransportVersions.V_8_500_020, Map.of()),
         "Dominic",
-        new CompatibilityVersions(TransportVersions.V_8_0_0)
+        new CompatibilityVersions(TransportVersions.V_8_0_0, Map.of())
     );
 
     private static final ClusterState state = new ClusterState(
@@ -53,7 +53,10 @@ public class TransportVersionUtilsTests extends ESTestCase {
     public void testIsMinTransformVersionSameAsCurrent() {
         assertThat(TransportVersionUtils.isMinTransportVersionSameAsCurrent(state), equalTo(false));
 
-        Map<String, CompatibilityVersions> transportVersions1 = Map.of("Eugene", new CompatibilityVersions(TransportVersion.current()));
+        Map<String, CompatibilityVersions> transportVersions1 = Map.of(
+            "Eugene",
+            new CompatibilityVersions(TransportVersion.current(), Map.of())
+        );
 
         ClusterState state1 = new ClusterState(
             new ClusterName("harry"),

@@ -87,7 +87,7 @@ public final class EsqlDataTypes {
         return NAME_TO_TYPE.get(name.toLowerCase(Locale.ROOT));
     }
 
-    public static DataType fromEs(String name) {
+    public static DataType fromName(String name) {
         DataType type = ES_TO_TYPE.get(name);
         return type != null ? type : UNSUPPORTED;
     }

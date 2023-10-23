@@ -8,7 +8,3 @@ dependencies {
   clusterModules(project(":modules:analysis-common"))
   clusterModules(project(":modules:rest-root"))
 }
-
-testArtifacts {
-  registerTestArtifactFromSourceSet(sourceSets.javaRestTest)
-}

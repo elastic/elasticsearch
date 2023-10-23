@@ -100,7 +100,7 @@ public class GeoBoundingBox extends BoundingBox<GeoPoint> {
 
     @Override
     public final TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_070;
+        return TransportVersions.GENERIC_NAMED_WRITABLE_ADDED;
     }
 
     protected static class GeoBoundsParser extends BoundsParser<GeoBoundingBox> {

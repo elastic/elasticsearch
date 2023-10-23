@@ -252,7 +252,7 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private void writeObject(
+    private static void writeObject(
         final XContentBuilder b,
         final KeyValue currKeyValue,
         final KeyValue nextKeyValue,

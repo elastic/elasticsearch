@@ -9,7 +9,12 @@
 package org.elasticsearch.cluster.version;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+
+import java.util.Map;
 
 public class CompatibilityVersionsUtils {
 
@@ -23,7 +28,7 @@ public class CompatibilityVersionsUtils {
      * @return Compatibility versions known at compile time.
      */
     public static CompatibilityVersions staticCurrent() {
-        return new CompatibilityVersions(TransportVersion.current());
+        return new CompatibilityVersions(TransportVersion.current(), Map.of());
     }
 
     /**
@@ -34,6 +39,20 @@ public class CompatibilityVersionsUtils {
      * @return Random valid compatibility versions
      */
     public static CompatibilityVersions staticRandom() {
-        return new CompatibilityVersions(TransportVersionUtils.randomVersion());
+        return new CompatibilityVersions(TransportVersionUtils.randomVersion(), Map.of());
+    }
+
+    public static CompatibilityVersions fakeSystemIndicesRandom() {
+        return new CompatibilityVersions(
+            TransportVersionUtils.randomVersion(),
+            ESTestCase.randomMap(
+                0,
+                3,
+                () -> Tuple.tuple(
+                    "." + ESTestCase.randomAlphaOfLength(5),
+                    new SystemIndexDescriptor.MappingsVersion(ESTestCase.randomInt(20), ESTestCase.randomInt())
+                )
+            )
+        );
     }
 }

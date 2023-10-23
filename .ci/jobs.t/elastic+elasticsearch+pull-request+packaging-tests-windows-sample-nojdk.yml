@@ -31,6 +31,7 @@
           black-list-labels:
             - '>test-mute'
             - ':Delivery/Packaging'
+            - 'buildkite-opt-in'
     axes:
       - axis:
           type: label-expression

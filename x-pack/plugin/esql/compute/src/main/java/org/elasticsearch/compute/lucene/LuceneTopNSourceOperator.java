@@ -212,6 +212,12 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         );
     }
 
+    @Override
+    protected void describe(StringBuilder sb) {
+        sb.append(", limit=").append(limit);
+        sb.append(", sorts=").append(sorts);
+    }
+
     static final class PerShardCollector {
         private final int shardIndex;
         private final SearchContext searchContext;

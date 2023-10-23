@@ -32,6 +32,8 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SubTests extends AbstractDateTimeArithmeticTestCase {
     public SubTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -103,6 +105,18 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 DataTypes.DATETIME,
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
+        }), new TestCaseSupplier("Period - Period", () -> {
+            Period lhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            Period rhs = (Period) randomLiteral(EsqlDataTypes.DATE_PERIOD).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.DATE_PERIOD, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.DATE_PERIOD, "rhs")
+                ),
+                "Only folding possible, so there's no evaluator",
+                EsqlDataTypes.DATE_PERIOD,
+                equalTo(lhs.minus(rhs))
+            );
         }), new TestCaseSupplier("Datetime - Duration", () -> {
             long lhs = (Long) randomLiteral(DataTypes.DATETIME).value();
             Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
@@ -116,6 +130,32 @@ public class SubTests extends AbstractDateTimeArithmeticTestCase {
                 equalTo(asMillis(asDateTime(lhs).minus(rhs)))
             );
             return testCase;
+        }), new TestCaseSupplier("Duration - Duration", () -> {
+            Duration lhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            Duration rhs = (Duration) randomLiteral(EsqlDataTypes.TIME_DURATION).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, EsqlDataTypes.TIME_DURATION, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, EsqlDataTypes.TIME_DURATION, "rhs")
+                ),
+                "Only folding possible, so there's no evaluator",
+                EsqlDataTypes.TIME_DURATION,
+                equalTo(lhs.minus(rhs))
+            );
+        }), new TestCaseSupplier("MV", () -> {
+            // Ensure we don't have an overflow
+            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataTypes.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                ),
+                "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                DataTypes.INTEGER,
+                is(nullValue())
+            );
         })));
     }
 

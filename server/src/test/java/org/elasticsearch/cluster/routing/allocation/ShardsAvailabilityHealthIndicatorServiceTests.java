@@ -44,12 +44,14 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.stubbing.Answer;
@@ -533,8 +535,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testShouldBeGreenWhenThereAreInitializingPrimaries() {
-        var clusterState = createClusterStateWith(List.of(index("restarting-index", new ShardAllocation("node-0", CREATING))), List.of());
+    public void testShouldBeGreenWhenThereAreInitializingPrimariesAndReplicas() {
+        var clusterState = createClusterStateWith(
+            List.of(index("restarting-index", new ShardAllocation("node-0", CREATING), new ShardAllocation("node-1", CREATING))),
+            List.of()
+        );
         var service = createShardsAvailabilityIndicatorService(clusterState);
 
         assertThat(
@@ -542,8 +547,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 createExpectedResult(
                     GREEN,
-                    "This cluster has 1 creating primary shard.",
-                    Map.of("creating_primaries", 1),
+                    "This cluster has 1 creating primary shard, 1 creating replica shard.",
+                    Map.of("creating_primaries", 1, "creating_replicas", 1),
                     emptyList(),
                     emptyList()
                 )
@@ -1529,6 +1534,157 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
     }
 
+    public void testShouldBeGreenWhenFrozenIndexIsUnassignedAndOriginalIsAvailable() {
+        String originalIndex = "logs-2023.07.11-000024";
+        String restoredIndex = "restored-logs-2023.07.11-000024";
+        var clusterState = createClusterStateWith(
+            List.of(
+                IndexMetadata.builder(restoredIndex)
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, originalIndex)
+                            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                            .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, randomBoolean())
+                            .build()
+                    )
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build(),
+                IndexMetadata.builder(originalIndex)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build()
+            ),
+            List.of(
+                index(restoredIndex, new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index(originalIndex, new ShardAllocation(randomNodeId(), AVAILABLE))
+            ),
+            List.of(),
+            List.of()
+        );
+        var service = createShardsAvailabilityIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+        assertThat(
+            result,
+            equalTo(
+                createExpectedResult(
+                    GREEN,
+                    "This cluster has 1 unavailable primary shard. This is a mounted shard and the original "
+                        + "shard is available, so there are no data availability problems.",
+                    Map.of("unassigned_primaries", 1, "started_primaries", 1),
+                    List.of(),
+                    List.of(
+                        new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of(new Diagnosis.Resource(INDEX, List.of(restoredIndex))))
+                    )
+                )
+            )
+        );
+    }
+
+    public void testShouldBeRedWhenFrozenIndexIsUnassignedAndOriginalIsUnavailable() {
+        String originalIndex = "logs-2023.07.11-000024";
+        String restoredIndex = "restored-logs-2023.07.11-000024";
+        List<IndexMetadata> indexMetadata = new ArrayList<>(2);
+        List<IndexRoutingTable> routes = new ArrayList<>(2);
+        indexMetadata.add(
+            IndexMetadata.builder(restoredIndex)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, originalIndex)
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, randomBoolean())
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build()
+        );
+        routes.add(index(restoredIndex, new ShardAllocation(randomNodeId(), UNAVAILABLE)));
+        // When original does not exist
+        {
+            var clusterState = createClusterStateWith(indexMetadata, routes, List.of(), List.of());
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+
+            HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            assertThat(
+                result,
+                equalTo(
+                    createExpectedResult(
+                        RED,
+                        "This cluster has 1 unavailable primary shard.",
+                        Map.of("unassigned_primaries", 1),
+                        List.of(
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.READ_ONLY_PRIMARY_UNASSIGNED_IMPACT_ID,
+                                1,
+                                "Searching 1 index [" + restoredIndex + "] might return incomplete results.",
+                                List.of(ImpactArea.SEARCH)
+                            )
+                        ),
+                        List.of(
+                            new Diagnosis(
+                                ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                                List.of(new Diagnosis.Resource(INDEX, List.of(restoredIndex)))
+                            )
+                        )
+                    )
+                )
+            );
+        }
+        // When original index has unavavailable shards
+        {
+            indexMetadata.add(
+                IndexMetadata.builder(originalIndex)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .build()
+            );
+            routes.add(index(originalIndex, new ShardAllocation(randomNodeId(), UNAVAILABLE)));
+            var clusterState = createClusterStateWith(indexMetadata, routes, List.of(), List.of());
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+
+            HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
+            assertThat(
+                result,
+                equalTo(
+                    createExpectedResult(
+                        RED,
+                        "This cluster has 2 unavailable primary shards.",
+                        Map.of("unassigned_primaries", 2),
+                        List.of(
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.PRIMARY_UNASSIGNED_IMPACT_ID,
+                                1,
+                                "Cannot add data to 1 index [logs-2023.07.11-000024]." + " Searches might return incomplete results.",
+                                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                            ),
+                            new HealthIndicatorImpact(
+                                NAME,
+                                ShardsAvailabilityHealthIndicatorService.READ_ONLY_PRIMARY_UNASSIGNED_IMPACT_ID,
+                                1,
+                                "Searching 1 index [restored-logs-2023.07.11-000024] might return incomplete results.",
+                                List.of(ImpactArea.SEARCH)
+                            )
+                        ),
+                        List.of(
+                            new Diagnosis(
+                                ACTION_CHECK_ALLOCATION_EXPLAIN_API,
+                                List.of(new Diagnosis.Resource(INDEX, List.of(originalIndex, restoredIndex)))
+                            )
+                        )
+                    )
+                )
+            );
+        }
+    }
+
     /**
      * Creates the {@link SystemIndices} with one standalone system index and a system data stream
      */
@@ -1765,6 +1921,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             override.getOrDefault("started_primaries", 0),
             "unassigned_replicas",
             override.getOrDefault("unassigned_replicas", 0),
+            "creating_replicas",
+            override.getOrDefault("creating_replicas", 0),
             "initializing_replicas",
             override.getOrDefault("initializing_replicas", 0),
             "restarting_replicas",
@@ -1783,6 +1941,24 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 .build(),
             primaryState,
             replicaStates
+        );
+    }
+
+    private static IndexRoutingTable frozenIndex(String name, ShardAllocation primaryState, String originalIndex) {
+        return index(
+            IndexMetadata.builder(name)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, originalIndex)
+                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
+                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, randomBoolean())
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+            primaryState
         );
     }
 

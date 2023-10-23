@@ -41,6 +41,7 @@ public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleVal
     DoubleArray compensations;
     DocValueFormat format;
 
+    @SuppressWarnings("this-escape")
     public HistoBackedAvgAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

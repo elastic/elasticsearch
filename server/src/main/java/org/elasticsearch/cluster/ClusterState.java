@@ -45,6 +45,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
@@ -133,12 +134,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         new DiffableUtils.NonDiffableValueSerializer<>() {
             @Override
             public void write(CompatibilityVersions value, StreamOutput out) throws IOException {
-                TransportVersion.writeVersion(value.transportVersion(), out);
+                value.writeTo(out);
             }
 
             @Override
             public CompatibilityVersions read(StreamInput in, String key) throws IOException {
-                return new CompatibilityVersions(TransportVersion.readVersion(in));
+                return CompatibilityVersions.readVersion(in);
             }
         };
 
@@ -222,8 +223,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         this.routingNodes = routingNodes;
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE)
-            : CompatibilityVersions.minimumVersions(compatibilityVersions);
+            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
     }
 
     private static boolean assertConsistentRoutingNodes(
@@ -283,8 +284,18 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return this.compatibilityVersions;
     }
 
+    public boolean hasMixedSystemIndexVersions() {
+        return compatibilityVersions.values()
+            .stream()
+            .anyMatch(e -> e.systemIndexMappingsVersion().equals(minVersions.systemIndexMappingsVersion()) == false);
+    }
+
     public TransportVersion getMinTransportVersion() {
         return this.minVersions.transportVersion();
+    }
+
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getMinSystemIndexMappingVersions() {
+        return this.minVersions.systemIndexMappingsVersion();
     }
 
     public Metadata metadata() {
@@ -772,12 +783,35 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return nodes;
         }
 
+        // Deprecate to keep downstream projects compiling
+        @Deprecated(forRemoval = true)
         public Builder putTransportVersion(String nodeId, TransportVersion transportVersion) {
-            compatibilityVersions.put(nodeId, new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId)));
+            return putCompatibilityVersions(nodeId, transportVersion, Map.of());
+        }
+
+        public Builder putCompatibilityVersions(
+            String nodeId,
+            TransportVersion transportVersion,
+            Map<String, SystemIndexDescriptor.MappingsVersion> systemIndexMappingsVersions
+        ) {
+            return putCompatibilityVersions(
+                nodeId,
+                new CompatibilityVersions(Objects.requireNonNull(transportVersion, nodeId), systemIndexMappingsVersions)
+            );
+        }
+
+        public Builder putCompatibilityVersions(String nodeId, CompatibilityVersions versions) {
+            compatibilityVersions.put(nodeId, versions);
             return this;
         }
 
+        // Deprecate to keep downstream projects compiling
+        @Deprecated(forRemoval = true)
         public Builder compatibilityVersions(Map<String, CompatibilityVersions> versions) {
+            return nodeIdsToCompatibilityVersions(versions);
+        }
+
+        public Builder nodeIdsToCompatibilityVersions(Map<String, CompatibilityVersions> versions) {
             versions.forEach((key, value) -> Objects.requireNonNull(value, key));
             // remove all versions not present in the new map
             this.compatibilityVersions.keySet().retainAll(versions.keySet());
@@ -917,11 +951,15 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            builder.compatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
+            builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
         } else {
             // this clusterstate is from a pre-8.8.0 node
             // infer the versions from discoverynodes for now
-            builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
+            // leave mappings versions empty
+            builder.nodes()
+                .getNodes()
+                .values()
+                .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
         }
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
@@ -1070,10 +1108,14 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
             if (versions != null) {
-                builder.compatibilityVersions(this.versions.apply(state.compatibilityVersions));
+                builder.nodeIdsToCompatibilityVersions(this.versions.apply(state.compatibilityVersions));
             } else {
                 // infer the versions from discoverynodes for now
-                builder.nodes().getNodes().values().forEach(n -> builder.putTransportVersion(n.getId(), inferTransportVersion(n)));
+                // leave mappings versions empty
+                builder.nodes()
+                    .getNodes()
+                    .values()
+                    .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
             }
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));

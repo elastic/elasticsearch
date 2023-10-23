@@ -65,7 +65,7 @@ public class CartesianBoundingBox extends BoundingBox<CartesianPoint> {
 
     @Override
     public final TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_500_070;
+        return TransportVersions.GENERIC_NAMED_WRITABLE_ADDED;
     }
 
     protected static class CartesianBoundsParser extends BoundsParser<CartesianBoundingBox> {

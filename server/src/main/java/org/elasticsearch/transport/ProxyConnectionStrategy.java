@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,7 +33,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -272,7 +272,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
                             logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
-                            if (exceptions.values().stream().allMatch(ProxyConnectionStrategy.this::isRetryableException)) {
+                            if (exceptions.values().stream().allMatch(RemoteConnectionStrategy::isRetryableException)) {
                                 finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
                             } else {
                                 exceptions.values().stream().filter(e1 -> e1 != e).forEach(e::addSuppressed);
@@ -301,7 +301,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     DiscoveryNodeRole.roles(),
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
-                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_COMPATIBLE,
                         IndexVersion.current()
                     )
                 );
@@ -315,19 +315,13 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                 }));
             }
         } else {
-            int openConnections = connectionManager.size();
-            if (openConnections == 0) {
-                assert false : "should not happen since onFailure should catch it and report with underlying cause";
-                finished.onFailure(getNoSeedNodeLeftException(Set.of()));
-            } else {
-                logger.debug(
-                    "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
-                    clusterAlias,
-                    openConnections,
-                    maxNumConnections
-                );
-                finished.onResponse(null);
-            }
+            logger.debug(
+                "unable to open maximum number of connections [remote cluster: {}, opened: {}, maximum: {}]",
+                clusterAlias,
+                connectionManager.size(),
+                maxNumConnections
+            );
+            finished.onResponse(null);
         }
     }
 

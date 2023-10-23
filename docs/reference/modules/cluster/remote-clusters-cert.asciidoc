@@ -80,4 +80,4 @@ generate certificates for all nodes simplifies this task.
 include::remote-clusters-connect.asciidoc[]
 :!trust-mechanism: 
 
-include::../../../../x-pack/docs/en/security/authentication/remote-clusters-privileges-cert.asciidoc[leveloffset=+1]
+include::{es-repo-dir}/security/authentication/remote-clusters-privileges-cert.asciidoc[leveloffset=+1]

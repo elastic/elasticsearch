@@ -254,7 +254,9 @@ public class InternalUsersTests extends ESTestCase {
             DeleteIndexAction.NAME,
             ForceMergeAction.NAME,
             IndicesStatsAction.NAME,
-            UpdateSettingsAction.NAME
+            UpdateSettingsAction.NAME,
+            DownsampleAction.NAME,
+            AddIndexBlockAction.NAME
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);

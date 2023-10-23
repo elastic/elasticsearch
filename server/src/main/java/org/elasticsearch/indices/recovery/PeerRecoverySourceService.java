@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
@@ -43,6 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -59,20 +59,22 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     private final TransportService transportService;
     private final IndicesService indicesService;
+    private final ClusterService clusterService;
     private final RecoverySettings recoverySettings;
     private final RecoveryPlannerService recoveryPlannerService;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
-    @Inject
     public PeerRecoverySourceService(
         TransportService transportService,
         IndicesService indicesService,
+        ClusterService clusterService,
         RecoverySettings recoverySettings,
         RecoveryPlannerService recoveryPlannerService
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
         this.recoverySettings = recoverySettings;
         this.recoveryPlannerService = recoveryPlannerService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
@@ -132,6 +134,27 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
+        PeerRecoverySourceClusterStateDelay.ensureClusterStateVersion(
+            request.clusterStateVersion(),
+            clusterService,
+            transportService.getThreadPool().generic(),
+            transportService.getThreadPool().getThreadContext(),
+            listener,
+            new Consumer<>() {
+                @Override
+                public void accept(ActionListener<RecoveryResponse> l) {
+                    recoverWithFreshClusterState(request, task, l);
+                }
+
+                @Override
+                public String toString() {
+                    return "recovery [" + request + "]";
+                }
+            }
+        );
+    }
+
+    private void recoverWithFreshClusterState(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 

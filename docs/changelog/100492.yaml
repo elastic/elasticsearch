@@ -1,0 +1,6 @@
+pr: 100492
+summary: Add runtime field of type `geo_shape`
+area: Geo
+type: enhancement
+issues:
+ - 61299

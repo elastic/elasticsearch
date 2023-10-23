@@ -61,6 +61,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
     private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
@@ -126,6 +127,7 @@ public final class BulkRequestParser {
         @Nullable FetchSourceContext defaultFetchSourceContext,
         @Nullable String defaultPipeline,
         @Nullable Boolean defaultRequireAlias,
+        @Nullable Boolean defaultListExecutedPipelines,
         boolean allowExplicitIndex,
         XContentType xContentType,
         BiConsumer<IndexRequest, String> indexRequestConsumer,
@@ -207,6 +209,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                boolean listExecutedPipelines = defaultListExecutedPipelines != null && defaultListExecutedPipelines;
                 Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
@@ -260,6 +263,8 @@ public final class BulkRequestParser {
                                 fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else if (REQUIRE_ALIAS.match(currentFieldName, parser.getDeprecationHandler())) {
                                 requireAlias = parser.booleanValue();
+                            } else if (LIST_EXECUTED_PIPELINES.match(currentFieldName, parser.getDeprecationHandler())) {
+                                listExecutedPipelines = parser.booleanValue();
                             } else {
                                 throw new IllegalArgumentException(
                                     "Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]"
@@ -343,7 +348,8 @@ public final class BulkRequestParser {
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                     .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias),
+                                    .setRequireAlias(requireAlias)
+                                    .setListExecutedPipelines(listExecutedPipelines),
                                 type
                             );
                         } else {
@@ -358,7 +364,8 @@ public final class BulkRequestParser {
                                     .setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                     .setDynamicTemplates(dynamicTemplates)
-                                    .setRequireAlias(requireAlias),
+                                    .setRequireAlias(requireAlias)
+                                    .setListExecutedPipelines(listExecutedPipelines),
                                 type
                             );
                         }
@@ -374,7 +381,8 @@ public final class BulkRequestParser {
                                 .setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
                                 .setDynamicTemplates(dynamicTemplates)
-                                .setRequireAlias(requireAlias),
+                                .setRequireAlias(requireAlias)
+                                .setListExecutedPipelines(listExecutedPipelines),
                             type
                         );
                     } else if ("update".equals(action)) {
@@ -410,7 +418,7 @@ public final class BulkRequestParser {
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.setPipeline(pipeline);
+                            upsertRequest.setPipeline(pipeline).setListExecutedPipelines(listExecutedPipelines);
                         }
 
                         updateRequestConsumer.accept(updateRequest);

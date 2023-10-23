@@ -19,3 +19,7 @@ tasks.named("test").configure {
 tasks.named("yamlRestTest").configure {
   enabled = false
 }
+
+tasks.named('javaRestTest').configure {
+  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
+}

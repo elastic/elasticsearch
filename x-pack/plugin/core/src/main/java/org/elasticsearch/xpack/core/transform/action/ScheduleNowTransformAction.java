@@ -41,6 +41,7 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
 
         private final String id;
 
+        @SuppressWarnings("this-escape")
         public Request(String id, TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.setTimeout(ExceptionsHelper.requireNonNull(timeout, TransformField.TIMEOUT.getPreferredName()));

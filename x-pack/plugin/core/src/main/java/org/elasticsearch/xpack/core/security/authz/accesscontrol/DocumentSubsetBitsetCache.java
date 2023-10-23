@@ -272,7 +272,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     @Nullable
-    private BitSet computeBitSet(Query query, LeafReaderContext context) throws IOException {
+    private static BitSet computeBitSet(Query query, LeafReaderContext context) throws IOException {
         final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
         final IndexSearcher searcher = new IndexSearcher(topLevelContext);
         searcher.setQueryCache(null);

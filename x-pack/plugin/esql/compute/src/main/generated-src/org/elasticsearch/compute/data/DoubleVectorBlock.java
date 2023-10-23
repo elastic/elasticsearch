@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
-import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a DoubleVector.
@@ -15,12 +15,10 @@ import org.apache.lucene.util.RamUsageEstimator;
  */
 public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {
 
-    private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
-
     private final DoubleVector vector;
 
     DoubleVectorBlock(DoubleVector vector) {
-        super(vector.getPositionCount());
+        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -46,12 +44,12 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
 
     @Override
     public DoubleBlock filter(int... positions) {
-        return new FilterDoubleVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
     public long ramBytesUsed() {
-        return RAM_BYTES_USED + RamUsageEstimator.sizeOf(vector);
+        return vector.ramBytesUsed();
     }
 
     @Override
@@ -70,5 +68,19 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     @Override
     public String toString() {
         return getClass().getSimpleName() + "[vector=" + vector + "]";
+    }
+
+    @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
+    public void close() {
+        if (released || vector.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
+        released = true;
+        Releasables.closeExpectNoException(vector);
     }
 }

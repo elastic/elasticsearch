@@ -37,6 +37,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
@@ -63,7 +64,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -91,9 +91,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
+    private final Set<Thread> timeoutOverwrites = ConcurrentCollections.newConcurrentSet();
     private volatile boolean timeExceeded = false;
 
     /** constructor for non-concurrent search */
+    @SuppressWarnings("this-escape")
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -105,6 +107,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     /** constructor for concurrent search */
+    @SuppressWarnings("this-escape")
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -128,6 +131,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         );
     }
 
+    @SuppressWarnings("this-escape")
     ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -139,11 +143,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int maximumNumberOfSlices,
         int minimumDocsPerSlice
     ) throws IOException {
-        // we need to pass the executor up so it can potentially be used as a sliceExecutor by knn search
-        super(
-            wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader,
-            wrapExecutor(executor)
-        );
+        // we need to pass the executor up so it can potentially be used by query rewrite, which does not rely on slicing
+        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -156,18 +157,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
-    }
-
-    /*
-     * This is a hack to work around QueueSizeBasedExecutor conditionally executing on the caller thread based on queue size.
-     * We'd rather simply offload all the tasks to the executor when provided. See https://github.com/apache/lucene/issues/12498 .
-     * We override all of that already for the collection part, but we can't do that for the query rewrite part that affects knn.
-     */
-    private static Executor wrapExecutor(Executor executor) {
-        if (executor instanceof ThreadPoolExecutor) {
-            return executor::execute;
-        }
-        return executor;
     }
 
     // package private for testing
@@ -247,17 +236,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
-    }
-
-    /**
-     * Overwrite superclass to force one slice per segment for knn search.
-     * This is only needed temporarily by knn query rewrite, for the main
-     * search collection we forked the search method and inject our own slicing logic
-     * until this is available in Lucene itself
-     */
-    @Override
-    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
-        return IndexSearcher.slices(leaves, Math.max(1, leaves.size()), 1);
     }
 
     /**
@@ -345,6 +323,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             weight = createWeight(query, firstCollector.scoreMode(), 1);
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
+            doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
         }
         return search(weight, collectorManager, firstCollector);
@@ -475,14 +454,30 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     @Override
     public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         collector.setWeight(weight);
+        boolean success = false;
         try {
             for (LeafReaderContext ctx : leaves) { // search each subreader
                 searchLeaf(ctx, weight, collector);
             }
+            success = true;
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
         } finally {
-            doAggregationPostCollection(collector);
+            // Only run post collection if we have timeout or if the search was successful
+            // otherwise the state of the aggregation might be undefined and running post collection
+            // might result in an exception
+            if (success || timeExceeded) {
+                try {
+                    // Search phase has finished, no longer need to check for timeout
+                    // otherwise the aggregation post-collection phase might get cancelled.
+                    boolean added = timeoutOverwrites.add(Thread.currentThread());
+                    assert added;
+                    doAggregationPostCollection(collector);
+                } finally {
+                    boolean removed = timeoutOverwrites.remove(Thread.currentThread());
+                    assert removed;
+                }
+            }
         }
     }
 
@@ -498,16 +493,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     public void throwTimeExceededException() {
-        throw new TimeExceededException();
+        if (timeoutOverwrites.contains(Thread.currentThread()) == false) {
+            throw new TimeExceededException();
+        }
     }
 
     private static class TimeExceededException extends RuntimeException {
-
-        @Override
-        public Throwable fillInStackTrace() {
-            // never re-thrown so we can save the expensive stacktrace
-            return this;
-        }
+        // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
     }
 
     /**
@@ -524,6 +516,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (CollectionTerminatedException e) {
             // there is no doc of interest in this reader context
             // continue with the following leaf
+            // We don't need to finish leaf collector as collection was terminated before it was created
             return;
         }
         Bits liveDocs = ctx.reader().getLiveDocs();
@@ -558,6 +551,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             }
         }
+        // Finish the leaf collection in preparation for the next.
+        // This includes any collection that was terminated early via `CollectionTerminatedException`
+        leafCollector.finish();
     }
 
     private static BitSet getSparseBitSetOrNull(Bits liveDocs) {

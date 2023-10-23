@@ -50,7 +50,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
 
     @Inject
     public TransportGetFromTranslogAction(TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
-        super(NAME, transportService, actionFilters, Request::new, ThreadPool.Names.GET);
+        super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.GET));
         this.indicesService = indicesService;
     }
 

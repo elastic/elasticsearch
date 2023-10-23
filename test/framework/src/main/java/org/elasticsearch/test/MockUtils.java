@@ -28,12 +28,7 @@ public class MockUtils {
      * @return A mocked TransportService instance
      */
     public static TransportService setupTransportServiceWithThreadpoolExecutor() {
-        TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
-
-        setMockReturns(transportService, threadPool);
-
-        return transportService;
+        return setMockReturns(mock(TransportService.class), mock(ThreadPool.class));
     }
 
     /**
@@ -44,28 +39,15 @@ public class MockUtils {
      * @return A mocked TransportService instance
      */
     public static TransportService setupTransportServiceWithThreadpoolExecutor(ThreadPool threadPool) {
+        return setMockReturns(mock(TransportService.class), threadPool);
+    }
+
+    private static TransportService setMockReturns(TransportService transportService, ThreadPool threadPool) {
         assert mockingDetails(threadPool).isMock();
-        TransportService transportService = mock(TransportService.class);
-
-        setMockReturns(transportService, threadPool);
-
-        return transportService;
-    }
-
-    /**
-     * Sets up the given mock TransportService so that it can answer calls to TransportService.getThreadPool().executor(String).
-     *
-     * @param transportService A mock TransportService to be set up.
-     */
-    public static void setupTransportServiceWithThreadpoolExecutor(TransportService transportService) {
         assert mockingDetails(transportService).isMock();
-        ThreadPool threadPool = mock(ThreadPool.class);
-
-        setMockReturns(transportService, threadPool);
-    }
-
-    private static void setMockReturns(TransportService transportService, ThreadPool threadPool) {
         when(transportService.getThreadPool()).thenReturn(threadPool);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        return transportService;
     }
 }

@@ -9,6 +9,9 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+
+import java.util.Objects;
 
 /**
  * {@link Vector} where each entry references a lucene document.
@@ -43,8 +46,10 @@ public class DocVector extends AbstractVector implements Vector {
      */
     private int[] shardSegmentDocMapBackwards;
 
+    final DocBlock block;
+
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
-        super(shards.getPositionCount());
+        super(shards.getPositionCount(), null);
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
@@ -59,6 +64,7 @@ public class DocVector extends AbstractVector implements Vector {
                 "invalid position count [" + shards.getPositionCount() + " != " + docs.getPositionCount() + "]"
             );
         }
+        block = new DocBlock(this);
     }
 
     public IntVector shards() {
@@ -165,7 +171,7 @@ public class DocVector extends AbstractVector implements Vector {
 
     @Override
     public DocBlock asBlock() {
-        return new DocBlock(this);
+        return block;
     }
 
     @Override
@@ -183,6 +189,24 @@ public class DocVector extends AbstractVector implements Vector {
         return shards.isConstant() && segments.isConstant() && docs.isConstant();
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(shards, segments, docs);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof DocVector == false) {
+            return false;
+        }
+        DocVector other = (DocVector) obj;
+        return shards.equals(other.shards) && segments.equals(other.segments) && docs.equals(other.docs);
+    }
+
+    private static long ramBytesOrZero(int[] array) {
+        return array == null ? 0 : RamUsageEstimator.shallowSizeOf(array);
+    }
+
     public static long ramBytesEstimated(
         IntVector shards,
         IntVector segments,
@@ -191,11 +215,16 @@ public class DocVector extends AbstractVector implements Vector {
         int[] shardSegmentDocMapBackwards
     ) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(shards) + RamUsageEstimator.sizeOf(segments) + RamUsageEstimator.sizeOf(docs)
-            + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapForwards) + RamUsageEstimator.shallowSizeOf(shardSegmentDocMapBackwards);
+            + ramBytesOrZero(shardSegmentDocMapForwards) + ramBytesOrZero(shardSegmentDocMapBackwards);
     }
 
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(shards, segments, docs, shardSegmentDocMapForwards, shardSegmentDocMapBackwards);
+    }
+
+    @Override
+    public void close() {
+        Releasables.closeExpectNoException(shards.asBlock(), segments.asBlock(), docs.asBlock()); // Ugh! we always close blocks
     }
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 
@@ -24,12 +24,12 @@ final class ExchangeBuffer {
     private final int maxSize;
 
     private final Object notEmptyLock = new Object();
-    private ListenableActionFuture<Void> notEmptyFuture = null;
+    private SubscribableListener<Void> notEmptyFuture = null;
 
     private final Object notFullLock = new Object();
-    private ListenableActionFuture<Void> notFullFuture = null;
+    private SubscribableListener<Void> notFullFuture = null;
 
-    private final ListenableActionFuture<Void> completionFuture = new ListenableActionFuture<>();
+    private final SubscribableListener<Void> completionFuture = new SubscribableListener<>();
 
     private volatile boolean noMoreInputs = false;
 
@@ -45,6 +45,9 @@ final class ExchangeBuffer {
         if (queueSize.incrementAndGet() == 1) {
             notifyNotEmpty();
         }
+        if (noMoreInputs) {
+            discardPages();
+        }
     }
 
     Page pollPage() {
@@ -59,7 +62,7 @@ final class ExchangeBuffer {
     }
 
     private void notifyNotEmpty() {
-        final ListenableActionFuture<Void> toNotify;
+        final SubscribableListener<Void> toNotify;
         synchronized (notEmptyLock) {
             toNotify = notEmptyFuture;
             notEmptyFuture = null;
@@ -70,7 +73,7 @@ final class ExchangeBuffer {
     }
 
     private void notifyNotFull() {
-        final ListenableActionFuture<Void> toNotify;
+        final SubscribableListener<Void> toNotify;
         synchronized (notFullLock) {
             toNotify = notFullFuture;
             notFullFuture = null;
@@ -80,7 +83,7 @@ final class ExchangeBuffer {
         }
     }
 
-    ListenableActionFuture<Void> waitForWriting() {
+    SubscribableListener<Void> waitForWriting() {
         // maxBufferSize check is not water-tight as more than one sink can pass this check at the same time.
         if (queueSize.get() < maxSize || noMoreInputs) {
             return Operator.NOT_BLOCKED;
@@ -90,13 +93,13 @@ final class ExchangeBuffer {
                 return Operator.NOT_BLOCKED;
             }
             if (notFullFuture == null) {
-                notFullFuture = new ListenableActionFuture<>();
+                notFullFuture = new SubscribableListener<>();
             }
             return notFullFuture;
         }
     }
 
-    ListenableActionFuture<Void> waitForReading() {
+    SubscribableListener<Void> waitForReading() {
         if (size() > 0 || noMoreInputs) {
             return Operator.NOT_BLOCKED;
         }
@@ -105,18 +108,23 @@ final class ExchangeBuffer {
                 return Operator.NOT_BLOCKED;
             }
             if (notEmptyFuture == null) {
-                notEmptyFuture = new ListenableActionFuture<>();
+                notEmptyFuture = new SubscribableListener<>();
             }
             return notEmptyFuture;
+        }
+    }
+
+    private void discardPages() {
+        Page p;
+        while ((p = pollPage()) != null) {
+            p.releaseBlocks();
         }
     }
 
     void finish(boolean drainingPages) {
         noMoreInputs = true;
         if (drainingPages) {
-            while (pollPage() != null) {
-
-            }
+            discardPages();
         }
         notifyNotEmpty();
         if (drainingPages || queueSize.get() == 0) {

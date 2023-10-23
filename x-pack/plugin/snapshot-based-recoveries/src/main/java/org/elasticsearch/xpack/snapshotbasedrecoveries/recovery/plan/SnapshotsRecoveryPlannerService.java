@@ -180,7 +180,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         );
     }
 
-    private boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
+    private static boolean isSnapshotVersionCompatible(ShardSnapshot snapshot) {
         IndexVersion commitVersion = snapshot.getCommitVersion();
         // if the snapshotVersion == null that means that the snapshot was taken in a version <= 7.15,
         // therefore we can safely use that snapshot. Since this runs on the shard primary and
@@ -193,7 +193,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         return commitVersion.onOrBefore(IndexVersion.current());
     }
 
-    private ShardRecoveryPlan getRecoveryPlanUsingSourceNode(
+    private static ShardRecoveryPlan getRecoveryPlanUsingSourceNode(
         Store.MetadataSnapshot sourceMetadata,
         Store.RecoveryDiff sourceTargetDiff,
         List<StoreFileMetadata> filesMissingInTarget,
@@ -233,7 +233,7 @@ public class SnapshotsRecoveryPlannerService implements RecoveryPlannerService {
         shardSnapshotsService.fetchLatestSnapshotsForShard(shardId, listenerIgnoringErrors);
     }
 
-    private Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {
+    private static Store.MetadataSnapshot toMetadataSnapshot(List<StoreFileMetadata> files) {
         return new Store.MetadataSnapshot(
             files.stream().collect(Collectors.toMap(StoreFileMetadata::name, Function.identity())),
             emptyMap(),

@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-exit 0
-
 echo "steps:"
 
 source .buildkite/scripts/branches.sh

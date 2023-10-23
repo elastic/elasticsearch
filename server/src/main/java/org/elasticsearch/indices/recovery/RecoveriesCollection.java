@@ -54,6 +54,7 @@ public class RecoveriesCollection {
     public long startRecovery(
         IndexShard indexShard,
         DiscoveryNode sourceNode,
+        long clusterStateVersion,
         SnapshotFilesProvider snapshotFilesProvider,
         PeerRecoveryTargetService.RecoveryListener listener,
         TimeValue activityTimeout,
@@ -62,6 +63,7 @@ public class RecoveriesCollection {
         RecoveryTarget recoveryTarget = new RecoveryTarget(
             indexShard,
             sourceNode,
+            clusterStateVersion,
             snapshotFilesProvider,
             snapshotFileDownloadsPermit,
             listener

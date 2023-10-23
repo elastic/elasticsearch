@@ -42,9 +42,9 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -252,6 +252,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    @SuppressWarnings("this-escape")
     public TransportService(
         Settings settings,
         Transport transport,
@@ -672,7 +673,7 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] but this node is build ["
                     + Build.current().hash()
                     + "] of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] which has an incompatible wire format",
                 e
             );

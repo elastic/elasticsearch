@@ -82,22 +82,22 @@ your query.
 ====
 
 [[esql-enrich-prereqs]]
-===== Prerequisites
+==== Prerequisites
 
 include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 
 [[esql-create-enrich-source-index]]
-===== Add enrich data
+==== Add enrich data
 
 include::../ingest/enrich.asciidoc[tag=create-enrich-source-index]
 
 [[esql-create-enrich-policy]]
-===== Create an enrich policy
+==== Create an enrich policy
 
 include::../ingest/enrich.asciidoc[tag=create-enrich-policy]
 
 [[esql-execute-enrich-policy]]
-===== Execute the enrich policy
+==== Execute the enrich policy
 
 include::../ingest/enrich.asciidoc[tag=execute-enrich-policy1]
 

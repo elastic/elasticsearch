@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -61,6 +62,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -349,19 +351,37 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testTimesOutSpinningRegisterAnalysis() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.timeout(TimeValue.timeValueMillis(between(1, 1000)));
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean compareAndExchangeReturnsWitness(String key) {
+                return isContendedRegisterKey(key) == false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, exception.getCause()).getMessage(),
+            containsString("analysis timed out")
+        );
+    }
+
     public void testFailsIfAllRegisterOperationsInconclusive() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         blobStore.setDisruption(new Disruption() {
             @Override
-            public boolean compareAndExchangeReturnsWitness() {
+            public boolean compareAndExchangeReturnsWitness(String key) {
                 return false;
             }
         });
         expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
     }
 
-    private RepositoryAnalyzeAction.Response analyseRepository(RepositoryAnalyzeAction.Request request) {
-        return client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
+    private void analyseRepository(RepositoryAnalyzeAction.Request request) {
+        client().execute(RepositoryAnalyzeAction.INSTANCE, request).actionGet(30L, TimeUnit.SECONDS);
     }
 
     private static void assertPurpose(OperationPurpose purpose) {
@@ -477,7 +497,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default boolean compareAndExchangeReturnsWitness() {
+        default boolean compareAndExchangeReturnsWitness(String key) {
             return true;
         }
 
@@ -654,9 +674,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ActionListener<OptionalBytesReference> listener
         ) {
             assertPurpose(purpose);
-            if (disruption.compareAndExchangeReturnsWitness()) {
+            final boolean isContendedRegister = isContendedRegisterKey(key); // validate key
+            if (disruption.compareAndExchangeReturnsWitness(key)) {
                 final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
-                if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)) {
+                if (isContendedRegister) {
                     listener.onResponse(OptionalBytesReference.of(disruption.onContendedCompareAndExchange(register, expected, updated)));
                 } else {
                     listener.onResponse(OptionalBytesReference.of(register.compareAndExchange(expected, updated)));
@@ -665,6 +686,16 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 listener.onResponse(OptionalBytesReference.MISSING);
             }
         }
+    }
+
+    private static boolean isContendedRegisterKey(String key) {
+        if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)) {
+            return true;
+        }
+        if (key.startsWith(RepositoryAnalyzeAction.UNCONTENDED_REGISTER_NAME_PREFIX)) {
+            return false;
+        }
+        return fail(null, "unknown register: %s", key);
     }
 
 }

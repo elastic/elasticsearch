@@ -150,21 +150,16 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
                 ).addFilterQueries(instance.filterQueries).boost(instance.boost);
             case 7:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k == null ? DEFAULT_SIZE : null,
-                    instance.numCands,
-                    instance.similarity
-                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
+                Integer flippedK = instance.k == null ? DEFAULT_SIZE : null;
+                return new KnnSearchBuilder(instance.field, instance.queryVector, flippedK, instance.numCands, instance.similarity)
+                    .addFilterQueries(instance.filterQueries)
+                    .boost(instance.boost);
             case 8:
-                return new KnnSearchBuilder(
-                    instance.field,
-                    instance.queryVector,
-                    instance.k,
-                    instance.numCands == null ? Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE) : null,
-                    instance.similarity
-                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
+                Integer k = Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE);
+                Integer flippedNumCands = instance.numCands == null ? k : null;
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, flippedNumCands, instance.similarity)
+                    .addFilterQueries(instance.filterQueries)
+                    .boost(instance.boost);
             default:
                 throw new IllegalStateException();
         }

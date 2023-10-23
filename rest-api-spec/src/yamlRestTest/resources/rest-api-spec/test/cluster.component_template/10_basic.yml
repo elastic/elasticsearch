@@ -192,11 +192,7 @@
 
   - do:
       cluster.get_component_template:
-        name: deprecated-component-template
+        name: deprecated-*
 
   - match: {component_templates.0.name: deprecated-component-template}
-
-  - do:
-      catch: missing
-      cluster.get_component_template:
-        name: deprecated-*
+  - match: {component_templates.0.component_template.deprecated: true}

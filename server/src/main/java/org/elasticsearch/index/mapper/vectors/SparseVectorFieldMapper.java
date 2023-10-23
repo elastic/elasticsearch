@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -82,7 +81,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         return new Builder(n);
-    }, notInMultiFieldsUlessParentOfType(CONTENT_TYPE, TextFieldMapper.CONTENT_TYPE)); // TODO Change for semantic_text field type
+    }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 

@@ -49,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.SEMANTIC_TEXT_FIELD_ADDED;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -104,6 +105,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private String finalPipeline;
 
     private boolean isPipelineResolved;
+
+    private boolean isFieldInferenceResolved;
 
     private boolean requireAlias;
     /**
@@ -189,6 +192,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
+        isFieldInferenceResolved = in.getTransportVersion().before(SEMANTIC_TEXT_FIELD_ADDED) || in.readBoolean();
     }
 
     public IndexRequest() {
@@ -373,6 +377,26 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public boolean isPipelineResolved() {
         return this.isPipelineResolved;
+    }
+
+    /**
+     * Sets if field inference for this request has been resolved by the coordinating node.
+     *
+     * @param isFieldInferenceResolved true if the field inference has been resolved
+     * @return the request
+     */
+    public IndexRequest isFieldInferenceResolved(final boolean isFieldInferenceResolved) {
+        this.isFieldInferenceResolved = isFieldInferenceResolved;
+        return this;
+    }
+
+    /**
+     * Returns whether the field inference for this request has been resolved by the coordinating node.
+     *
+     * @return true if the pipeline has been resolved
+     */
+    public boolean isFieldInferenceResolved() {
+        return this.isFieldInferenceResolved;
     }
 
     /**
@@ -754,6 +778,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (listExecutedPipelines) {
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
+        }
+        if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_FIELD_ADDED)) {
+            out.writeBoolean(isFieldInferenceResolved);
         }
     }
 

@@ -156,9 +156,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
     };
 
-    public boolean hasInferenceFields(IndexRequest indexRequest) {
-        return indexRequest.sourceAsMap().keySet().stream()
-            .anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
+    public boolean needsFieldInference(IndexRequest indexRequest) {
+        return (indexRequest.isFieldInferenceResolved() == false)
+            && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
     }
 
     /**
@@ -661,7 +661,88 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void executeBulkRequest(
+    public void executePipelinesBulkRequest(
+        final int numberOfActionRequests,
+        final Iterable<DocWriteRequest<?>> actionRequests,
+        final IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure,
+        final BiConsumer<Thread, Exception> onCompletion,
+        final String executorName
+    ) {
+        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
+
+        threadPool.executor(executorName).execute(new AbstractRunnable() {
+
+            @Override
+            public void onFailure(Exception e) {
+                onCompletion.accept(null, e);
+            }
+
+            @Override
+            protected void doRun() {
+                final Thread originalThread = Thread.currentThread();
+                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
+                    int i = 0;
+                    for (DocWriteRequest<?> actionRequest : actionRequests) {
+                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
+                        if (indexRequest == null) {
+                            i++;
+                            continue;
+                        }
+
+                        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+                        if (pipelines.hasNext() == false) {
+                            i++;
+                            continue;
+                        }
+
+                        // start the stopwatch and acquire a ref to indicate that we're working on this document
+                        final long startTimeInNanos = System.nanoTime();
+                        totalMetrics.preIngest();
+                        final int slot = i;
+                        final Releasable ref = refs.acquire();
+                        // the document listener gives us three-way logic: a document can fail processing (1), or it can
+                        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
+                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
+                            @Override
+                            public void onResponse(Boolean kept) {
+                                assert kept != null;
+                                if (kept == false) {
+                                    onDropped.accept(slot);
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                totalMetrics.ingestFailed();
+                                onFailure.accept(slot, e);
+                            }
+                        }, () -> {
+                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+                            // that we're finished with this document
+                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                            totalMetrics.postIngest(ingestTimeInNanos);
+                            ref.close();
+                        });
+                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
+
+                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
+
+                        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
+                        indexRequest.setPipelinesHaveRun();
+
+                        assert actionRequest.index() != null;
+                        documentParsingObserver.setIndexName(actionRequest.index());
+                        documentParsingObserver.close();
+
+                        i++;
+                    }
+                }
+            }
+        });
+    }
+
+    public void executeFieldInferenceBulkRequest(
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
@@ -686,27 +767,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     for (DocWriteRequest<?> actionRequest : actionRequests) {
                         IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
                         if (indexRequest != null) {
-                            PipelineIterator pipelines = getAndResetPipelines(indexRequest);
-                            if (pipelines.hasNext()) {
-                                executePipelinesOnActionRequest(
-                                    actionRequest,
-                                    i,
-                                    refs.acquire(),
-                                    indexRequest,
-                                    pipelines,
-                                    onDropped,
-                                    onFailure
-                                );
-                            }
-
                             String index = indexRequest.index();
                             Map<String, Object> sourceMap = indexRequest.sourceAsMap();
                             final int position = i;
-                            sourceMap.entrySet().stream()
-                                .filter(entry -> fieldNeedsInference(index, entry.getKey()))
-                                .forEach(entry -> {
-                                    runInferenceForField(indexRequest, entry.getKey(), entry.getValue(), refs, position, onFailure);
-                                });
+                            sourceMap.entrySet().stream().filter(entry -> fieldNeedsInference(index, entry.getKey())).forEach(entry -> {
+                                runInferenceForField(indexRequest, entry.getKey(), entry.getValue(), refs, position, onFailure);
+                            });
                         }
                         i++;
                     }
@@ -720,7 +786,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return fieldName.startsWith("infer_");
     }
 
-    private void runInferenceForField(IndexRequest indexRequest, String fieldName, Object fieldValue, RefCountingRunnable ref, int position, BiConsumer<Integer, Exception> onFailure) {
+    private void runInferenceForField(
+        IndexRequest indexRequest,
+        String fieldName,
+        Object fieldValue,
+        RefCountingRunnable ref,
+        int position,
+        BiConsumer<Integer, Exception> onFailure
+    ) {
         var ingestDocument = newIngestDocument(indexRequest, documentParsingObserverSupplier.get());
         if (ingestDocument.hasField(fieldName) == false) {
             return;
@@ -729,12 +802,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ref.acquire();
 
         // TODO Hardcoding model ID and task type
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(TaskType.SPARSE_EMBEDDING, "my-elser-model", ingestDocument.getFieldValue(fieldName, String.class), Map.of());
+        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+            TaskType.SPARSE_EMBEDDING,
+            "my-elser-model",
+            ingestDocument.getFieldValue(fieldName, String.class),
+            Map.of()
+        );
 
         client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<InferenceAction.Response>() {
             @Override
             public void onResponse(InferenceAction.Response response) {
-                ingestDocument.setFieldValue(fieldName + ".inference", response.getResult().asMap(fieldName).get(fieldName));
+                ingestDocument.setFieldValue(fieldName + "_inference", response.getResult().asMap(fieldName).get(fieldName));
+                updateIndexRequestSource(indexRequest, ingestDocument);
+                indexRequest.isFieldInferenceResolved(true);
                 ref.close();
             }
 

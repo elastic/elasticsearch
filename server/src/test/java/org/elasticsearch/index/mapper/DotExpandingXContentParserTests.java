@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -359,6 +360,38 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::map);
     }
 
+    public void testParseMapOrderedUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapOrdered);
+    }
+
+    public void testParseMapStringsUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::mapStrings);
+    }
+
+    public void testParseMapSupplierUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.map(HashMap::new, XContentParser::text));
+    }
+
+    public void testNextFieldNameUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, () -> dotExpandedParser.nextFieldName());
+    }
+
     public void testParseMap() throws Exception {
         String jsonInput = """
             {"params":{"one":"one",
@@ -387,6 +420,14 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             new ContentPath()
         );
         expectThrows(UnsupportedOperationException.class, dotExpandedParser::list);
+    }
+
+    public void testParseListOrderedUOE() throws Exception {
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
+            createParser(JsonXContent.jsonXContent, ""),
+            new ContentPath()
+        );
+        expectThrows(UnsupportedOperationException.class, dotExpandedParser::listOrderedMap);
     }
 
     public void testParseList() throws Exception {

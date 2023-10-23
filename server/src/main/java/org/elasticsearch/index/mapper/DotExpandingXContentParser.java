@@ -172,6 +172,22 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             return parsers.peek();
         }
 
+        /*
+        The following methods (map* and list*) are known not be called by DocumentParser when parsing documents, but we support indexing
+        percolator queries which are also parsed through DocumentParser, and their parsing code is completely up to each query, which are
+        also pluggable. That means that this parser needs to fully support parsing arbitrary content, when dots expansion is turned off.
+        We do throw UnsupportedOperationException when dots expansion is enabled as we don't expect such methods to be ever called in
+        those circumstances.
+         */
+
+        @Override
+        public String nextFieldName() throws IOException {
+            if (contentPath.isWithinLeafObject()) {
+                return super.nextFieldName();
+            }
+            throw new UnsupportedOperationException();
+        }
+
         @Override
         public Map<String, Object> map() throws IOException {
             if (contentPath.isWithinLeafObject()) {

@@ -1,12 +1,11 @@
 pr: 101230
-summary: Enable query phase parallelism by default
+summary: Enable query phase parallelism within a single shard
 area: Search
 type: enhancement
 issues: []
 highlight:
-  title: Enable query phase parallelism by default
+  title: Enable query phase parallelism within a single shard
   body: |-
-    Inter-segment search concurrency is enabled only in the DFS phase so
-    far, and affects knn searches. This commit enables it by default for the
-    query phase too.
+    Active inter-segment search concurrency to parallelize search execution
+    across segments that a single shard is made of.
   notable: true

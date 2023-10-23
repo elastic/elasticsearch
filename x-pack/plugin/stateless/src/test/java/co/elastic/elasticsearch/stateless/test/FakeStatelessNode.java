@@ -62,7 +62,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -184,11 +184,13 @@ public class FakeStatelessNode implements Closeable {
                     new FsDirectoryFactory().newDirectory(indexSettings, indexingShardPath),
                     sharedCacheService,
                     shardId,
-                    Meter.NOOP
+                    MeterRegistry.NOOP
                 )
             );
             indexingStore = localCloseables.add(new Store(shardId, indexSettings, indexingDirectory, new DummyShardLock(shardId)));
-            searchDirectory = localCloseables.add(new SearchDirectory(sharedCacheService, searchShardPath.getShardId(), Meter.NOOP));
+            searchDirectory = localCloseables.add(
+                new SearchDirectory(sharedCacheService, searchShardPath.getShardId(), MeterRegistry.NOOP)
+            );
             searchStore = localCloseables.add(new Store(shardId, indexSettings, searchDirectory, new DummyShardLock(shardId)));
 
             transportService = transport.createTransportService(

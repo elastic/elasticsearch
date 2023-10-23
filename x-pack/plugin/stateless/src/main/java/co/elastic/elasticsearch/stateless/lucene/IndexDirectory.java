@@ -39,7 +39,7 @@ import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -100,9 +100,9 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     private long lastGeneration = -1;
 
-    public IndexDirectory(Directory in, SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId, Meter meter) {
+    public IndexDirectory(Directory in, SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId, MeterRegistry meterRegistry) {
         super(in);
-        this.cacheDirectory = new SearchDirectory(cacheService, shardId, meter);
+        this.cacheDirectory = new SearchDirectory(cacheService, shardId, meterRegistry);
     }
 
     @Override

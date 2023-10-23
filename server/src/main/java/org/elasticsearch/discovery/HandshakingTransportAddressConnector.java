@@ -23,6 +23,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportRequestOptions.Type;
@@ -89,7 +90,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                     emptySet(),
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
-                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_COMPATIBLE,
                         IndexVersion.current()
                     )
                 ),

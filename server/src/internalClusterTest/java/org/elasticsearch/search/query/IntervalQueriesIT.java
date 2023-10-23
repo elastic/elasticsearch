@@ -56,11 +56,9 @@ public class IntervalQueriesIT extends ESIntegTestCase {
             client().prepareIndex("nested").setId("3").setSource("text", "quick")
         );
 
-        SearchResponse resp = client().prepareSearch("nested")
-            .setQuery(
-                new IntervalQueryBuilder("empty_text", new IntervalsSourceProvider.Match("an empty query", 0, true, null, null, null))
-            )
-            .get();
+        SearchResponse resp = prepareSearch("nested").setQuery(
+            new IntervalQueryBuilder("empty_text", new IntervalsSourceProvider.Match("an empty query", 0, true, null, null, null))
+        ).get();
         assertEquals(0, resp.getFailedShards());
     }
 

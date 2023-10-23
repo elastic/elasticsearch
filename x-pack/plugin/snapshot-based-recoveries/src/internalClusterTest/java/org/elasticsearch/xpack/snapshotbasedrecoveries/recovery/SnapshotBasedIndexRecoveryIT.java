@@ -1632,9 +1632,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     private void assertDocumentsAreEqual(String indexName, int docCount) {
         assertDocCount(indexName, docCount);
         for (int testCase = 0; testCase < 3; testCase++) {
-            final SearchRequestBuilder searchRequestBuilder = client().prepareSearch(indexName)
-                .addSort("field", SortOrder.ASC)
-                .setSize(10_000);
+            final SearchRequestBuilder searchRequestBuilder = prepareSearch(indexName).addSort("field", SortOrder.ASC).setSize(10_000);
 
             SearchResponse searchResponse;
             switch (testCase) {

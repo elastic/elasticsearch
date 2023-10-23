@@ -2,7 +2,8 @@ pr: 101230
 summary: Enable query phase parallelism within a single shard
 area: Search
 type: enhancement
-issues: []
+issues:
+ - 80693
 highlight:
   title: Enable query phase parallelism within a single shard
   body: |-

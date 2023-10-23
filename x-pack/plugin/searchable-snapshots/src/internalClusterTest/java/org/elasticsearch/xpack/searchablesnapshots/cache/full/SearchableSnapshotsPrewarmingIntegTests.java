@@ -251,11 +251,13 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         final CountDownLatch startPrewarmingLatch = new CountDownLatch(1);
         final var threadPool = getInstanceFromNode(ThreadPool.class);
         final int maxUploadTasks = threadPool.info(CACHE_PREWARMING_THREAD_POOL_NAME).getMax();
+        final CountDownLatch maxUploadTasksCreated = new CountDownLatch(maxUploadTasks);
         for (int i = 0; i < maxUploadTasks; i++) {
             threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME).execute(new AbstractRunnable() {
 
                 @Override
                 protected void doRun() throws Exception {
+                    maxUploadTasksCreated.countDown();
                     startPrewarmingLatch.await();
                 }
 
@@ -265,7 +267,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 }
             });
         }
-
+        maxUploadTasksCreated.await();
         var prewarmingExecutor = threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME);
         assertThat(prewarmingExecutor, instanceOf(ThreadPoolExecutor.class));
         assertThat(((ThreadPoolExecutor) prewarmingExecutor).getActiveCount(), equalTo(maxUploadTasks));
@@ -279,7 +281,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
         logger.debug("--> waiting for background cache to complete");
         assertBusy(() -> {
-            if (threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME) instanceof ThreadPoolExecutor executor) {
+            if (threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME)instanceof ThreadPoolExecutor executor) {
                 assertThat(executor.getQueue().size(), equalTo(0));
                 assertThat(executor.getActiveCount(), equalTo(0));
             }

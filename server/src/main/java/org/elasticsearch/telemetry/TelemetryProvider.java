@@ -24,6 +24,7 @@ public interface TelemetryProvider {
             return Tracer.NOOP;
         }
 
+        @Override
         public MeterRegistry getMeterRegistry() {
             return MeterRegistry.NOOP;
         }

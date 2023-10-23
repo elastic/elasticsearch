@@ -13,11 +13,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.telemetry.metric.MeterService;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.util.List;
 
+/**
+ * TelemetryPlugin that uses RecordingMeterRegistry to record meter calls
+ * and exposes measurement getters.
+ */
 public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
 
     protected final RecordingMeterRegistry meter = new RecordingMeterRegistry();
@@ -73,11 +76,6 @@ public class TestTelemetryPlugin extends Plugin implements TelemetryPlugin {
             @Override
             public MeterRegistry getMeterRegistry() {
                 return meter;
-            }
-
-            @Override
-            public MeterService getMeterService() {
-                return MeterService.NOOP;
             }
         };
     }

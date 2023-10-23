@@ -200,7 +200,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
 
     public void testBoundedMultiValuedDocsAsSubAgg() throws IOException {
         int precision = randomPrecision();
-        testWithSeveralDocsAsSubAgg(LuceneTestCase::rarely, randomBBox(precision), randomPrecision());
+        testWithSeveralDocsAsSubAgg(LuceneTestCase::rarely, randomBBox(precision), precision);
     }
 
     private void testWithSeveralDocsAsSubAgg(BooleanSupplier supplier, GeoBoundingBox bbox, int precision) throws IOException {

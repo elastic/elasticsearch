@@ -57,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -281,6 +282,20 @@ public class ElasticsearchAssertions {
         assertResponse(searchRequestBuilder, res -> assertHitCount(res, expectedHitCount));
     }
 
+    public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
+        SearchResponse res;
+        try {
+            res = responseFuture.get();
+        } catch (ExecutionException | InterruptedException ex) {
+            throw new AssertionError(ex);
+        }
+        try {
+            assertHitCount(res, expectedHitCount);
+        } finally {
+            res.decRef();
+        }
+    }
+
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
@@ -417,6 +432,38 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHighlight(
+        SearchRequestBuilder searchRequestBuilder,
+        int hit,
+        String field,
+        int fragment,
+        int totalFragments,
+        Matcher<String> matcher
+    ) {
+        var resp = searchRequestBuilder.get();
+        try {
+            assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    public static void assertHighlight(
+        ActionFuture<SearchResponse> responseFuture,
+        int hit,
+        String field,
+        int fragment,
+        int totalFragments,
+        Matcher<String> matcher
+    ) throws ExecutionException, InterruptedException {
+        var resp = responseFuture.get();
+        try {
+            assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);
+        } finally {
+            resp.decRef();
+        }
+    }
+
+    public static void assertHighlight(
         SearchResponse resp,
         int hit,
         String field,
@@ -458,6 +505,15 @@ public class ElasticsearchAssertions {
         assertThat(hit.getHighlightFields(), hasKey(field));
         assertThat(hit.getHighlightFields().get(field).fragments(), arrayWithSize(fragmentsMatcher));
         assertThat(hit.getHighlightFields().get(field).fragments()[fragment].string(), matcher);
+    }
+
+    public static void assertNotHighlighted(SearchRequestBuilder searchRequestBuilder, int hit, String field) {
+        var resp = searchRequestBuilder.get();
+        try {
+            assertNotHighlighted(resp, hit, field);
+        } finally {
+            resp.decRef();
+        }
     }
 
     public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {

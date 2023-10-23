@@ -243,14 +243,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSizeIsZero() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("high_card_idx")
-                .addAggregation(
-                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .minDocCount(randomInt(1))
-                        .size(0)
-                )
-                .get()
+            () -> prepareSearch("high_card_idx").addAggregation(
+                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .minDocCount(randomInt(1))
+                    .size(0)
+            ).get()
         );
         assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [terms]"));
     }
@@ -265,9 +263,9 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
-        SearchResponse allResponse = client().prepareSearch("idx")
-            .addAggregation(new TermsAggregationBuilder("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values())))
-            .get();
+        SearchResponse allResponse = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(field).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
         assertNoFailures(allResponse);
         LongTerms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -278,13 +276,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
         final int numPartitions = randomIntBetween(2, 4);
         Set<Number> foundTerms = new HashSet<>();
         for (int partition = 0; partition < numPartitions; partition++) {
-            SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(
-                    new TermsAggregationBuilder("terms").field(field)
-                        .includeExclude(new IncludeExclude(partition, numPartitions))
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                )
-                .get();
+            SearchResponse response = prepareSearch("idx").addAggregation(
+                new TermsAggregationBuilder("terms").field(field)
+                    .includeExclude(new IncludeExclude(partition, numPartitions))
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+            ).get();
             assertNoFailures(response);
             terms = response.getAggregations().get("terms");
             assertThat(terms, notNullValue());
@@ -298,13 +294,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testSingleValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -324,13 +318,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScript() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value - 1", Collections.emptyMap()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value - 1", Collections.emptyMap()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -354,13 +346,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / 1000 + 1)", Collections.emptyMap()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "floor(_value / 1000 + 1)", Collections.emptyMap()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -402,13 +392,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .userValueTypeHint(ValueType.LONG)
-                    .script(script)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                .userValueTypeHint(ValueType.LONG)
+                .script(script)
+        ).get();
 
         assertNoFailures(response);
 
@@ -435,13 +423,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
             Collections.emptyMap()
         );
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .userValueTypeHint(ValueType.LONG)
-                    .script(script)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                .userValueTypeHint(ValueType.LONG)
+                .script(script)
+        ).get();
 
         assertNoFailures(response);
 
@@ -464,11 +450,9 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped", "idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -487,13 +471,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .format("0000")
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped", "idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .format("0000")
+        ).get();
 
         assertNoFailures(response);
 
@@ -514,18 +496,16 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("avg_i", asc))
-                    .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
-                    .subAggregation(
-                        new TermsAggregationBuilder("subTerms").field(MULTI_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    )
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("avg_i", asc))
+                .subAggregation(avg("avg_i").field(SINGLE_VALUED_FIELD_NAME))
+                .subAggregation(
+                    new TermsAggregationBuilder("subTerms").field(MULTI_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                )
+        ).get();
 
         assertNoFailures(response);
 
@@ -559,14 +539,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("num_tags").field("num_tag")
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("filter", asc))
-                    .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("num_tags").field("num_tag")
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("filter", asc))
+                .subAggregation(filter("filter", QueryBuilders.matchAllQuery()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -596,18 +574,16 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("tags").field("num_tag")
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("filter1>filter2>max", asc))
-                    .subAggregation(
-                        filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
-                            filter("filter2", QueryBuilders.matchAllQuery()).subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))
-                        )
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("tags").field("num_tag")
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("filter1>filter2>max", asc))
+                .subAggregation(
+                    filter("filter1", QueryBuilders.matchAllQuery()).subAggregation(
+                        filter("filter2", QueryBuilders.matchAllQuery()).subAggregation(max("max").field(SINGLE_VALUED_FIELD_NAME))
                     )
-            )
-            .get();
+                )
+        ).get();
 
         assertNoFailures(response);
 
@@ -653,13 +629,11 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index)
-                    .addAggregation(
-                        new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(BucketOrder.aggregation("avg_i", true))
-                    )
-                    .get();
+                prepareSearch(index).addAggregation(
+                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(BucketOrder.aggregation("avg_i", true))
+                ).get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
@@ -672,17 +646,14 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index)
-                    .addAggregation(
-                        new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(BucketOrder.aggregation("num_tags", true))
-                            .subAggregation(
-                                new TermsAggregationBuilder("num_tags").field("num_tags")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            )
-                    )
-                    .get();
+                prepareSearch(index).addAggregation(
+                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(BucketOrder.aggregation("num_tags", true))
+                        .subAggregation(
+                            new TermsAggregationBuilder("num_tags").field("num_tags").collectMode(randomFrom(SubAggCollectionMode.values()))
+                        )
+                ).get();
 
                 fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics type");
 
@@ -695,14 +666,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithUnknownMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index)
-                    .addAggregation(
-                        new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(BucketOrder.aggregation("stats.foo", true))
-                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                    )
-                    .get();
+                prepareSearch(index).addAggregation(
+                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(BucketOrder.aggregation("stats.foo", true))
+                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                ).get();
 
                 fail(
                     "Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
@@ -718,14 +687,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
     public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithoutMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
-                client().prepareSearch(index)
-                    .addAggregation(
-                        new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(BucketOrder.aggregation("stats", true))
-                            .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                    )
-                    .get();
+                prepareSearch(index).addAggregation(
+                    new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .order(BucketOrder.aggregation("stats", true))
+                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                ).get();
 
                 fail(
                     "Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation "
@@ -740,14 +707,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("stats.avg", asc))
-                    .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("stats.avg", asc))
+                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+        ).get();
 
         assertNoFailures(response);
 
@@ -771,14 +736,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueSubAggregationDesc() throws Exception {
         boolean asc = false;
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("stats.avg", asc))
-                    .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("stats.avg", asc))
+                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+        ).get();
 
         assertNoFailures(response);
 
@@ -802,14 +765,12 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
     public void testSingleValuedFieldOrderedByMultiValueExtendedStatsAsc() throws Exception {
         boolean asc = true;
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.aggregation("stats.variance", asc))
-                    .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.aggregation("stats.variance", asc))
+                .subAggregation(extendedStats("stats").field(SINGLE_VALUED_FIELD_NAME))
+        ).get();
 
         assertNoFailures(response);
 
@@ -872,15 +833,13 @@ public class LongTermsIT extends AbstractTermsTestCase {
     }
 
     private void assertMultiSortResponse(long[] expectedKeys, BucketOrder... order) {
-        SearchResponse response = client().prepareSearch("sort_idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .order(BucketOrder.compound(order))
-                    .subAggregation(avg("avg_l").field("l"))
-                    .subAggregation(sum("sum_d").field("d"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("sort_idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .order(BucketOrder.compound(order))
+                .subAggregation(avg("avg_l").field("l"))
+                .subAggregation(sum("sum_d").field("d"))
+        ).get();
 
         assertNoFailures(response);
 
@@ -935,8 +894,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 new TermsAggregationBuilder("terms").field("d")
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "Math.random()", Collections.emptyMap()))
@@ -954,8 +912,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 new TermsAggregationBuilder("terms").field("d")
                     .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_value + 1", Collections.emptyMap()))
@@ -973,7 +930,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(new TermsAggregationBuilder("terms").field("d")).get();
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(new TermsAggregationBuilder("terms").field("d")).get();
         assertNoFailures(r);
 
         assertThat(

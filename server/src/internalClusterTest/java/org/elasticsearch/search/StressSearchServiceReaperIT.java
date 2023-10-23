@@ -43,7 +43,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
         indexRandom(true, builders);
         final int iterations = scaledRandomIntBetween(500, 1000);
         for (int i = 0; i < iterations; i++) {
-            assertHitCountAndNoFailures(client().prepareSearch("test").setQuery(matchAllQuery()).setSize(num), num);
+            assertHitCountAndNoFailures(prepareSearch("test").setQuery(matchAllQuery()).setSize(num), num);
         }
     }
 }

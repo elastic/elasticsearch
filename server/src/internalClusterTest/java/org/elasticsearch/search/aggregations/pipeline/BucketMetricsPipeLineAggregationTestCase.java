@@ -127,12 +127,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testDocCountTopLevel() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
-            )
-            .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count"))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+        ).addAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count")).get();
 
         assertNoFailures(response);
 
@@ -157,18 +154,14 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testDocCountAsSubAgg() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .order(BucketOrder.key(true))
-                    .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
-                            .interval(interval)
-                            .extendedBounds(minRandomValue, maxRandomValue)
-                    )
-                    .subAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                )
+                .subAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">_count"))
+        ).get();
 
         assertNoFailures(response);
 
@@ -203,10 +196,9 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testMetricTopLevel() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-            .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+        ).addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum")).get();
 
         assertNoFailures(response);
 
@@ -236,19 +228,17 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testMetricAsSubAgg() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .order(BucketOrder.key(true))
-                    .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
-                            .interval(interval)
-                            .extendedBounds(minRandomValue, maxRandomValue)
-                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                    )
-                    .subAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">sum"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
+                        .interval(interval)
+                        .extendedBounds(minRandomValue, maxRandomValue)
+                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                )
+                .subAggregation(BucketMetricsPipelineAgg("pipeline_agg", histoName + ">sum"))
+        ).get();
 
         assertNoFailures(response);
 
@@ -292,21 +282,19 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testMetricAsSubAggWithInsertZeros() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .order(BucketOrder.key(true))
-                    .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
-                            .interval(interval)
-                            .extendedBounds(minRandomValue, maxRandomValue)
-                            .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                    )
-                    .subAggregation(
-                        BucketMetricsPipelineAgg("pipeline_agg", histoName + ">sum").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
-                    )
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
+                        .interval(interval)
+                        .extendedBounds(minRandomValue, maxRandomValue)
+                        .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                )
+                .subAggregation(
+                    BucketMetricsPipelineAgg("pipeline_agg", histoName + ">sum").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)
+                )
+        ).get();
 
         assertNoFailures(response);
 
@@ -346,14 +334,11 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testNoBuckets() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .includeExclude(new IncludeExclude(null, "tag.*", null, null))
-                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum"))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .includeExclude(new IncludeExclude(null, "tag.*", null, null))
+                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+        ).addAggregation(BucketMetricsPipelineAgg("pipeline_agg", termsName + ">sum")).get();
 
         assertNoFailures(response);
 
@@ -371,19 +356,14 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
     }
 
     public void testNested() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .order(BucketOrder.key(true))
-                    .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
-                            .interval(interval)
-                            .extendedBounds(minRandomValue, maxRandomValue)
-                    )
-                    .subAggregation(BucketMetricsPipelineAgg("nested_histo_bucket", histoName + ">_count"))
-            )
-            .addAggregation(BucketMetricsPipelineAgg("nested_terms_bucket", termsName + ">nested_histo_bucket." + nestedMetric()))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                )
+                .subAggregation(BucketMetricsPipelineAgg("nested_histo_bucket", histoName + ">_count"))
+        ).addAggregation(BucketMetricsPipelineAgg("nested_terms_bucket", termsName + ">nested_histo_bucket." + nestedMetric())).get();
 
         assertNoFailures(response);
 
@@ -488,7 +468,7 @@ abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetrics
         groupByLicenseAgg.subAggregation(licensePerDayBuilder);
         groupByLicenseAgg.subAggregation(BucketMetricsPipelineAgg("peak", "licenses_per_day>total_licenses"));
 
-        SearchResponse response = client().prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
+        SearchResponse response = prepareSearch("foo_*").setSize(0).addAggregation(groupByLicenseAgg).get();
         BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON, false);
         XContentHelper.convertToMap(bytes, false, XContentType.JSON);
     }

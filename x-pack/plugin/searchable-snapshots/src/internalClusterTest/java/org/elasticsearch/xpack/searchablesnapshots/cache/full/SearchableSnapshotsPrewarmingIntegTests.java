@@ -267,7 +267,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                 }
             });
         }
-        maxUploadTasksCreated.await();
+        safeAwait(maxUploadTasksCreated);
         var prewarmingExecutor = threadPool.executor(CACHE_PREWARMING_THREAD_POOL_NAME);
         assertThat(prewarmingExecutor, instanceOf(ThreadPoolExecutor.class));
         assertThat(((ThreadPoolExecutor) prewarmingExecutor).getActiveCount(), equalTo(maxUploadTasks));

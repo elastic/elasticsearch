@@ -281,7 +281,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
 
         logger.debug("--> waiting for background cache to complete");
         assertBusy(() -> {
-            if (threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME)instanceof ThreadPoolExecutor executor) {
+            if (threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME) instanceof ThreadPoolExecutor executor) {
                 assertThat(executor.getQueue().size(), equalTo(0));
                 assertThat(executor.getActiveCount(), equalTo(0));
             }

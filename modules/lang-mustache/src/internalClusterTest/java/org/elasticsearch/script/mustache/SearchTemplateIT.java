@@ -100,7 +100,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -121,7 +121,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -142,7 +142,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -363,7 +363,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         request.setRequest(new SearchRequest());
         ExecutionException ex = expectThrows(
             ExecutionException.class,
-            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+            () -> client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get()
         );
 
         Throwable primary = ex.getCause();

@@ -1,0 +1,23 @@
+[[esql-language]]
+== Working with the {esql} language
+
+++++
+<titleabbrev>Working with the {esql} language</titleabbrev>
+++++
+
+Detailed information about the {esql} language:
+
+* <<esql-syntax>>
+* <<esql-commands>>
+* <<esql-functions>>
+* <<esql-multivalued-fields>>
+* <<esql-metadata-fields>>
+* <<esql-enrich-data>>
+
+include::esql-syntax.asciidoc[]
+include::esql-commands.asciidoc[]
+include::esql-functions-operators.asciidoc[]
+include::multivalued-fields.asciidoc[]
+include::metadata-fields.asciidoc[]
+include::esql-enrich-data.asciidoc[]
+

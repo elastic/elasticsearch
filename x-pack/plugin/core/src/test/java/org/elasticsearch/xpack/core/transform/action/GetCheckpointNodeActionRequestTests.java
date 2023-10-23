@@ -11,11 +11,17 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Request;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -26,15 +32,7 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        Set<ShardId> shards = new HashSet<>();
-        OriginalIndices originalIndices = randomOriginalIndices(randomIntBetween(0, 20));
-        int numberOfRandomShardIds = randomInt(10);
-
-        for (int i = 0; i < numberOfRandomShardIds; ++i) {
-            shards.add(new ShardId(randomAlphaOfLength(4) + i, randomAlphaOfLength(4), randomInt(5)));
-        }
-
-        return new Request(shards, originalIndices);
+        return new Request(randomShards(randomInt(10)), randomOriginalIndices(randomIntBetween(0, 20)));
     }
 
     @Override
@@ -62,7 +60,39 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
         }
     }
 
-    private OriginalIndices randomOriginalIndices(int numIndices) {
+    public void testCreateTask() {
+        Request request = new Request(randomShards(7), randomOriginalIndices(19));
+        CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
+        assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[19;7]")));
+    }
+
+    public void testCreateTaskWithNullShardsAndIndices() {
+        Request request = new Request(null, OriginalIndices.NONE);
+        CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
+        assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[0;0]")));
+    }
+
+    public void testCreateTaskWithNullShards() {
+        Request request = new Request(null, randomOriginalIndices(13));
+        CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
+        assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[13;0]")));
+    }
+
+    public void testCreateTaskWithNullIndices() {
+        Request request = new Request(randomShards(11), OriginalIndices.NONE);
+        CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
+        assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[0;11]")));
+    }
+
+    private static Set<ShardId> randomShards(int numShards) {
+        Set<ShardId> shards = new HashSet<>();
+        for (int i = 0; i < numShards; ++i) {
+            shards.add(new ShardId(randomAlphaOfLength(4) + i, randomAlphaOfLength(4), randomInt(5)));
+        }
+        return shards;
+    }
+
+    private static OriginalIndices randomOriginalIndices(int numIndices) {
         String[] randomIndices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
             randomIndices[i] = randomAlphaOfLengthBetween(5, 10);
@@ -70,5 +100,4 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
         IndicesOptions indicesOptions = randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen();
         return new OriginalIndices(randomIndices, indicesOptions);
     }
-
 }

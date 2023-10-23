@@ -10,7 +10,6 @@ package org.elasticsearch.index.search;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
@@ -48,12 +47,10 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
         MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who").analyzer("standard_stopwords");
 
         MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
-        SearchResponse matchNoneResponse = client().prepareSearch(INDEX).setQuery(matchNoneQuery).get();
-        assertHitCount(matchNoneResponse, 0L);
+        assertHitCount(prepareSearch(INDEX).setQuery(matchNoneQuery), 0L);
 
         MatchPhraseQueryBuilder matchAllQuery = baseQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
-        SearchResponse matchAllResponse = client().prepareSearch(INDEX).setQuery(matchAllQuery).get();
-        assertHitCount(matchAllResponse, 2L);
+        assertHitCount(prepareSearch(INDEX).setQuery(matchAllQuery), 2L);
     }
 
     private List<IndexRequestBuilder> getIndexRequests() {

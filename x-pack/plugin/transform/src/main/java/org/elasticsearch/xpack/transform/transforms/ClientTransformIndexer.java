@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -75,7 +75,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
-    private final Client client;
+    private final ParentTaskAssigningClient client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -89,7 +89,7 @@ class ClientTransformIndexer extends TransformIndexer {
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
-        Client client,
+        ParentTaskAssigningClient client,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
         TransformProgress transformProgress,

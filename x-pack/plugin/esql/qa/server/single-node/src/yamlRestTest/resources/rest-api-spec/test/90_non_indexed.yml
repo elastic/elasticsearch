@@ -89,6 +89,7 @@ unsupported:
   - do:
       warnings:
         - "Field [ip_noidx] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'

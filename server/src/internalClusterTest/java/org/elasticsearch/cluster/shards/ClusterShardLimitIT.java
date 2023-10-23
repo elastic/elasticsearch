@@ -121,7 +121,6 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("should-fail"))
                 .setOrder(1)
                 .setSettings(indexSettings(counts.getFailingIndexShards(), counts.getFailingIndexReplicas()))
-                .get()
         );
 
         final IllegalArgumentException e = expectThrows(
@@ -243,7 +242,6 @@ public class ClusterShardLimitIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("test-index")
                 .setPreserveExisting(true)
                 .setSettings(Settings.builder().put("number_of_replicas", dataNodes))
-                .get()
         );
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertEquals(0, clusterState.getMetadata().index("test-index").getNumberOfReplicas());

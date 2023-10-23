@@ -24,20 +24,20 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
@@ -46,13 +46,13 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryRequestBuilder;
@@ -750,37 +750,37 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public ActionFuture<NodesInfoResponse> nodesInfo(final NodesInfoRequest request) {
-            return execute(NodesInfoAction.INSTANCE, request);
+            return execute(TransportNodesInfoAction.TYPE, request);
         }
 
         @Override
         public void nodesInfo(final NodesInfoRequest request, final ActionListener<NodesInfoResponse> listener) {
-            execute(NodesInfoAction.INSTANCE, request, listener);
+            execute(TransportNodesInfoAction.TYPE, request, listener);
         }
 
         @Override
         public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
-            return new NodesInfoRequestBuilder(this, NodesInfoAction.INSTANCE).setNodesIds(nodesIds);
+            return new NodesInfoRequestBuilder(this, TransportNodesInfoAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
         public ActionFuture<NodesStatsResponse> nodesStats(final NodesStatsRequest request) {
-            return execute(NodesStatsAction.INSTANCE, request);
+            return execute(TransportNodesStatsAction.TYPE, request);
         }
 
         @Override
         public void nodesStats(final NodesStatsRequest request, final ActionListener<NodesStatsResponse> listener) {
-            execute(NodesStatsAction.INSTANCE, request, listener);
+            execute(TransportNodesStatsAction.TYPE, request, listener);
         }
 
         @Override
         public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
-            return new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE).setNodesIds(nodesIds);
+            return new NodesStatsRequestBuilder(this, TransportNodesStatsAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
         public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {
-            execute(NodesUsageAction.INSTANCE, request, listener);
+            execute(TransportNodesUsageAction.TYPE, request, listener);
         }
 
         @Override
@@ -795,27 +795,27 @@ public abstract class AbstractClient implements Client {
 
         @Override
         public void nodesHotThreads(NodesHotThreadsRequest request, ActionListener<NodesHotThreadsResponse> listener) {
-            execute(NodesHotThreadsAction.INSTANCE, request, listener);
+            execute(TransportNodesHotThreadsAction.TYPE, request, listener);
         }
 
         @Override
         public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
-            return new NodesHotThreadsRequestBuilder(this, NodesHotThreadsAction.INSTANCE).setNodesIds(nodesIds);
+            return new NodesHotThreadsRequestBuilder(this, TransportNodesHotThreadsAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override
         public ActionFuture<ListTasksResponse> listTasks(final ListTasksRequest request) {
-            return execute(ListTasksAction.INSTANCE, request);
+            return execute(TransportListTasksAction.TYPE, request);
         }
 
         @Override
         public void listTasks(final ListTasksRequest request, final ActionListener<ListTasksResponse> listener) {
-            execute(ListTasksAction.INSTANCE, request, listener);
+            execute(TransportListTasksAction.TYPE, request, listener);
         }
 
         @Override
         public ListTasksRequestBuilder prepareListTasks(String... nodesIds) {
-            return new ListTasksRequestBuilder(this, ListTasksAction.INSTANCE).setNodesIds(nodesIds);
+            return new ListTasksRequestBuilder(this, TransportListTasksAction.TYPE).setNodesIds(nodesIds);
         }
 
         @Override

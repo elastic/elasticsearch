@@ -83,14 +83,19 @@ since it relies on separate data structures to perform the search. Before
 using the <<include-exclude, `excludes`>> parameter, make sure to review the
 downsides of omitting fields from `_source`.
 
+Another option is to use  <<synthetic-source,synthetic `_source`>> if all
+your index fields support it.
+
+
 [discrete]
 === Reduce the number of index segments
 
 {es} shards are composed of segments, which are internal storage elements in
-the index. For approximate kNN search, {es} stores the dense vector values of
-each segment as an HNSW graph. kNN search must check each segment, searching
-through one HNSW graph after another. This means kNN search can be
-significantly faster if there are fewer segments. By default, {es} periodically
+the index. For approximate kNN search, {es} stores the vector values of
+each segment as a separate HNSW graph, so kNN search must check each segment.
+The recent parallelization of kNN search made it much faster to search across
+multiple segments, but still kNN search can be up to several times
+faster if there are fewer segments. By default, {es} periodically
 merges smaller segments into larger ones through a background
 <<index-modules-merge, merge process>>. If this isn't sufficient, you can take
 explicit steps to reduce the number of index segments.

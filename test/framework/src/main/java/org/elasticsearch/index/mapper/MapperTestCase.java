@@ -34,6 +34,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -90,7 +91,7 @@ import static org.mockito.Mockito.when;
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
 
-    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersion.V_7_10_0;
+    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersions.V_7_10_0;
 
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
@@ -394,7 +395,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testBlankName() {
         IndexVersion version = getVersion();
-        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(IndexVersion.V_8_6_0));
+        assumeTrue("blank field names are rejected from 8.6.0 onwards", version.onOrAfter(IndexVersions.V_8_6_0));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(version, mapping(b -> {
             b.startObject("  ");
             minimalMapping(b);
@@ -531,7 +532,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected IndexVersion boostNotAllowedIndexVersion() {
-        return IndexVersion.V_8_0_0;
+        return IndexVersions.V_8_0_0;
     }
 
     /**

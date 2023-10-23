@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -358,6 +359,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         blobStore.setDisruption(new Disruption() {
             @Override
             public boolean compareAndExchangeReturnsWitness(String key) {
+                // let uncontended accesses succeed but all contended ones fail
                 return isContendedRegisterKey(key) == false;
             }
         });
@@ -377,7 +379,12 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
         });
-        expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+            allOf(containsString("uncontended register operation failed"), containsString("did not observe any value"))
+        );
     }
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request) {

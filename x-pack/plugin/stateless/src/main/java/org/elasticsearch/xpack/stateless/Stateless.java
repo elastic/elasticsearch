@@ -489,7 +489,7 @@ public class Stateless extends Plugin
             )
         );
         this.telemetryProvider = telemetryProvider;
-        this.telemetryProvider.getMeter()
+        this.telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 CACHE_MISS_COUNTER,
                 "The number of times there was a cache miss that triggered a read from the blob store",
@@ -637,7 +637,12 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId(), telemetryProvider.getMeter());
+                    return new IndexDirectory(
+                        in,
+                        sharedBlobCacheService.get(),
+                        shardRouting.shardId(),
+                        telemetryProvider.getMeterRegistry()
+                    );
                 } else {
                     return in;
                 }
@@ -654,7 +659,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
-                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId(), telemetryProvider.getMeter());
+                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId(), telemetryProvider.getMeterRegistry());
                 } else {
                     return in;
                 }

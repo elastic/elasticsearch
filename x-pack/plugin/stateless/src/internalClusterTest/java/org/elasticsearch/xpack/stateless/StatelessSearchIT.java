@@ -101,7 +101,6 @@ import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1174,7 +1173,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             .setSize(0) // index request cache only supports count requests
             .setQuery(QueryBuilders.rangeQuery("f").gte(min).lte(max))
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         return response;
     }
 

@@ -125,7 +125,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         "is a pre-release version of Elasticsearch",
         "max virtual memory areas vm.max_map_count"
     );
-    private static final String HOSTNAME_OVERRIDE = "NodeHostname";
+    private static final String HOSTNAME_OVERRIDE = "LinuxDarwinHostname";
+    private static final String COMPUTERNAME_OVERRIDE = "WindowsComputername";
 
     private final String path;
     private final String name;
@@ -906,7 +907,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         // Override the system hostname variables for testing
         defaultEnv.put("HOSTNAME", HOSTNAME_OVERRIDE);
-        defaultEnv.put("COMPUTERNAME", HOSTNAME_OVERRIDE);
+        defaultEnv.put("COMPUTERNAME", COMPUTERNAME_OVERRIDE);
 
         Set<String> commonKeys = new HashSet<>(environment.keySet());
         commonKeys.retainAll(defaultEnv.keySet());

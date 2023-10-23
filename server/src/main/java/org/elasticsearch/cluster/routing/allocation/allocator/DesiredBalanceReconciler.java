@@ -261,6 +261,10 @@ public class DesiredBalanceReconciler {
                                 // desired node no longer exists
                                 continue;
                             }
+                            if (routingNode.getByShardId(shard.shardId()) != null) {
+                                // node already contains same shard
+                                continue;
+                            }
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                             switch (decision.type()) {
                                 case YES -> {
@@ -287,10 +291,10 @@ public class DesiredBalanceReconciler {
                                 case THROTTLE -> {
                                     nodeIdsIterator.wasThrottled = true;
                                     unallocatedStatus = AllocationStatus.DECIDERS_THROTTLED;
-                                    logger.trace("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
+                                    logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
                                 }
                                 case NO -> {
-                                    logger.trace("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
+                                    logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
                                 }
                             }
                         }

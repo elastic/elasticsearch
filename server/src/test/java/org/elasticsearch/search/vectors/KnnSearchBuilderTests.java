@@ -159,8 +159,8 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     public void testToQueryBuilder() {
         String field = randomAlphaOfLength(6);
         float[] vector = randomVector(randomIntBetween(2, 30));
-        Integer k = randomBoolean() ? null : randomIntBetween(1, 100);
-        Integer numCands = randomBoolean() ? null : randomIntBetween(k, 1000);
+        int k = randomIntBetween(1, 100);
+        int numCands = randomIntBetween(k, 1000);
         Float similarity = randomBoolean() ? null : randomFloat();
         KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands, similarity);
 

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -112,13 +113,13 @@ public class FeatureServiceTests extends ESTestCase {
 
     private static ClusterState stateWithMinVersion(Version version) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        nodes.add(DiscoveryNodeUtils.builder("node").version(version, IndexVersion.ZERO, IndexVersion.current()).build());
+        nodes.add(DiscoveryNodeUtils.builder("node").version(version, IndexVersions.ZERO, IndexVersion.current()).build());
         for (int n = randomInt(5); n >= 0; n--) {
             nodes.add(
                 DiscoveryNodeUtils.builder("node" + n)
                     .version(
                         VersionUtils.randomVersionBetween(random(), version, Version.CURRENT),
-                        IndexVersion.ZERO,
+                        IndexVersions.ZERO,
                         IndexVersion.current()
                     )
                     .build()

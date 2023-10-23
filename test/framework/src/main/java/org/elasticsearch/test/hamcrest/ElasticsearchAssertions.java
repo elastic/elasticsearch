@@ -255,8 +255,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertSortValues(SearchRequestBuilder searchRequestBuilder, Object[]... sortValues) {
-        assertResponse(searchRequestBuilder, res -> {
-            assertNoFailures(res);
+        assertNoFailuresAndResponse(searchRequestBuilder, res -> {
             SearchHit[] hits = res.getHits().getHits();
             assertEquals(sortValues.length, hits.length);
             for (int i = 0; i < sortValues.length; ++i) {

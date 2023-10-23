@@ -290,7 +290,6 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
                 doTestLabelPosition(fields, GeoTestUtils.geoShapeValue(new Point(value.getX(), value.getY())));
             }
         });
-
     }
 
     private void doTestLabelPosition(Map<String, DocumentField> fields, GeoShapeValues.GeoShapeValue expectedLabelPosition)

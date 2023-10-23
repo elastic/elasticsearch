@@ -67,7 +67,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
      * NOTE: This should not be used directly.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
-    public Map<String, Set<String>> nodeFeatures() {
+    Map<String, Set<String>> nodeFeatures() {
         return nodeFeatures;
     }
 

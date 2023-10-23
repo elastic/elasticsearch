@@ -5,83 +5,90 @@
 <titleabbrev>Process data with DISSECT and GROK</titleabbrev>
 ++++
 
-Your data may contain unstructured strings that you want to structure, so you
-can further analyze it. For example, log messages may contain IP addresses that
-you want to extract so you can find the most active IP addresses.
+Your data may contain unstructured strings that you want to structure. This
+makes it easier to analyze the data. For example, log messages may contain IP
+addresses that you want to extract so you can find the most active IP addresses.
 
-Structuring data can be done at index time, using the
-<<dissect-processor,Dissect>> or <<grok-processor,Grok>> ingest processors, or
-the {ls} {logstash-ref}/plugins-filters-dissect.html[Dissect] or
-{logstash-ref}/plugins-filters-grok.html[Grok] filters. With {esql}, you can
-also structure data at query time, using the <<esql-dissect>> and <<esql-grok>>
-processors.
+image::images/esql/unstructured-data.png[align="center",width=75%]
+
+{es} can structure your data at index time or query time. At index time, you can
+use the <<dissect-processor,Dissect>> and <<grok-processor,Grok>> ingest
+processors, or the {ls} {logstash-ref}/plugins-filters-dissect.html[Dissect] and
+{logstash-ref}/plugins-filters-grok.html[Grok] filters. At query time, you can
+use the {esql} <<esql-dissect>> and <<esql-grok>> commands.
 
 [[esql-grok-or-dissect]]
-==== `GROK` or `DISSECT`? Or both?
+==== `DISSECT` or `GROK`? Or both?
 
-`DISSECT` differs from `GROK` in that it does not use regular expressions and is
-faster. `DISSECT` works well when data is reliably repeated. `GROK` is a better
-choice when the structure of your text varies from row to row.
+`DISSECT` works by breaking up a string using a delimiter-based pattern. `GROK`
+works similarly, but uses regular expressions. This make `GROK` more powerful,
+but generally also slower. `DISSECT` works well when data is reliably repeated.
+`GROK` is a better choice when you really need the power of regular expressions,
+for example when the structure of your text varies from row to row.
 
-You can use both `DISSECT` and `GROK` for a hybrid use case when a section of
-the line is reliably repeated, but the entire line is not. The `DISSECT` filter
-can deconstruct the section of the line that is repeated. The `GROK` filter can
-process the remaining field values with more regex predictability.
+You can use both `DISSECT` and `GROK` for hybrid use cases. For example when a
+section of the line is reliably repeated, but the entire line is not. The
+`DISSECT` filter can deconstruct the section of the line that is repeated. The
+`GROK` filter can process the remaining field values using regular expressions.
 
 [[esql-process-data-with-dissect]]
 ==== Process data with `DISSECT`
 
-The <<esql-dissect>> processing command matches the string against a
+The <<esql-dissect>> processing command matches a string against a
 delimiter-based pattern, and extracts the specified keys as columns.
 
-For example the following pattern:
+For example, the following pattern:
 [source,txt]
---------------------------------------------------
-%{ip} [%{@timestamp}] %{status} 
---------------------------------------------------
+----
+%{clientip} [%{@timestamp}] %{status} 
+----
 
-will match a log line of this format:
+matches a log line of this format:
 [source,txt]
---------------------------------------------------
-1.2.3.4 [30/Apr/2023:22:00:52 +0000] Connected
---------------------------------------------------
+----
+1.2.3.4 [2023-01-23T12:15:00.000Z] Connected
+----
 
 and results in adding the following columns to the input table:
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-ip:keyword | @timestamp:keyword | status:keyword
-1.2.3.4 | 30/Apr/2023:22:00:52 +0000 | Connected
+clientip:keyword | @timestamp:keyword | status:keyword
+1.2.3.4 | 2023-01-23T12:15:00.000Z | Connected
 |===
+
+[[esql-dissect-patterns]]
+===== Dissect patterns
 
 include::../ingest/processors/dissect.asciidoc[tag=intro-example-explanation]
 
 An empty key `%{}` or a <<esql-named-skip-key,named skip key>> can be used to
 match values, but exclude the value from the output.
 
-All matched values are represented as string data types. Use the
-<<esql-type-conversion-functions>> to convert to expected data type.
+All matched values are output as keyword string data types. Use the
+<<esql-type-conversion-functions>> to convert to another data type.
 
 Dissect also supports <<esql-dissect-key-modifiers,key modifiers>> that can
-change dissect's default behavior. For example you can instruct dissect to
+change dissect's default behavior. For example, you can instruct dissect to
 ignore certain fields, append fields, skip over padding, etc.
 
+[[esql-dissect-terminology]]
 ===== Terminology
 
-*dissect pattern*::
+dissect pattern::
 the set of fields and delimiters describing the textual 
 format. Also known as a dissection. 
 The dissection is described using a set of `%{}` sections:
 `%{a} - %{b} - %{c}`
 
-*field*::
+field::
 the text from `%{` to `}` inclusive.
 
-*delimiter*::
+delimiter::
 the text between `}` and the next `%{` characters.
 Any set of characters other than `%{`, `'not }'`, or `}` is a delimiter.
 
-*key*::
+key::
 +
 --
 the text between the `%{` and `}`, exclusive of the `?`, `+`, `&` prefixes 
@@ -100,7 +107,16 @@ Examples:
 include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers]
 
 [[esql-dissect-key-modifiers-table]]
-include::../ingest/processors/dissect.asciidoc[tag=dissect-key-modifiers-table]
+.Dissect key modifiers
+[options="header",role="styled"]
+|======
+| Modifier      | Name               | Position       | Example                      | Description                                                  | Details
+| `->`          | Skip right padding | (far) right    | `%{keyname1->}`  | Skips any repeated characters to the right                   | <<esql-dissect-modifier-skip-right-padding,link>>
+| `+`           | Append             | left           | `%{+keyname} %{+keyname}`    | Appends two or more fields together                          | <<esql-append-modifier,link>>
+| `+` with `/n` | Append with order  | left and right | `%{+keyname/2} %{+keyname/1}` | Appends two or more fields together in the order specified   | <<esql-append-order-modifier,link>>
+| `?`           | Named skip key     | left           | `%{?ignoreme}`  | Skips the matched value in the output. Same behavior as `%{}`| <<esql-named-skip-key,link>>
+| `*` and `&`   | Reference keys     | left           | `%{*r1} %{&r1}`    | Sets the output key as value of `*` and output value of `&`  | <<esql-reference-keys,link>>
+|======
 
 [[esql-dissect-modifier-skip-right-padding]]
 ====== Right padding modifier (`->`)
@@ -124,3 +140,114 @@ include::../ingest/processors/dissect.asciidoc[tag=reference-keys]
 
 [[esql-process-data-with-grok]]
 ==== Process data with `GROK`
+
+The <<esql-grok>> processing command matches a string against a pattern based on
+regular expressions, and extracts the specified keys as columns.
+
+For example, the following pattern:
+[source,txt]
+----
+%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
+----
+
+matches a log line of this format:
+[source,txt]
+----
+1.2.3.4 [2023-01-23T12:15:00.000Z] Connected
+----
+
+and results in adding the following columns to the input table:
+
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+@timestamp:keyword | ip:keyword | status:keyword
+2023-01-23T12:15:00.000Z | 1.2.3.4 | Connected
+|===
+
+[[esql-grok-patterns]]
+===== Grok patterns
+
+The syntax for a grok pattern is `%{SYNTAX:SEMANTIC}`
+
+The `SYNTAX` is the name of the pattern that matches your text. For example,
+`3.44` is matched by the `NUMBER` pattern and `55.3.244.1` is matched by the
+`IP` pattern. The syntax is how you match.
+
+The `SEMANTIC` is the identifier you give to the piece of text being matched.
+For example, `3.44` could be the duration of an event, so you could call it
+simply `duration`. Further, a string `55.3.244.1` might identify the `client`
+making a request.
+
+By default, matched values are output as keyword string data types. To convert a
+semantic's data type, suffix it with the target data type. For example
+`%{NUMBER:num:int}`, which converts the `num` semantic from a string to an
+integer. Currently the only supported conversions are `int` and `float`. For
+other types, use the <<esql-type-conversion-functions>>.
+
+For an overview of the available patterns, refer to
+{es-repo}/blob/{branch}/libs/grok/src/main/resources/patterns[GitHub]. You can
+also retrieve a list of all patterns using a <<grok-processor-rest-get,REST
+API>>.
+
+[[esql-grok-regex]]
+===== Regular expressions
+
+Grok is based on regular expressions. Any regular expressions are valid in grok
+as well. Grok uses the Oniguruma regular expression library. Refer to
+https://github.com/kkos/oniguruma/blob/master/doc/RE[the Oniguruma GitHub
+repository] for the full supported regexp syntax.
+
+[NOTE]
+====
+Special regex characters like `[` and `]` need to be escaped with a `\`. You can
+see this in the earlier example, where the pattern was:
+[source,txt]
+----
+%{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}
+----
+
+In {esql} queries, the backslash character itself is a special character that
+needs to be escaped with another `\`. For this example, the corresponding {esql}
+query becomes:
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=grokWithEscape]
+----
+====
+
+[[esql-custom-patterns]]
+===== Custom patterns
+
+If grok doesn't have a pattern you need, you can use the Oniguruma syntax for
+named capture which lets you match a piece of text and save it as a column:
+[source,txt]
+----
+(?<field_name>the pattern here)
+----
+
+For example, postfix logs have a `queue id` that is a 10 or 11-character
+hexadecimal value. This can be captured to a column named `queue_id` with:
+[source,txt]
+----
+(?<queue_id>[0-9A-F]{10,11})
+----
+
+[[esql-grok-examples]]
+===== Examples
+
+include::processing-commands/grok.asciidoc[tag=examples]
+
+[[esql-grok-debugger]]
+===== Grok debugger
+
+To write and debug grok patterns, you can use the
+{kibana-ref}/xpack-grokdebugger.html[Grok Debugger]. It provides a UI for
+testing patterns against sample data. Under the covers, it uses the same engine
+as the `GROK` command.
+
+[[esql-grok-limitations]]
+===== Limitations
+
+The `GROK` command does not support configuring <<custom-patterns,custom
+patterns>>, or <<trace-match,multiple patterns>>. The `GROK` command is not
+subject to <<grok-watchdog,Grok watchdog settings>>.

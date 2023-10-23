@@ -45,11 +45,11 @@ and result in a document with the following fields:
 // NOTCONSOLE
 
 // tag::intro-example-explanation[]
-A dissect pattern is defined by the parts of the string that will be discarded. In the example above the first part
+A dissect pattern is defined by the parts of the string that will be discarded. In the previous example, the first part
 to be discarded is a single space. Dissect finds this space, then assigns the value of `clientip` everything up
 until that space.
-Later dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`.
-Paying special attention the parts of the string to discard will help build successful dissect patterns.
+Next, dissect matches the `[` and then `]` and then assigns `@timestamp` to everything in-between `[` and `]`.
+Paying special attention to the parts of the string to discard will help build successful dissect patterns.
 // end::intro-example-explanation[]
 
 Successful matches require all keys in a pattern to have a value. If any of the `%{keyname}` defined in the pattern do
@@ -94,7 +94,6 @@ modifiers.
 // end::dissect-key-modifiers[]
 
 [[dissect-key-modifiers-table]]
-// tag::dissect-key-modifiers-table[]
 .Dissect Key Modifiers
 [options="header"]
 |======
@@ -105,7 +104,6 @@ modifiers.
 | `?`           | Named skip key     | left           | `%{?ignoreme}`  | Skips the matched value in the output. Same behavior as `%{}`| <<dissect-modifier-named-skip-key,link>>
 | `*` and `&`   | Reference keys     | left           | `%{*r1} %{&r1}`    | Sets the output key as value of `*` and output value of `&`  | <<dissect-modifier-reference-keys,link>>
 |======
-// end::dissect-key-modifiers-table[]
 
 [[dissect-modifier-skip-right-padding]]
 ===== Right padding modifier (`->`)

@@ -76,10 +76,10 @@ your enrich data>> and <<esql-update-enrich-policies, update your enrich
 policies>>.
 
 [IMPORTANT]
-===
+====
 The `ENRICH` command performs several operations and may impact the speed of
 your query.
-===
+====
 
 [[esql-enrich-prereqs]]
 ==== Prerequisites

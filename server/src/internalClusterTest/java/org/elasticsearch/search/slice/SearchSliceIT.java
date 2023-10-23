@@ -141,7 +141,6 @@ public class SearchSliceIT extends ESIntegTestCase {
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias1").routing("foo"))
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias2").routing("bar"))
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias3").routing("baz"))
-                    .get()
             );
             SearchResponse sr = prepareSearch("alias1", "alias3").setQuery(matchAllQuery()).setSize(0).get();
             int numDocs = (int) sr.getHits().getTotalHits().value;

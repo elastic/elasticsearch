@@ -57,7 +57,6 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
                 .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                .get()
         );
         ensureGreen();
 

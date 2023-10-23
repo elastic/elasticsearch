@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.telemetry.metric.Meter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +71,8 @@ public class TimeSeriesIndexSearcher {
                 false,
                 searcher.getExecutor(),
                 1,
-                -1
+                -1,
+                Meter.NOOP
             );
         } catch (IOException e) {
             // IOException from wrapping the index searcher which should never happen.

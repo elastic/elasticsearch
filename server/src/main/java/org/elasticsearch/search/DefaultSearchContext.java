@@ -60,6 +60,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.telemetry.metric.Meter;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -144,7 +145,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean lowLevelCancellation,
         Executor executor,
         int maximumNumberOfSlices,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        Meter meter
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -161,7 +163,8 @@ final class DefaultSearchContext extends SearchContext {
                 engineSearcher.getSimilarity(),
                 engineSearcher.getQueryCache(),
                 engineSearcher.getQueryCachingPolicy(),
-                lowLevelCancellation
+                lowLevelCancellation,
+                meter
             );
         } else {
             this.searcher = new ContextIndexSearcher(
@@ -172,7 +175,8 @@ final class DefaultSearchContext extends SearchContext {
                 lowLevelCancellation,
                 executor,
                 maximumNumberOfSlices,
-                minimumDocsPerSlice
+                minimumDocsPerSlice,
+                meter
             );
         }
         releasables.addAll(List.of(engineSearcher, searcher));

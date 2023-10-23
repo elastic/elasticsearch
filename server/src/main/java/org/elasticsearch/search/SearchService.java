@@ -114,6 +114,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.SpanId;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
@@ -302,6 +303,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final String sessionId = UUIDs.randomBase64UUID();
 
     private final Tracer tracer;
+    private final Meter meter;
 
     public SearchService(
         ClusterService clusterService,
@@ -313,7 +315,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        Meter meter
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -330,6 +333,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         this.executorSelector = executorSelector;
         this.tracer = tracer;
+        this.meter = meter;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -1079,7 +1083,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             );
             ExecutorService executor = this.enableSearchWorkerThreads ? threadPool.executor(Names.SEARCH_WORKER) : null;
             int maximumNumberOfSlices = determineMaximumNumberOfSlices(executor, request, resultsType);
-            searchContext = new DefaultSearchContext(
+            searchContext = new DefaultSearchContext( // here
                 reader,
                 request,
                 shardTarget,
@@ -1089,7 +1093,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 lowLevelCancellation,
                 executor,
                 maximumNumberOfSlices,
-                minimumDocsPerSlice
+                minimumDocsPerSlice,
+                meter
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services

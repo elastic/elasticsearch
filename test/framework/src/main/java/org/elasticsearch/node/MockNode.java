@@ -42,6 +42,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -102,7 +103,8 @@ public class MockNode extends Node {
             ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
-            Tracer tracer
+            Tracer tracer,
+            Meter metric
         ) {
             if (pluginsService.filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
                 return super.newSearchService(
@@ -116,7 +118,8 @@ public class MockNode extends Node {
                     responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
-                    tracer
+                    tracer,
+                    metric
                 );
             }
             return new MockSearchService(

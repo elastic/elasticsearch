@@ -508,8 +508,8 @@ ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42"
 ;
 
 // tag::grokWithToDatetime-result[]
-date:date                 | ip:keyword    | email:keyword       | num:integer
-2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+ip:keyword    | email:keyword       | num:integer | date:date
+127.0.0.1     | some.email@foo.com  | 42          | 2023-01-23T12:15:00.000Z
 // end::grokWithToDatetime-result[]
 ;
 
@@ -518,7 +518,7 @@ grokWithEscape
 ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
 | GROK a "%{IP:ip} \\[%{TIMESTAMP_ISO8601:@timestamp}\\] %{GREEDYDATA:status}"
 // end::grokWithEscape[]
-KEEP @timestamp
+| KEEP @timestamp
 ;
 
 // tag::grokWithEscape-result[]

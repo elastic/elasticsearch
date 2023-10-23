@@ -131,7 +131,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
                 .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
-                .get()
         );
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
@@ -236,7 +235,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .setMapping("field", "type=text,fielddata=true")
-                .get()
         );
         ensureGreen();
         clusterAdmin().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -326,7 +324,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("idx")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         ensureGreen();
 

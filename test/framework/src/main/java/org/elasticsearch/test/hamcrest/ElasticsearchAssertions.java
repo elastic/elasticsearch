@@ -283,16 +283,10 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
-        SearchResponse res;
         try {
-            res = responseFuture.get();
+            assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
         } catch (ExecutionException | InterruptedException ex) {
             throw new AssertionError(ex);
-        }
-        try {
-            assertHitCount(res, expectedHitCount);
-        } finally {
-            res.decRef();
         }
     }
 
@@ -347,6 +341,16 @@ public class ElasticsearchAssertions {
 
     public static void assertResponse(SearchRequestBuilder searchRequestBuilder, Consumer<SearchResponse> consumer) {
         var res = searchRequestBuilder.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
+    public static void assertResponse(ActionFuture<SearchResponse> responseFuture, Consumer<SearchResponse> consumer)
+        throws ExecutionException, InterruptedException {
+        var res = responseFuture.get();
         try {
             consumer.accept(res);
         } finally {
@@ -439,12 +443,7 @@ public class ElasticsearchAssertions {
         int totalFragments,
         Matcher<String> matcher
     ) {
-        var resp = searchRequestBuilder.get();
-        try {
-            assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);
-        } finally {
-            resp.decRef();
-        }
+        assertResponse(searchRequestBuilder, response -> assertHighlight(response, hit, field, fragment, equalTo(totalFragments), matcher));
     }
 
     public static void assertHighlight(
@@ -455,12 +454,7 @@ public class ElasticsearchAssertions {
         int totalFragments,
         Matcher<String> matcher
     ) throws ExecutionException, InterruptedException {
-        var resp = responseFuture.get();
-        try {
-            assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);
-        } finally {
-            resp.decRef();
-        }
+        assertResponse(responseFuture, response -> assertHighlight(response, hit, field, fragment, equalTo(totalFragments), matcher));
     }
 
     public static void assertHighlight(
@@ -508,12 +502,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNotHighlighted(SearchRequestBuilder searchRequestBuilder, int hit, String field) {
-        var resp = searchRequestBuilder.get();
-        try {
-            assertNotHighlighted(resp, hit, field);
-        } finally {
-            resp.decRef();
-        }
+        assertResponse(searchRequestBuilder, response -> assertNotHighlighted(response, hit, field));
     }
 
     public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {
@@ -589,7 +578,6 @@ public class ElasticsearchAssertions {
         assertThat(templatesResponse.getIndexTemplates(), hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name))));
     }
 
-    /*
     /*
      * matchers
      */

@@ -201,7 +201,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
     public void testInvalidK() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 0, null, null)
+            () -> new KnnSearchBuilder("field", randomVector(3), 0, 100, null)
         );
         assertThat(e.getMessage(), containsString("[k] must be greater than 0"));
     }

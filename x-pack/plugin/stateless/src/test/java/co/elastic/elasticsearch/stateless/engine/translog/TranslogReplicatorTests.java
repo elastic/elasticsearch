@@ -37,7 +37,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -783,7 +782,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
     }
 
-    public void testReplicatorReaderEnsuresNoHolesInShardTranslogGenerations() throws IOException {
+    public void testReplicatorReaderStopsRecoveringAfterHoleInShardTranslogGenerations() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
 
@@ -835,24 +834,7 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         compoundFiles.remove(1);
 
-        TranslogCorruptedException translogCorruptedException = expectThrows(
-            TranslogCorruptedException.class,
-            () -> assertTranslogContains(
-                new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId),
-                operations[0],
-                operations[1],
-                operations[3],
-                operations[2]
-            )
-        );
-
-        assertThat(
-            translogCorruptedException.getMessage(),
-            equalTo(
-                "translog from source [0000000000000000001] is corrupted, missing translog file went from [translog_shard_generation=0] "
-                    + "to [translog_shard_generation=2]"
-            )
-        );
+        assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId), operations[0]);
     }
 
     private static Translog.Operation[] generateRandomOperations(int numOps) {

@@ -29,6 +29,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
@@ -54,6 +55,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
@@ -84,6 +87,13 @@ public class IndexDirectory extends ByteSizeDirectory {
     private final Map<String, LocalFileRef> localFiles = new HashMap<>();
 
     /**
+     * RW locks used to update files and commits
+     */
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final ReleasableLock writeLock = new ReleasableLock(lock.writeLock());
+    private final ReleasableLock readLock = new ReleasableLock(lock.readLock());
+
+    /**
      * An estimation of local non-uploaded files on disk. It does not include deleted files.
      */
     private final AtomicLong estimatedSize = new AtomicLong();
@@ -98,12 +108,12 @@ public class IndexDirectory extends ByteSizeDirectory {
     @Override
     public String[] listAll() throws IOException {
         final String[] localFiles;
-        synchronized (this) {
+        try (var ignored = readLock.acquire()) {
             if (this.localFiles.isEmpty()) {
                 // we haven't written anything yet, fallback on the empty directory
                 return EmptyDirectory.INSTANCE.listAll();
             }
-            // need to be synchronized since rename() is a two-step operation
+            // under lock since rename() is a two-step operation
             localFiles = this.localFiles.keySet().toArray(String[]::new);
         }
         Arrays.sort(localFiles);
@@ -114,7 +124,7 @@ public class IndexDirectory extends ByteSizeDirectory {
     public long fileLength(String name) throws IOException {
         if (cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
-            synchronized (this) {
+            try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
             if (localFile != null && localFile.tryIncRef()) {
@@ -154,7 +164,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         boolean success = false;
         try {
             final String name = output.getName();
-            synchronized (this) {
+            try (var ignored = writeLock.acquire()) {
                 if (localFiles.putIfAbsent(name, new LocalFileRef(name)) != null) {
                     assert false : "directory did not check for file already existing";
                     throw new FileAlreadyExistsException("Local file [" + name + "] already exists");
@@ -176,7 +186,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         // Prefer the local file if PRUNE_LUCENE_FILES_ON_UPLOAD is set to False
         if (PRUNE_LUCENE_FILES_ON_UPLOAD == false || cacheDirectory.containsFile(name) == false) {
             LocalFileRef localFile;
-            synchronized (this) {
+            try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
             if (localFile != null && localFile.tryIncRef()) {
@@ -203,7 +213,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
     @Override
     public void rename(String source, String dest) throws IOException {
-        synchronized (this) {
+        try (var ignored = writeLock.acquire()) {
             var localFile = localFiles.get(source);
             // Lucene only renames pending_segments_N files before finishing the commit so the file should exist on disk
             if (localFile != null && localFile.tryIncRef()) {
@@ -227,7 +237,7 @@ public class IndexDirectory extends ByteSizeDirectory {
     @Override
     public void deleteFile(String name) throws IOException {
         LocalFileRef localFile;
-        synchronized (this) {
+        try (var ignored = writeLock.acquire()) {
             localFile = localFiles.remove(name);
         }
         if (localFile == null) {
@@ -258,7 +268,7 @@ public class IndexDirectory extends ByteSizeDirectory {
     }
 
     public void updateCommit(StatelessCompoundCommit commit, Set<String> filesToRetain) {
-        synchronized (this) {
+        try (var ignored = writeLock.acquire()) {
             // retaining files will not work if we receive files out of order.
             // StatelessCommitService however promises to only call this in commit generation order.
             assert commit.generation() >= lastGeneration : "out of order generation " + commit.generation() + " < " + lastGeneration;

@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
@@ -403,10 +404,17 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             responses = new ArrayList<>(request.blobCount);
         }
 
-        private void fail(Exception e) {
+        private boolean setFirstFailure(Exception e) {
             if (failure.compareAndSet(null, e)) {
                 transportService.getTaskManager().cancelTaskAndDescendants(task, "task failed", false, ActionListener.noop());
+                return true;
             } else {
+                return false;
+            }
+        }
+
+        private void fail(Exception e) {
+            if (setFirstFailure(e) == false) {
                 if (innerFailures.tryAcquire()) {
                     final Throwable cause = ExceptionsHelper.unwrapCause(e);
                     if (cause instanceof TaskCancelledException || cause instanceof ReceiveTimeoutTransportException) {
@@ -428,20 +436,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             }
 
             if (task.isCancelled()) {
-                failure.compareAndSet(null, new RepositoryVerificationException(request.repositoryName, "verification cancelled"));
+                setFirstFailure(new RepositoryVerificationException(request.repositoryName, "verification cancelled"));
                 // if this CAS failed then we're failing for some other reason, nbd; also if the task is cancelled then its descendants are
                 // also cancelled, so no further action is needed either way.
-                return false;
-            }
-
-            if (cancellationListener.isDone()) {
-                if (failure.compareAndSet(
-                    null,
-                    new RepositoryVerificationException(request.repositoryName, "analysis timed out after [" + request.getTimeout() + "]")
-                )) {
-                    transportService.getTaskManager().cancelTaskAndDescendants(task, "timed out", false, ActionListener.noop());
-                }
-                // if this CAS failed then we're already failing for some other reason, nbd
                 return false;
             }
 
@@ -456,9 +453,16 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             @Override
             public void onFailure(Exception e) {
-                // trigger another isRunning check which will cancel the task if not already failed or cancelled
-                var isNowRunning = isRunning();
-                assert isNowRunning == false;
+                assert e instanceof ElasticsearchTimeoutException : e;
+                if (isRunning()) {
+                    // if this CAS fails then we're already failing for some other reason, nbd
+                    setFirstFailure(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "analysis timed out after [" + request.getTimeout() + "]"
+                        )
+                    );
+                }
             }
         }
 

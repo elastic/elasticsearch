@@ -43,3 +43,17 @@ include::{esql-specs}/docs.csv-spec[tag=basicDissect]
 |===
 include::{esql-specs}/docs.csv-spec[tag=basicDissect-result]
 |===
+
+By default, `DISSECT` outputs keyword string columns. To convert to another
+type, use <<esql-type-conversion-functions>>:
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=dissectWithToDatetime]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/docs.csv-spec[tag=dissectWithToDatetime-result]
+|===
+
+// end::examples[]

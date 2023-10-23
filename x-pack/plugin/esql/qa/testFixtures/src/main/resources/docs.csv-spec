@@ -530,8 +530,8 @@ KEEP @timestamp
 basicDissect
 // tag::basicDissect[]
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
-| DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip}"
-| KEEP Y, M, D, h, m, s, msg, ip
+| DISSECT a "%{date} - %{msg} - %{ip}"
+| KEEP date, msg, ip
 // end::basicDissect[]
 ;
 
@@ -544,8 +544,9 @@ date:keyword             | msg:keyword  | ip:keyword
 dissectWithToDatetime
 // tag::dissectWithToDatetime[]
 ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
-| DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip}" 
-| KEEP Y, M, D, h, m, s, msg, ip
+| DISSECT a "%{date} - %{msg} - %{ip}" 
+| KEEP date, msg, ip
+| EVAL date = TO_DATETIME(date)
 // end::dissectWithToDatetime[]
 ;
 

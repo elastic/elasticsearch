@@ -41,8 +41,8 @@ include::{esql-specs}/docs.csv-spec[tag=basicGrok]
 include::{esql-specs}/docs.csv-spec[tag=basicGrok-result]
 |===
 
-By default, `GROK` outputs string columns. `int` and `float` types can be
-converted by appending `:type` to the semantics in the pattern. For example
+By default, `GROK` outputs keyword string columns. `int` and `float` types can
+be converted by appending `:type` to the semantics in the pattern. For example
 `{NUMBER:num:int}`:
 
 [source.merge.styled,esql]
@@ -54,7 +54,7 @@ include::{esql-specs}/docs.csv-spec[tag=grokWithConversionSuffix]
 include::{esql-specs}/docs.csv-spec[tag=grokWithConversionSuffix-result]
 |===
 
-For other type conversions, use use the <<esql-type-conversion-functions>>:
+For other type conversions, use <<esql-type-conversion-functions>>:
 
 [source.merge.styled,esql]
 ----

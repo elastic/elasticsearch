@@ -101,6 +101,11 @@ Examples:
 * `%{&ccc}` - the key is `ccc` 
 --
 
+[[esql-dissect-examples]]
+===== Examples
+
+include::processing-commands/dissect.asciidoc[tag=examples]
+
 [[esql-dissect-key-modifiers]]
 ===== Dissect key modifiers
 
@@ -199,8 +204,8 @@ repository] for the full supported regexp syntax.
 
 [NOTE]
 ====
-Special regex characters like `[` and `]` need to be escaped with a `\`. You can
-see this in the earlier example, where the pattern was:
+Special regex characters like `[` and `]` need to be escaped with a `\`. For 
+example, in the earlier pattern:
 [source,txt]
 ----
 %{IP:ip} \[%{TIMESTAMP_ISO8601:@timestamp}\] %{GREEDYDATA:status}

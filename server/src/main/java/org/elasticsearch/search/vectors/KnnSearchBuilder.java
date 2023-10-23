@@ -132,6 +132,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
 
     /**
      * Defines a kNN search where the query vector will be provided by the queryVectorBuilder
+     *
      * @param field              the name of the vector field to search against
      * @param queryVectorBuilder the query vector builder
      * @param k                  the final number of nearest neighbors to return as top hits
@@ -156,18 +157,6 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         Integer numCands,
         Float similarity
     ) {
-        this.field = field;
-        this.queryVector = queryVector == null ? new float[0] : queryVector;
-        this.queryVectorBuilder = queryVectorBuilder;
-        this.k = k;
-        this.numCands = numCands;
-        this.filterQueries = new ArrayList<>();
-        this.querySupplier = null;
-        this.similarity = similarity;
-        this.validate();
-    }
-
-    private void validate() {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
         }
@@ -197,6 +186,14 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
                 )
             );
         }
+        this.field = field;
+        this.queryVector = queryVector == null ? new float[0] : queryVector;
+        this.queryVectorBuilder = queryVectorBuilder;
+        this.k = k;
+        this.numCands = numCands;
+        this.filterQueries = new ArrayList<>();
+        this.querySupplier = null;
+        this.similarity = similarity;
     }
 
     private KnnSearchBuilder(
@@ -451,8 +448,12 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         int adjustedNumCands = numCands != null
             ? numCands
             : Math.min(Math.max(NUM_CANDS_DEFAULT, (int) NUM_CANDS_MULTIPLICATIVE_FACTOR * adjustedK), NUM_CANDS_LIMIT);
+        if (adjustedNumCands < adjustedK) {
+            throw new IllegalArgumentException(
+                "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
+            );
+        }
         k = adjustedK;
         numCands = adjustedNumCands;
-        validate();
     }
 }

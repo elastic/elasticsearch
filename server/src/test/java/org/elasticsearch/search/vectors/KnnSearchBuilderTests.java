@@ -33,8 +33,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -104,23 +106,31 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
     @Override
     protected KnnSearchBuilder mutateInstance(KnnSearchBuilder instance) {
-        switch (random().nextInt(10)) {
+        switch (random().nextInt(9)) {
             case 0:
                 String newField = randomValueOtherThan(instance.field, () -> randomAlphaOfLength(5));
-                return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands + 3, instance.similarity).boost(
+                return new KnnSearchBuilder(newField, instance.queryVector, instance.k, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
             case 1:
                 float[] newVector = randomValueOtherThan(instance.queryVector, () -> randomVector(5));
-                return new KnnSearchBuilder(instance.field, newVector, instance.k + 3, instance.numCands, instance.similarity).boost(
+                return new KnnSearchBuilder(instance.field, newVector, instance.k, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
             case 2:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k + 3, instance.numCands, instance.similarity)
-                    .boost(instance.boost);
+                Integer newK = randomValueOtherThan(instance.k, () -> Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE) + 10);
+                return new KnnSearchBuilder(instance.field, instance.queryVector, newK, instance.numCands, instance.similarity).boost(
+                    instance.boost
+                );
             case 3:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands + 3, instance.similarity)
-                    .boost(instance.boost);
+                int adjustedK = Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE);
+                Integer newNumCands = randomValueOtherThan(
+                    instance.numCands,
+                    () -> Optional.ofNullable(instance.numCands).orElse(adjustedK) + 10
+                );
+                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, newNumCands, instance.similarity).boost(
+                    instance.boost
+                );
             case 4:
                 return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, instance.numCands, instance.similarity)
                     .addFilterQueries(instance.filterQueries)
@@ -140,17 +150,21 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     randomValueOtherThan(instance.similarity, ESTestCase::randomFloat)
                 ).addFilterQueries(instance.filterQueries).boost(instance.boost);
             case 7:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, null, instance.numCands, instance.similarity)
-                    .addFilterQueries(instance.filterQueries)
-                    .boost(instance.boost);
+                return new KnnSearchBuilder(
+                    instance.field,
+                    instance.queryVector,
+                    instance.k == null ? DEFAULT_SIZE : null,
+                    instance.numCands,
+                    instance.similarity
+                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
             case 8:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, instance.k, null, instance.similarity).addFilterQueries(
-                    instance.filterQueries
-                ).boost(instance.boost);
-            case 9:
-                return new KnnSearchBuilder(instance.field, instance.queryVector, null, null, instance.similarity).addFilterQueries(
-                    instance.filterQueries
-                ).boost(instance.boost);
+                return new KnnSearchBuilder(
+                    instance.field,
+                    instance.queryVector,
+                    instance.k,
+                    instance.numCands == null ? Optional.ofNullable(instance.k).orElse(DEFAULT_SIZE) : null,
+                    instance.similarity
+                ).addFilterQueries(instance.filterQueries).boost(instance.boost);
             default:
                 throw new IllegalStateException();
         }

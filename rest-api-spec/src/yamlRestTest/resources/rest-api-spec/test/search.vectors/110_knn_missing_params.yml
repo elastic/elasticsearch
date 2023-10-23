@@ -84,7 +84,7 @@ setup:
 
 ---
 "kNN search with missing both k and num_candidates param - default size":
-
+# TODO: check how size is computed here / attached to root?
   - do:
       search:
         rest_total_hits_as_int: true

@@ -55,7 +55,7 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
         final int tiles = 1 << precision;
 
         // Due to the way GeoTileBoundedPredicate works that adjust the given bounding box when it is touching the tiles, we need to
-        // adjust here int order not to generate bounding boxes touching tiles or the test will fail
+        // adjust here in order not to generate bounding boxes touching tiles or the test will fail
 
         // compute tile at the top left
         final Rectangle minTile = GeoTileUtils.toBoundingBox(

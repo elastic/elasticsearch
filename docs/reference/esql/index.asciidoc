@@ -21,9 +21,9 @@ A simple example of an {esql} query is shown below:
 [source,esql]
 ----
 FROM employees
-| eval age = DATE_DIFF(NOW(), birth_date, 'Y')
-| stats avg(age) BY department
-| sort age DESC
+| EVAL age = DATE_DIFF(NOW(), birth_date, 'Y')
+| STATS AVG(age) BY department
+| SORT age DESC
 ----
 
 Each {esql} query starts with a <<esql-commands,source command>>. A source command produces
@@ -51,7 +51,7 @@ The result of a query is the table produced by the final processing command.
 {esql} is more than a language. It represents a significant investment in new compute capabilities within {es}.
 To achieve both the functional and performance requirements for {esql}, it was necessary to build an entirely new
 compute architecture. {esql} search, aggregation, and transformation functions are directly executed within Elasticsearch
-itself. Query expressions are not transpiled to QueryDSL for execution. This approach allows {esql} to be extremely performant and versatile.
+itself. Query expressions are not transpiled to Query DSL for execution. This approach allows {esql} to be extremely performant and versatile.
 
 The new {esql} execution engine was designed with performance in mind — it operates on blocks at a time instead of per row, targets vectorization and cache locality, and embraces specialization and multi-threading. It is a separate component from the existing Elasticsearch aggregation framework with different performance characteristics.
 

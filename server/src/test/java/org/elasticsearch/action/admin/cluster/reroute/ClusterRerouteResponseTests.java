@@ -139,6 +139,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             }
                           }
                         ],
+                        "nodes_features": [],
                         "metadata": {
                           "cluster_uuid": "_na_",
                           "cluster_uuid_committed": false,

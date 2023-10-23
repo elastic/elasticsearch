@@ -1,5 +1,5 @@
 [[esql-enrich-data]]
-== Enrich data
+=== Enrich data
 
 ++++
 <titleabbrev>Enrich data</titleabbrev>
@@ -15,7 +15,7 @@ For example, you can use `ENRICH` to:
 * Supplement contact information based on an email address
 
 [[esql-how-enrich-works]]
-=== How the `ENRICH` command works
+==== How the `ENRICH` command works
 
 The `ENRICH` command adds new columns to a table, with data from {es} indices.
 It requires a few special components:
@@ -61,7 +61,7 @@ include::../ingest/enrich.asciidoc[tag=enrich-index]
 --
 
 [[esql-set-up-enrich-policy]]
-=== Set up an enrich policy
+==== Set up an enrich policy
 
 To start using `ENRICH`, follow these steps:
 
@@ -106,7 +106,7 @@ image::images/esql/esql-enrich-policy.png[align="center"]
 include::../ingest/enrich.asciidoc[tag=execute-enrich-policy2]
 
 [[esql-use-enrich]]
-=== Use the enrich policy
+==== Use the enrich policy
 
 After the policy has been executed, you can use the <<esql-enrich,`ENRICH`
 command>> to enrich your data.
@@ -116,11 +116,11 @@ image::images/esql/esql-enrich-command.png[align="center",width=50%]
 include::processing-commands/enrich.asciidoc[tag=examples]
 
 [[esql-update-enrich-data]]
-=== Update an enrich index
+==== Update an enrich index
 
 include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
 
 [[esql-update-enrich-policies]]
-=== Update an enrich policy
+==== Update an enrich policy
 
 include::../ingest/enrich.asciidoc[tag=update-enrich-policy]

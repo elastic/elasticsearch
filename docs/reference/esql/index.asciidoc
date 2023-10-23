@@ -26,13 +26,13 @@ FROM employees
 | sort age DESC
 ----
 
-Each {esql} query starts with a <<esql-source-commands,source command>>. A source command produces
+Each {esql} query starts with a <<esql-commands,source command>>. A source command produces
 a table, typically with data from {es}.
 
 image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
 
 A source command can be followed by one or more
-<<esql-processing-commands,processing commands>>. Processing commands change an
+<<esql-commands,processing commands>>. Processing commands change an
 input table by adding, removing, or changing rows and columns.
 Processing commands can perform filtering, projection, aggregation, and more.
 
@@ -45,8 +45,8 @@ image::images/esql/chaining-processing-commands.svg[Processing commands can be c
 
 The result of a query is the table produced by the final processing command.
 
-[discreet]
-== The {esql} Compute Engine
+[discrete]
+=== The {esql} Compute Engine
 
 {esql} is more than a language. It represents a significant investment in new compute capabilities within {es}.
 To achieve both the functional and performance requirements for {esql}, it was necessary to build an entirely new
@@ -59,13 +59,7 @@ include::esql-get-started.asciidoc[]
 
 include::esql-language.asciidoc[]
 
-include::esql-enrich-data.asciidoc[]
-
 include::esql-rest.asciidoc[]
-
-include::esql-commands.asciidoc[]
-
-include::esql-functions-operators.asciidoc[]
 
 include::esql-kibana.asciidoc[]
 

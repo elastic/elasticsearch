@@ -1,0 +1,12 @@
+pr: 101230
+summary: Enable query phase parallelism by default
+area: Search
+type: enhancement
+issues: []
+highlight:
+  title: Enable query phase parallelism by default
+  body: |-
+    Inter-segment search concurrency is enabled only in the DFS phase so
+    far, and affects knn searches. This commit enables it by default for the
+    query phase too.
+  notable: true

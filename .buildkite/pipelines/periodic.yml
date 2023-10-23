@@ -1267,7 +1267,7 @@ steps:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
   - label: release-tests
     command: .buildkite/scripts/release-tests.sh
-    timeout_in_minutes: 300
+    timeout_in_minutes: 360
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004

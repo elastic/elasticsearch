@@ -12,6 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.SingleResultDeduplicator;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
@@ -52,36 +53,19 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
 
         final int totalListeners = randomIntBetween(2, 10);
         final boolean[] called = new boolean[totalListeners];
-        deduplicator.execute(new ActionListener<>() {
-            @Override
-            public void onResponse(Object response) {
-                assertFalse(called[0]);
-                called[0] = true;
-                assertEquals(result1, response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+        deduplicator.execute(ActionTestUtils.assertNoFailureListener(response -> {
+            assertFalse(called[0]);
+            called[0] = true;
+            assertEquals(result1, response);
+        }));
 
         for (int i = 1; i < totalListeners; i++) {
             final int index = i;
-            deduplicator.execute(new ActionListener<>() {
-
-                @Override
-                public void onResponse(Object response) {
-                    assertFalse(called[index]);
-                    called[index] = true;
-                    assertEquals(result2, response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            deduplicator.execute(ActionTestUtils.assertNoFailureListener(response -> {
+                assertFalse(called[index]);
+                called[index] = true;
+                assertEquals(result2, response);
+            }));
         }
         for (int i = 0; i < totalListeners; i++) {
             assertFalse(called[i]);

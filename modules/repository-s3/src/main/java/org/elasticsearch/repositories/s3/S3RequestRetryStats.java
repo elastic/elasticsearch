@@ -72,13 +72,13 @@ public class S3RequestRetryStats {
             for (int i = 0; i < exceptionsHistogram.length(); i++) {
                 long exceptions = exceptionsHistogram.get(i);
                 if (exceptions != 0) {
-                    metrics.put("elasticsearch.metrics.s3.exceptions.h" + i, exceptions);
+                    metrics.put("elasticsearch.metrics.s3.exceptions_histogram_" + i, exceptions);
                 }
             }
             for (int i = 0; i < throttlesHistogram.length(); i++) {
                 long throttles = throttlesHistogram.get(i);
                 if (throttles != 0) {
-                    metrics.put("elasticsearch.metrics.s3.throttles.h" + i, throttles);
+                    metrics.put("elasticsearch.metrics.s3.throttles_histogram_" + i, throttles);
                 }
             }
             logger.debug(new ESLogMessage().withFields(metrics));

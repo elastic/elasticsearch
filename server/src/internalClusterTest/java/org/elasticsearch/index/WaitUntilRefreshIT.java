@@ -63,25 +63,25 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             .get();
         assertEquals(RestStatus.CREATED, index.status());
         assertFalse("request shouldn't have forced a refresh", index.forcedRefresh());
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
     }
 
     public void testDelete() throws InterruptedException, ExecutionException {
         // Index normally
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "bar"));
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
         // Now delete with blockUntilRefresh
         DeleteResponse delete = client().prepareDelete("test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
         assertEquals(DocWriteResponse.Result.DELETED, delete.getResult());
         assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
-        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+        assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")));
     }
 
     public void testUpdate() throws InterruptedException, ExecutionException {
         // Index normally
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "bar"));
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
         // Update with RefreshPolicy.WAIT_UNTIL
         UpdateResponse update = client().prepareUpdate("test", "1")
@@ -90,7 +90,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
 
         // Upsert with RefreshPolicy.WAIT_UNTIL
         update = client().prepareUpdate("test", "2")
@@ -100,7 +100,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             .get();
         assertEquals(1, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get(), "2");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "cat")), "2");
 
         // Update-becomes-delete with RefreshPolicy.WAIT_UNTIL
         update = client().prepareUpdate("test", "2")
@@ -109,7 +109,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
             .get();
         assertEquals(2, update.getVersion());
         assertFalse("request shouldn't have forced a refresh", update.forcedRefresh());
-        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "cat")).get());
+        assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "cat")));
     }
 
     public void testBulk() {
@@ -117,19 +117,19 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareIndex("test").setId("1").setSource("foo", "bar"));
         assertBulkSuccess(bulk.get());
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
 
         // Update by bulk with RefreshPolicy.WAIT_UNTIL
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareUpdate("test", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "baz"));
         assertBulkSuccess(bulk.get());
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "baz")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "baz")), "1");
 
         // Delete by bulk with RefreshPolicy.WAIT_UNTIL
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         bulk.add(client().prepareDelete("test", "1"));
         assertBulkSuccess(bulk.get());
-        assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
+        assertNoSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")));
 
         // Update makes a noop
         bulk = client().prepareBulk().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
@@ -153,7 +153,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
         }
         assertEquals(RestStatus.CREATED, index.get().status());
         assertFalse("request shouldn't have forced a refresh", index.get().forcedRefresh());
-        assertSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get(), "1");
+        assertSearchHits(prepareSearch("test").setQuery(matchQuery("foo", "bar")), "1");
     }
 
     private void assertBulkSuccess(BulkResponse response) {

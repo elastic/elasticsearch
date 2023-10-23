@@ -31,7 +31,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.diff;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -220,18 +220,16 @@ public class SerialDiffIT extends AggregationIntegTestCase {
     }
 
     public void testBasicDiff() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                histogram("histo").field(INTERVAL_FIELD)
-                    .interval(interval)
-                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                    .subAggregation(metric)
-                    .subAggregation(diff("diff_counts", "_count").lag(lag).gapPolicy(gapPolicy))
-                    .subAggregation(diff("diff_values", "the_metric").lag(lag).gapPolicy(gapPolicy))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            histogram("histo").field(INTERVAL_FIELD)
+                .interval(interval)
+                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                .subAggregation(metric)
+                .subAggregation(diff("diff_counts", "_count").lag(lag).gapPolicy(gapPolicy))
+                .subAggregation(diff("diff_values", "the_metric").lag(lag).gapPolicy(gapPolicy))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -264,15 +262,13 @@ public class SerialDiffIT extends AggregationIntegTestCase {
 
     public void testInvalidLagSize() {
         try {
-            client().prepareSearch("idx")
-                .addAggregation(
-                    histogram("histo").field(INTERVAL_FIELD)
-                        .interval(interval)
-                        .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                        .subAggregation(metric)
-                        .subAggregation(diff("diff_counts", "_count").lag(-1).gapPolicy(gapPolicy))
-                )
-                .get();
+            prepareSearch("idx").addAggregation(
+                histogram("histo").field(INTERVAL_FIELD)
+                    .interval(interval)
+                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                    .subAggregation(metric)
+                    .subAggregation(diff("diff_counts", "_count").lag(-1).gapPolicy(gapPolicy))
+            ).get();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("[lag] must be a positive integer: [diff_counts]"));
         }

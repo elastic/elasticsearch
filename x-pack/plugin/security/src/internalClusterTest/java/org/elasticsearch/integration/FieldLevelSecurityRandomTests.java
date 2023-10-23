@@ -161,17 +161,21 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
 
         for (String allowedField : allowedFields) {
             logger.info("Checking allowed field [{}]", allowedField);
-            SearchResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareSearch("test").setQuery(matchQuery(allowedField, "value")).get();
-            assertHitCount(response, 1);
+            assertHitCount(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(matchQuery(allowedField, "value")),
+                1
+            );
         }
         for (String disallowedField : disAllowedFields) {
             logger.info("Checking disallowed field [{}]", disallowedField);
-            SearchResponse response = client().filterWithHeader(
-                Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
-            ).prepareSearch("test").setQuery(matchQuery(disallowedField, "value")).get();
-            assertHitCount(response, 0);
+            assertHitCount(
+                client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                    .prepareSearch("test")
+                    .setQuery(matchQuery(disallowedField, "value")),
+                0
+            );
         }
     }
 
@@ -202,8 +206,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .should(QueryBuilders.termQuery("field3", "value"))
             )
             .get();
-        SearchResponse expected = client().prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
+        SearchResponse expected = prepareSearch("test").addSort("id", SortOrder.ASC)
             .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field1", "value")))
             .get();
         assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
@@ -222,8 +225,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .should(QueryBuilders.termQuery("field3", "value"))
             )
             .get();
-        expected = client().prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
+        expected = prepareSearch("test").addSort("id", SortOrder.ASC)
             .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field2", "value")))
             .get();
         assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
@@ -242,8 +244,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .should(QueryBuilders.termQuery("field3", "value"))
             )
             .get();
-        expected = client().prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
+        expected = prepareSearch("test").addSort("id", SortOrder.ASC)
             .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field3", "value")))
             .get();
         assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));

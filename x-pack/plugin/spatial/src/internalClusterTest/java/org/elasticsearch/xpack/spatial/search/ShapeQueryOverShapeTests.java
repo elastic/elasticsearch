@@ -73,7 +73,6 @@ public class ShapeQueryOverShapeTests extends ShapeQueryTestCase {
         assertAcked(
             indicesAdmin().prepareCreate(IGNORE_MALFORMED_INDEX)
                 .setMapping(FIELD, "type=shape,ignore_malformed=true", "_source", "enabled=false")
-                .get()
         );
         ensureGreen();
 

@@ -347,10 +347,7 @@ class NodeConstruction {
         throws IOException {
         // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
         DeprecationLogger.initialize(initialEnvironment.settings());
-        Settings environmentSettings = Settings.builder()
-            .put(initialEnvironment.settings())
-            .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
-            .build();
+        Settings environmentSettings = initialEnvironment.settings();
 
         final JvmInfo jvmInfo = JvmInfo.jvmInfo();
         logger.info(

@@ -751,7 +751,9 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                     if (uploadIndex > 0) {
                         threadPool.scheduleUnlessShuttingDown(
-                            TimeValue.timeValueMillis(TimeValue.timeValueSeconds(uploadIndex).millis() + Randomness.get().nextInt(50)),
+                            TimeValue.timeValueMillis(
+                                uploadIndex * blobStore.getCompareAndExchangeAntiContentionDelay().millis() + Randomness.get().nextInt(50)
+                            ),
                             blobStore.getSnapshotExecutor(),
                             cancelConcurrentUpdates
                         );

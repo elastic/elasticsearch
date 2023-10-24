@@ -92,102 +92,100 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  * the results. Tries to fail fast by cancelling everything if any child task fails, or the timeout is reached, to avoid consuming
  * unnecessary resources. On completion, does a best-effort wait until the blob list contains all the expected blobs, then deletes them all.
  */
-public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.Response> {
+public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAnalyzeAction.Request, RepositoryAnalyzeAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final RepositoryAnalyzeAction INSTANCE = new RepositoryAnalyzeAction();
-    public static final String NAME = "cluster:admin/repository/analyze";
+    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = ActionType.localOnly("cluster:admin/repository/analyze");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
 
-    private RepositoryAnalyzeAction() {
-        super(NAME, Response::new);
+    private final TransportService transportService;
+    private final ClusterService clusterService;
+    private final RepositoriesService repositoriesService;
+
+    @Inject
+    public RepositoryAnalyzeAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService
+    ) {
+        super(INSTANCE.name(), transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        this.transportService = transportService;
+        this.clusterService = clusterService;
+        this.repositoriesService = repositoriesService;
+
+        // construct (and therefore implicitly register) the subsidiary actions
+        new BlobAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
+        new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        final ClusterState state = clusterService.state();
 
-        private final TransportService transportService;
-        private final ClusterService clusterService;
-        private final RepositoriesService repositoriesService;
+        final ThreadPool threadPool = transportService.getThreadPool();
+        request.reseed(threadPool.relativeTimeInMillis());
 
-        @Inject
-        public TransportAction(
-            TransportService transportService,
-            ActionFilters actionFilters,
-            ClusterService clusterService,
-            RepositoriesService repositoriesService
-        ) {
-            super(NAME, transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            this.transportService = transportService;
-            this.clusterService = clusterService;
-            this.repositoriesService = repositoriesService;
+        final DiscoveryNode localNode = transportService.getLocalNode();
+        if (isSnapshotNode(localNode)) {
+            final Repository repository = repositoriesService.repository(request.getRepositoryName());
+            if (repository instanceof BlobStoreRepository == false) {
+                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
+            }
+            if (repository.isReadOnly()) {
+                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
+            }
+
+            assert task instanceof CancellableTask;
+            new AsyncAction(
+                transportService,
+                (BlobStoreRepository) repository,
+                (CancellableTask) task,
+                request,
+                state.nodes(),
+                state.getMinTransportVersion(),
+                threadPool::relativeTimeInMillis,
+                listener
+            ).run();
+            return;
         }
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            final ClusterState state = clusterService.state();
+        if (request.getReroutedFrom() != null) {
+            assert false : request.getReroutedFrom();
+            throw new IllegalArgumentException(
+                "analysis of repository ["
+                    + request.getRepositoryName()
+                    + "] rerouted from ["
+                    + request.getReroutedFrom()
+                    + "] to non-snapshot node"
+            );
+        }
 
-            final ThreadPool threadPool = transportService.getThreadPool();
-            request.reseed(threadPool.relativeTimeInMillis());
-
-            final DiscoveryNode localNode = transportService.getLocalNode();
-            if (isSnapshotNode(localNode)) {
-                final Repository repository = repositoriesService.repository(request.getRepositoryName());
-                if (repository instanceof BlobStoreRepository == false) {
-                    throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
-                }
-                if (repository.isReadOnly()) {
-                    throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
-                }
-
-                assert task instanceof CancellableTask;
-                new AsyncAction(
-                    transportService,
-                    (BlobStoreRepository) repository,
-                    (CancellableTask) task,
-                    request,
-                    state.nodes(),
-                    state.getMinTransportVersion(),
-                    threadPool::relativeTimeInMillis,
-                    listener
-                ).run();
-                return;
+        request.reroutedFrom(localNode);
+        final List<DiscoveryNode> snapshotNodes = getSnapshotNodes(state.nodes());
+        if (snapshotNodes.isEmpty()) {
+            listener.onFailure(
+                new IllegalArgumentException("no snapshot nodes found for analysis of repository [" + request.getRepositoryName() + "]")
+            );
+        } else {
+            if (snapshotNodes.size() > 1) {
+                snapshotNodes.remove(state.nodes().getMasterNode());
             }
-
-            if (request.getReroutedFrom() != null) {
-                assert false : request.getReroutedFrom();
-                throw new IllegalArgumentException(
-                    "analysis of repository ["
-                        + request.getRepositoryName()
-                        + "] rerouted from ["
-                        + request.getReroutedFrom()
-                        + "] to non-snapshot node"
-                );
-            }
-
-            request.reroutedFrom(localNode);
-            final List<DiscoveryNode> snapshotNodes = getSnapshotNodes(state.nodes());
-            if (snapshotNodes.isEmpty()) {
-                listener.onFailure(
-                    new IllegalArgumentException("no snapshot nodes found for analysis of repository [" + request.getRepositoryName() + "]")
-                );
-            } else {
-                if (snapshotNodes.size() > 1) {
-                    snapshotNodes.remove(state.nodes().getMasterNode());
-                }
-                final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
-                RepositoryAnalyzeAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
-                transportService.sendChildRequest(
-                    targetNode,
-                    NAME,
-                    request,
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
-                );
-            }
+            final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
+            RepositoryAnalyzeAction.logger.trace("rerouting analysis [{}] to [{}]", request.getDescription(), targetNode);
+            transportService.sendChildRequest(
+                targetNode,
+                INSTANCE.name(),
+                request,
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+            );
         }
     }
 

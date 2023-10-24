@@ -79,18 +79,19 @@ public class PluginsUtils {
      * Verify the given plugin is compatible with the current Elasticsearch installation.
      */
     public static void verifyCompatibility(PluginDescriptor info) {
-        Matcher buildVersionMatcher = SemanticVersion.semanticPattern.matcher(Build.current().version());
+        final String currentVersion = Build.current().version();
+        Matcher buildVersionMatcher = SemanticVersion.semanticPattern.matcher(currentVersion);
         // If we're not on a semantic version, assume plugins are compatible
         if (buildVersionMatcher.matches()) {
-            SemanticVersion currentElasticsearchVersion;
+            SemanticVersion currentElasticsearchSemanticVersion;
             try {
-                currentElasticsearchVersion = new SemanticVersion(
+                currentElasticsearchSemanticVersion = new SemanticVersion(
                     Integer.parseInt(buildVersionMatcher.group(1)),
                     Integer.parseInt(buildVersionMatcher.group(2)),
                     Integer.parseInt(buildVersionMatcher.group(3))
                 );
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Couldn't parse integers from build version [" + Build.current().version() + "]", e);
+                throw new IllegalArgumentException("Couldn't parse integers from build version [" + currentVersion + "]", e);
             }
             if (info.isStable()) {
                 Matcher pluginEsVersionMatcher = SemanticVersion.semanticPattern.matcher(info.getElasticsearchVersion());
@@ -99,9 +100,9 @@ public class PluginsUtils {
                         "Expected semantic version for plugin [" + info.getName() + "] but was [" + info.getElasticsearchVersion() + "]"
                     );
                 }
-                SemanticVersion pluginElasticsearchVersion;
+                SemanticVersion pluginElasticsearchSemanticVersion;
                 try {
-                    pluginElasticsearchVersion = new SemanticVersion(
+                    pluginElasticsearchSemanticVersion = new SemanticVersion(
                         Integer.parseInt(pluginEsVersionMatcher.group(1)),
                         Integer.parseInt(pluginEsVersionMatcher.group(2)),
                         Integer.parseInt(pluginEsVersionMatcher.group(3))
@@ -114,38 +115,38 @@ public class PluginsUtils {
                 }
 
                 // case: Major version mismatch
-                if (pluginElasticsearchVersion.major != currentElasticsearchVersion.major) {
+                if (pluginElasticsearchSemanticVersion.major != currentElasticsearchSemanticVersion.major) {
                     throw new IllegalArgumentException(
                         "Stable Plugin ["
                             + info.getName()
                             + "] was built for Elasticsearch major version "
-                            + pluginElasticsearchVersion.major
+                            + pluginElasticsearchSemanticVersion.major
                             + " but version "
-                            + Build.current().version()
+                            + currentVersion
                             + " is running"
                     );
                 }
 
                 // case: stable plugin from the future
-                if (pluginElasticsearchVersion.after(currentElasticsearchVersion)) {
+                if (pluginElasticsearchSemanticVersion.after(currentElasticsearchSemanticVersion)) {
                     throw new IllegalArgumentException(
                         "Stable Plugin ["
                             + info.getName()
                             + "] was built for Elasticsearch version "
                             + info.getElasticsearchVersion()
                             + " but earlier version "
-                            + Build.current().version()
+                            + currentVersion
                             + " is running"
                     );
                 }
-            } else if (info.getElasticsearchVersion().equals(currentElasticsearchVersion.toString()) == false) {
+            } else if (info.getElasticsearchVersion().equals(currentVersion) == false) {
                 throw new IllegalArgumentException(
                     "Plugin ["
                         + info.getName()
                         + "] was built for Elasticsearch version "
                         + info.getElasticsearchVersion()
                         + " but version "
-                        + Build.current().version()
+                        + currentVersion
                         + " is running"
                 );
             }

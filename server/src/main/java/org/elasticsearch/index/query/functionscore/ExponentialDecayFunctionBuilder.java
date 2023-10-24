@@ -85,4 +85,3 @@ public class ExponentialDecayFunctionBuilder extends DecayFunctionBuilder<Expone
         return TransportVersions.ZERO;
     }
 }
-

@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
@@ -405,7 +407,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             (l, infoBuilder) -> l.onResponse(infoBuilder.build())
         );
         transformCheckpointService.getCheckpointingInfo(
-            mockClientForCheckpointing,
+            new ParentTaskAssigningClient(mockClientForCheckpointing, new TaskId("dummy-node:123456")),
             transformId,
             lastCheckpointNumber,
             nextCheckpointPosition,

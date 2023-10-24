@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
@@ -71,6 +73,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
+    private ParentTaskAssigningClient parentTaskClient;
     private IndexBasedTransformConfigManager transformConfigManager;
     private MockTransformAuditor transformAuditor;
 
@@ -78,10 +81,11 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     public void setUpMocks() {
         clock = mock(Clock.class);
         when(clock.millis()).thenReturn(123456789L);
-        client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
         transformConfigManager = mock(IndexBasedTransformConfigManager.class);
         transformAuditor = MockTransformAuditor.createMockAuditor();
     }
@@ -278,7 +282,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
     private TimeBasedCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new TimeBasedCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,

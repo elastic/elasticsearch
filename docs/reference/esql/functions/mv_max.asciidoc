@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_max]]
 === `MV_MAX`
 [.text-center]

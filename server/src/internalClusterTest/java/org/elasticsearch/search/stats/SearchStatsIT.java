@@ -39,7 +39,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -188,12 +188,11 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setSize(size)
             .setScroll(TimeValue.timeValueMinutes(2))
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
 
         // refresh the stats now that scroll contexts are opened
         indicesStats = indicesAdmin().prepareStats(index).get();

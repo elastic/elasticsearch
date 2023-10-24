@@ -28,17 +28,7 @@ public class CountDownActionListenerTests extends ESTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicBoolean called = new AtomicBoolean(false);
-        ActionListener<Void> result = new ActionListener<>() {
-            @Override
-            public void onResponse(Void ignored) {
-                called.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        ActionListener<Void> result = ActionTestUtils.assertNoFailureListener(ignored -> called.set(true));
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
         CountDownActionListener listener = new CountDownActionListener(groupSize, result);

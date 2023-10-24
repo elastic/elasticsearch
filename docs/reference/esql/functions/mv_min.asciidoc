@@ -1,3 +1,4 @@
+[discrete]
 [[esql-mv_min]]
 === `MV_MIN`
 [.text-center]

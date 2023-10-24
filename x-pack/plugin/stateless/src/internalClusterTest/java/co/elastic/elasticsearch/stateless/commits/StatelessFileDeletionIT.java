@@ -259,6 +259,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1066")
     public void testStaleNodeDoesNotDeleteFile() throws Exception {
         String masterNode = startMasterOnlyNode(
             Settings.builder()

@@ -58,6 +58,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
         ActionListener<Response> listener
     ) {
         Map<String, long[]> checkpointsByIndexOfThisNode = new HashMap<>();
+        int numProcessedShards = 0;
         for (ShardId shardId : shards) {
             if (task instanceof CancellableTask) {
                 // There is no point continuing this work if the task has been cancelled.
@@ -70,9 +71,11 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
                 if (task.getStartTime() + timeout.millis() < now.toEpochMilli()) {
                     listener.onFailure(
                         new ElasticsearchTimeoutException(
-                            "Action {} timed out after {}",
-                            GetCheckpointNodeAction.NAME,
-                            timeout.getStringRep()
+                            "Transform checkpointing timed out on node [{}] after [{}] having processed [{}] of [{}] shards",
+                            indicesService.clusterService().getNodeName(),
+                            timeout.getStringRep(),
+                            numProcessedShards,
+                            shards.size()
                         )
                     );
                     return;
@@ -87,6 +90,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
                 return seqNumbers;
             });
             checkpointsByIndexOfThisNode.get(shardId.getIndexName())[shardId.getId()] = indexShard.seqNoStats().getGlobalCheckpoint();
+            ++numProcessedShards;
         }
         listener.onResponse(new Response(checkpointsByIndexOfThisNode));
     }

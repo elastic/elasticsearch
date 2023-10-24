@@ -56,6 +56,11 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     // threshold when to audit concrete index names, above this threshold we only report the number of changes
     private static final int AUDIT_CONCRETED_SOURCE_INDEX_CHANGES = 10;
 
+    // Huge timeout for getting index checkpoints internally.
+    // It might help to release cluster resources earlier if e.g.: someone configures a transform that ends up checkpointing 100000
+    // searchable snapshot indices that all have to be retrieved from blob storage.
+    protected static final TimeValue INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT = TimeValue.timeValueHours(12);
+
     private static final Logger logger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
     protected final Clock clock;
@@ -94,7 +99,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         final long timestamp = clock.millis();
         final long checkpoint = TransformCheckpoint.isNullOrEmpty(lastCheckpoint) ? 1 : lastCheckpoint.getCheckpoint() + 1;
 
-        getIndexCheckpoints(null, ActionListener.wrap(checkpointsByIndex -> {
+        getIndexCheckpoints(INTERNAL_GET_INDEX_CHECKPOINTS_TIMEOUT, ActionListener.wrap(checkpointsByIndex -> {
             reportSourceIndexChanges(
                 TransformCheckpoint.isNullOrEmpty(lastCheckpoint)
                     ? Collections.emptySet()
@@ -162,7 +167,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         ActionListener<Map<String, long[]>> listener
     ) {
         if (fallbackToBWC.contains(cluster)) {
-            getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+            getCheckpointsFromOneClusterBWC(client, timeout, headers, indices, cluster, listener);
         } else {
             getCheckpointsFromOneClusterV2(client, timeout, headers, indices, cluster, ActionListener.wrap(response -> {
                 logger.debug(
@@ -182,7 +187,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     );
 
                     fallbackToBWC.add(cluster);
-                    getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+                    getCheckpointsFromOneClusterBWC(client, timeout, headers, indices, cluster, listener);
                 } else {
                     listener.onFailure(e);
                 }
@@ -242,6 +247,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
      */
     private static void getCheckpointsFromOneClusterBWC(
         ParentTaskAssigningClient client,
+        TimeValue timeout,
         Map<String, String> headers,
         String[] indices,
         String cluster,
@@ -267,7 +273,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
                     client,
                     ClientHelper.TRANSFORM_ORIGIN,
                     IndicesStatsAction.INSTANCE,
-                    new IndicesStatsRequest().indices(indices).clear().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
+                    new IndicesStatsRequest().indices(indices).timeout(timeout).clear().indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN),
                     ActionListener.wrap(response -> {
                         if (response.getFailedShards() != 0) {
                             for (int i = 0; i < response.getShardFailures().length; ++i) {

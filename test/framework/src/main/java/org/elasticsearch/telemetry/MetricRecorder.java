@@ -106,4 +106,8 @@ public class MetricRecorder<I> {
     public I getInstrument(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).instruments.get(name);
     }
+
+    public void resetCalls() {
+        metrics.forEach((it, rm) -> rm.called().clear());
+    }
 }

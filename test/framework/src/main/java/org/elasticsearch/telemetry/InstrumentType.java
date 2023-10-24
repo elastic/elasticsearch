@@ -10,11 +10,13 @@ package org.elasticsearch.telemetry;
 
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongGaugeObserver;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 
@@ -61,6 +63,10 @@ public enum InstrumentType {
         } else if (instrument instanceof DoubleGauge) {
             return InstrumentType.DOUBLE_GAUGE_OBSERVER;
         } else if (instrument instanceof LongGauge) {
+            return InstrumentType.LONG_GAUGE_OBSERVER;
+        } else if (instrument instanceof DoubleGaugeObserver) {
+            return InstrumentType.DOUBLE_GAUGE_OBSERVER;
+        } else if (instrument instanceof LongGaugeObserver) {
             return InstrumentType.LONG_GAUGE_OBSERVER;
         } else {
             throw new IllegalArgumentException("unknown instrument [" + instrument.getClass().getName() + "]");

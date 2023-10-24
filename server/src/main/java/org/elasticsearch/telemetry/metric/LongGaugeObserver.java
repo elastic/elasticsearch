@@ -8,10 +8,13 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.function.Supplier;
+
 /**
  * Record non-additive double values. eg number of running threads, current load
  */
 public interface LongGaugeObserver extends Instrument, AutoCloseable {
+    void setObserver(Supplier<LongAttributes> observer);
 
     /**
      * Noop gauge for tests
@@ -20,6 +23,11 @@ public interface LongGaugeObserver extends Instrument, AutoCloseable {
         @Override
         public String getName() {
             return "noop";
+        }
+
+        @Override
+        public void setObserver(Supplier<LongAttributes> observer) {
+
         }
 
         @Override

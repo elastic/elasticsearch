@@ -14,18 +14,22 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeObserverAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleUpDownCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeObserverAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongGaugeObserver;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -43,10 +47,12 @@ public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
+    private final Registrar<DoubleGaugeObserverAdapter> doubleGaugeObservers = new Registrar<>();
     private final Registrar<DoubleHistogramAdapter> doubleHistograms = new Registrar<>();
     private final Registrar<LongCounterAdapter> longCounters = new Registrar<>();
     private final Registrar<LongUpDownCounterAdapter> longUpDownCounters = new Registrar<>();
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
+    private final Registrar<LongGaugeObserverAdapter> longGaugeObservers = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
 
     private final Meter meter;
@@ -99,6 +105,16 @@ public class APMMeterRegistry implements MeterRegistry {
         return doubleGauges.get(name);
     }
 
+    public DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return doubleGaugeObservers.register(new DoubleGaugeObserverAdapter(meter, name, description, unit));
+        }
+    }
+
+    public DoubleGaugeObserver getDoubleGaugeObserver(String name) {
+        return doubleGaugeObservers.get(name);
+    }
+
     public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleHistograms.register(new DoubleHistogramAdapter(meter, name, description, unit));
@@ -137,6 +153,16 @@ public class APMMeterRegistry implements MeterRegistry {
 
     public LongGauge getLongGauge(String name) {
         return longGauges.get(name);
+    }
+
+    public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit) {
+        try (ReleasableLock lock = registerLock.acquire()) {
+            return longGaugeObservers.register(new LongGaugeObserverAdapter(meter, name, description, unit));
+        }
+    }
+
+    public LongGaugeObserver getLongGaugeObserver(String name) {
+        return longGaugeObservers.get(name);
     }
 
     public LongHistogram registerLongHistogram(String name, String description, String unit) {

@@ -461,7 +461,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
                 new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName, null)
-            ).get()
+            )
         );
     }
 

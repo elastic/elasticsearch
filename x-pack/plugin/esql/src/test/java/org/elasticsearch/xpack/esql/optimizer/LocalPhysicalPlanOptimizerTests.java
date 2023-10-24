@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -57,6 +59,7 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -124,7 +127,7 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer();
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
@@ -298,6 +301,16 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
+    /**
+     * Expected
+     * ProjectExec[[c{r}#3, c{r}#3 AS call, c_literal{r}#7]]
+     * \_LimitExec[500[INTEGER]]
+     *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c, COUNT(1[INTEGER]) AS c_literal],FINAL,null]
+     *     \_ExchangeExec[[count{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
+     *       \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null], Stat[name=*, type=COUNT, query=null]]],
+     *         query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}}}}]
+     *         [count{r}#23, seen{r}#24, count{r}#25, seen{r}#26], limit[],
+     */
     public void testMultiCountAllWithFilter() {
         var plan = plan("""
             from test
@@ -305,14 +318,19 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
 
-        var limit = as(plan, LimitExec.class);
+        var project = as(plan, ProjectExec.class);
+        var projections = project.projections();
+        assertThat(Expressions.names(projections), contains("c", "call", "c_literal"));
+        var alias = as(projections.get(1), Alias.class);
+        assertThat(Expressions.name(alias.child()), is("c"));
+        var limit = as(project.child(), LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
         assertThat(agg.getMode(), is(FINAL));
-        assertThat(Expressions.names(agg.aggregates()), contains("c", "call", "c_literal"));
+        assertThat(Expressions.names(agg.aggregates()), contains("c", "c_literal"));
         var exchange = as(agg.child(), ExchangeExec.class);
         var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
         assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen", "count", "seen", "count", "seen"));
+        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen", "count", "seen"));
         var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no");
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
@@ -406,5 +424,10 @@ public class LocalPhysicalPlanOptimizerTests extends ESTestCase {
         // System.out.println("Logical\n" + logical);
         var physical = mapper.map(logical);
         return physical;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-least]]
 === `LEAST`
 [.text-center]

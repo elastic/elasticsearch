@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -457,7 +458,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)
         ) {
-            if (indexVersion.before(IndexVersion.V_8_8_0)) {
+            if (indexVersion.before(IndexVersions.V_8_8_0)) {
                 // just use the index version directly
                 // there's a direct mapping from IndexVersion to TransportVersion before 8.8.0
                 out.setTransportVersion(TransportVersion.fromId(indexVersion.id()));

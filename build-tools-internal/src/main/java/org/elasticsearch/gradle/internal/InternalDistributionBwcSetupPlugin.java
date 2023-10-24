@@ -16,10 +16,13 @@ import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
@@ -44,16 +47,21 @@ import static java.util.Arrays.stream;
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
+    private final ObjectFactory objectFactory;
     private ProviderFactory providerFactory;
+    private JavaToolchainService toolChainService;
 
     @Inject
-    public InternalDistributionBwcSetupPlugin(ProviderFactory providerFactory) {
+    public InternalDistributionBwcSetupPlugin(ObjectFactory objectFactory, ProviderFactory providerFactory) {
+        this.objectFactory = objectFactory;
         this.providerFactory = providerFactory;
     }
 
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
+        project.getPlugins().apply(JvmToolchainsPlugin.class);
+        toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         BuildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
             configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion);
         });
@@ -63,7 +71,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
         Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch()));
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, checkoutDir);
+            .create("bwcSetup", BwcSetupExtension.class, project, objectFactory, toolChainService, versionInfoProvider, checkoutDir);
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));

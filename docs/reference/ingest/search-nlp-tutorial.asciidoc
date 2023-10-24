@@ -7,7 +7,7 @@
 This guide focuses on a concrete task: getting a machine learning trained model loaded into Elasticsearch and set up to enrich your documents.
 
 Elasticsearch supports many different ways to use machine learning models.
-In this guide, we will use a trained model to enrich documents at ingest time using ingest pipelines configured within Kibana's Search UI.
+In this guide, we will use a trained model to enrich documents at ingest time using ingest pipelines configured within Kibana's *Content* UI.
 
 In this guide, we'll accomplish the above using the following steps:
 
@@ -119,7 +119,7 @@ Your model is now ready to be used.
 [discrete#nlp-example-create-index-and-define-ml-inference-pipeline]
 ==== Create an index and define an ML inference pipeline
 
-We are now ready to use Kibana's Search UI to enrich our documents with inference data.
+We are now ready to use Kibana's *Content* UI to enrich our documents with inference data.
 Before we ingest photo comments into Elasticsearch, we will first create an ML inference pipeline.
 The pipeline will enrich the incoming photo comments with inference data indicating if the comments are positive.
 
@@ -138,13 +138,12 @@ Let's say our photo comments look like this when they are uploaded as a document
 We want to run our documents through an inference processor that uses the trained model we uploaded to determine if the comments are positive.
 To do this, we first need to set up an Elasticsearch index.
 
-From the Kibana home page, start by clicking the Search card.
-Next, click the button to *Create an Elasticsearch index*.
-Choose to *Use the API* and give your index a name.
+* From the Kibana home page, start by clicking the Search card.
+* Click the button to *Create an Elasticsearch index*.
+* Choose to *Use the API* and give your index a name.
 It will automatically be prefixed with `search-`.
 For this demo, we will name the index `search-photo-comments`.
-After clicking *Create Index*, you will be redirected to the overview page for your new index.
-
+* After clicking *Create Index*, you will be redirected to the overview page for your new index.
 
 To configure the ML inference pipeline, we need the index to have an existing field mapping so we can choose which field to analyze.
 This can be done via the <<indices-put-mapping, index mapping API>> in the Kibana Dev Tools or simply through a cURL command:

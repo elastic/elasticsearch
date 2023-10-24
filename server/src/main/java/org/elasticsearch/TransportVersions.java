@@ -144,6 +144,7 @@ public class TransportVersions {
     public static final TransportVersion PIPELINES_IN_BULK_RESPONSE_ADDED = def(8_519_00_0);
     public static final TransportVersion PLUGIN_DESCRIPTOR_STRING_VERSION = def(8_520_00_0);
     public static final TransportVersion TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED = def(8_521_00_0);
+    public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_522_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -1654,12 +1654,11 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test1").setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(2, maximumNumberOfShards()))
-            ).setMapping(sortField, "type=long").get()
+            ).setMapping(sortField, "type=long")
         );
         assertAcked(
             prepareCreate("test2").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
                 .setMapping(sortField, "type=long")
-                .get()
         );
 
         for (String index : new String[] { "test1", "test2" }) {
@@ -1983,7 +1982,6 @@ public class FieldSortIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("test1").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2))
                 .setMapping("long_field", "type=long")
-                .get()
         );
 
         BulkRequestBuilder bulkBuilder = client().prepareBulk();

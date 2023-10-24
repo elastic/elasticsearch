@@ -341,9 +341,9 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
         assertAcked(
-            prepareCreate("test1").setMapping("str_field", "type=keyword", "long_field", "type=long", "double_field", "type=double").get()
+            prepareCreate("test1").setMapping("str_field", "type=keyword", "long_field", "type=long", "double_field", "type=double")
         );
-        assertAcked(prepareCreate("test2").get());
+        assertAcked(prepareCreate("test2"));
 
         indexRandom(
             true,

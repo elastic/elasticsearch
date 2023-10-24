@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -153,7 +154,6 @@ public class CsvTests extends ESTestCase {
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
-    private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
@@ -286,7 +286,7 @@ public class CsvTests extends ESTestCase {
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
         var analyzed = analyzer.analyze(parsed);
-        var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
+        var logicalOptimized = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)).optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
         var optimizedPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan));
         opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization

@@ -81,7 +81,6 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("test")
                 .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
-                .get()
         );
         createIndex("idx_unmapped");
 

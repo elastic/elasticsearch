@@ -73,7 +73,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 0.1);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
-        SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)).get();
+        SearchResponse resp = prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)).get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6", "4", "2");
         assertFirstHit(resp, hasScore(1.0f));
@@ -81,9 +81,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         assertThirdHit(resp, hasScore(0.6f));
 
         // applying min score
-        resp = client().prepareSearch("test-index")
-            .setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script).setMinScore(0.6f))
-            .get();
+        resp = prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script).setMinScore(0.6f)).get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "8", "6");
     }
@@ -100,7 +98,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
         params.put("param1", 0.1);
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
         QueryBuilder boolQuery = boolQuery().should(matchQuery("field1", "text1")).should(matchQuery("field1", "text10"));
-        SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptScoreQuery(boolQuery, script)).get();
+        SearchResponse resp = prepareSearch("test-index").setQuery(scriptScoreQuery(boolQuery, script)).get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "10", "1");
         assertFirstHit(resp, hasScore(1.0f));
@@ -120,7 +118,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
 
         RangeQueryBuilder rangeQB = new RangeQueryBuilder("field1").from("2019-01-01"); // the query should be rewritten to from:null
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", Map.of("param1", 0.1));
-        SearchResponse resp = client().prepareSearch("test-index2").setQuery(scriptScoreQuery(rangeQB, script)).get();
+        SearchResponse resp = prepareSearch("test-index2").setQuery(scriptScoreQuery(rangeQB, script)).get();
         assertNoFailures(resp);
         assertOrderedSearchHits(resp, "3", "2", "1");
     }
@@ -136,14 +134,14 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
 
             // Execute with search.allow_expensive_queries = null => default value = true => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", Map.of("param1", 0.1));
-            assertNoFailures(client().prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)));
+            assertNoFailures(prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)));
 
             // Set search.allow_expensive_queries to "false" => assert failure
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)).get()
+                () -> prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)).get()
             );
             assertEquals(
                 "[script score] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
@@ -152,7 +150,7 @@ public class ScriptScoreQueryIT extends ESIntegTestCase {
 
             // Set search.allow_expensive_queries to "true" => success
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertNoFailures(client().prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)));
+            assertNoFailures(prepareSearch("test-index").setQuery(scriptScoreQuery(matchQuery("field1", "text0"), script)));
         } finally {
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         }

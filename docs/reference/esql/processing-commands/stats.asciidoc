@@ -42,4 +42,4 @@ include::{esql-specs}/docs.csv-spec[tag=statsGroupByMultipleValues]
 
 The following aggregation functions are supported:
 
-include::../functions/aggregation-functions.asciidoc[tag=list]
+include::../functions/aggregation-functions.asciidoc[tag=agg_list]

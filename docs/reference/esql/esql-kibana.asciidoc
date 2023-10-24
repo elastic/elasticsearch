@@ -5,4 +5,11 @@
 <titleabbrev>Kibana</titleabbrev>
 ++++
 
-coming::[8.11]
+
+Use {esql} in Discover to explore a data set. From the data view dropdown,
+select *Try {esql}* to get started.
+
+NOTE: {esql} queries in Discover and Lens are subject to the time range selected
+with the time filter.
+
+

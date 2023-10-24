@@ -218,10 +218,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return nextCheckpoint;
     }
 
-    public CheckpointProvider getCheckpointProvider() {
-        return checkpointProvider;
-    }
-
     /**
      * Request a checkpoint
      */

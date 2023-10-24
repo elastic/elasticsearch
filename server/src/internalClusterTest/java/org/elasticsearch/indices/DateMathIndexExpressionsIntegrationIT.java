@@ -87,7 +87,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
         refresh();
 
-        SearchResponse searchResponse = dateSensitiveGet(client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
+        SearchResponse searchResponse = dateSensitiveGet(prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
@@ -144,7 +144,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         client().prepareIndex(dateMathExp3).setId("3").setSource("{}", XContentType.JSON).get();
         refresh();
 
-        SearchResponse searchResponse = dateSensitiveGet(client().prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
+        SearchResponse searchResponse = dateSensitiveGet(prepareSearch(dateMathExp1, dateMathExp2, dateMathExp3));
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 

@@ -1,5 +1,5 @@
 [[esql-operators]]
-=== {esql} operators
+==== {esql} operators
 
 ++++
 <titleabbrev>Operators</titleabbrev>
@@ -7,7 +7,7 @@
 
 Boolean operators for comparing against one or multiple expressions.
 
-// tag::list[]
+// tag::op_list[]
 * <<esql-binary-operators>>
 * <<esql-logical-operators>>
 * <<esql-predicates>>
@@ -20,7 +20,7 @@ Boolean operators for comparing against one or multiple expressions.
 * <<esql-like-operator>>
 * <<esql-rlike-operator>>
 * <<esql-starts_with>>
-// end::list[]
+// end::op_list[]
 
 include::binary.asciidoc[]
 include::logical.asciidoc[]

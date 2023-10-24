@@ -672,7 +672,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             }
         }
         shard.refresh("test");
-        assertThat(client().search(countRequest).actionGet().getHits().getTotalHits().value, equalTo(numDocs));
+        assertHitCount(client().search(countRequest), numDocs);
         assertThat(shard.getLocalCheckpoint(), equalTo(shard.seqNoStats().getMaxSeqNo()));
 
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
@@ -701,11 +701,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 equalTo(numDocs + moreDocs)
             );
         }
-        assertThat(
-            "numDocs=" + numDocs + " moreDocs=" + moreDocs,
-            client().search(countRequest).actionGet().getHits().getTotalHits().value,
-            equalTo(numDocs + moreDocs)
-        );
+        assertHitCount(client().search(countRequest), numDocs + moreDocs);
     }
 
     public void testShardChangesWithDefaultDocType() throws Exception {

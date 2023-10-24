@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Specifies one or more features that should be published by this node
+ * Specifies one or more features that are supported by this node.
  */
 public interface FeatureSpecification {
     /**
-     * Returns a set of regular features that this node should publish
+     * Returns a set of regular features that this node supports.
      */
     default Set<NodeFeature> getFeatures() {
         return Set.of();

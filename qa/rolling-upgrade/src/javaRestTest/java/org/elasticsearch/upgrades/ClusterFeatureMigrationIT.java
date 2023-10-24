@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeaturesSupportedSpecification;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,10 +48,9 @@ public class ClusterFeatureMigrationIT extends ParameterizedRollingUpgradeTestCa
                 .map(o -> (Map<?, ?>) o)
                 .collect(Collectors.toMap(m -> (String) m.get("node_id"), m -> (List<?>) m.get("features")));
 
-            final String featureToCheck = "features_supported";     // added by FeaturesSupportedSpecification
             Set<String> missing = features.entrySet()
                 .stream()
-                .filter(e -> e.getValue().contains(featureToCheck) == false)
+                .filter(e -> e.getValue().contains(FeaturesSupportedSpecification.FEATURES_SUPPORTED) == false)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
             assertThat(missing + " out of " + features.keySet() + " does not have the required feature", missing, empty());

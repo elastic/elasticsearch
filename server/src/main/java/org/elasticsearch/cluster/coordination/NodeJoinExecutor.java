@@ -141,6 +141,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("received a join request for an existing node [{}]", node);
 
                     // update the node's feature set if it has one
+                    // this can happen if the master has just moved from a pre-features version to a post-features version
                     if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
                         logger.debug("updating node [{}] features {}", node.getId(), nodeJoinTask.features());
                         nodeFeatures.put(node.getId(), nodeJoinTask.features());

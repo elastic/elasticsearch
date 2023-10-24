@@ -10,10 +10,20 @@ package org.elasticsearch.features;
 
 import java.util.Set;
 
+/**
+ * This adds a feature {@code features_supported} indicating that a node supports node features.
+ * Nodes that do not support features won't have this feature in its feature set,
+ * so this can be checked without needing to look at the node version.
+ */
 public class FeaturesSupportedSpecification implements FeatureSpecification {
+
+    /**
+     * A feature indicating that node features are supported.
+     */
+    public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        // a feature that indicates cluster features are supported
-        return Set.of(new NodeFeature("features_supported"));
+        return Set.of(FEATURES_SUPPORTED);
     }
 }

@@ -20,6 +20,6 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
 
         FeatureService service = internalCluster().getCurrentMasterNodeInstance(FeatureService.class);
 
-        assertThat(service.getNodeFeatures(), hasItem("features_supported"));
+        assertThat(service.getNodeFeatures(), hasItem(FeaturesSupportedSpecification.FEATURES_SUPPORTED.id()));
     }
 }

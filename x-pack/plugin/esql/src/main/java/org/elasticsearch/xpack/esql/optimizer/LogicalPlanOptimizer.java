@@ -63,7 +63,6 @@ import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -1061,6 +1060,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return plan.transformDown(typeToken(), t -> rule(t, context));
         }
 
+        protected abstract LogicalPlan rule(SubPlan plan, P context);
+    }
+
     /**
      * Normalize aggregation functions by:
      * 1. replaces reference to field attributes with their source
@@ -1079,8 +1081,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             plan = plan.transformUp(p -> {
                 if (p instanceof Aggregate agg) {
                     p = normalize(agg, aliases);
-
-        protected abstract LogicalPlan rule(SubPlan plan, P context);
                 }
                 p.forEachExpression(Alias.class, a -> {
                     var child = a.child();
@@ -1185,5 +1185,4 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             return plan;
         }
     }
-}
 }

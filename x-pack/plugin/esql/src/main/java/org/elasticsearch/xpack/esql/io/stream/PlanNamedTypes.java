@@ -813,16 +813,6 @@ public final class PlanNamedTypes {
         writeNamedExpressions(out, project.projections());
     }
 
-    static EsqlProject readEsqlProject(PlanStreamInput in) throws IOException {
-        return new EsqlProject(in.readSource(), in.readLogicalPlanNode(), readNamedExpressions(in));
-    }
-
-    static void writeEsqlProject(PlanStreamOutput out, EsqlProject project) throws IOException {
-        out.writeNoSource();
-        out.writeLogicalPlanNode(project.child());
-        writeNamedExpressions(out, project.projections());
-    }
-
     static TopN readTopN(PlanStreamInput in) throws IOException {
         return new TopN(
             in.readSource(),

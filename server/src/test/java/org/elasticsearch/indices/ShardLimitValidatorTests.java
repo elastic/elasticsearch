@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -26,8 +25,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
@@ -270,17 +267,16 @@ public class ShardLimitValidatorTests extends ESTestCase {
                 roles = randomBoolean()
                     ? DiscoveryNodeRole.roles()
                     : Set.of(
-                    randomFrom(
-                        DiscoveryNodeRole.DATA_ROLE,
-                        DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
-                        DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
-                        DiscoveryNodeRole.DATA_COLD_NODE_ROLE
-                    )
-                );
+                        randomFrom(
+                            DiscoveryNodeRole.DATA_ROLE,
+                            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+                            DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+                            DiscoveryNodeRole.DATA_COLD_NODE_ROLE
+                        )
+                    );
             }
 
-            builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLengthBetween(5, 15))
-                .roles(roles).build());
+            builder.add(DiscoveryNodeUtils.builder(randomAlphaOfLengthBetween(5, 15)).roles(roles).build());
         }
         return builder.build();
     }

@@ -37,7 +37,7 @@ Data stream lifecycle implements <<data-stream-lifecycle-tail-merge, tail mergin
 updating the lucene merge policy factor for the target backing index. The merge factor 
 is both the number of segments that should be merged together, and the maximum number 
 of segments that we expect to find on a given tier.
-This setting controls what value does <<data-stream-lifecycle, data stream lifecycle>>
+This setting controls what value does <<data-stream-lifecycle, Data stream lifecycle>>
 configures on the target index. It defaults to `16`. 
 The value will be visible under the `index.merge.policy.merge_factor` index setting 
 on the target index.

@@ -52,9 +52,10 @@ import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -113,9 +114,9 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("articles", "comment", "c6", "p2", "message", "elephant scared by mice x y"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("articles")
-            .setQuery(hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder()))
-            .get();
+        SearchResponse response = prepareSearch("articles").setQuery(
+            hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(new InnerHitBuilder())
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertSearchHit(response, 1, hasId("p1"));
@@ -129,13 +130,11 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(innerHits.getAt(1).getId(), equalTo("c2"));
 
         final boolean seqNoAndTerm = randomBoolean();
-        response = client().prepareSearch("articles")
-            .setQuery(
-                hasChildQuery("comment", matchQuery("message", "elephant"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().setSeqNoAndPrimaryTerm(seqNoAndTerm)
-                )
+        response = prepareSearch("articles").setQuery(
+            hasChildQuery("comment", matchQuery("message", "elephant"), ScoreMode.None).innerHit(
+                new InnerHitBuilder().setSeqNoAndPrimaryTerm(seqNoAndTerm)
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertSearchHit(response, 1, hasId("p2"));
@@ -164,17 +163,15 @@ public class InnerHitsIT extends ParentChildTestCase {
             assertThat(innerHits.getAt(2).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         }
 
-        response = client().prepareSearch("articles")
-            .setQuery(
-                hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().addFetchField("message")
-                        .setHighlightBuilder(new HighlightBuilder().field("message"))
-                        .setExplain(true)
-                        .setSize(1)
-                        .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
-                )
+        response = prepareSearch("articles").setQuery(
+            hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
+                new InnerHitBuilder().addFetchField("message")
+                    .setHighlightBuilder(new HighlightBuilder().field("message"))
+                    .setExplain(true)
+                    .setSize(1)
+                    .addScriptField("script", new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
         assertThat(innerHits.getHits().length, equalTo(1));
@@ -183,13 +180,11 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(innerHits.getAt(0).getFields().get("message").getValue().toString(), equalTo("fox eat quick"));
         assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
 
-        response = client().prepareSearch("articles")
-            .setQuery(
-                hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().addDocValueField("message").setSize(1)
-                )
+        response = prepareSearch("articles").setQuery(
+            hasChildQuery("comment", matchQuery("message", "fox"), ScoreMode.None).innerHit(
+                new InnerHitBuilder().addDocValueField("message").setSize(1)
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         innerHits = response.getHits().getAt(0).getInnerHits().get("comment");
         assertThat(innerHits.getHits().length, equalTo(1));
@@ -256,11 +251,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                 )
             )
         );
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setSize(numDocs)
-            .addSort("id", SortOrder.ASC)
-            .setQuery(boolQuery)
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setSize(numDocs).addSort("id", SortOrder.ASC).setQuery(boolQuery).get();
 
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
@@ -329,8 +320,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         );
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("stack")
-            .addSort("id", SortOrder.ASC)
+        SearchResponse response = prepareSearch("stack").addSort("id", SortOrder.ASC)
             .setQuery(
                 boolQuery().must(matchQuery("body", "fail2ban"))
                     .must(hasParentQuery("question", matchAllQuery(), false).innerHit(new InnerHitBuilder()))
@@ -372,15 +362,13 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("articles", "remark", "6", "4", "message", "bad").setRouting("2"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("articles")
-            .setQuery(
-                hasChildQuery(
-                    "comment",
-                    hasChildQuery("remark", matchQuery("message", "good"), ScoreMode.None).innerHit(new InnerHitBuilder()),
-                    ScoreMode.None
-                ).innerHit(new InnerHitBuilder())
-            )
-            .get();
+        SearchResponse response = prepareSearch("articles").setQuery(
+            hasChildQuery(
+                "comment",
+                hasChildQuery("remark", matchQuery("message", "good"), ScoreMode.None).innerHit(new InnerHitBuilder()),
+                ScoreMode.None
+            ).innerHit(new InnerHitBuilder())
+        ).get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -395,15 +383,13 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(innerHits.getTotalHits().value, equalTo(1L));
         assertThat(innerHits.getAt(0).getId(), equalTo("5"));
 
-        response = client().prepareSearch("articles")
-            .setQuery(
-                hasChildQuery(
-                    "comment",
-                    hasChildQuery("remark", matchQuery("message", "bad"), ScoreMode.None).innerHit(new InnerHitBuilder()),
-                    ScoreMode.None
-                ).innerHit(new InnerHitBuilder())
-            )
-            .get();
+        response = prepareSearch("articles").setQuery(
+            hasChildQuery(
+                "comment",
+                hasChildQuery("remark", matchQuery("message", "bad"), ScoreMode.None).innerHit(new InnerHitBuilder()),
+                ScoreMode.None
+            ).innerHit(new InnerHitBuilder())
+        ).get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -451,26 +437,22 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("royals", "baron", "baron4", "earl4").setRouting("king"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("royals")
-            .setQuery(
-                boolQuery().filter(
-                    hasParentQuery(
-                        "prince",
-                        hasParentQuery("king", matchAllQuery(), false).innerHit(new InnerHitBuilder().setName("kings")),
-                        false
-                    ).innerHit(new InnerHitBuilder().setName("princes"))
-                )
-                    .filter(
-                        hasChildQuery(
-                            "earl",
-                            hasChildQuery("baron", matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder().setName("barons")),
-                            ScoreMode.None
-                        ).innerHit(
-                            new InnerHitBuilder().addSort(SortBuilders.fieldSort("id").order(SortOrder.ASC)).setName("earls").setSize(4)
-                        )
-                    )
+        SearchResponse response = prepareSearch("royals").setQuery(
+            boolQuery().filter(
+                hasParentQuery(
+                    "prince",
+                    hasParentQuery("king", matchAllQuery(), false).innerHit(new InnerHitBuilder().setName("kings")),
+                    false
+                ).innerHit(new InnerHitBuilder().setName("princes"))
             )
-            .get();
+                .filter(
+                    hasChildQuery(
+                        "earl",
+                        hasChildQuery("baron", matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder().setName("barons")),
+                        ScoreMode.None
+                    ).innerHit(new InnerHitBuilder().addSort(SortBuilders.fieldSort("id").order(SortOrder.ASC)).setName("earls").setSize(4))
+                )
+        ).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("duke"));
 
@@ -516,12 +498,9 @@ public class InnerHitsIT extends ParentChildTestCase {
         requests.add(createIndexRequest("index", "child", "5", "2", "field", "value1"));
         indexRandom(true, requests);
 
-        SearchResponse response = client().prepareSearch("index")
-            .setQuery(
-                hasChildQuery("child", matchQuery("field", "value1").queryName("_name1"), ScoreMode.None).innerHit(new InnerHitBuilder())
-            )
-            .addSort("id", SortOrder.ASC)
-            .get();
+        SearchResponse response = prepareSearch("index").setQuery(
+            hasChildQuery("child", matchQuery("field", "value1").queryName("_name1"), ScoreMode.None).innerHit(new InnerHitBuilder())
+        ).addSort("id", SortOrder.ASC).get();
         assertHitCount(response, 2);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
@@ -536,7 +515,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value2").queryName("_name2"), ScoreMode.None).innerHit(
             new InnerHitBuilder()
         );
-        response = client().prepareSearch("index").setQuery(query).addSort("id", SortOrder.ASC).get();
+        response = prepareSearch("index").setQuery(query).addSort("id", SortOrder.ASC).get();
         assertHitCount(response, 1);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getTotalHits().value, equalTo(1L));
@@ -560,7 +539,7 @@ public class InnerHitsIT extends ParentChildTestCase {
         QueryBuilder query = hasChildQuery("child", matchQuery("field", "value1"), ScoreMode.None).innerHit(
             new InnerHitBuilder().setSize(ArrayUtil.MAX_ARRAY_LENGTH - 1)
         );
-        SearchResponse response = client().prepareSearch("index1").setQuery(query).get();
+        SearchResponse response = prepareSearch("index1").setQuery(query).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
     }
@@ -578,18 +557,16 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("test", "parent_type", "1", null, "key", "value").get();
         createIndexRequest("test", "child_type", "2", "1", "nested_type", Collections.singletonMap("key", "value")).get();
         refresh();
-        SearchResponse response = client().prepareSearch("test")
-            .setQuery(
-                boolQuery().must(matchQuery("key", "value"))
-                    .should(
-                        hasChildQuery(
-                            "child_type",
-                            nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder()),
-                            ScoreMode.None
-                        ).innerHit(new InnerHitBuilder())
-                    )
-            )
-            .get();
+        SearchResponse response = prepareSearch("test").setQuery(
+            boolQuery().must(matchQuery("key", "value"))
+                .should(
+                    hasChildQuery(
+                        "child_type",
+                        nestedQuery("nested_type", matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder()),
+                        ScoreMode.None
+                    ).innerHit(new InnerHitBuilder())
+                )
+        ).get();
         assertHitCount(response, 1);
         SearchHit hit = response.getHits().getAt(0);
         String parentId = (String) extractValue("join_field.parent", hit.getInnerHits().get("child_type").getAt(0).getSourceAsMap());
@@ -612,18 +589,16 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("index1", "child_type", "2", "1").get();
         client().prepareIndex("index2").setId("3").setSource("key", "value").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1", "index2")
-            .setQuery(
+        assertSearchHitsWithoutFailures(
+            prepareSearch("index1", "index2").setQuery(
                 boolQuery().should(
                     hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
                         .innerHit(new InnerHitBuilder().setIgnoreUnmapped(true))
                 ).should(termQuery("key", "value"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 2);
-        assertSearchHits(response, "1", "3");
+            ),
+            "1",
+            "3"
+        );
     }
 
     public void testTooHighResultWindow() {
@@ -639,24 +614,20 @@ public class InnerHitsIT extends ParentChildTestCase {
         createIndexRequest("index1", "parent_type", "1", null, "nested_type", Collections.singletonMap("key", "value")).get();
         createIndexRequest("index1", "child_type", "2", "1").get();
         refresh();
-
-        SearchResponse response = client().prepareSearch("index1")
-            .setQuery(
+        assertHitCountAndNoFailures(
+            prepareSearch("index1").setQuery(
                 hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
                     .innerHit(new InnerHitBuilder().setFrom(50).setSize(10).setName("_name"))
-            )
-            .get();
-        assertNoFailures(response);
-        assertHitCount(response, 1);
+            ),
+            1
+        );
 
         Exception e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("index1")
-                .setQuery(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
-                )
-                .get()
+            () -> prepareSearch("index1").setQuery(
+                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                    .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
+            ).get()
         );
         assertThat(
             e.getCause().getMessage(),
@@ -664,12 +635,10 @@ public class InnerHitsIT extends ParentChildTestCase {
         );
         e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch("index1")
-                .setQuery(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
-                )
-                .get()
+            () -> prepareSearch("index1").setQuery(
+                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                    .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
+            ).get()
         );
         assertThat(
             e.getCause().getMessage(),
@@ -677,18 +646,16 @@ public class InnerHitsIT extends ParentChildTestCase {
         );
         updateIndexSettings(Settings.builder().put(IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey(), 110), "index1");
         assertNoFailures(
-            client().prepareSearch("index1")
-                .setQuery(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
-                )
+            prepareSearch("index1").setQuery(
+                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                    .innerHit(new InnerHitBuilder().setFrom(100).setSize(10).setName("_name"))
+            )
         );
         assertNoFailures(
-            client().prepareSearch("index1")
-                .setQuery(
-                    hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
-                        .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
-                )
+            prepareSearch("index1").setQuery(
+                hasChildQuery("child_type", matchAllQuery(), ScoreMode.None).ignoreUnmapped(true)
+                    .innerHit(new InnerHitBuilder().setFrom(10).setSize(100).setName("_name"))
+            )
         );
     }
 }

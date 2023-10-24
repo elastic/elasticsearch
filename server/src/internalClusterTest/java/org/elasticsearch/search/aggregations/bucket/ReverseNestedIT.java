@@ -35,7 +35,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -144,20 +143,18 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testSimpleReverseNestedToRoot() throws Exception {
-        SearchResponse response = client().prepareSearch("idx1")
-            .addAggregation(
-                nested("nested1", "nested1").subAggregation(
-                    terms("field2").field("nested1.field2")
-                        .subAggregation(
-                            reverseNested("nested1_to_field1").subAggregation(
-                                terms("field1").field("field1").collectMode(randomFrom(SubAggCollectionMode.values()))
-                            )
+        SearchResponse response = prepareSearch("idx1").addAggregation(
+            nested("nested1", "nested1").subAggregation(
+                terms("field2").field("nested1.field2")
+                    .subAggregation(
+                        reverseNested("nested1_to_field1").subAggregation(
+                            terms("field1").field("field1").collectMode(randomFrom(SubAggCollectionMode.values()))
                         )
-                )
+                    )
             )
-            .get();
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested, notNullValue());
@@ -331,15 +328,13 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testSimpleNested1ToRootToNested2() throws Exception {
-        SearchResponse response = client().prepareSearch("idx2")
-            .addAggregation(
-                nested("nested1", "nested1").subAggregation(
-                    reverseNested("nested1_to_root").subAggregation(nested("root_to_nested2", "nested1.nested2"))
-                )
+        SearchResponse response = prepareSearch("idx2").addAggregation(
+            nested("nested1", "nested1").subAggregation(
+                reverseNested("nested1_to_root").subAggregation(nested("root_to_nested2", "nested1.nested2"))
             )
-            .get();
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested.getName(), equalTo("nested1"));
         assertThat(nested.getDocCount(), equalTo(9L));
@@ -352,26 +347,24 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testSimpleReverseNestedToNested1() throws Exception {
-        SearchResponse response = client().prepareSearch("idx2")
-            .addAggregation(
-                nested("nested1", "nested1.nested2").subAggregation(
-                    terms("field2").field("nested1.nested2.field2")
-                        .order(BucketOrder.key(true))
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .size(10000)
-                        .subAggregation(
-                            reverseNested("nested1_to_field1").path("nested1")
-                                .subAggregation(
-                                    terms("field1").field("nested1.field1")
-                                        .order(BucketOrder.key(true))
-                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                )
-                        )
-                )
+        SearchResponse response = prepareSearch("idx2").addAggregation(
+            nested("nested1", "nested1.nested2").subAggregation(
+                terms("field2").field("nested1.nested2.field2")
+                    .order(BucketOrder.key(true))
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .size(10000)
+                    .subAggregation(
+                        reverseNested("nested1_to_field1").path("nested1")
+                            .subAggregation(
+                                terms("field1").field("nested1.field1")
+                                    .order(BucketOrder.key(true))
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                            )
+                    )
             )
-            .get();
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested1");
         assertThat(nested, notNullValue());
@@ -458,17 +451,15 @@ public class ReverseNestedIT extends ESIntegTestCase {
 
     public void testReverseNestedAggWithoutNestedAgg() {
         try {
-            client().prepareSearch("idx2")
-                .addAggregation(
-                    terms("field2").field("nested1.nested2.field2")
-                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                        .subAggregation(
-                            reverseNested("nested1_to_field1").subAggregation(
-                                terms("field1").field("nested1.field1").collectMode(randomFrom(SubAggCollectionMode.values()))
-                            )
+            prepareSearch("idx2").addAggregation(
+                terms("field2").field("nested1.nested2.field2")
+                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                    .subAggregation(
+                        reverseNested("nested1_to_field1").subAggregation(
+                            terms("field1").field("nested1.field1").collectMode(randomFrom(SubAggCollectionMode.values()))
                         )
-                )
-                .get();
+                    )
+            ).get();
             fail("Expected SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), is("all shards failed"));
@@ -476,8 +467,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testNonExistingNestedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx2")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx2").setQuery(matchAllQuery())
             .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
             .get();
 
@@ -489,8 +479,7 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(reverseNested.getDocCount(), is(0L));
 
         // Test that parsing the reverse_nested agg doesn't fail, because the parent nested agg is unmapped:
-        searchResponse = client().prepareSearch("idx1")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("idx1").setQuery(matchAllQuery())
             .addAggregation(nested("incorrect1", "incorrect1").subAggregation(reverseNested("incorrect2").path("incorrect2")))
             .get();
 
@@ -614,22 +603,20 @@ public class ReverseNestedIT extends ESIntegTestCase {
             )
             .get();
 
-        SearchResponse response = client().prepareSearch("idx3")
-            .addAggregation(
-                nested("nested_0", "category").subAggregation(
-                    terms("group_by_category").field("category.name")
-                        .subAggregation(
-                            reverseNested("to_root").subAggregation(
-                                nested("nested_1", "sku").subAggregation(
-                                    filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
-                                        count("sku_count").field("sku.sku_type")
-                                    )
+        SearchResponse response = prepareSearch("idx3").addAggregation(
+            nested("nested_0", "category").subAggregation(
+                terms("group_by_category").field("category.name")
+                    .subAggregation(
+                        reverseNested("to_root").subAggregation(
+                            nested("nested_1", "sku").subAggregation(
+                                filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
+                                    count("sku_count").field("sku.sku_type")
                                 )
                             )
                         )
-                )
+                    )
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -651,27 +638,25 @@ public class ReverseNestedIT extends ESIntegTestCase {
             assertThat(barCount.getValue(), equalTo(3L));
         }
 
-        response = client().prepareSearch("idx3")
-            .addAggregation(
-                nested("nested_0", "category").subAggregation(
-                    terms("group_by_category").field("category.name")
-                        .subAggregation(
-                            reverseNested("to_root").subAggregation(
-                                nested("nested_1", "sku").subAggregation(
-                                    filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
-                                        nested("nested_2", "sku.colors").subAggregation(
-                                            filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
-                                                reverseNested("reverse_to_sku").path("sku")
-                                                    .subAggregation(count("sku_count").field("sku.sku_type"))
-                                            )
+        response = prepareSearch("idx3").addAggregation(
+            nested("nested_0", "category").subAggregation(
+                terms("group_by_category").field("category.name")
+                    .subAggregation(
+                        reverseNested("to_root").subAggregation(
+                            nested("nested_1", "sku").subAggregation(
+                                filter("filter_by_sku", termQuery("sku.sku_type", "bar1")).subAggregation(
+                                    nested("nested_2", "sku.colors").subAggregation(
+                                        filter("filter_sku_color", termQuery("sku.colors.name", "red")).subAggregation(
+                                            reverseNested("reverse_to_sku").path("sku")
+                                                .subAggregation(count("sku_count").field("sku.sku_type"))
                                         )
                                     )
                                 )
                             )
                         )
-                )
+                    )
             )
-            .get();
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 1);
 
@@ -701,20 +686,18 @@ public class ReverseNestedIT extends ESIntegTestCase {
     }
 
     public void testFieldAlias() {
-        SearchResponse response = client().prepareSearch("idx1")
-            .addAggregation(
-                nested("nested1", "nested1").subAggregation(
-                    terms("field2").field("nested1.field2")
-                        .subAggregation(
-                            reverseNested("nested1_to_field1").subAggregation(
-                                terms("field1").field("alias").collectMode(randomFrom(SubAggCollectionMode.values()))
-                            )
+        SearchResponse response = prepareSearch("idx1").addAggregation(
+            nested("nested1", "nested1").subAggregation(
+                terms("field2").field("nested1.field2")
+                    .subAggregation(
+                        reverseNested("nested1_to_field1").subAggregation(
+                            terms("field1").field("alias").collectMode(randomFrom(SubAggCollectionMode.values()))
                         )
-                )
+                    )
             )
-            .get();
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Nested nested = response.getAggregations().get("nested1");
         Terms nestedTerms = nested.getAggregations().get("field2");

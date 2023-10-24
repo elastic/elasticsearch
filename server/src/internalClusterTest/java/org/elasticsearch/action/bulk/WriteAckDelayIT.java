@@ -42,7 +42,7 @@ public class WriteAckDelayIT extends ESIntegTestCase {
         for (int j = 0; j < numOfChecks; j++) {
             try {
                 logger.debug("running search");
-                SearchResponse response = client().prepareSearch("test").get();
+                SearchResponse response = prepareSearch("test").get();
                 if (response.getHits().getTotalHits().value != numOfDocs) {
                     final String message = "Count is "
                         + response.getHits().getTotalHits().value

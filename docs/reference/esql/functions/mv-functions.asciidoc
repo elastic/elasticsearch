@@ -1,5 +1,5 @@
 [[esql-mv-functions]]
-=== {esql} multivalue functions
+==== {esql} multivalue functions
 
 ++++
 <titleabbrev>Multivalue functions</titleabbrev>
@@ -7,7 +7,7 @@
 
 {esql} supports these multivalue functions:
 
-// tag::list[]
+// tag::mv_list[]
 * <<esql-mv_avg>>
 * <<esql-mv_concat>>
 * <<esql-mv_count>>
@@ -16,7 +16,7 @@
 * <<esql-mv_median>>
 * <<esql-mv_min>>
 * <<esql-mv_sum>>
-// end::list[]
+// end::mv_list[]
 
 include::mv_avg.asciidoc[]
 include::mv_concat.asciidoc[]

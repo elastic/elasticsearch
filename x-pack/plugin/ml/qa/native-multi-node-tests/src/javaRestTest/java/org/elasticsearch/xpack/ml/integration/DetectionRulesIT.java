@@ -186,8 +186,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the filter was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
+            SearchResponse searchResponse = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
                 .addSort("timestamp", SortOrder.DESC)
                 .setQuery(
                     QueryBuilders.boolQuery()

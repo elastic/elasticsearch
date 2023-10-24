@@ -1240,6 +1240,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
                 .setMapping("field_2", "type=integer")
         );
+
         try (var resp = run("from index-1,index-2 | where field_1 is not null | stats c = count(*), c1 = count(field_1), m = count()")) {
             var valuesList = getValuesList(resp);
             assertEquals(3, resp.columns().size());
@@ -1254,6 +1255,18 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, valuesList.size());
 
             assertThat(valuesList.get(0), contains(null, null));
+        }
+
+        client().prepareIndex("index-1").setSource("field_1", 100).get();
+        client().prepareIndex("index-2").setSource("field_2", 20).get();
+        client().admin().indices().prepareRefresh("index-1", "index-2").get();
+
+        try (var resp = run("from index-1,index-2 | where field_2 is not null | stats avg = sum(field_1)")) {
+            var valuesList = getValuesList(resp);
+            assertEquals(1, resp.columns().size());
+            assertEquals(1, valuesList.size());
+
+            assertThat(valuesList.get(0), contains(nullValue()));
         }
     }
 

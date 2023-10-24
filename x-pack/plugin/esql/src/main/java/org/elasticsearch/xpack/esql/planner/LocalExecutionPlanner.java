@@ -363,7 +363,11 @@ public class LocalExecutionPlanner {
                     for (int i = 0, s = output.size(); i < s; i++) {
                         var out = output.get(i);
                         if (out.dataType() == DataTypes.BOOLEAN) {
-                            blocks.add(i, boolBlock);
+                            if (i < blocks.size()) {
+                                blocks.add(i, boolBlock);
+                            } else {
+                                blocks.add(boolBlock);
+                            }
                         }
                     }
                 }

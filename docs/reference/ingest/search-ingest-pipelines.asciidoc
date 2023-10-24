@@ -9,7 +9,7 @@ The *Content* UI under *Search* has a set of tools for working with ingest pipel
 
 [discrete]
 [[ingest-pipeline-search-where]]
-=== Find the Content UI
+=== Find pipelines in Content UI
 
 To work with ingest pipelines using these UI tools, you'll be using the *Pipelines* tab on your search-optimized Elasticsearch index.
 

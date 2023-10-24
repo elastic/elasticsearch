@@ -51,10 +51,10 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
-import org.elasticsearch.telemetry.DelegatingMeter;
+import org.elasticsearch.telemetry.DelegatingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -198,7 +198,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         flushAndRefresh(index);
         ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         // Intentionally fail snapshot to trigger abortMultipartUpload requests
         shouldFailCompleteMultipartUploadRequest.set(true);
@@ -240,14 +240,14 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         flushAndRefresh(index);
         ForceMergeResponse forceMerge = client().admin().indices().prepareForceMerge(index).setFlush(true).setMaxNumSegments(1).get();
         assertThat(forceMerge.getSuccessfulShards(), equalTo(1));
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
 
         final String snapshot = "snapshot";
         assertSuccessfulSnapshot(clusterAdmin().prepareCreateSnapshot(repository, snapshot).setWaitForCompletion(true).setIndices(index));
         assertAcked(client().admin().indices().prepareDelete(index));
         assertSuccessfulRestore(clusterAdmin().prepareRestoreSnapshot(repository, snapshot).setWaitForCompletion(true));
         ensureGreen(index);
-        assertHitCount(client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get(), nbDocs);
+        assertHitCount(prepareSearch(index).setSize(0).setTrackTotalHits(true), nbDocs);
         assertAcked(clusterAdmin().prepareDeleteSnapshot(repository, snapshot).get());
 
         final Map<String, Long> aggregatedMetrics = new HashMap<>();
@@ -433,7 +433,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, getMeter()) {
+            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings, getMeterRegistry()) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -584,7 +584,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             }
         };
 
-        private final Meter meter = new DelegatingMeter(Meter.NOOP) {
+        private final MeterRegistry meterRegistry = new DelegatingMeterRegistry(MeterRegistry.NOOP) {
             @Override
             public LongCounter registerLongCounter(String name, String description, String unit) {
                 assertThat(name, equalTo(METRIC_REQUESTS_COUNT));
@@ -607,8 +607,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 }
 
                 @Override
-                public Meter getMeter() {
-                    return meter;
+                public MeterRegistry getMeterRegistry() {
+                    return meterRegistry;
                 }
             };
         }

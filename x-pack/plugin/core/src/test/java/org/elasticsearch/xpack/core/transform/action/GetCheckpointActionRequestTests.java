@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 
@@ -17,21 +19,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class GetCheckpointActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomBoolean() ? null : generateRandomStringArray(10, 10, false, false),
-            IndicesOptions.fromParameters(
-                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
-                Boolean.toString(randomBoolean()),
-                Boolean.toString(randomBoolean()),
-                Boolean.toString(randomBoolean()),
-                SearchRequest.DEFAULT_INDICES_OPTIONS
-            )
-        );
+        return randomRequest(randomBoolean() ? 10 : null);
     }
 
     @Override
@@ -62,5 +60,30 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
         }
 
         return new Request(indices.toArray(new String[0]), indicesOptions);
+    }
+
+    public void testCreateTask() {
+        Request request = randomRequest(17);
+        CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
+        assertThat(task.getDescription(), is(equalTo("get_checkpoint[17]")));
+    }
+
+    public void testCreateTaskWithNullIndices() {
+        Request request = new Request(null, null);
+        CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
+        assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
+    }
+
+    private static Request randomRequest(Integer numIndices) {
+        return new Request(
+            numIndices != null ? Stream.generate(() -> randomAlphaOfLength(10)).limit(numIndices).toArray(String[]::new) : null,
+            IndicesOptions.fromParameters(
+                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                SearchRequest.DEFAULT_INDICES_OPTIONS
+            )
+        );
     }
 }

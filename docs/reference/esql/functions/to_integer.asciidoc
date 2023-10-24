@@ -1,3 +1,4 @@
+[discrete]
 [[esql-to_integer]]
 === `TO_INTEGER`
 Converts an input value to an integer  value.

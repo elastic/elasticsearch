@@ -42,7 +42,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -96,7 +96,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("idx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
-                .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -123,11 +122,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testSimpleProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(histogram("histo").field(NUMBER_FIELD).interval(1L))
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -159,8 +157,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -171,7 +168,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -246,8 +243,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testMultiLevelProfileBreadthFirst() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -258,7 +254,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -320,8 +316,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testDiversifiedAggProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 diversifiedSampler("diversify").shardSize(10)
                     .field(STRING_FIELD)
@@ -329,7 +324,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     .subAggregation(max("max").field(NUMBER_FIELD))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -376,8 +371,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testComplexProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("idx").setProfile(true)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -398,7 +392,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
@@ -593,8 +587,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     }
 
     public void testNoProfile() {
-        SearchResponse response = client().prepareSearch("idx")
-            .setProfile(false)
+        SearchResponse response = prepareSearch("idx").setProfile(false)
             .addAggregation(
                 histogram("histo").field(NUMBER_FIELD)
                     .interval(1L)
@@ -615,7 +608,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     )
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(0));
@@ -633,7 +626,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("dateidx")
                 .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping("date", "type=date")
-                .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
@@ -642,8 +634,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         }
         indexRandom(true, false, builders);
 
-        SearchResponse response = client().prepareSearch("dateidx")
-            .setProfile(true)
+        SearchResponse response = prepareSearch("dateidx").setProfile(true)
             .addAggregation(
                 new DateHistogramAggregationBuilder("histo").field("date")
                     .calendarInterval(DateHistogramInterval.MONTH)
@@ -652,7 +643,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                     .subAggregation(new MaxAggregationBuilder("m").field("date"))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
         assertThat(profileResults.size(), equalTo(getNumShards("dateidx").numPrimaries));
@@ -708,7 +699,6 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 indicesAdmin().prepareCreate("date_filter_by_filter_disabled")
                     .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                     .setMapping("date", "type=date", "keyword", "type=keyword")
-                    .get()
             );
             List<IndexRequestBuilder> builders = new ArrayList<>();
             for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
@@ -720,11 +710,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             }
             indexRandom(true, false, builders);
 
-            SearchResponse response = client().prepareSearch("date_filter_by_filter_disabled")
-                .setProfile(true)
+            SearchResponse response = prepareSearch("date_filter_by_filter_disabled").setProfile(true)
                 .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
                 .get();
-            assertSearchResponse(response);
+            assertNoFailures(response);
             Map<String, SearchProfileShardResult> profileResults = response.getProfileResults();
             assertThat(profileResults, notNullValue());
             assertThat(profileResults.size(), equalTo(getNumShards("date_filter_by_filter_disabled").numPrimaries));

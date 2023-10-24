@@ -73,7 +73,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         @SuppressWarnings({ "unchecked", "rawtypes" }) // Magical generics incantation.....
         ArgumentCaptor<ActionListener<ListTasksResponse>> subListener = ArgumentCaptor.forClass((Class) ActionListener.class);
         if (runningSlices > 0) {
-            verify(client).execute(eq(RethrottleAction.INSTANCE), subRequest.capture(), subListener.capture());
+            verify(client).execute(eq(ReindexPlugin.RETHROTTLE_ACTION), subRequest.capture(), subListener.capture());
 
             assertEquals(new TaskId(localNodeId, task.getId()), subRequest.getValue().getTargetParentTaskId());
             assertEquals(newRequestsPerSecond / runningSlices, subRequest.getValue().getRequestsPerSecond(), 0.00001f);

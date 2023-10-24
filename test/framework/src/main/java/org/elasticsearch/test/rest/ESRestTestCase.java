@@ -22,7 +22,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -500,7 +500,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(ListTasksAction.NAME)
+                            if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
                                 || taskFilter.test(taskName)) {
                                 continue;
@@ -1264,8 +1264,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void logIfThereAreRunningTasks() throws IOException {
         Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
-        runningTasks.remove(ListTasksAction.NAME);
-        runningTasks.remove(ListTasksAction.NAME + "[n]");
+        runningTasks.remove(TransportListTasksAction.TYPE.name());
+        runningTasks.remove(TransportListTasksAction.TYPE.name() + "[n]");
         if (runningTasks.isEmpty()) {
             return;
         }

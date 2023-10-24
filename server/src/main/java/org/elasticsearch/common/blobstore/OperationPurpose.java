@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
  */
 public enum OperationPurpose {
     SNAPSHOT("Snapshot"),
+    REPOSITORY_ANALYSIS("RepositoryAnalysis"),
     CLUSTER_STATE("ClusterState"),
     INDICES("Indices"),
     TRANSLOG("Translog");

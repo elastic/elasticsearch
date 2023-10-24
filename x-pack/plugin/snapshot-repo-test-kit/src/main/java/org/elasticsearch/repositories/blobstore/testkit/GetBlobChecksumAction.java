@@ -98,10 +98,10 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
             final InputStream rawInputStream;
             try {
                 if (request.isWholeBlob()) {
-                    rawInputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, request.getBlobName());
+                    rawInputStream = blobContainer.readBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.getBlobName());
                 } else {
                     rawInputStream = blobContainer.readBlob(
-                        OperationPurpose.SNAPSHOT,
+                        OperationPurpose.REPOSITORY_ANALYSIS,
                         request.getBlobName(),
                         request.getRangeStart(),
                         request.getRangeLength()

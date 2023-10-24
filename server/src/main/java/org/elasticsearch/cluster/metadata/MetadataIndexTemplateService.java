@@ -726,10 +726,11 @@ public class MetadataIndexTemplateService {
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
         validateLifecycleIsOnlyAppliedOnDataStreams(currentState.metadata(), name, templateToValidate);
 
-        // TODO if (templateToValidate.deprecated() == false)
-        validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
-        // TODO validateUseOfDeprecatedIlmPolicies
-        // TODO validateUseOfDeprecatedIngestPipelines
+        if (templateToValidate.deprecated() == false) {
+            validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
+            // TODO validateUseOfDeprecatedIlmPolicies
+            // TODO validateUseOfDeprecatedIngestPipelines
+        }
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates

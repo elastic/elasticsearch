@@ -249,7 +249,13 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
         });
 
-        flush(indexNameB);
+        if (randomBoolean()) {
+            flush(indexNameB);
+        } else {
+            // If meanwhile the index is deleted, we should still be able to clean up the translog blobs, since
+            // the other index is committed.
+            assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexNameB)).actionGet());
+        }
 
         assertBusy(() -> {
             assertThat(translogReplicator.getActiveTranslogFiles().size(), equalTo(0));

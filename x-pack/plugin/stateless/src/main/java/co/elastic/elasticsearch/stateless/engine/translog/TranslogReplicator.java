@@ -715,12 +715,22 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private static boolean allShardsAtLeastYellow(BlobTranslogFile fileToDelete, ClusterState state) {
             for (ShardId shardId : fileToDelete.includedShards) {
-                if (new ClusterShardHealth(shardId.getId(), state.routingTable().shardRoutingTable(shardId))
-                    .getStatus() == ClusterHealthStatus.RED) {
+                if (isShardRed(state, shardId)) {
                     return false;
                 }
             }
             return true;
+        }
+
+        private static boolean isShardRed(ClusterState state, ShardId shardId) {
+            var indexRoutingTable = state.routingTable().index(shardId.getIndex());
+            if (indexRoutingTable == null) {
+                logger.debug("index not found while checking if shard {} is red", shardId);
+                return false;
+            }
+            var shardRoutingTable = indexRoutingTable.shard(shardId.id());
+            assert shardRoutingTable != null;
+            return new ClusterShardHealth(shardId.getId(), shardRoutingTable).getStatus() == ClusterHealthStatus.RED;
         }
 
         public void close() {

@@ -478,7 +478,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(restoredIndexName);
 
-        assertHitCount(client().prepareSearch(restoredIndexName).setSize(0).get(), nbDocs);
+        assertHitCount(prepareSearch(restoredIndexName).setSize(0), nbDocs);
 
         final Index restoredIndex = resolveIndex(restoredIndexName);
         for (String node : internalCluster().getNodeNames()) {

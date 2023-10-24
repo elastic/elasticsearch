@@ -35,28 +35,28 @@ public class ReindexBasicTests extends ReindexTestCase {
             client().prepareIndex("source").setId("3").setSource("foo", "b"),
             client().prepareIndex("source").setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), 4);
+        assertHitCount(prepareSearch("source").setSize(0), 4);
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         assertThat(copy.get(), matcher().created(4));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), 4);
+        assertHitCount(prepareSearch("dest").setSize(0), 4);
 
         // Now none of them
         createIndex("none");
         copy = reindex().source("source").destination("none").filter(termQuery("foo", "no_match")).refresh(true);
         assertThat(copy.get(), matcher().created(0));
-        assertHitCount(client().prepareSearch("none").setSize(0).get(), 0);
+        assertHitCount(prepareSearch("none").setSize(0), 0);
 
         // Now half of them
         copy = reindex().source("source").destination("dest_half").filter(termQuery("foo", "a")).refresh(true);
         assertThat(copy.get(), matcher().created(2));
-        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), 2);
+        assertHitCount(prepareSearch("dest_half").setSize(0), 2);
 
         // Limit with maxDocs
         copy = reindex().source("source").destination("dest_size_one").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
-        assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);
+        assertHitCount(prepareSearch("dest_size_one").setSize(0), 1);
     }
 
     public void testCopyMany() throws Exception {
@@ -67,14 +67,14 @@ public class ReindexBasicTests extends ReindexTestCase {
         }
 
         indexRandom(true, docs);
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+        assertHitCount(prepareSearch("source").setSize(0), max);
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true);
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(max, 5));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
+        assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
         int half = max / 2;
@@ -83,7 +83,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.source().setSize(5);
         copy.maxDocs(half);
         assertThat(copy.get(), matcher().created(half).batches(half, 5));
-        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), half);
+        assertHitCount(prepareSearch("dest_half").setSize(0), half);
     }
 
     public void testCopyManyWithSlices() throws Exception {
@@ -94,7 +94,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         }
 
         indexRandom(true, docs);
-        assertHitCount(client().prepareSearch("source").setSize(0).get(), max);
+        assertHitCount(prepareSearch("source").setSize(0), max);
 
         int slices = randomSlices();
         int expectedSlices = expectedSliceStatuses(slices, "source");
@@ -104,7 +104,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
+        assertHitCount(prepareSearch("dest").setSize(0), max);
 
         // Copy some of the docs
         int half = max / 2;
@@ -114,7 +114,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         copy.maxDocs(half);
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().created(lessThanOrEqualTo((long) half)).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), response.getCreated());
+        assertHitCount(prepareSearch("dest_half").setSize(0), response.getCreated());
     }
 
     public void testMultipleSources() throws Exception {
@@ -134,7 +134,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         indexRandom(true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
-            assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
+            assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
         int slices = randomSlices(1, 10);
@@ -145,7 +145,7 @@ public class ReindexBasicTests extends ReindexTestCase {
 
         BulkByScrollResponse response = request.get();
         assertThat(response, matcher().created(allDocs.size()).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest").setSize(0).get(), allDocs.size());
+        assertHitCount(prepareSearch("dest").setSize(0), allDocs.size());
     }
 
     public void testMissingSources() {
@@ -166,12 +166,12 @@ public class ReindexBasicTests extends ReindexTestCase {
             client().prepareIndex(sourceIndexName).setId("3").setSource("foo", "b"),
             client().prepareIndex(sourceIndexName).setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch(sourceIndexName).setSize(0).get(), 4);
+        assertHitCount(prepareSearch(sourceIndexName).setSize(0), 4);
 
         // Copy all the docs
         ReindexRequestBuilder copy = reindex().source(sourceIndexName).destination(destIndexName).refresh(true);
         assertThat(copy.get(), matcher().created(4));
-        assertHitCount(client().prepareSearch(destIndexName).setSize(0).get(), 4);
+        assertHitCount(prepareSearch(destIndexName).setSize(0), 4);
     }
 
 }

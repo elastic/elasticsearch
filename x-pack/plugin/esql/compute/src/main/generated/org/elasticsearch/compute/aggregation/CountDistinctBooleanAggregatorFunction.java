@@ -90,6 +90,10 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     BooleanVector fbit = page.<BooleanBlock>getBlock(channels.get(0)).asVector();
     BooleanVector tbit = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
     assert fbit.getPositionCount() == 1;

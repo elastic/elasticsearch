@@ -96,7 +96,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testGetServiceAccountPrincipals() {
         assertThat(
             ServiceAccountService.getServiceAccountPrincipals(),
-            containsInAnyOrder("elastic/enterprise-search-server", "elastic/fleet-server", "elastic/kibana")
+            containsInAnyOrder("elastic/enterprise-search-server", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
         );
     }
 

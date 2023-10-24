@@ -327,13 +327,13 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // search with versioning
         for (int i = 0; i < 10; i++) {
             // TODO: ADD SEQ NO!
-            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
+            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
+            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
         }
 
@@ -396,8 +396,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
+            SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
                 .setVersion(true)
                 .seqNoAndPrimaryTerm(true)
                 .execute()

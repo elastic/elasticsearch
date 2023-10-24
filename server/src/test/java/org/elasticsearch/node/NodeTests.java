@@ -673,7 +673,7 @@ public class NodeTests extends ESTestCase {
                     List.of(TestClusterCoordinationPlugin1.class, TestClusterCoordinationPlugin2.class, getTestTransportPlugin())
                 )
             ).getMessage(),
-            containsString("multiple persisted-state-service factories found")
+            containsString("A single " + ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class.getName() + " was expected")
         );
 
         try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
@@ -686,5 +686,4 @@ public class NodeTests extends ESTestCase {
             }
         }
     }
-
 }

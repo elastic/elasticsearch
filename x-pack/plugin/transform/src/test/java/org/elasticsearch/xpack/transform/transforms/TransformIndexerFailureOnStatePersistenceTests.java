@@ -11,10 +11,12 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +65,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
             CheckpointProvider checkpointProvider,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
-            Client client,
+            ParentTaskAssigningClient client,
             TransformIndexerStats initialStats,
             TransformConfig transformConfig,
             TransformProgress transformProgress,
@@ -220,7 +222,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
                     null,
-                    client,
+                    new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                     mock(TransformIndexerStats.class),
                     config,
                     null,
@@ -302,7 +304,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                     mock(CheckpointProvider.class),
                     new AtomicReference<>(IndexerState.STOPPED),
                     null,
-                    client,
+                    new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                     mock(TransformIndexerStats.class),
                     config,
                     null,
@@ -432,7 +434,7 @@ public class TransformIndexerFailureOnStatePersistenceTests extends ESTestCase {
                 mock(CheckpointProvider.class),
                 new AtomicReference<>(IndexerState.STOPPED),
                 null,
-                client,
+                new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                 mock(TransformIndexerStats.class),
                 config,
                 null,

@@ -7,25 +7,15 @@
  */
 import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  numberOfNodes = 2
-
-  setting 'xpack.ml.enabled', 'false'
-  // We run with a trial license, but explicitly disable security.
-  // This means the security plugin is loaded and all feature are permitted, but they are not enabled
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'false'
-}
-
-if (BuildParams.inFipsJvm){
+tasks.named("javaRestTest").configure {
+  usesDefaultDistribution()
   // Test clusters run with security disabled
-  tasks.named("javaRestTest").configure{enabled = false }
+  BuildParams.withFipsEnabledOnly(it)
 }

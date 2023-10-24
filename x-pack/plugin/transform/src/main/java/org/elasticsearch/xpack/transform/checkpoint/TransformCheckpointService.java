@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.transform.checkpoint;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -53,7 +53,7 @@ public class TransformCheckpointService {
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
-    public CheckpointProvider getCheckpointProvider(final Client client, final TransformConfig transformConfig) {
+    public CheckpointProvider getCheckpointProvider(final ParentTaskAssigningClient client, final TransformConfig transformConfig) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(
                 clock,
@@ -85,7 +85,7 @@ public class TransformCheckpointService {
      * @param listener listener to retrieve the result
      */
     public void getCheckpointingInfo(
-        final Client client,
+        final ParentTaskAssigningClient client,
         final String transformId,
         final long lastCheckpointNumber,
         final TransformIndexerPosition nextCheckpointPosition,

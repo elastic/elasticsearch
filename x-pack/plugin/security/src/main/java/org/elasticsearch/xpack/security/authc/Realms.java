@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import com.nimbusds.jwt.JWTClaimsSet;
-import com.nimbusds.jwt.SignedJWT;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -38,11 +35,9 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -248,30 +243,6 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
             return true;
         }
         return feature.checkWithoutTracking(licenseState);
-    }
-
-    public static String buildJwtTokenPrincipal(Iterable<Realm> realms, SignedJWT signedJWT) {
-        final JWTClaimsSet jwtClaimsSet;
-        try {
-            jwtClaimsSet = signedJWT.getJWTClaimsSet();
-        } catch (ParseException e) {
-            assert false : "claims should've been correctly parsed before";
-            throw new IllegalStateException("Failed to parse JWT claims set", e);
-        }
-        final String issuer = jwtClaimsSet.getIssuer();
-        if (Strings.hasText(issuer) == false) {
-            return "<unrecognized-jwt>";
-        }
-        for (var realm : realms) {
-            if (realm instanceof final JwtRealm jwtRealm) {
-                // Try all known extraction functions to build the token principal
-                final String tokenPrincipalSuffix = jwtRealm.buildTokenPrincipal(jwtClaimsSet);
-                if (tokenPrincipalSuffix != null) {
-                    return issuer + "/" + tokenPrincipalSuffix;
-                }
-            }
-        }
-        return "<unrecognized-jwt> by " + issuer;
     }
 
     @Nullable

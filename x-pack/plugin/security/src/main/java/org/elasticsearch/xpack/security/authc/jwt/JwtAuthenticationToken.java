@@ -9,9 +9,13 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.Realm;
 
 import java.text.ParseException;
 import java.util.Arrays;
@@ -21,11 +25,38 @@ import java.util.Objects;
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
+    private static final Logger LOGGER = LogManager.getLogger(JwtAuthenticationToken.class);
+
     private final String principal;
     private SignedJWT signedJWT;
     private final byte[] userCredentialsHash;
     @Nullable
     private final SecureString clientAuthenticationSharedSecret;
+
+    public static JwtAuthenticationToken parseJWTAuthenticationToken(
+        Iterable<Realm> allRealms,
+        @Nullable CharSequence jwt,
+        @Nullable SecureString clientAuthentication
+    ) {
+        if (jwt == null || jwt.isEmpty()) {
+            return null;
+        }
+        final SignedJWT signedJWT;
+        try {
+            signedJWT = SignedJWT.parse(jwt.toString());
+            // trigger JWT claims parsing
+            signedJWT.getJWTClaimsSet();
+        } catch (ParseException e) {
+            LOGGER.debug("Failed to parse JWT bearer token", e);
+            return null;
+        }
+        return new JwtAuthenticationToken(
+            buildJwtTokenPrincipal(allRealms, signedJWT),
+            signedJWT,
+            JwtUtil.sha256(jwt),
+            clientAuthentication
+        );
+    }
 
     /**
      * Store a mandatory JWT and optional Shared Secret.
@@ -35,7 +66,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
      *                            See also {@link JwtRealm#authenticate}.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
-    public JwtAuthenticationToken(
+    private JwtAuthenticationToken(
         String principal,
         SignedJWT signedJWT,
         byte[] userCredentialsHash,
@@ -94,5 +125,29 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     @Override
     public String toString() {
         return JwtAuthenticationToken.class.getSimpleName() + "=" + this.principal;
+    }
+
+    private static String buildJwtTokenPrincipal(Iterable<Realm> realms, SignedJWT signedJWT) {
+        final JWTClaimsSet jwtClaimsSet;
+        try {
+            jwtClaimsSet = signedJWT.getJWTClaimsSet();
+        } catch (ParseException e) {
+            assert false : "claims should've been correctly parsed before";
+            throw new IllegalStateException("Failed to parse JWT claims set", e);
+        }
+        final String issuer = jwtClaimsSet.getIssuer();
+        if (Strings.hasText(issuer) == false) {
+            return "<unrecognized-jwt>";
+        }
+        for (var realm : realms) {
+            if (realm instanceof final JwtRealm jwtRealm) {
+                // Try all known extraction functions to build the token principal
+                final String tokenPrincipalSuffix = jwtRealm.buildTokenPrincipal(jwtClaimsSet);
+                if (tokenPrincipalSuffix != null) {
+                    return issuer + "/" + tokenPrincipalSuffix;
+                }
+            }
+        }
+        return "<unrecognized-jwt> by " + issuer;
     }
 }

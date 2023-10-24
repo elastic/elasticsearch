@@ -744,7 +744,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 final var currentUploadId = currentUpload.getUploadId();
                                 if (uploadId.equals(currentUploadId) == false) {
                                     blobStore.getSnapshotExecutor()
-                                        .execute(ActionRunnable.run(listeners.acquire(), () -> safeAbortMultipartUpload(currentUploadId)));
+                                        .execute(ActionRunnable.run(listeners.acquire(), () -> abortMultipartUploadIfExists(currentUploadId)));
                                 }
                             }
                         } finally {

@@ -32,6 +32,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -58,6 +60,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
@@ -246,8 +249,8 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 threadPool,
                 transportService,
                 clusterService,
-                null,
-                null,
+                mock(IngestService.class),
+                mock(FieldInferenceBulkRequestPreprocessor.class),
                 client,
                 actionFilters,
                 indexNameExpressionResolver,

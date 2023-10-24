@@ -147,7 +147,9 @@ import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.PipelinesBulkRequestPreprocessor;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -550,6 +552,14 @@ public class Node implements Closeable {
                 client,
                 IngestService.createGrokThreadWatchdog(this.environment, threadPool),
                 documentParsingObserverSupplier
+            );
+            final PipelinesBulkRequestPreprocessor pipelinesBulkRequestPreprocessor = new PipelinesBulkRequestPreprocessor(
+                documentParsingObserverSupplier,
+                ingestService
+            );
+            final FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor = new FieldInferenceBulkRequestPreprocessor(
+                documentParsingObserverSupplier,
+                client
             );
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);

@@ -9,30 +9,30 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.grok.MatcherWatchdog;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
-public class FieldInferenceIngestService extends IngestService {
+public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPreprocessor {
 
-    public FieldInferenceIngestService(ClusterService clusterService, ThreadPool threadPool, Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry, List<IngestPlugin> ingestPlugins, Client client, MatcherWatchdog matcherWatchdog, Supplier<DocumentParsingObserver> documentParsingObserverSupplier) {
-        super(clusterService, threadPool, env, scriptService, analysisRegistry, ingestPlugins, client, matcherWatchdog, documentParsingObserverSupplier);
+    public static final String SEMANTIC_TEXT_ORIGIN = "semantic_text";
+
+    private final Client client;
+
+    public FieldInferenceBulkRequestPreprocessor(Supplier<DocumentParsingObserver> documentParsingObserver, Client client) {
+        super(documentParsingObserver);
+        this.client = new OriginSettingClient(client, SEMANTIC_TEXT_ORIGIN);
     }
 
     protected void processIndexRequest(
@@ -51,7 +51,7 @@ public class FieldInferenceIngestService extends IngestService {
     }
 
     @Override
-    public boolean needsProcessing(IndexRequest indexRequest) {
+    public boolean needsProcessing(DocWriteRequest docWriteRequest, IndexRequest indexRequest, Metadata metadata) {
         return (indexRequest.isFieldInferenceResolved() == false)
             && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
     }
@@ -78,7 +78,7 @@ public class FieldInferenceIngestService extends IngestService {
         int position,
         BiConsumer<Integer, Exception> onFailure
     ) {
-        var ingestDocument = newIngestDocument(indexRequest, documentParsingObserverSupplier.get());
+        var ingestDocument = newIngestDocument(indexRequest);
         if (ingestDocument.hasField(fieldName) == false) {
             return;
         }
@@ -93,20 +93,27 @@ public class FieldInferenceIngestService extends IngestService {
             Map.of()
         );
 
-        client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<InferenceAction.Response>() {
+        final long startTimeInNanos = System.nanoTime();
+        ingestMetric.preIngest();
+        client.execute(InferenceAction.INSTANCE, inferenceRequest, ActionListener.runAfter(new ActionListener<InferenceAction.Response>() {
             @Override
             public void onResponse(InferenceAction.Response response) {
                 ingestDocument.setFieldValue(fieldName + "_inference", response.getResult().asMap(fieldName).get(fieldName));
                 updateIndexRequestSource(indexRequest, ingestDocument);
                 indexRequest.isFieldInferenceResolved(true);
-                refs.close();
             }
 
             @Override
             public void onFailure(Exception e) {
                 onFailure.accept(position, e);
-                refs.close();
+                ingestMetric.ingestFailed();
             }
-        });
+        }, () -> {
+            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+            // that we're finished with this document
+            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+            ingestMetric.postIngest(ingestTimeInNanos);
+            refs.close();
+        }));
     }
 }

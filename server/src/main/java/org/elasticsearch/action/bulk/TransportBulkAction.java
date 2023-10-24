@@ -59,8 +59,9 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.ingest.FieldInferenceIngestService;
-import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.BulkRequestPreprocessor;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
+import org.elasticsearch.ingest.PipelinesBulkRequestPreprocessor;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -96,7 +97,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
-    private final List<IngestService> ingestionServices;
+    private final List<BulkRequestPreprocessor> bulkRequestPreprocessors;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
@@ -110,8 +111,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ThreadPool threadPool,
         TransportService transportService,
         ClusterService clusterService,
-        IngestService ingestService,
-        FieldInferenceIngestService fieldInferenceIngestService,
+        PipelinesBulkRequestPreprocessor pipelinesBulkRequestPreprocessor,
+        FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -122,8 +123,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             threadPool,
             transportService,
             clusterService,
-            ingestService,
-            fieldInferenceIngestService,
+            pipelinesBulkRequestPreprocessor,
+            fieldInferenceBulkRequestPreprocessor,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -137,8 +138,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ThreadPool threadPool,
         TransportService transportService,
         ClusterService clusterService,
-        IngestService ingestService,
-        FieldInferenceIngestService fieldInferenceIngestService,
+        PipelinesBulkRequestPreprocessor pipelinesBulkRequestPreprocessor,
+        FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -150,7 +151,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.ingestionServices = List.of(ingestService, fieldInferenceIngestService);
+        this.bulkRequestPreprocessors = List.of(pipelinesBulkRequestPreprocessor, fieldInferenceBulkRequestPreprocessor);
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -274,13 +275,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final long startTime = relativeTime();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
 
-        boolean needsProcessing = false;
-        final Metadata metadata = clusterService.state().getMetadata();
-        final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
-
         // Preprocess bulk requests with ingestion services. If needs preprocessing, then return early as the preprocessing
         // action will invoke this method again
-        if (preprocessBulkRequests(task, bulkRequest, executorName, listener, metadata, needsProcessing, minNodeVersion)) return;
+        if (preprocessBulkRequest(task, bulkRequest, executorName, listener)) return;
 
         // Attempt to create all the indices that we're going to need during the bulk before we start.
         // Step 1: collect all the indices in the request
@@ -358,16 +355,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    private boolean preprocessBulkRequests(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener, Metadata metadata, boolean needsProcessing, Version minNodeVersion) {
-        for (IngestService ingestService : ingestionServices) {
-            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
-                IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
+    private boolean preprocessBulkRequest(
+        Task task,
+        BulkRequest bulkRequest,
+        String executorName,
+        ActionListener<BulkResponse> listener
+    ) {
+        final Metadata metadata = clusterService.state().getMetadata();
+        final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
+        boolean needsProcessing = false;
+        for (BulkRequestPreprocessor preprocessor : bulkRequestPreprocessors) {
+            for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests) {
+                IndexRequest indexRequest = getIndexWriteRequest(docWriteRequest);
                 if (indexRequest != null) {
-                    IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
-                    needsProcessing |= ingestService.needsProcessing(indexRequest);
+                    needsProcessing |= preprocessor.needsProcessing(docWriteRequest, indexRequest, metadata);
                 }
 
-                if (actionRequest instanceof IndexRequest ir) {
+                if (docWriteRequest instanceof IndexRequest ir) {
                     ir.checkAutoIdWithOpTypeCreateSupportedByVersion(minNodeVersion);
                     if (ir.getAutoGeneratedTimestamp() != IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP) {
                         throw new IllegalArgumentException("autoGeneratedTimestamp should not be set externally");
@@ -385,11 +389,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             .stream()
                             .map(TransportBulkAction::getIndexWriteRequest)
                             .filter(Objects::nonNull)
-                            .allMatch(ingestService::hasBeenProcessed);
+                            .allMatch(preprocessor::hasBeenProcessed);
                         assert areRequestsProcessed : bulkRequest;
                     }
-                    if ((ingestService.shouldExecuteOnIngestNode() == false) || clusterService.localNode().isIngestNode()) {
-                        processBulkIndexIngestRequest(task, bulkRequest, executorName, ingestService, l);
+                    if ((preprocessor.shouldExecuteOnIngestNode() == false) || clusterService.localNode().isIngestNode()) {
+                        preprocessBulkRequestWithPreprocessor(preprocessor, task, bulkRequest, executorName, l);
                     } else {
                         ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, l);
                     }
@@ -398,6 +402,67 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
         }
         return false;
+    }
+
+    private void preprocessBulkRequestWithPreprocessor(
+        BulkRequestPreprocessor preprocessor,
+        Task task,
+        BulkRequest original,
+        String executorName,
+        ActionListener<BulkResponse> listener
+    ) {
+        final long ingestStartTimeInNanos = System.nanoTime();
+        final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        preprocessor.processBulkRequest(
+            threadPool.executor(executorName),
+            original.numberOfActions(),
+            () -> bulkRequestModifier,
+            bulkRequestModifier::markItemAsDropped,
+            bulkRequestModifier::markItemAsFailed,
+            (originalThread, exception) -> {
+                if (exception != null) {
+                    logger.debug("failed to execute pipeline for a bulk request", exception);
+                    listener.onFailure(exception);
+                } else {
+                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
+                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
+                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
+                        ingestTookInMillis,
+                        listener
+                    );
+                    if (bulkRequest.requests().isEmpty()) {
+                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
+                        // so we stop and send an empty response back to the client.
+                        // (this will happen if pre-processing all items in the bulk failed)
+                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                    } else {
+                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
+                            @Override
+                            protected void doRun() {
+                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                            }
+
+                            @Override
+                            public boolean isForceExecution() {
+                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
+                                // (Otherwise the work done during ingest will be lost)
+                                // It is okay to force execution here. Throttling of write requests happens prior to
+                                // ingest when a node receives a bulk request.
+                                return true;
+                            }
+                        };
+                        // If a processor went async and returned a response on a different thread then
+                        // before we continue the bulk request we should fork back on a write thread:
+                        if (originalThread == Thread.currentThread()) {
+                            runnable.run();
+                        } else {
+                            threadPool.executor(executorName).execute(runnable);
+                        }
+                    }
+                }
+            },
+            executorName
+        );
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
@@ -813,66 +878,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private long relativeTime() {
         return relativeTimeProvider.getAsLong();
-    }
-
-    private void processBulkIndexIngestRequest(
-        Task task,
-        BulkRequest original,
-        String executorName,
-        IngestService ingestService,
-        ActionListener<BulkResponse> listener
-    ) {
-        final long ingestStartTimeInNanos = System.nanoTime();
-        final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.processBulkRequest(
-            original.numberOfActions(),
-            () -> bulkRequestModifier,
-            bulkRequestModifier::markItemAsDropped,
-            bulkRequestModifier::markItemAsFailed,
-            (originalThread, exception) -> {
-                if (exception != null) {
-                    logger.debug("failed to execute pipeline for a bulk request", exception);
-                    listener.onFailure(exception);
-                } else {
-                    long ingestTookInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ingestStartTimeInNanos);
-                    BulkRequest bulkRequest = bulkRequestModifier.getBulkRequest();
-                    ActionListener<BulkResponse> actionListener = bulkRequestModifier.wrapActionListenerIfNeeded(
-                        ingestTookInMillis,
-                        listener
-                    );
-                    if (bulkRequest.requests().isEmpty()) {
-                        // at this stage, the transport bulk action can't deal with a bulk request with no requests,
-                        // so we stop and send an empty response back to the client.
-                        // (this will happen if pre-processing all items in the bulk failed)
-                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
-                    } else {
-                        ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
-                            @Override
-                            protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executorName, actionListener);
-                            }
-
-                            @Override
-                            public boolean isForceExecution() {
-                                // If we fork back to a write thread we **not** should fail, because tp queue is full.
-                                // (Otherwise the work done during ingest will be lost)
-                                // It is okay to force execution here. Throttling of write requests happens prior to
-                                // ingest when a node receives a bulk request.
-                                return true;
-                            }
-                        };
-                        // If a processor went async and returned a response on a different thread then
-                        // before we continue the bulk request we should fork back on a write thread:
-                        if (originalThread == Thread.currentThread()) {
-                            runnable.run();
-                        } else {
-                            threadPool.executor(executorName).execute(runnable);
-                        }
-                    }
-                }
-            },
-            executorName
-        );
     }
 
     static final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {

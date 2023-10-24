@@ -1,7 +1,7 @@
 [[ingest-pipeline-search-inference]]
 === Inference processing
 
-Starting in 8.5, *Search* creates ingestion pipelines by default to work with indices created for search use cases.
+When you create an index through the **Content** UI, a set of default ingest pipelines are also created, including a ML inference pipeline.
 The <<ingest-pipeline-search-details-specific-ml-reference, ML inference pipeline>> uses inference processors to analyze fields and enrich documents with the output.
 Inference processors use ML trained models, so you need to use a built-in model or {ml-docs}/ml-nlp-deploy-models.html[deploy a trained model in your cluster^] to use this feature.
 
@@ -56,7 +56,7 @@ The diagram below shows how documents are processed during ingestion.
 // Original diagram: https://whimsical.com/ml-in-enterprise-search-ErCetPqrcCPu2QYHvAwrgP@2bsEvpTYSt1Hiuq6UBf68tUWvFiXdzLt6ao
 image::../images/ingest/document-enrichment-diagram.png["ML inference pipeline diagram"]
 
-* Documents are processed by the `my-index-0001` pipeline, which happens automatically when indexing through a Search connector or crawler.
+* Documents are processed by the `my-index-0001` pipeline, which happens automatically when indexing through a an Elastic connector or crawler.
 * The `_run_ml_inference` field is set to `true` to ensure the ML inference pipeline (`my-index-0001@ml-inference`) is executed.
   This field is removed during the ingestion process.
 * The inference processor analyzes the `message` field on the document using the `my-positivity-model-id` trained model.
@@ -65,7 +65,8 @@ image::../images/ingest/document-enrichment-diagram.png["ML inference pipeline d
 * The `ml.inference.positivity_prediction` field can now be used at query time to search for documents above or below a certain threshold.
 
 [discrete#ingest-pipeline-search-inference-find-deploy-manage-trained-models]
-=== Find, deploy, and manage trained models
+==== Find, deploy, and manage trained models
+
 This feature is intended to make it easier to use your ML trained models.
 First, you need to figure out which model works best for your data.
 Make sure to use a {ml-docs}/ml-nlp-model-ref.html[compatible third party NLP model^].
@@ -84,6 +85,7 @@ The `monitor_ml` <<security-privileges, Elasticsearch cluster privilege>> is req
 
 [discrete#ingest-pipeline-search-inference-add-inference-processors]
 ===== Add inference processors to your ML inference pipeline
+
 To create the index-specific ML inference pipeline, go to *Search -> Content -> Indices -> <your index> -> Pipelines* in the Kibana UI.
 
 If you only see the `ent-search-generic-ingestion` pipeline, you will need to click *Copy and customize* to create index-specific pipelines.
@@ -111,7 +113,7 @@ This is where the output of the inference model will be stored. Changing the def
 8. (Optional) Review the pipeline definition before creating it with the *Create pipeline* button.
 
 [discrete#ingest-pipeline-search-inference-manage-inference-processors]
-==== Manage and delete inference processors from your ML inference pipeline
+===== Manage and delete inference processors from your ML inference pipeline
 
 Inference processors added to your index-specific ML inference pipelines are normal Elasticsearch pipelines.
 Once created, each processor will have options to *View in Stack Management* and *Delete Pipeline*.
@@ -176,7 +178,7 @@ To manage these settings:
      If it is not, select it and save the changes.
 
 [discrete#ingest-pipeline-search-inference-learn-more]
-==== Learn More:
+==== Learn More
 
 * See <<ingest-pipeline-search-in-enterprise-search>> for information on the various pipelines that are created.
 * Learn about {ml-docs}/ml-nlp-elser.html[ELSER], Elastic's proprietary retrieval model for semantic search with sparse vectors.

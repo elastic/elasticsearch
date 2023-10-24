@@ -1,11 +1,10 @@
 [[ingest-pipeline-search]]
 == Ingest pipelines in Search
 
-<<ingest, Ingest Pipelines>> are an Elasticsearch native tool which let you perform common transformations on data before storing it in Elasticsearch.
+You can manage ingest pipelines through Elasticsearch APIs or Kibana UIs.
 
-All ingest pipelines are composed of an ordered list of <<processors, processors>>, which define the behavior of the pipeline.
-
-The *Content* UI under *Search* has a set of tools for working with ingest pipelines for indices created by the Elastic web crawler and Elastic connectors.
+The *Content* UI under *Search* has a set of tools for creating and managing indices optimized for search use cases (non time series data).
+You can also manage your ingest pipelines in this UI.
 
 [discrete]
 [[ingest-pipeline-search-where]]
@@ -38,7 +37,7 @@ For example:
 It can be a lot of work to set up and manage production-ready pipelines from scratch.
 Considerations such as error handling, conditional execution, sequencing, versioning, and modularization must all be taken into account.
 
-To this end, when you create indices for *Search* use cases (including {enterprise-search-ref}/crawler.html[Elastic web crawler], {enterprise-search-ref}/connectors.html[Elastic connector], and API indices), each index already has a pipeline set up with several processors that optimize your content for search.
+To this end, when you create indices for search use cases, (including {enterprise-search-ref}/crawler.html[Elastic web crawler], {enterprise-search-ref}/connectors.html[Elastic connector], and API indices), each index already has a pipeline set up with several processors that optimize your content for search.
 
 This pipeline is called `ent-search-generic-ingestion`.
 While it is a "managed" pipeline (meaning it should not be tampered with), you can view its details via the Kibana UI or the Elasticsearch API.
@@ -63,12 +62,12 @@ This will replace the index's use of `ent-search-generic-ingestion` with 3 newly
 
 Like `ent-search-generic-ingestion`, the first of these is "managed", but the other two can and should be modified to fit your needs.
 You can view these pipelines using the platform tools (Kibana UI, Elasticsearch API), and can also 
-//<<ingest-pipeline-search-details-specific,read more about their content below>>.
+<<ingest-pipeline-search-details-specific,read more about their content below>>.
 
 [discrete#ingest-pipeline-search-pipeline-settings]
 === Pipeline Settings
 
-Aside from the pipeline itself, *Search* provides a few configuration options which control individual features of the pipelines.
+Aside from the pipeline itself, you have a few configuration options which control individual features of the pipelines.
 
 * **Extract Binary Content** - This controls whether or not binary documents should be processed and any textual content should be extracted.
 * **Reduce Whitespace** - This controls whether or not consecutive, leading, and trailing whitespaces should be removed.
@@ -124,8 +123,7 @@ If the pipeline is not specified, the underscore-prefixed fields will actually b
 [discrete#ingest-pipeline-search-details-generic-reference]
 ==== `ent-search-generic-ingestion` Reference
 
-As soon as *Search* starts, this pipeline is automatically available to use.
-You can access it with the <<get-pipeline-api, Elasticsearch Ingest Pipelines API>> or via Kibana's <<create-manage-ingest-pipelines,Stack Management > Ingest Pipelines>> UI.
+You can access this pipeline with the <<get-pipeline-api, Elasticsearch Ingest Pipelines API>> or via Kibana's <<create-manage-ingest-pipelines,Stack Management > Ingest Pipelines>> UI.
 
 [WARNING]
 =========================
@@ -222,7 +220,7 @@ See <<ingest-pipeline-search-pipeline-settings>>.
 This pipeline is empty to start (no processors), but can be added to via the Kibana UI either through the Pipelines tab of your index, or from the *Stack Management > Ingest Pipelines* page.
 Unlike the `ent-search-generic-ingestion` pipeline and the `<index-name>` pipeline, this pipeline is NOT "managed".
 
-It's possible to add one or more ML inference pipelines to an index in *Search*.
+It's possible to add one or more ML inference pipelines to an index in the *Content* UI.
 This pipeline will serve as a container for all of the ML inference pipelines configured for the index.
 Each ML inference pipeline added to the index is referenced within `<index-name>@ml-inference` using a `pipeline` processor.
 
@@ -244,8 +242,8 @@ tab of your index, or from the *Stack Management > Ingest Pipelines* page.
 Unlike the `ent-search-generic-ingestion` pipeline and the `<index-name>` pipeline, this pipeline is NOT "managed".
 
 You are encouraged to make additions and edits to this pipeline, provided its name remains the same.
-This provides users a convenient hook from which to add their own custom processing and transformations for their *Search* data.
-Be sure to read the <<ingest, docs for ingest pipelines>> so that you know what all is available to you here.
+This provides a convenient hook from which to add custom processing and transformations for your data.
+Be sure to read the <<ingest, docs for ingest pipelines>> to see what options are available.
 
 [WARNING]
 =========================
@@ -273,7 +271,6 @@ These changes should be re-applied to each index's `<index-name>@custom` pipelin
   In 8.5+, the <<ingest-pipeline-search-pipeline-settings, index setting to enable binary content>> is required *in addition* to the configurations mentioned in the {enterprise-search-ref}/crawler-managing.html#crawler-managing-binary-content[Elastic web crawler Guide].
 
 * `ent-search-generic-ingestion` - Since 8.5, Native Connectors, Connector Clients, and new (>8.4) Elastic web crawler indices will all make use of this pipeline by default.
-  A natural evolution from `app_search_crawler` and `ent_search_crawler`, this pipeline is designed to meet more generic needs across *Search*.
   You can <<ingest-pipeline-search-details-generic-reference, read more about this pipeline>> above.
   As this pipeline is "managed", any modifications that were made to `app_search_crawler` and/or `ent_search_crawler` should NOT be made to `ent-search-generic-ingestion`.
   Instead, if such customizations are desired, you should utilize <<ingest-pipeline-search-details-specific>>, placing all modifications in the `<index-name>@custom` pipeline(s).
@@ -288,7 +285,7 @@ These changes should be re-applied to each index's `<index-name>@custom` pipelin
 
 *Q*: The Elasticsearch docs note that there are three types of ingest pipelines.
   "Request Pipelines", "Default Pipelines", and "Final Pipelines".
-  Which does *Search* use? +
+  Which does the *Content* UI use? +
 *A*: *Search* utilizes <<add-pipeline-to-indexing-request,Request Pipelines>>.
   This way, whether you are using Elastic web crawler, a Connector, or an Elasticsearch API, it is explicit when a pipeline is part of the indexing request.
   It also leaves the door open for you to specify your own Final Pipeline without worrying about overriding anything coming from Elasticsearch.
@@ -309,5 +306,5 @@ Find us in the {forum}[discuss forums], and let us know what you get up to!
 
 =============
 
-include::search-nlp-tutorial.asciidoc[]
 include::search-inference-processing.asciidoc[]
+include::search-nlp-tutorial.asciidoc[]

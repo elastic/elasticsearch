@@ -161,16 +161,18 @@ PUT search-photo-comments/_mapping
 // NOTCONSOLE
 
 Now it's time to create an inference pipeline.
-From the overview page for your `search-photo-comments` index in "Search", click the *Pipelines* tab.
+
+1. From the overview page for your `search-photo-comments` index in "Search", click the *Pipelines* tab.
 By default, Elasticsearch does not create any index-specific ingest pipelines.
-Since we want to customize these pipelines, we need to *Copy and customize* the `ent-search-generic-ingestion` ingest pipeline.
+2. Because we want to customize these pipelines, we need to *Copy and customize* the `ent-search-generic-ingestion` ingest pipeline.
 Find this option above the settings for the `ent-search-generic-ingestion` ingest pipeline.
 This will create two new index-specific ingest pipelines.
 
 Next, we'll add an inference pipeline.
-Locate the section *Machine Learning Inference Pipelines*, then select *Add inference pipeline*.
-Give your inference pipeline a name, select the trained model we uploaded, and select the `body` field to be analyzed.
-Optionally, choose a field name to store the output.
+
+1. Locate the section *Machine Learning Inference Pipelines*, then select *Add inference pipeline*.
+2. Give your inference pipeline a name, select the trained model we uploaded, and select the `body` field to be analyzed.
+3. Optionally, choose a field name to store the output.
 We'll call it `positivity_result`.
 
 You can also run example documents through a simulator and review the pipeline before creating it.
@@ -246,7 +248,7 @@ In this guide, we covered how to:
 - Query your search engine and sort by `positivity_result`.
 
 [discrete#nlp-example-learn-more]
-== Learn more
+==== Learn more
 
 * {ml-docs}/ml-nlp-model-ref.html[Compatible third party models^]
 * {ml-docs}/ml-nlp-overview.html[NLP Overview^]

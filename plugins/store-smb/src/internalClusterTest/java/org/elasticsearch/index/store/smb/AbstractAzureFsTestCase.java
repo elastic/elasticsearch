@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.store.smb;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugin.store.smb.SMBStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -16,7 +15,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.hamcrest.Matchers.is;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public abstract class AbstractAzureFsTestCase extends ESIntegTestCase {
     @Override
@@ -32,7 +31,6 @@ public abstract class AbstractAzureFsTestCase extends ESIntegTestCase {
             indexDoc("test", "" + i, "foo", "bar");
         }
         refresh();
-        SearchResponse response = prepareSearch("test").get();
-        assertThat(response.getHits().getTotalHits().value, is(nbDocs));
+        assertHitCount(prepareSearch("test"), nbDocs);
     }
 }

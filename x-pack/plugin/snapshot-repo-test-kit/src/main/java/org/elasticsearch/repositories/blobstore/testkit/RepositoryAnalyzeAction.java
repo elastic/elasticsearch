@@ -437,22 +437,10 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
         }
 
         /**
-         * Check that we haven't already failed or been cancelled or timed out; if newly cancelled or timed out then record this as the root
-         * cause of failure.
+         * Check that we haven't already failed (including cancellation and timing out).
          */
         private boolean isRunning() {
-            if (failure.get() != null) {
-                return false;
-            }
-
-            if (task.isCancelled()) {
-                setFirstFailure(new RepositoryVerificationException(request.repositoryName, "verification cancelled"));
-                // if this CAS failed then we're failing for some other reason, nbd; also if the task is cancelled then its descendants are
-                // also cancelled, so no further action is needed either way.
-                return false;
-            }
-
-            return true;
+            return failure.get() == null;
         }
 
         private class CheckForCancelListener implements ActionListener<Void> {
@@ -484,6 +472,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
 
             cancellationListener.addTimeout(request.getTimeout(), repository.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             cancellationListener.addListener(new CheckForCancelListener());
+
+            task.addListener(() -> setFirstFailure(new RepositoryVerificationException(request.repositoryName, "analysis cancelled")));
 
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);

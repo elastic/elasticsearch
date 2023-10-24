@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.geo;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
@@ -18,12 +17,14 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 
+
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
 /**
  * Some tests are specific to geographic test cases, notably those involving special behaviour
@@ -65,11 +66,12 @@ public class DatelinePointShapeQueryTestCase {
         Rectangle rectangle = new Rectangle(169, -178, 1, -1);
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, rectangle);
-        SearchResponse response = tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
-        SearchHits searchHits = response.getHits();
-        assertEquals(2, searchHits.getTotalHits().value);
-        assertNotEquals("1", searchHits.getAt(0).getId());
-        assertNotEquals("1", searchHits.getAt(1).getId());
+        assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
+            SearchHits searchHits = response.getHits();
+            assertEquals(2, searchHits.getTotalHits().value);
+            assertNotEquals("1", searchHits.getAt(0).getId());
+            assertNotEquals("1", searchHits.getAt(1).getId());
+        });
     }
 
     public void testPolygonSpanningDateline(BasePointShapeQueryTestCase<GeoShapeQueryBuilder> tests) throws Exception {
@@ -108,13 +110,14 @@ public class DatelinePointShapeQueryTestCase {
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, polygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
-        SearchResponse response = tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
-        SearchHits searchHits = response.getHits();
-        assertEquals(2, searchHits.getTotalHits().value);
-        assertNotEquals("1", searchHits.getAt(0).getId());
-        assertNotEquals("4", searchHits.getAt(0).getId());
-        assertNotEquals("1", searchHits.getAt(1).getId());
-        assertNotEquals("4", searchHits.getAt(1).getId());
+        assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
+            SearchHits searchHits = response.getHits();
+            assertEquals(2, searchHits.getTotalHits().value);
+            assertNotEquals("1", searchHits.getAt(0).getId());
+            assertNotEquals("4", searchHits.getAt(0).getId());
+            assertNotEquals("1", searchHits.getAt(1).getId());
+            assertNotEquals("4", searchHits.getAt(1).getId());
+        });
     }
 
     public void testMultiPolygonSpanningDateline(BasePointShapeQueryTestCase<GeoShapeQueryBuilder> tests) throws Exception {
@@ -150,10 +153,11 @@ public class DatelinePointShapeQueryTestCase {
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, multiPolygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
-        SearchResponse response = tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder).get();
-        SearchHits searchHits = response.getHits();
-        assertEquals(2, searchHits.getTotalHits().value);
-        assertNotEquals("3", searchHits.getAt(0).getId());
-        assertNotEquals("3", searchHits.getAt(1).getId());
+        assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
+            SearchHits searchHits = response.getHits();
+            assertEquals(2, searchHits.getTotalHits().value);
+            assertNotEquals("3", searchHits.getAt(0).getId());
+            assertNotEquals("3", searchHits.getAt(1).getId());
+        });
     }
 }

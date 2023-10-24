@@ -66,7 +66,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -369,9 +368,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
             }
             try {
-                cyclicBarrier.await();
+                safeAwait(cyclicBarrier);
                 indexRandom(true, true, indexRequestBuilders);
-            } catch (InterruptedException | BrokenBarrierException e) {
+            } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
             refresh(indexName);
@@ -382,11 +381,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         });
 
         final Thread snapshotThread = new Thread(() -> {
-            try {
-                cyclicBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(cyclicBarrier);
             createFullSnapshot(fsRepoName, snapshotName);
         });
 
@@ -483,7 +478,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(restore.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(restoredIndexName);
 
-        assertHitCount(client().prepareSearch(restoredIndexName).setSize(0).get(), nbDocs);
+        assertHitCount(prepareSearch(restoredIndexName).setSize(0), nbDocs);
 
         final Index restoredIndex = resolveIndex(restoredIndexName);
         for (String node : internalCluster().getNodeNames()) {

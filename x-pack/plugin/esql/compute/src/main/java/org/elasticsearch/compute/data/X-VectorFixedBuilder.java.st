@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final $type$[] values;
+    private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
      * been built.
@@ -25,7 +26,8 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
     private int nextIndex;
 
     $Type$VectorFixedBuilder(int size, BlockFactory blockFactory) {
-        blockFactory.adjustBreaker(ramBytesUsed(size), false);
+        preAdjustedBytes = ramBytesUsed(size);
+        blockFactory.adjustBreaker(preAdjustedBytes, false);
         this.blockFactory = blockFactory;
         this.values = new $type$[size];
     }
@@ -53,17 +55,26 @@ final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder {
             throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
         }
         nextIndex = -1;
+        $Type$Vector vector;
         if (values.length == 1) {
-            return new Constant$Type$Vector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
+        } else {
+            vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
         }
-        return new $Type$ArrayVector(values, values.length, blockFactory);
+        assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
+        return vector;
     }
 
     @Override
     public void close() {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
-            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+            nextIndex = -1;
+            blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
+    }
+
+    boolean isReleased() {
+        return nextIndex < 0;
     }
 }

@@ -55,7 +55,7 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    SearchResponse response = client().prepareSearch("test").get();
+                    SearchResponse response = prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value
@@ -74,7 +74,7 @@ public class IndexActionIT extends ESIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    SearchResponse response = client().prepareSearch("test").get();
+                    SearchResponse response = prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value
@@ -103,7 +103,7 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_2").execute().actionGet();
@@ -120,7 +120,7 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
+        DocWriteResponse indexResponse = client().prepareIndex("test").setId("1").setSource("field1", "value1_1").execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         client().prepareDelete("test", "1").execute().actionGet();
@@ -148,7 +148,7 @@ public class IndexActionIT extends ESIntegTestCase {
                 @Override
                 public Void call() throws Exception {
                     int docId = random.nextInt(docCount);
-                    IndexResponse indexResponse = indexDoc("test", Integer.toString(docId), "field1", "value");
+                    DocWriteResponse indexResponse = indexDoc("test", Integer.toString(docId), "field1", "value");
                     if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                         createdCounts.incrementAndGet(docId);
                     }
@@ -169,7 +169,7 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        IndexResponse indexResponse = client().prepareIndex("test")
+        DocWriteResponse indexResponse = client().prepareIndex("test")
             .setId("1")
             .setSource("field1", "value1_1")
             .setVersion(123)

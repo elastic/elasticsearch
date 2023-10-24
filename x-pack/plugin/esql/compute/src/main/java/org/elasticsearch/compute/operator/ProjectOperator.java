@@ -10,9 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -70,24 +68,7 @@ public class ProjectOperator extends AbstractPageMappingOperator {
             var block = page.getBlock(source);
             blocks[b++] = block;
         }
-        // iterate the blocks to see which one isn't used
-        List<Releasable> blocksToRelease = new ArrayList<>();
-
-        for (int i = 0; i < blockCount; i++) {
-            boolean used = false;
-            var current = page.getBlock(i);
-            for (int j = 0; j < blocks.length; j++) {
-                if (current == blocks[j]) {
-                    used = true;
-                    break;
-                }
-            }
-            if (used == false) {
-                blocksToRelease.add(current);
-            }
-        }
-        Releasables.close(blocksToRelease);
-        return new Page(page.getPositionCount(), blocks);
+        return page.newPageAndRelease(blocks);
     }
 
     @Override

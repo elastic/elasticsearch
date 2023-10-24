@@ -218,10 +218,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return nextCheckpoint;
     }
 
-    public CheckpointProvider getCheckpointProvider() {
-        return checkpointProvider;
-    }
-
     /**
      * Request a checkpoint
      */
@@ -564,10 +560,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void afterFinishOrFailure() {
-        finishIndexerThreadShutdown(() -> {
-            auditor.info(transformConfig.getId(), "Transform has stopped.");
-            logger.info("[{}] transform has stopped.", transformConfig.getId());
-        });
+        finishIndexerThreadShutdown();
     }
 
     @Override
@@ -647,6 +640,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         } catch (Exception e) {
             logger.error(() -> "[" + getJobId() + "] transform encountered an unexpected internal exception: ", e);
         }
+    }
+
+    @Override
+    protected void onStop() {
+        auditor.info(transformConfig.getId(), "Transform has stopped.");
+        logger.info("[{}] transform has stopped.", transformConfig.getId());
     }
 
     @Override
@@ -1200,7 +1199,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
     }
 
-    private void finishIndexerThreadShutdown(Runnable next) {
+    private void finishIndexerThreadShutdown() {
         synchronized (context) {
             indexerThreadShuttingDown = false;
             if (saveStateRequestedDuringIndexerThreadShutdown) {
@@ -1209,9 +1208,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 if (context.shouldStopAtCheckpoint() && nextCheckpoint == null) {
                     stop();
                 }
-                doSaveState(getState(), getPosition(), next);
-            } else {
-                next.run();
+                doSaveState(getState(), getPosition(), () -> {});
             }
         }
     }

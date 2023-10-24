@@ -138,8 +138,7 @@ FROM ul_logs
 2017-11-10T20:34:43.000Z | 17764691215469285192 | 1.75E19
 ;
 
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-toDegrees-Ignore
+toDegrees
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | KEEP bytes_in, deg
 ;
 
@@ -147,9 +146,7 @@ FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | K
 16002960716282089759 | 9.169021087566165E20
 ;
 
-
-# AwaitsFix https://github.com/elastic/elasticsearch/issues/99826
-toRadians-Ignore
+toRadians
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL rad = TO_RADIANS(bytes_in) | KEEP bytes_in, rad
 ;
 

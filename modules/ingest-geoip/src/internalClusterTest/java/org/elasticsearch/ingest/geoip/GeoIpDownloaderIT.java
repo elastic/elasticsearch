@@ -251,8 +251,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
                         .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
-                    SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
-                        .setSize(size)
+                    SearchResponse res = prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
                         .setQuery(queryBuilder)
                         .addSort("chunk", SortOrder.ASC)
                         .get();

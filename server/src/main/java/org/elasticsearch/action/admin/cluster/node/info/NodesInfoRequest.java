@@ -22,7 +22,7 @@ import java.util.TreeSet;
  */
 public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
-    private NodesInfoMetrics nodesInfoMetrics;
+    private final NodesInfoMetrics nodesInfoMetrics;
 
     /**
      * Create a new NodeInfoRequest from a {@link StreamInput} object.
@@ -85,6 +85,13 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      */
     public NodesInfoRequest addMetrics(String... metrics) {
         SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
+        return addMetrics(metricsSet);
+    }
+
+    /**
+     * Add multiple metrics
+     */
+    public NodesInfoRequest addMetrics(Set<String> metricsSet) {
         if (NodesInfoMetrics.Metric.allMetrics().containsAll(metricsSet) == false) {
             metricsSet.removeAll(NodesInfoMetrics.Metric.allMetrics());
             String plural = metricsSet.size() == 1 ? "" : "s";
@@ -109,20 +116,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         nodesInfoMetrics.writeTo(out);
-    }
-
-    /**
-     * Helper method for creating NodesInfoRequests with desired metrics
-     * @param metrics the metrics to include in the request
-     * @return
-     */
-    public static NodesInfoRequest requestWithMetrics(NodesInfoMetrics.Metric... metrics) {
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear();
-        for (var metric : metrics) {
-            nodesInfoRequest.addMetric(metric.metricName());
-        }
-        return nodesInfoRequest;
     }
 
     public NodesInfoMetrics getNodesInfoMetrics() {

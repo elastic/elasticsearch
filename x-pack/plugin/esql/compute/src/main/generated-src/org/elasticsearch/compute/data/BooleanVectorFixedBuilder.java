@@ -18,6 +18,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final boolean[] values;
+    private final long preAdjustedBytes;
     /**
      * The next value to write into. {@code -1} means the vector has already
      * been built.
@@ -25,7 +26,8 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private int nextIndex;
 
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
-        blockFactory.adjustBreaker(ramBytesUsed(size), false);
+        preAdjustedBytes = ramBytesUsed(size);
+        blockFactory.adjustBreaker(preAdjustedBytes, false);
         this.blockFactory = blockFactory;
         this.values = new boolean[size];
     }
@@ -53,17 +55,26 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
             throw new IllegalStateException("expected to write [" + values.length + "] entries but wrote [" + nextIndex + "]");
         }
         nextIndex = -1;
+        BooleanVector vector;
         if (values.length == 1) {
-            return new ConstantBooleanVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+        } else {
+            vector = blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
         }
-        return new BooleanArrayVector(values, values.length, blockFactory);
+        assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
+        return vector;
     }
 
     @Override
     public void close() {
         if (nextIndex >= 0) {
             // If nextIndex < 0 we've already built the vector
-            blockFactory.adjustBreaker(-ramBytesUsed(values.length), false);
+            nextIndex = -1;
+            blockFactory.adjustBreaker(-preAdjustedBytes, false);
         }
+    }
+
+    boolean isReleased() {
+        return nextIndex < 0;
     }
 }

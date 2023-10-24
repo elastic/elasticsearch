@@ -8,6 +8,7 @@
 
 package org.elasticsearch.document;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -19,7 +20,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -56,7 +56,7 @@ public class DocumentActionsIT extends ESIntegTestCase {
         logger.info("Running Cluster Health");
         ensureGreen();
         logger.info("Indexing [type1/1]");
-        IndexResponse indexResponse = client().prepareIndex()
+        DocWriteResponse indexResponse = client().prepareIndex()
             .setIndex("test")
             .setId("1")
             .setSource(source("1", "test"))
@@ -154,14 +154,14 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
+            SearchResponse countResponse = prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // count with no query is a match all one
-            countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
+            countResponse = prepareSearch("test").setSize(0).execute().actionGet();
             assertThat(
                 "Failures " + countResponse.getShardFailures(),
                 countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,

@@ -21,7 +21,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -47,9 +46,9 @@ import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateReque
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -845,7 +844,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas), index);
     }
 
-    private Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
+    private static Settings.Builder getExcludeSettings(int num, Settings.Builder builder) {
         String exclude = String.join(",", internalCluster().allDataNodesButN(num));
         builder.put("index.routing.allocation.exclude._name", exclude);
         return builder;
@@ -1065,8 +1064,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
+                    long count = prepareSearch().setTrackTotalHits(true)
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get()
@@ -1094,6 +1092,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    public static SearchRequestBuilder prepareSearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
     /**
@@ -1309,7 +1311,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
-    private void ensureClusterInfoServiceRunning() {
+    private static void ensureClusterInfoServiceRunning() {
         if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
             refreshClusterInfo();
@@ -1393,7 +1395,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, XContentBuilder source) {
+    protected final DocWriteResponse index(String index, XContentBuilder source) {
         return client().prepareIndex(index).setSource(source).execute().actionGet();
     }
 
@@ -1403,21 +1405,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   client().prepareIndex(index).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String id, Map<String, Object> source) {
-        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
-    }
-
-    protected final ActionFuture<IndexResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
-        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
-    }
-
-    /**
-     * Syntactic sugar for:
-     * <pre>
-     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
-     * </pre>
-     */
-    protected final IndexResponse index(String index, String id, XContentBuilder source) {
+    protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1427,7 +1415,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+    protected final DocWriteResponse index(String index, String id, XContentBuilder source) {
+        return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+    }
+
+    /**
+     * Syntactic sugar for:
+     * <pre>
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+     * </pre>
+     */
+    protected final DocWriteResponse indexDoc(String index, String id, Object... source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
     }
 
@@ -1439,7 +1437,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * <p>
      * where source is a JSON String.
      */
-    protected final IndexResponse index(String index, String id, String source) {
+    protected final DocWriteResponse index(String index, String id, String source) {
         return client().prepareIndex(index).setId(id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 

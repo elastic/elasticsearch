@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -200,10 +199,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
         Instant timeBeforeRevert = Instant.now();
 
-        assertThat(
-            revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
-            equalTo(RestStatus.OK)
-        );
+        revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults);
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 
@@ -293,8 +289,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Quantiles getQuantiles(String jobId) {
-        SearchResponse response = client().prepareSearch(".ml-state*")
-            .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
+        SearchResponse response = prepareSearch(".ml-state*").setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
             .setSize(1)
             .get();
         SearchHits hits = response.getHits();

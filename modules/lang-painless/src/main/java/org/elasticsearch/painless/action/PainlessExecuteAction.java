@@ -50,8 +50,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -76,6 +78,7 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
@@ -111,14 +114,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
+public class PainlessExecuteAction {
 
-    public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
-    private static final String NAME = "cluster:admin/scripts/painless/execute";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute", Response::new);
 
-    private PainlessExecuteAction() {
-        super(NAME, Response::new);
-    }
+    private PainlessExecuteAction() {/* no instances */}
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
 
@@ -505,7 +505,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             IndicesService indicesServices
         ) {
             super(
-                NAME,
+                INSTANCE.name(),
                 threadPool,
                 clusterService,
                 transportService,
@@ -681,6 +681,25 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     );
                     return new Response(format.apply(points));
                 }, indexService);
+            } else if (scriptContext == GeometryFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    GeometryFieldScript.Factory factory = scriptService.compile(request.script, GeometryFieldScript.CONTEXT);
+                    GeometryFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        GeometryFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
+                    GeometryFieldScript geometryFieldScript = leafFactory.newInstance(leafReaderContext);
+                    List<Geometry> geometries = new ArrayList<>();
+                    geometryFieldScript.runForDoc(0, geometries::add);
+                    // convert geometries to the standard format of the fields api
+                    Function<List<Geometry>, List<Object>> format = GeometryFormatterFactory.getFormatter(
+                        GeometryFormatterFactory.GEOJSON,
+                        Function.identity()
+                    );
+                    return new Response(format.apply(geometries));
+                }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     IpFieldScript.Factory factory = scriptService.compile(request.script, IpFieldScript.CONTEXT);
@@ -758,7 +777,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse("_id", document, xContentType);
+                    String id;
+                    if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                        id = null; // The id gets auto generated for time series indices.
+                    } else {
+                        id = "_id";
+                    }
+                    SourceToParse sourceToParse = new SourceToParse(id, document, xContentType);
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper();
                     if (documentMapper == null) {
                         documentMapper = DocumentMapper.createEmpty(indexService.mapperService());

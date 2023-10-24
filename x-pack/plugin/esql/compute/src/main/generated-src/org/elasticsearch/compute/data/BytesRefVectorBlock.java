@@ -45,7 +45,7 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
 
     @Override
     public BytesRefBlock filter(int... positions) {
-        return new FilterBytesRefVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
     }
 
     @Override
@@ -72,8 +72,13 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     }
 
     @Override
+    public boolean isReleased() {
+        return released || vector.isReleased();
+    }
+
+    @Override
     public void close() {
-        if (released) {
+        if (released || vector.isReleased()) {
             throw new IllegalStateException("can't release already released block [" + this + "]");
         }
         released = true;

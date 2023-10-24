@@ -17,14 +17,11 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -36,15 +33,12 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -52,7 +46,6 @@ import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FIELD;
 
 /**
  * The {@code SnapshotRetentionTask} is invoked by the scheduled job from the
@@ -185,155 +178,16 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getPolicy()));
     }
 
-    static boolean snapshotEligibleForDeletion(
-        SnapshotInfo snapshot,
-        Map<String, Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>>> allSnapshotDetails,
-        Map<String, SnapshotLifecyclePolicy> policies
-    ) {
-        assert snapshot.userMetadata() != null
-            : "snapshots without user metadata should have gotten filtered by the caller but saw [" + snapshot + "]";
-        final Object policyId = snapshot.userMetadata().get(POLICY_ID_METADATA_FIELD);
-        assert policyId instanceof String
-            : "snapshots without a policy id should have gotten filtered by the caller but saw [" + snapshot + "]";
-        SnapshotLifecyclePolicy policy = policies.get(policyId);
-        if (policy == null) {
-            // This snapshot was taking by a policy that doesn't exist, so it's not eligible
-            return false;
-        }
-
-        SnapshotRetentionConfiguration retention = policy.getRetentionPolicy();
-        if (retention == null || retention.equals(SnapshotRetentionConfiguration.EMPTY)) {
-            // Retention is not configured
-            return false;
-        }
-
-        final String repository = policy.getRepository();
-        // Retrieve the predicate based on the retention policy, passing in snapshots pertaining only to *this* policy and repository
-        final var relevantSnapshots = allSnapshotDetails.getOrDefault(repository, Map.of()).getOrDefault(policyId, Map.of());
-        assert relevantSnapshots.containsKey(snapshot.snapshotId());
-        boolean eligible = retention.isSnapshotEligibleForDeletion(
-            snapshot.snapshotId(),
-            RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshot),
-            relevantSnapshots
-        );
-        logger.debug(
-            "[{}] testing snapshot [{}] deletion eligibility: {}",
-            repository,
-            snapshot.snapshotId(),
-            eligible ? "ELIGIBLE" : "INELIGIBLE"
-        );
-        return eligible;
-    }
-
     void getSnapshotsEligibleForDeletion(
         Collection<String> repositories,
         Map<String, SnapshotLifecyclePolicy> policies,
         ActionListener<Map<String, List<Tuple<SnapshotId, String>>>> listener
     ) {
-        if (repositories.isEmpty()) {
-            // Skip retrieving anything if there are no repositories to fetch
-            listener.onResponse(Collections.emptyMap());
-            return;
-        }
-
-        client.admin()
-            .cluster()
-            .prepareGetSnapshots(repositories.toArray(Strings.EMPTY_ARRAY))
-            // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
-            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
-            .setIgnoreUnavailable(true)
-            .setPolicies(policies.keySet().toArray(Strings.EMPTY_ARRAY))
-            .setIncludeIndexNames(false)
-            .execute(ActionListener.wrap(resp -> {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "retrieved snapshots: {}",
-                        repositories.stream()
-                            .flatMap(
-                                repo -> resp.getSnapshots()
-                                    .stream()
-                                    .filter(info -> repo.equals(info.repository()))
-                                    .map(si -> si.snapshotId().getName())
-                            )
-                            .toList()
-                    );
-                }
-                Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();
-                for (SnapshotInfo info : resp.getSnapshots()) {
-                    if (RETAINABLE_STATES.contains(info.state()) && info.userMetadata() != null) {
-                        snapshots.computeIfAbsent(info.repository(), repo -> new ArrayList<>()).add(info);
-                    }
-                }
-                if (resp.isFailed()) {
-                    for (String repo : resp.getFailures().keySet()) {
-                        logger.debug(() -> "unable to retrieve snapshots for [" + repo + "] repositories: ", resp.getFailures().get(repo));
-                    }
-                }
-
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "retrieved snapshots: [{}]",
-                        snapshots.entrySet()
-                            .stream()
-                            .map(
-                                e -> e.getKey()
-                                    + ": ["
-                                    + e.getValue().stream().map(si -> si.snapshotId().getName()).collect(Collectors.joining(","))
-                                    + "]"
-                            )
-                            .collect(Collectors.joining(","))
-                    );
-                }
-
-                // Repository name -> Retention policy ID -> (SnapshotId, SnapshotDetails)
-                final Map<String, Map<String, Map<SnapshotId, RepositoryData.SnapshotDetails>>> allSnapshotDetails = new HashMap<>();
-                // TODO should we make this properly immutable or is its scope small enough that we don't need it?
-                for (Map.Entry<String, List<SnapshotInfo>> repositorySnapshots : snapshots.entrySet()) {
-                    final var repositoryName = repositorySnapshots.getKey();
-                    final var repositorySnapshotDetails = allSnapshotDetails.computeIfAbsent(repositoryName, ignored -> new HashMap<>());
-                    for (SnapshotInfo snapshotInfo : repositorySnapshots.getValue()) {
-                        final var snapshotId = snapshotInfo.snapshotId();
-                        final var snapshotDetails = RepositoryData.SnapshotDetails.fromSnapshotInfo(snapshotInfo);
-                        final var slmPolicy = snapshotDetails.getSlmPolicy();
-                        if (Strings.hasText(slmPolicy)) {
-                            final var previousDetails = repositorySnapshotDetails.computeIfAbsent(slmPolicy, ignored -> new HashMap<>())
-                                .put(snapshotId, snapshotDetails);
-                            assert previousDetails == null : previousDetails;
-                        }
-                    }
-                }
-
-                // Find all the snapshots that are past their retention date
-                final Map<String, List<Tuple<SnapshotId, String>>> snapshotsToBeDeleted = snapshots.entrySet()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(
-                            Map.Entry::getKey,
-                            e -> e.getValue()
-                                .stream()
-                                .filter(snapshot -> snapshotEligibleForDeletion(snapshot, allSnapshotDetails, policies))
-                                // SnapshotInfo instances can be quite large in case they contain e.g. a large collection of
-                                // exceptions so we extract the only two things (id + policy id) here so they can be GCed
-                                .map(snapshotInfo -> Tuple.tuple(snapshotInfo.snapshotId(), getPolicyId(snapshotInfo)))
-                                .toList()
-                        )
-                    );
-
-                listener.onResponse(snapshotsToBeDeleted);
-            }, e -> {
-                logger.debug(() -> "unable to retrieve snapshots for [" + repositories + "] repositories: ", e);
-                listener.onFailure(e);
-            }));
-    }
-
-    static String getPolicyId(SnapshotInfo snapshotInfo) {
-        return Optional.ofNullable(snapshotInfo.userMetadata())
-            .filter(meta -> meta.get(POLICY_ID_METADATA_FIELD) != null)
-            .filter(meta -> meta.get(POLICY_ID_METADATA_FIELD) instanceof String)
-            .map(meta -> (String) meta.get(POLICY_ID_METADATA_FIELD))
-            .orElseThrow(
-                () -> new IllegalStateException("expected snapshot " + snapshotInfo + " to have a policy in its metadata, but it did not")
-            );
+        client.execute(
+            SLMGetExpiredSnapshotsAction.INSTANCE,
+            new SLMGetExpiredSnapshotsAction.Request(repositories, policies),
+            listener.delegateFailureAndWrap((l, m) -> l.onResponse(m.snapshotsToDelete()))
+        );
     }
 
     void deleteSnapshots(

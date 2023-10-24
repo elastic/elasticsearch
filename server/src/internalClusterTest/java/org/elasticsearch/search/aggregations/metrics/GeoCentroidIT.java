@@ -18,7 +18,7 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -29,13 +29,10 @@ import static org.hamcrest.Matchers.notNullValue;
 public class GeoCentroidIT extends CentroidAggregationTestBase {
 
     public void testSingleValueFieldAsSubAggToGeohashGrid() {
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addAggregation(
-                geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME)
-                    .subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch(HIGH_CARD_IDX_NAME).addAggregation(
+            geohashGrid("geoGrid").field(SINGLE_VALUED_FIELD_NAME).subAggregation(centroidAgg(aggName()).field(SINGLE_VALUED_FIELD_NAME))
+        ).get();
+        assertNoFailures(response);
 
         GeoGrid grid = response.getAggregations().get("geoGrid");
         assertThat(grid, notNullValue());

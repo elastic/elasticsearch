@@ -196,9 +196,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             for (final String indexToClose : indices) {
                 final Thread thread = new Thread(() -> {
                     try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
+                        safeAwait(latch);
                     } finally {
                         release.countDown();
                     }
@@ -248,7 +246,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {
-                long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
+                long docsCount = prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
                 assertEquals(
                     "Expected "
                         + docsPerIndex.get(index)

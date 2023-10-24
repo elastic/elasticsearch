@@ -9,16 +9,17 @@ package org.elasticsearch.plugin.noop;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.plugin.noop.action.bulk.NoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.RestNoopBulkAction;
 import org.elasticsearch.plugin.noop.action.bulk.TransportNoopBulkAction;
-import org.elasticsearch.plugin.noop.action.search.NoopSearchAction;
 import org.elasticsearch.plugin.noop.action.search.RestNoopSearchAction;
 import org.elasticsearch.plugin.noop.action.search.TransportNoopSearchAction;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -31,11 +32,15 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class NoopPlugin extends Plugin implements ActionPlugin {
+
+    public static final ActionType<SearchResponse> NOOP_SEARCH_ACTION = new ActionType<>("mock:data/read/search", SearchResponse::new);
+    public static final ActionType<BulkResponse> NOOP_BULK_ACTION = new ActionType<>("mock:data/write/bulk", BulkResponse::new);
+
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(NoopBulkAction.INSTANCE, TransportNoopBulkAction.class),
-            new ActionHandler<>(NoopSearchAction.INSTANCE, TransportNoopSearchAction.class)
+            new ActionHandler<>(NOOP_BULK_ACTION, TransportNoopBulkAction.class),
+            new ActionHandler<>(NOOP_SEARCH_ACTION, TransportNoopSearchAction.class)
         );
     }
 

@@ -27,6 +27,8 @@ $endif$
 
     private final $type$ value;
 
+    private final $Type$Block block;
+
     public Constant$Type$Vector($type$ value, int positionCount) {
         this(value, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -34,6 +36,7 @@ $endif$
     public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
@@ -47,7 +50,7 @@ $endif$
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
     @Override
@@ -65,15 +68,23 @@ $endif$
         return true;
     }
 
-    @Override
-    public long ramBytesUsed() {
 $if(BytesRef)$
+    public static long ramBytesUsed(BytesRef value) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
-$else$
-        return RAM_BYTES_USED;
-$endif$
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesUsed(value);
+    }
+
+$else$
+    @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED;
+    }
+
+$endif$
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {
@@ -93,6 +104,10 @@ $endif$
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

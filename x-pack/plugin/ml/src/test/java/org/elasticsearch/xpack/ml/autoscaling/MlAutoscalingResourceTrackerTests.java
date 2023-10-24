@@ -8,23 +8,12 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -49,40 +38,6 @@ import static org.mockito.Mockito.mock;
 
 public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
-    public void testGetMlNodeStatsForNoMlNode() throws InterruptedException {
-        AtomicBoolean clientGotCalled = new AtomicBoolean();
-
-        try (Client client = new NoOpClient(getTestName()) {
-
-            @SuppressWarnings("unchecked")
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                clientGotCalled.set(true);
-                listener.onResponse(
-                    (Response) new NodesStatsResponse(new ClusterName("_name"), Collections.emptyList(), Collections.emptyList())
-                );
-            }
-        }) {
-            this.<Map<String, OsStats>>assertAsync(
-                listener -> MlAutoscalingResourceTracker.getMlNodeStats(Strings.EMPTY_ARRAY, client, TimeValue.MAX_VALUE, listener),
-                response -> {
-                    assertFalse(clientGotCalled.get());
-                }
-            );
-
-            this.<Map<String, OsStats>>assertAsync(
-                listener -> MlAutoscalingResourceTracker.getMlNodeStats(new String[] { "ml-1" }, client, TimeValue.MAX_VALUE, listener),
-                response -> {
-                    assertTrue(clientGotCalled.get());
-                }
-            );
-        }
-    }
-
     public void testGetMemoryAndProcessors() throws InterruptedException {
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
         MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
@@ -92,24 +47,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-2",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-1", memory, "ml-2", memory),
                 memory / 2,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -129,24 +67,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-2",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(2 * memory, 2 * memory, randomLongBetween(0, 2 * memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-1", randomLongBetween(0, memory), "ml-2", randomLongBetween(0, memory)),
                 memory / 2,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -891,16 +812,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-1", memory),
                 perNodeAvailableModelMemoryInBytes,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -921,32 +833,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-2",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-3",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-1", memory, "ml-2", memory, "ml-3", memory),
                 perNodeAvailableModelMemoryInBytes,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -1012,22 +899,18 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             ),
 
             List.of(
-                new DiscoveryNode(
-                    "ml-node-name-1",
-                    "ml-node-1",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    VersionInformation.CURRENT
-                ),
-                new DiscoveryNode(
-                    "ml-node-name-3",
-                    "ml-node-3",
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                    nodeAttr,
-                    Set.of(DiscoveryNodeRole.ML_ROLE),
-                    VersionInformation.CURRENT
-                )
+                DiscoveryNodeUtils.builder("ml-node-1")
+                    .name("ml-node-name-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-node-3")
+                    .name("ml-node-name-3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
             ),
             PersistentTasksCustomMetadata.builder().build()
         );
@@ -1040,32 +923,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-node-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-node-2",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-node-3",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-node-1", memory, "ml-node-2", memory, "ml-node-3", memory),
                 perNodeAvailableModelMemoryInBytes,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,

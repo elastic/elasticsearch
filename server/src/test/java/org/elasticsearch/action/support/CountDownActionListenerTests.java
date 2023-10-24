@@ -28,17 +28,7 @@ public class CountDownActionListenerTests extends ESTestCase {
 
     public void testNotifications() throws InterruptedException {
         AtomicBoolean called = new AtomicBoolean(false);
-        ActionListener<Void> result = new ActionListener<>() {
-            @Override
-            public void onResponse(Void ignored) {
-                called.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        ActionListener<Void> result = ActionTestUtils.assertNoFailureListener(ignored -> called.set(true));
         final int groupSize = randomIntBetween(10, 1000);
         AtomicInteger count = new AtomicInteger();
         CountDownActionListener listener = new CountDownActionListener(groupSize, result);
@@ -47,11 +37,7 @@ public class CountDownActionListenerTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
                 while (count.incrementAndGet() <= groupSize) {
                     listener.onResponse(null);
                 }
@@ -126,11 +112,7 @@ public class CountDownActionListenerTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(numThreads);
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
                 int c;
                 while ((c = count.incrementAndGet()) <= groupSize + overage) {
                     try {

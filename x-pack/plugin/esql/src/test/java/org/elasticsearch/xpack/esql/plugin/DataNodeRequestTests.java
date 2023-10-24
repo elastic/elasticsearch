@@ -19,7 +19,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.session.EsqlConfigurationSerializationTests;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -40,8 +38,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyPolicyResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 
 public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
 
@@ -80,7 +80,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
-            EsqlConfigurationSerializationTests.randomConfiguration(),
+            EsqlConfigurationSerializationTests.randomConfiguration(query),
             shardIds,
             aliasFilters,
             physicalPlan
@@ -168,7 +168,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         var logicalOptimizer = new LogicalPlanOptimizer();
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
-            new Verifier(new Metrics())
+            TEST_VERIFIER
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
     }
@@ -182,5 +182,10 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
             physical = physicalPlanOptimizer.optimize(physical);
         }
         return physical;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

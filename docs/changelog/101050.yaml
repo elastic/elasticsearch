@@ -1,0 +1,5 @@
+pr: 101050
+summary: Ensure the correct `threadContext` for `RemoteClusterNodesAction`
+area: Network
+type: bug
+issues: []

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -87,6 +88,15 @@ public class LuceneCountOperator extends LuceneOperator {
             public void setScorer(Scorable scorer) {}
 
             @Override
+            public void collect(DocIdStream stream) throws IOException {
+                if (remainingDocs > 0) {
+                    int count = Math.min(stream.count(), remainingDocs);
+                    totalHits += count;
+                    remainingDocs -= count;
+                }
+            }
+
+            @Override
             public void collect(int doc) {
                 if (remainingDocs > 0) {
                     remainingDocs--;
@@ -121,7 +131,7 @@ public class LuceneCountOperator extends LuceneOperator {
                 Weight weight = scorer.weight();
                 var leafReaderContext = scorer.leafReaderContext();
                 // see org.apache.lucene.search.TotalHitCountCollector
-                int leafCount = weight == null ? -1 : weight.count(leafReaderContext);
+                int leafCount = weight.count(leafReaderContext);
                 if (leafCount != -1) {
                     // make sure to NOT multi count as the count _shortcut_ (which is segment wide)
                     // handle doc partitioning where the same leaf can be seen multiple times
@@ -132,10 +142,11 @@ public class LuceneCountOperator extends LuceneOperator {
                         var count = Math.min(leafCount, remainingDocs);
                         totalHits += count;
                         remainingDocs -= count;
-                        scorer.markAsDone();
                     }
+                    scorer.markAsDone();
                 } else {
                     // could not apply shortcut, trigger the search
+                    // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
                     scorer.scoreNextRange(leafCollector, leafReaderContext.reader().getLiveDocs(), remainingDocs);
                 }
             }

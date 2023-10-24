@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +25,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
@@ -87,7 +88,13 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         TrainedModelProvider trainedModelProvider,
         Client client
     ) {
-        super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
+        super(
+            GetTrainedModelsStatsAction.NAME,
+            transportService,
+            actionFilters,
+            GetTrainedModelsStatsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.clusterService = clusterService;
         this.trainedModelProvider = trainedModelProvider;
@@ -176,7 +183,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                NodesStatsAction.INSTANCE,
+                TransportNodesStatsAction.TYPE,
                 nodeStatsRequest(clusterService.state(), parentTaskId),
                 nodesStatsListener
             );

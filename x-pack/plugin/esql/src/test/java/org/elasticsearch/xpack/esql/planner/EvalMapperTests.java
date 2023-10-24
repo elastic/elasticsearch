@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -72,7 +73,8 @@ public class EvalMapperTests extends ESTestCase {
         null,
         null,
         10000000,
-        10000
+        10000,
+        StringUtils.EMPTY
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")

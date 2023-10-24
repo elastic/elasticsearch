@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -78,15 +79,17 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
      * K/V indices (such as profiling-stacktraces) are assumed to contain data from their creation date until the creation date
      * of the next index that is created by rollover. Due to client-side caching of K/V data we need to extend the validity period
      * of the prior index by this time. This means that for queries that cover a time period around the time when a new index has
-     * been created we will query not only the new index but also the prior one (for up to three hours by default).
+     * been created we will query not only the new index but also the prior one (for up to four hours by default). The default value
+     * on the client is three hours but to ensure we won't miss anything due to unlucky timing, we add a bit more slack (1 hour).
      */
     public static final Setting<TimeValue> PROFILING_KV_INDEX_OVERLAP = Setting.positiveTimeSetting(
         "xpack.profiling.kv_index.overlap",
-        TimeValue.timeValueHours(3),
+        TimeValue.timeValueHours(4),
         Setting.Property.NodeScope
     );
 
     private final NodeClient nodeClient;
+    private final ProfilingLicenseChecker licenseChecker;
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Executor responseExecutor;
@@ -104,10 +107,12 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         TransportService transportService,
         ActionFilters actionFilters,
         NodeClient nodeClient,
+        ProfilingLicenseChecker licenseChecker,
         IndexNameExpressionResolver resolver
     ) {
-        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new);
+        super(GetStackTracesAction.NAME, transportService, actionFilters, GetStackTracesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nodeClient = nodeClient;
+        this.licenseChecker = licenseChecker;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.responseExecutor = threadPool.executor(ProfilingPlugin.PROFILING_THREAD_POOL_NAME);
@@ -119,6 +124,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
 
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
+        licenseChecker.requireSupportedLicense();
         long start = System.nanoTime();
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
@@ -201,6 +207,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                         stackTraceEvents.put(bucket.getKeyAsString(), finalCount);
                     }
                 }
+                responseBuilder.setTotalSamples(totalFinalCount);
                 log.debug(
                     "Found [{}] stacktrace events, resampled with sample rate [{}] to [{}] events ([{}] unique stack traces).",
                     totalCount,
@@ -495,6 +502,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private Map<String, String> executables;
         private Map<String, Integer> stackTraceEvents;
         private double samplingRate;
+        private long totalSamples;
 
         public void setStackTraces(Map<String, StackTrace> stackTraces) {
             this.stackTraces = stackTraces;
@@ -540,8 +548,20 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
             this.samplingRate = rate;
         }
 
+        public void setTotalSamples(long totalSamples) {
+            this.totalSamples = totalSamples;
+        }
+
         public GetStackTracesResponse build() {
-            return new GetStackTracesResponse(stackTraces, stackFrames, executables, stackTraceEvents, totalFrames, samplingRate);
+            return new GetStackTracesResponse(
+                stackTraces,
+                stackFrames,
+                executables,
+                stackTraceEvents,
+                totalFrames,
+                samplingRate,
+                totalSamples
+            );
         }
     }
 }

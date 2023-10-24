@@ -43,7 +43,7 @@ public class MedianAbsoluteDeviationLongGroupingAggregatorFunctionTests extends 
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new TupleBlockSourceOperator(blockFactory, values);
+        return new TupleBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override

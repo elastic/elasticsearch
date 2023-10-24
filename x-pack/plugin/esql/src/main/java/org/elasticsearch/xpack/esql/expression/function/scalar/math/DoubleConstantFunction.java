@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 /**
- * Function that emits Euler's number.
+ * Function that emits constants, like Euler's number.
  */
 public abstract class DoubleConstantFunction extends ScalarFunction {
     protected DoubleConstantFunction(Source source) {

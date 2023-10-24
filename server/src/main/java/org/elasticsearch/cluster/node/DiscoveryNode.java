@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -295,7 +296,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 IndexVersion.fromId(version.id)
             );
         } else {
-            return new VersionInformation(version, IndexVersion.MINIMUM_COMPATIBLE, IndexVersion.current());
+            return new VersionInformation(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
         }
     }
 
@@ -335,7 +336,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         }
         this.roles = Collections.unmodifiableSortedSet(roles);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_024)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             versionInfo = new VersionInformation(Version.readVersion(in), IndexVersion.readVersion(in), IndexVersion.readVersion(in));
         } else {
             versionInfo = inferVersionInformation(Version.readVersion(in));
@@ -372,7 +373,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             o.writeString(role.roleNameAbbreviation());
             o.writeBoolean(role.canContainData());
         });
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_024)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             Version.writeVersion(versionInfo.nodeVersion(), out);
             IndexVersion.writeVersion(versionInfo.minIndexVersion(), out);
             IndexVersion.writeVersion(versionInfo.maxIndexVersion(), out);

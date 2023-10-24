@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -26,12 +27,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.NODE_INFO_REQUEST_SIMPLIFIED;
+
 public class TransportNodesInfoAction extends TransportNodesAction<
     NodesInfoRequest,
     NodesInfoResponse,
     TransportNodesInfoAction.NodeInfoRequest,
     NodeInfo> {
 
+    public static final ActionType<NodesInfoResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/info");
     private final NodeService nodeService;
 
     @Inject
@@ -43,12 +47,10 @@ public class TransportNodesInfoAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            NodesInfoAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            NodesInfoRequest::new,
             NodeInfoRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -76,8 +78,7 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest, Task task) {
-        NodesInfoRequest request = nodeRequest.request;
-        Set<String> metrics = request.requestedMetrics();
+        Set<String> metrics = nodeRequest.requestedMetrics();
         return nodeService.info(
             metrics.contains(NodesInfoMetrics.Metric.SETTINGS.metricName()),
             metrics.contains(NodesInfoMetrics.Metric.OS.metricName()),
@@ -96,21 +97,33 @@ public class TransportNodesInfoAction extends TransportNodesAction<
 
     public static class NodeInfoRequest extends TransportRequest {
 
-        NodesInfoRequest request;
+        private final NodesInfoMetrics nodesInfoMetrics;
 
         public NodeInfoRequest(StreamInput in) throws IOException {
             super(in);
-            request = new NodesInfoRequest(in);
+            if (in.getTransportVersion().onOrAfter(NODE_INFO_REQUEST_SIMPLIFIED)) {
+                this.nodesInfoMetrics = new NodesInfoMetrics(in);
+            } else {
+                this.nodesInfoMetrics = new NodesInfoRequest(in).getNodesInfoMetrics();
+            }
         }
 
         public NodeInfoRequest(NodesInfoRequest request) {
-            this.request = request;
+            this.nodesInfoMetrics = request.getNodesInfoMetrics();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(NODE_INFO_REQUEST_SIMPLIFIED)) {
+                this.nodesInfoMetrics.writeTo(out);
+            } else {
+                new NodesInfoRequest().clear().addMetrics(nodesInfoMetrics.requestedMetrics()).writeTo(out);
+            }
+        }
+
+        public Set<String> requestedMetrics() {
+            return nodesInfoMetrics.requestedMetrics();
         }
     }
 }

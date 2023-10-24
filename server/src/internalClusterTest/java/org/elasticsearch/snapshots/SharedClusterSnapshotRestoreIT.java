@@ -1050,7 +1050,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertRequestBuilderThrows(
             client.admin().cluster().prepareDeleteSnapshot("readonly-repo", "test-snap"),
             RepositoryException.class,
-            "cannot delete snapshot from a readonly repository"
+            "repository is readonly"
         );
 
         logger.info("--> try making another snapshot");
@@ -1615,7 +1615,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(snapshotInfo.successfulShards()));
 
         ensureGreen("test-idx-1", "test-idx-2");
-        assertHitCount(client().prepareSearch("test-idx-*").setSize(0).get(), 3);
+        assertHitCount(prepareSearch("test-idx-*").setSize(0), 3);
     }
 
     /**
@@ -1684,7 +1684,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         ensureGreen();
         for (Map.Entry<String, Integer> entry : nbDocsPerIndex.entrySet()) {
             if (isRestorableIndex.test(entry.getKey())) {
-                assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().longValue());
+                assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().longValue());
             }
         }
 

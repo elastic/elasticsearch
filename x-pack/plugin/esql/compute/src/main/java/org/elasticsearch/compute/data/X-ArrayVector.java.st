@@ -34,6 +34,8 @@ $else$
     private final $type$[] values;
 $endif$
 
+    private final $Type$Block block;
+
     public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount) {
         this(values, positionCount, BlockFactory.getNonBreakingInstance());
     }
@@ -41,11 +43,12 @@ $endif$
     public $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
+        this.block = new $Type$VectorBlock(this);
     }
 
     @Override
     public $Type$Block asBlock() {
-        return new $Type$VectorBlock(this);
+        return block;
     }
 
 $if(BytesRef)$
@@ -73,7 +76,19 @@ $endif$
 
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Filter$Type$Vector(this, positions);
+    $if(BytesRef)$
+        final var scratch = new BytesRef();
+    $endif$
+        try ($Type$Vector.Builder builder = blockFactory.new$Type$VectorBuilder(positions.length)) {
+            for (int pos : positions) {
+            $if(BytesRef)$
+                builder.append$Type$(values.get(pos, scratch));
+            $else$
+                builder.append$Type$(values[pos]);
+            $endif$
+            }
+            return builder.build();
+        }
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
@@ -110,6 +125,10 @@ $endif$
 $if(BytesRef)$
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         blockFactory.adjustBreaker(-ramBytesUsed() + values.bigArraysRamBytesUsed(), true);
         Releasables.closeExpectNoException(values);
     }

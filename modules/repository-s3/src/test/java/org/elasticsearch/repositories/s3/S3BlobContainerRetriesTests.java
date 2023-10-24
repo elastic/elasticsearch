@@ -17,6 +17,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -155,17 +157,18 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
                 repositoryMetadata,
                 BigArrays.NON_RECYCLING_INSTANCE,
-                new DeterministicTaskQueue().getThreadPool()
+                new DeterministicTaskQueue().getThreadPool(),
+                MeterRegistry.NOOP
             )
         ) {
             @Override
-            public InputStream readBlob(String blobName) throws IOException {
-                return new AssertingInputStream(super.readBlob(blobName), blobName);
+            public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
+                return new AssertingInputStream(super.readBlob(purpose, blobName), blobName);
             }
 
             @Override
-            public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                return new AssertingInputStream(super.readBlob(blobName, position, length), blobName, position, length);
+            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
+                return new AssertingInputStream(super.readBlob(purpose, blobName, position, length), blobName, position, length);
             }
         };
     }
@@ -213,7 +216,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-            blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
+            blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
     }
@@ -236,7 +239,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         Exception exception = expectThrows(IOException.class, () -> {
             try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
-                blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
+                blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_blob_timeout", stream, bytes.length, false);
             }
         });
         assertThat(
@@ -342,7 +345,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeBlob("write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
+        blobContainer.writeBlob(OperationPurpose.SNAPSHOT, "write_large_blob", new ZeroInputStream(blobSize), blobSize, false);
 
         assertThat(countDownInitiate.isCountedDown(), is(true));
         assertThat(countDownUploads.get(), equalTo(0));
@@ -440,7 +443,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeMetadataBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
+        blobContainer.writeMetadataBlob(OperationPurpose.SNAPSHOT, "write_large_blob_streaming", false, randomBoolean(), out -> {
             final byte[] buffer = new byte[16 * 1024];
             long outstanding = blobSize;
             while (outstanding > 0) {
@@ -515,7 +518,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_max_retries"), new FlakyReadHandler());
 
-        try (InputStream inputStream = blobContainer.readBlob("read_blob_max_retries")) {
+        try (InputStream inputStream = blobContainer.readBlob(OperationPurpose.SNAPSHOT, "read_blob_max_retries")) {
             final int readLimit;
             final InputStream wrappedStream;
             if (randomBoolean()) {

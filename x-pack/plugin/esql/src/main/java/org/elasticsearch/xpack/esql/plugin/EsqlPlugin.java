@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -21,7 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -30,6 +32,7 @@ import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.IndicesService;
@@ -58,6 +61,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -100,9 +104,13 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         AllocationService allocationService,
         IndicesService indicesService
     ) {
+        CircuitBreaker circuitBreaker = indicesService.getBigArrays().breakerService().getBreaker("request");
+        Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");
+        BlockFactory blockFactory = new BlockFactory(circuitBreaker, indicesService.getBigArrays().withCircuitBreaking());
         return List.of(
             new PlanExecutor(new IndexResolver(client, clusterService.getClusterName().value(), EsqlDataTypeRegistry.INSTANCE, Set::of)),
-            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME)
+            new ExchangeService(clusterService.getSettings(), threadPool, EsqlPlugin.ESQL_THREAD_POOL_NAME, blockFactory),
+            blockFactory
         );
     }
 
@@ -148,7 +156,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 ExchangeSinkOperator.Status.ENTRY,
                 ExchangeSourceOperator.Status.ENTRY,
                 LimitOperator.Status.ENTRY,
-                LuceneSourceOperator.Status.ENTRY,
+                LuceneOperator.Status.ENTRY,
+                TopNOperatorStatus.ENTRY,
                 MvExpandOperator.Status.ENTRY,
                 ValuesSourceReaderOperator.Status.ENTRY,
                 SingleValueQuery.ENTRY

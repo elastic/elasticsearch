@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.integration;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -17,6 +18,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
@@ -71,7 +75,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
     public void testMockService() {
         String modelId = "test-mock";
-        ModelConfigurations putModel = putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations putModel = putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
         ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
         assertModelsAreEqual(putModel, readModel);
 
@@ -79,9 +83,37 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
     }
 
+    public void testMockInClusterService() {
+        String modelId = "test-mock-in-cluster";
+        ModelConfigurations putModel = putMockService(modelId, "test_service_in_cluster_service", TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+        assertModelsAreEqual(putModel, readModel);
+
+        // The response is randomly generated, the input can be anything
+        inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
+    }
+
+    public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
+        String modelId = "test-mock";
+        putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+
+        assertThat(readModel.getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
+
+        var serviceSettings = (TestInferenceServicePlugin.TestServiceSettings) readModel.getServiceSettings();
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+        serviceSettings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {
+              "model" : "my_model"
+            }"""));
+    }
+
     public void testGetUnparsedModelMap_ForTestServiceModel_ReturnsSecretsPopulated() {
         String modelId = "test-unparsed";
-        putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
 
         var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
         modelRegistry.getUnparsedModelMap(modelId, listener);
@@ -92,10 +124,10 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         assertThat(secrets.apiKey(), is("abc64"));
     }
 
-    private ModelConfigurations putMockService(String modelId, TaskType taskType) {
-        String body = """
+    private ModelConfigurations putMockService(String modelId, String serviceName, TaskType taskType) {
+        String body = Strings.format("""
             {
-              "service": "test_service",
+              "service": "%s",
               "service_settings": {
                 "model": "my_model",
                 "api_key": "abc64"
@@ -104,7 +136,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
                 "temperature": 3
               }
             }
-            """;
+            """, serviceName);
         var request = new PutInferenceModelAction.Request(
             taskType.toString(),
             modelId,
@@ -113,7 +145,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         );
 
         var response = client().execute(PutInferenceModelAction.INSTANCE, request).actionGet();
-        assertEquals("test_service", response.getModel().getService());
+        assertEquals(serviceName, response.getModel().getService());
 
         assertThat(response.getModel().getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
         var serviceSettings = (TestInferenceServicePlugin.TestServiceSettings) response.getModel().getServiceSettings();

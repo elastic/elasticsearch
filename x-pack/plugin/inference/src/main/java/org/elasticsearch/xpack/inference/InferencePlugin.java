@@ -55,7 +55,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
-import org.elasticsearch.xpack.inference.ingest.InferenceProcessor;
+import org.elasticsearch.xpack.inference.ingest.InferenceProcessorInOutOnly;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -207,8 +207,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        InferenceProcessor.Factory inferenceFactory = new InferenceProcessor.Factory(parameters.client);
-        return Map.of(InferenceProcessor.TYPE, inferenceFactory);
+        InferenceProcessorInOutOnly.Factory inferenceFactory = new InferenceProcessorInOutOnly.Factory(parameters.client);
+        return Map.of(InferenceProcessorInOutOnly.TYPE, inferenceFactory);
     }
 
     @Override

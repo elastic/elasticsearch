@@ -114,7 +114,7 @@ public class HuggingFaceElserResponseEntity {
             ArrayNode resultTupleArray = (ArrayNode) resultTuple;
             validateTupleSize(resultTupleArray);
 
-            String token = resultTupleArray.get(0).textValue();
+            String token = resultTupleArray.get(0).textValue().replaceAll("\\.", "__");
             float weight = OBJECT_MAPPER.readerFor(float.class).readValue(resultTupleArray.get(1));
 
             tokens.add(new TextExpansionResults.WeightedToken(token, weight));

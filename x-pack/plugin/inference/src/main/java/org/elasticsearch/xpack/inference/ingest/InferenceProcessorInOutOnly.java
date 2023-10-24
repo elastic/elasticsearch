@@ -46,7 +46,7 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class InferenceProcessor extends AbstractProcessor {
+public class InferenceProcessorInOutOnly extends AbstractProcessor {
 
     // How many total inference processors are allowed to be used in the cluster.
     public static final Setting<Integer> MAX_INFERENCE_PROCESSORS = Setting.intSetting(
@@ -73,7 +73,7 @@ public class InferenceProcessor extends AbstractProcessor {
     public static final String INPUT_FIELD = "input_field";
     public static final String OUTPUT_FIELD = "output_field";
 
-    public static InferenceProcessor fromInputFieldConfiguration(
+    public static InferenceProcessorInOutOnly fromInputFieldConfiguration(
         Client client,
         String tag,
         String description,
@@ -82,10 +82,10 @@ public class InferenceProcessor extends AbstractProcessor {
         List<Factory.InputConfig> inputs,
         boolean ignoreMissing
     ) {
-        return new InferenceProcessor(client, tag, description, null, modelId, inferenceConfig, null, inputs, true, ignoreMissing);
+        return new InferenceProcessorInOutOnly(client, tag, description, null, modelId, inferenceConfig, null, inputs, true, ignoreMissing);
     }
 
-    public static InferenceProcessor fromTargetFieldConfiguration(
+    public static InferenceProcessorInOutOnly fromTargetFieldConfiguration(
         Client client,
         String tag,
         String description,
@@ -95,7 +95,18 @@ public class InferenceProcessor extends AbstractProcessor {
         Map<String, String> fieldMap
     ) {
         // ignore_missing only applies to when using the input_field config
-        return new InferenceProcessor(client, tag, description, targetField, modelId, inferenceConfig, fieldMap, null, false, false);
+        return new InferenceProcessorInOutOnly(
+            client,
+            tag,
+            description,
+            targetField,
+            modelId,
+            inferenceConfig,
+            fieldMap,
+            null,
+            false,
+            false
+        );
     }
 
     private final Client client;
@@ -108,7 +119,7 @@ public class InferenceProcessor extends AbstractProcessor {
     private final boolean configuredWithInputsFields;
     private final boolean ignoreMissing;
 
-    private InferenceProcessor(
+    private InferenceProcessorInOutOnly(
         Client client,
         String tag,
         String description,
@@ -263,7 +274,7 @@ public class InferenceProcessor extends AbstractProcessor {
         }
 
         @Override
-        public InferenceProcessor create(
+        public InferenceProcessorInOutOnly create(
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,

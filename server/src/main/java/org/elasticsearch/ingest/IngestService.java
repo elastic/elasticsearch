@@ -728,7 +728,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
 
-        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
+        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
         indexRequest.setPipelinesHaveRun();
 
         assert indexRequest.index() != null;
@@ -736,7 +736,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         documentParsingObserver.close();
     }
 
-    private void executePipelinesOnActionRequest(
+    private void executePipelines(
         DocWriteRequest<?> actionRequest,
         final int slot,
         final Releasable ref,
@@ -775,7 +775,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
 
-        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
+        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
         indexRequest.setPipelinesHaveRun();
 
         assert actionRequest.index() != null;
@@ -855,7 +855,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private void executePipelinesOnActionRequest(
+    private void executePipelines(
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
@@ -975,7 +975,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelinesOnActionRequest(newPipelines, indexRequest, ingestDocument, listener);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);
@@ -1410,6 +1410,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public boolean needsProcessing(IndexRequest indexRequest) {
         return hasPipeline(indexRequest);
+    }
+
+    public boolean hasBeenProcessed(IndexRequest indexRequest) {
+        return indexRequest.isPipelineResolved();
+    }
+
+    public boolean shouldExecuteOnIngestNode() {
+        return true;
     }
 
     /**

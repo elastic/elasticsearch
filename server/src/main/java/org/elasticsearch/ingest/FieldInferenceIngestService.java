@@ -56,6 +56,16 @@ public class FieldInferenceIngestService extends IngestService {
             && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
     }
 
+    @Override
+    public boolean hasBeenProcessed(IndexRequest indexRequest) {
+        return indexRequest.isFieldInferenceResolved();
+    }
+
+    @Override
+    public boolean shouldExecuteOnIngestNode() {
+        return false;
+    }
+
     // TODO actual mapping check here
     private boolean fieldNeedsInference(String index, String fieldName) {
         return fieldName.startsWith("infer_");

@@ -52,6 +52,8 @@ import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -728,8 +730,8 @@ public class MetadataIndexTemplateService {
 
         if (templateToValidate.deprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
+            validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
             // TODO validateUseOfDeprecatedIlmPolicies
-            // TODO validateUseOfDeprecatedIngestPipelines
         }
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
@@ -765,6 +767,29 @@ public class MetadataIndexTemplateService {
                     "Index template {} uses deprecated component template {}",
                     name,
                     ct.v1()
+                )
+            );
+    }
+
+    private void validateUseOfDeprecatedIngestPipelines(String name, IngestMetadata ingestMetadata, Settings combinedSettings) {
+        Map<String, PipelineConfiguration> pipelines = Optional.ofNullable(ingestMetadata)
+            .map(IngestMetadata::getPipelines)
+            .orElse(Map.of());
+        emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.default_pipeline"));
+        emitWarningIfPipelineIsDeprecated(name, pipelines, combinedSettings.get("index.final_pipeline"));
+    }
+
+    private void emitWarningIfPipelineIsDeprecated(String name, Map<String, PipelineConfiguration> pipelines, String pipelineName) {
+        Optional.ofNullable(pipelineName)
+            .map(pipelines::get)
+            .filter(p -> Boolean.TRUE.equals(p.getConfigAsMap().get("deprecated")))
+            .ifPresent(
+                p -> deprecationLogger.warn(
+                    DeprecationCategory.TEMPLATES,
+                    "use_of_deprecated_ingest_pipeline",
+                    "Index template {} uses deprecated component template {}",
+                    name,
+                    p.getId()
                 )
             );
     }

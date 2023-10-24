@@ -287,7 +287,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             client().execute(
                 FreezeIndexAction.INSTANCE,
                 new FreezeRequest("idx*").setFreeze(false).indicesOptions(IndicesOptions.strictExpand())
-            ).actionGet()
+            )
         );
         ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
         assertEquals(IndexMetadata.State.CLOSE, stateResponse.getState().getMetadata().index("idx-closed").getState());
@@ -479,7 +479,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 new FreezeRequest("idx*", "not_available").indicesOptions(
                     IndicesOptions.fromParameters(null, "true", null, null, IndicesOptions.strictExpandOpen())
                 )
-            ).actionGet()
+            )
         );
         assertIndexFrozen("idx");
         assertEquals(IndexMetadata.State.CLOSE, clusterAdmin().prepareState().get().getState().metadata().index("idx-close").getState());

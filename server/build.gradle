@@ -88,13 +88,6 @@ spotless {
   }
 }
 
-tasks.withType(Test).configureEach {
-  doFirst {
-    it.systemProperties.each {
-      println it.key + " -- " + it.value
-    }
-  }
-}
 tasks.named("forbiddenPatterns").configure {
     exclude '**/*.json'
     exclude '**/*.jmx'

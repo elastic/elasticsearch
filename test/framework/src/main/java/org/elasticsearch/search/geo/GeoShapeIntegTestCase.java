@@ -71,22 +71,24 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
             53
         );
 
-        assertResponse(prepareSearch().addStoredField("pin")
-                .setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)), response -> {
-            assertHitCount(response, 5L);
-            GeoPoint point = new GeoPoint();
-            for (SearchHit hit : response.getHits()) {
-                String name = hit.getId();
-                point.resetFromString(hit.getFields().get("pin").getValue());
-                double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
+        assertResponse(
+            prepareSearch().addStoredField("pin").setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)),
+            response -> {
+                assertHitCount(response, 5L);
+                GeoPoint point = new GeoPoint();
+                for (SearchHit hit : response.getHits()) {
+                    String name = hit.getId();
+                    point.resetFromString(hit.getFields().get("pin").getValue());
+                    double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
-                assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
-                assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
-                if (key.equals(name)) {
-                    assertThat(dist, closeTo(0d, 0.1d));
+                    assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
+                    assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
+                    if (key.equals(name)) {
+                        assertThat(dist, closeTo(0d, 0.1d));
+                    }
                 }
             }
-        });
+        );
     }
 
     private static double distance(double lat1, double lon1, double lat2, double lon2) {

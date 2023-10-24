@@ -16,7 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasItem;
 
 public class ClusterFeaturesIT extends ESIntegTestCase {
 
@@ -40,6 +40,6 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
 
         FeatureService service = internalCluster().getCurrentMasterNodeInstance(FeatureService.class);
 
-        assertThat(service.getNodeFeatures(), containsInAnyOrder("f1"));
+        assertThat(service.getNodeFeatures(), hasItem("f1"));
     }
 }

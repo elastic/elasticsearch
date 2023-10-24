@@ -34,7 +34,7 @@ public class JoinRequest extends TransportRequest {
     private final CompatibilityVersions compatibilityVersions;
 
     /**
-     * The features that are exposed by the joining node.
+     * The features that are supported by the joining node.
      */
     private final Set<String> features;
 

@@ -113,6 +113,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
             // we've found a new feature set - insert appropriately
             idx = canonicalFeatureSets.size();
             canonicalFeatureSets.add(fse.getValue());
+            nodeFeatureSetIndexes.put(fse.getKey(), idx);
             identityLookup.put(fse.getValue(), idx);
             lookup.put(fse.getValue(), idx);
         }

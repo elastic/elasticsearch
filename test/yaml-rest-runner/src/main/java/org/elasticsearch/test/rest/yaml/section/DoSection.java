@@ -629,14 +629,13 @@ public class DoSection implements ExecutableSection {
     }
 
     private static boolean matchWithRange(String nodeVersionString, List<VersionRange> acceptedVersionRanges, XContentLocation location) {
-        var unqualifiedNodeVersionString = nodeVersionString.replace("-SNAPSHOT", "");
         try {
-            Version version = Version.fromString(unqualifiedNodeVersionString);
+            Version version = Version.fromString(nodeVersionString);
             return acceptedVersionRanges.stream().anyMatch(v -> v.contains(version));
         } catch (IllegalArgumentException e) {
             throw new XContentParseException(
                 location,
-                "[version] range node selector expects a semantic version format (x.y.z), but found " + unqualifiedNodeVersionString,
+                "[version] range node selector expects a semantic version format (x.y.z), but found " + nodeVersionString,
                 e
             );
         }
@@ -650,9 +649,8 @@ public class DoSection implements ExecutableSection {
         final Predicate<String> nodeMatcher;
         final String versionSelectorString;
         if (parser.text().equals("current")) {
-            var currentUnqualified = Build.current().version().replace("-SNAPSHOT", "");
-            nodeMatcher = nodeVersion -> currentUnqualified.equals(nodeVersion.replace("-SNAPSHOT", ""));
-            versionSelectorString = "version is " + currentUnqualified + " (current)";
+            nodeMatcher = nodeVersion -> Build.current().version().equals(nodeVersion);
+            versionSelectorString = "version is " + Build.current().version() + " (current)";
         } else {
             var acceptedVersionRange = SkipSection.parseVersionRanges(parser.text());
             nodeMatcher = nodeVersion -> matchWithRange(nodeVersion, acceptedVersionRange, parser.getTokenLocation());

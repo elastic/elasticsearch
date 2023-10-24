@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * This ActionType gets the stats for the watcher plugin
@@ -17,6 +18,6 @@ public class WatcherStatsAction extends ActionType<WatcherStatsResponse> {
     public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";
 
     private WatcherStatsAction() {
-        super(NAME, WatcherStatsResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

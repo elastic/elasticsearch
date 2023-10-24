@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -99,8 +99,8 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         return state.metadata()
             .stream()
             .filter(
-                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersion.V_7_12_0)
-                    && imd.getCompatibilityVersion().before(IndexVersion.V_8_0_0)
+                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersions.V_7_12_0)
+                    && imd.getCompatibilityVersion().before(IndexVersions.V_8_0_0)
             )
             .filter(IndexMetadata::isPartialSearchableSnapshot)
             .map(IndexMetadata::getSettings)
@@ -115,8 +115,8 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         currentState.metadata()
             .stream()
             .filter(
-                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersion.V_7_12_0)
-                    && imd.getCompatibilityVersion().before(IndexVersion.V_8_0_0)
+                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersions.V_7_12_0)
+                    && imd.getCompatibilityVersion().before(IndexVersions.V_8_0_0)
             )
             .filter(imd -> imd.isPartialSearchableSnapshot() && notFrozenShardLimitGroup(imd.getSettings()))
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)

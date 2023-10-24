@@ -39,7 +39,7 @@ import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -116,16 +116,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -161,16 +159,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldNormalised() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.DAY))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.DAY))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -225,17 +221,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable();
 
-        SearchResponse response = client().prepareSearch(IDX_DST_START)
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.DAY)
-                    .timeZone(timezone)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.HOUR))
-            )
-            .get();
+        SearchResponse response = prepareSearch(IDX_DST_START).addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.DAY)
+                .timeZone(timezone)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.HOUR))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -283,17 +277,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable();
 
-        SearchResponse response = client().prepareSearch(IDX_DST_END)
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.DAY)
-                    .timeZone(timezone)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.HOUR))
-            )
-            .get();
+        SearchResponse response = prepareSearch(IDX_DST_END).addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.DAY)
+                .timeZone(timezone)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.HOUR))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -343,17 +335,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
         indexRandom(true, builders);
         ensureSearchable();
 
-        SearchResponse response = client().prepareSearch(IDX_DST_KATHMANDU)
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.HOUR)
-                    .timeZone(timezone)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.MINUTE))
-            )
-            .get();
+        SearchResponse response = prepareSearch(IDX_DST_KATHMANDU).addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.HOUR)
+                .timeZone(timezone)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count").unit(DateHistogramInterval.MINUTE))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -411,17 +401,15 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(sum("sum").field("value"))
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(sum("sum").field("value"))
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "sum"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -495,16 +483,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                dateHistogram("histo").field("dates")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            dateHistogram("histo").field("dates")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -553,16 +539,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped").addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
@@ -571,16 +555,14 @@ public class DateDerivativeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                dateHistogram("histo").field("date")
-                    .calendarInterval(DateHistogramInterval.MONTH)
-                    .minDocCount(0)
-                    .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            dateHistogram("histo").field("date")
+                .calendarInterval(DateHistogramInterval.MONTH)
+                .minDocCount(0)
+                .subAggregation(new DerivativePipelineAggregationBuilder("deriv", "_count"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());

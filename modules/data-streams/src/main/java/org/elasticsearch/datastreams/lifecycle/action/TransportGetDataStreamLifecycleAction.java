@@ -48,7 +48,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetDataStreamLifecycleAction.NAME,
+            GetDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,

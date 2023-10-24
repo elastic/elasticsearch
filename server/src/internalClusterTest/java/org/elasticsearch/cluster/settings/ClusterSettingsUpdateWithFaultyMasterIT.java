@@ -57,7 +57,7 @@ public class ClusterSettingsUpdateWithFaultyMasterIT extends ESIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(BlockingClusterSettingTestPlugin.TEST_BLOCKING_SETTING.getKey(), true).build())
-            .setMasterNodeTimeout(TimeValue.timeValueMillis(10L))
+            .setMasterNodeTimeout(TimeValue.timeValueMillis(100L))
             .execute();
 
         logger.debug("--> waiting for cluster state update to be blocked");

@@ -412,11 +412,13 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final long sliceLength;
 
         private volatile Delegate delegate;
+        private AtomicBoolean closed;
         private boolean clone;
         private long position;
 
         ReopeningIndexInput(String name, IOContext context, IndexInput delegate, LocalFileRef localFile) {
             this(name, delegate.length(), context, new Delegate(name, false, delegate), localFile, null, 0L, 0L);
+            this.closed = new AtomicBoolean(false);
         }
 
         private ReopeningIndexInput(
@@ -462,7 +464,9 @@ public class IndexDirectory extends ByteSizeDirectory {
         @Override
         public void close() throws IOException {
             if (clone == false) {
-                delegate.close();
+                if (closed.compareAndSet(false, true)) {
+                    delegate.close();
+                }
             }
         }
 
@@ -547,7 +551,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             if (localFile.tryIncRef()) {
                 try {
                     ensureSlice(sliceDescription, sliceOffset, sliceLength, this);
-                    return new ReopeningIndexInput(
+                    var slice = new ReopeningIndexInput(
                         name,
                         sliceLength,
                         context,
@@ -557,6 +561,8 @@ public class IndexDirectory extends ByteSizeDirectory {
                         this.sliceOffset + sliceOffset,
                         sliceLength
                     );
+                    slice.clone = true;
+                    return slice;
                 } finally {
                     localFile.decRef();
                 }

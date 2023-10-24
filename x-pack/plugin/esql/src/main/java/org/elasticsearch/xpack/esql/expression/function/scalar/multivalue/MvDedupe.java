@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.MultivalueDedupe;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -24,6 +25,7 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * Removes duplicate values from a multivalued field.
  */
 public class MvDedupe extends AbstractMultivalueFunction {
+    @FunctionInfo(returnType = "?", description = "Remove duplicate values from a multivalued field.")
     public MvDedupe(
         Source source,
         @Param(

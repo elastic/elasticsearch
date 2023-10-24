@@ -118,7 +118,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             if (type != DataTypes.IP) {
                 cases.add(
                     new TestCaseSupplier(
-                        name + "(empty string)/" + type.typeName(),
+                        name + "(empty " + type.typeName() + ")",
                         List.of(type),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(new TestCaseSupplier.TypedData(List.of(new BytesRef("")), type, "field")),
@@ -139,7 +139,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 );
             }));
             for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-                cases.add(new TestCaseSupplier(name + "(<" + type.typeName() + ">) " + ordering, List.of(type), () -> {
+                cases.add(new TestCaseSupplier(name + "(<" + type.typeName() + "s>) " + ordering, List.of(type), () -> {
                     List<BytesRef> mvData = randomList(1, 100, () -> (BytesRef) randomLiteral(type).value());
                     putInOrder(mvData, ordering);
                     return new TestCaseSupplier.TestCase(
@@ -325,7 +325,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build many test cases with {@code long} values.
+     * Build many test cases with {@code date} values.
      */
     protected static void dateTimes(
         List<TestCaseSupplier> cases,
@@ -358,8 +358,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(long)", List.of(DataTypes.DATETIME), () -> {
-            long data = randomMillisUpToYear9999();
+        cases.add(new TestCaseSupplier(name + "(date)", List.of(DataTypes.DATETIME), () -> {
+            long data = randomLong();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.DATETIME, "field")),
                 evaluatorName + "[field=Attribute[channel=0]]",
@@ -368,8 +368,8 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<longs>) " + ordering, List.of(DataTypes.DATETIME), () -> {
-                List<Long> mvData = randomList(1, 100, ESTestCase::randomMillisUpToYear9999);
+            cases.add(new TestCaseSupplier(name + "(<dates>) " + ordering, List.of(DataTypes.DATETIME), () -> {
+                List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.DATETIME, "field")),

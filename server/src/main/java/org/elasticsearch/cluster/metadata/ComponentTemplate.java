@@ -75,7 +75,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         this.template = template;
         this.version = version;
         this.metadata = metadata;
-        this.deprecated = deprecated == Boolean.TRUE;
+        this.deprecated = Boolean.TRUE.equals(deprecated);
     }
 
     public ComponentTemplate(StreamInput in) throws IOException {

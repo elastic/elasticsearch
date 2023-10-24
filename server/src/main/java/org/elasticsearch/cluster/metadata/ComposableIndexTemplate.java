@@ -188,7 +188,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.dataStreamTemplate = dataStreamTemplate;
         this.allowAutoCreate = allowAutoCreate;
         this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
-        this.deprecated = deprecated == Boolean.TRUE;
+        this.deprecated = Boolean.TRUE.equals(deprecated);
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
@@ -210,7 +210,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.ignoreMissingComponentTemplates = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            this.deprecated = in.readOptionalBoolean() == Boolean.TRUE;
+            this.deprecated = Boolean.TRUE.equals(in.readOptionalBoolean());
         } else {
             this.deprecated = false;
         }

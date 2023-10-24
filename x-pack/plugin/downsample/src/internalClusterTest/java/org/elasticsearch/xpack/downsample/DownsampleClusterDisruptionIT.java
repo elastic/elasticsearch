@@ -419,7 +419,6 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
-                .get()
         );
     }
 

@@ -44,22 +44,23 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 /**
- * An action which atomically increments a register using {@link BlobContainer#compareAndExchangeRegister}.
+ * An action which atomically increments a register using {@link BlobContainer#compareAndExchangeRegister}. There will be multiple parties
+ * accessing the register concurrently in order to test behaviour under contention.
  */
-public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
+public class ContendedRegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
 
-    private static final Logger logger = LogManager.getLogger(RegisterAnalyzeAction.class);
+    private static final Logger logger = LogManager.getLogger(ContendedRegisterAnalyzeAction.class);
 
-    public static final RegisterAnalyzeAction INSTANCE = new RegisterAnalyzeAction();
+    public static final ContendedRegisterAnalyzeAction INSTANCE = new ContendedRegisterAnalyzeAction();
     public static final String NAME = "cluster:admin/repository/analyze/register";
 
-    private RegisterAnalyzeAction() {
+    private ContendedRegisterAnalyzeAction() {
         super(NAME, in -> ActionResponse.Empty.INSTANCE);
     }
 
     public static class TransportAction extends HandledTransportAction<Request, ActionResponse.Empty> {
 
-        private static final Logger logger = RegisterAnalyzeAction.logger;
+        private static final Logger logger = ContendedRegisterAnalyzeAction.logger;
 
         private final RepositoriesService repositoriesService;
         private final ExecutorService executor;
@@ -259,7 +260,7 @@ public class RegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
         public String getDescription() {
             return Strings.format(
                 """
-                    RegisterAnalyzeAction.Request{\
+                    ContendedRegisterAnalyzeAction.Request{\
                     repositoryName='%s', containerPath='%s', registerName='%s', requestCount='%d', initialRead='%d'}""",
                 repositoryName,
                 containerPath,

@@ -295,11 +295,7 @@ public class UnsignedLongTests extends ESIntegTestCase {
     public void testSortDifferentFormatsShouldFail() {
         Exception exception = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch()
-                .setIndices("idx", "idx2")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .addSort("ul_field", SortOrder.ASC)
-                .get()
+            () -> prepareSearch().setIndices("idx", "idx2").setQuery(QueryBuilders.matchAllQuery()).addSort("ul_field", SortOrder.ASC).get()
         );
         assertEquals(
             exception.getCause().getMessage(),

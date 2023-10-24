@@ -206,8 +206,7 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
         final double[] pcts = randomPercentiles();
         int sigDigits = randomSignificantDigits();
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(
                 percentiles("percentiles").numberOfSignificantValueDigits(sigDigits)
                     .method(PercentilesMethod.HDR)
@@ -510,7 +509,6 @@ public class HDRPercentilesIT extends AbstractNumericTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,

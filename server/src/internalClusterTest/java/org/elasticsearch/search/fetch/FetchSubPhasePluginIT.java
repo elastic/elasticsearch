@@ -72,9 +72,9 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch()
-            .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
-            .get();
+        SearchResponse response = prepareSearch().setSource(
+            new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))
+        ).get();
         assertNoFailures(response);
         assertThat(
             ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),

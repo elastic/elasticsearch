@@ -131,7 +131,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
                 .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
-                .get()
         );
         ensureGreen();
         client().prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").execute().actionGet();
@@ -151,8 +150,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         // sort to load it to field data...
-        client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
-        client().prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field", SortOrder.ASC).execute().actionGet();
 
         nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -167,8 +166,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
 
         // sort to load it to field data...
-        client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
-        client().prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
+        prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
 
         // now check the per field stats
         nodesStats = clusterAdmin().prepareNodesStats("data:true")
@@ -236,7 +235,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0).put("index.number_of_shards", 2))
                 .setMapping("field", "type=text,fielddata=true")
-                .get()
         );
         ensureGreen();
         clusterAdmin().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -272,16 +270,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
 
         // sort to load it to field data and filter to load filter cache
-        client().prepareSearch()
-            .setPostFilter(QueryBuilders.termQuery("field", "value1"))
-            .addSort("field", SortOrder.ASC)
-            .execute()
-            .actionGet();
-        client().prepareSearch()
-            .setPostFilter(QueryBuilders.termQuery("field", "value2"))
-            .addSort("field", SortOrder.ASC)
-            .execute()
-            .actionGet();
+        prepareSearch().setPostFilter(QueryBuilders.termQuery("field", "value1")).addSort("field", SortOrder.ASC).execute().actionGet();
+        prepareSearch().setPostFilter(QueryBuilders.termQuery("field", "value2")).addSort("field", SortOrder.ASC).execute().actionGet();
 
         nodesStats = clusterAdmin().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
         assertThat(
@@ -334,7 +324,6 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("idx")
                 .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true))
-                .get()
         );
         ensureGreen();
 

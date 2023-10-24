@@ -6,7 +6,20 @@
 
 Returns search results for an <<esql,ES|QL ({es} query language)>> query.
 
-include::index.asciidoc[tag=esql-query-api-example]
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
 
 [discrete]
 [[esql-query-api-request]]

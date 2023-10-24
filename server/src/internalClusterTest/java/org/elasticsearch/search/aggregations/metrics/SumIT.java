@@ -203,7 +203,6 @@ public class SumIT extends AbstractNumericTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,
@@ -270,9 +269,7 @@ public class SumIT extends AbstractNumericTestCase {
     }
 
     public void testFieldAlias() {
-        SearchResponse response = client().prepareSearch("old_index", "new_index")
-            .addAggregation(sum("sum").field("route_length_miles"))
-            .get();
+        SearchResponse response = prepareSearch("old_index", "new_index").addAggregation(sum("sum").field("route_length_miles")).get();
 
         assertNoFailures(response);
 
@@ -283,9 +280,9 @@ public class SumIT extends AbstractNumericTestCase {
     }
 
     public void testFieldAliasInSubAggregation() {
-        SearchResponse response = client().prepareSearch("old_index", "new_index")
-            .addAggregation(terms("terms").field("transit_mode").subAggregation(sum("sum").field("route_length_miles")))
-            .get();
+        SearchResponse response = prepareSearch("old_index", "new_index").addAggregation(
+            terms("terms").field("transit_mode").subAggregation(sum("sum").field("route_length_miles"))
+        ).get();
 
         assertNoFailures(response);
 

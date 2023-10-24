@@ -114,8 +114,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(count("count").field("value"))
             .get();
 
@@ -204,7 +203,6 @@ public class ValueCountIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,

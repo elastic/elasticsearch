@@ -66,7 +66,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
             paramsMap.put(params[i].toString(), params[i + 1]);
         }
 
-        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
+        SearchRequestBuilder req = prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
             .addSort(SortBuilders.fieldSort("id").order(SortOrder.ASC).unmappedType("long"))
             .addScriptField("foo", new Script(ScriptType.INLINE, "expression", script, paramsMap));
@@ -113,7 +113,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         ScriptScoreFunctionBuilder score = ScoreFunctionBuilders.scriptFunction(
             new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap())
         );
-        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
+        SearchRequestBuilder req = prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
         SearchResponse rsp = req.get();
@@ -124,7 +124,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
         assertEquals("3", hits.getAt(1).getId());
         assertEquals("2", hits.getAt(2).getId());
 
-        req = client().prepareSearch().setIndices("test");
+        req = prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode(CombineFunction.REPLACE));
         score = ScoreFunctionBuilders.scriptFunction(new Script(ScriptType.INLINE, "expression", "1 / _score", Collections.emptyMap()));
         req.addAggregation(AggregationBuilders.max("max_score").script((score).getScript()));
@@ -466,7 +466,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("3").setSource("x", 13, "y", 1.8)
         );
 
-        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
+        SearchRequestBuilder req = prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
             .addAggregation(
                 AggregationBuilders.stats("int_agg")
@@ -512,7 +512,7 @@ public class MoreExpressionIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("3").setSource("text", "hello")
         );
 
-        SearchRequestBuilder req = client().prepareSearch().setIndices("test");
+        SearchRequestBuilder req = prepareSearch().setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
             .addAggregation(
                 AggregationBuilders.terms("term_agg")

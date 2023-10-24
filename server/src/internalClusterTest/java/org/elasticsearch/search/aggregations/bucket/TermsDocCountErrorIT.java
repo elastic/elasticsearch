@@ -960,16 +960,14 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
      * 3 one-shard indices.
      */
     public void testFixedDocs() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_fixed_docs_0", "idx_fixed_docs_1", "idx_fixed_docs_2")
-            .addAggregation(
-                terms("terms").executionHint(randomExecutionHint())
-                    .field(STRING_FIELD_NAME)
-                    .showTermDocCountError(true)
-                    .size(5)
-                    .shardSize(5)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_fixed_docs_0", "idx_fixed_docs_1", "idx_fixed_docs_2").addAggregation(
+            terms("terms").executionHint(randomExecutionHint())
+                .field(STRING_FIELD_NAME)
+                .showTermDocCountError(true)
+                .size(5)
+                .shardSize(5)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
         assertNoFailures(response);
 
         Terms terms = response.getAggregations().get("terms");
@@ -1015,16 +1013,14 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
      * See https://github.com/elastic/elasticsearch/issues/40005 for more details
      */
     public void testIncrementalReduction() {
-        SearchResponse response = client().prepareSearch("idx_fixed_docs_3", "idx_fixed_docs_4", "idx_fixed_docs_5")
-            .addAggregation(
-                terms("terms").executionHint(randomExecutionHint())
-                    .field(STRING_FIELD_NAME)
-                    .showTermDocCountError(true)
-                    .size(5)
-                    .shardSize(5)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_fixed_docs_3", "idx_fixed_docs_4", "idx_fixed_docs_5").addAggregation(
+            terms("terms").executionHint(randomExecutionHint())
+                .field(STRING_FIELD_NAME)
+                .showTermDocCountError(true)
+                .size(5)
+                .shardSize(5)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
         assertNoFailures(response);
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms.getDocCountError(), equalTo(0L));

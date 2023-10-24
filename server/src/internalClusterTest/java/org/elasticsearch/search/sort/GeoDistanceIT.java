@@ -614,8 +614,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         refresh();
 
         // Order: Asc
-        SearchResponse searchResponse = client().prepareSearch("test1", "test2")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("test1", "test2").setQuery(matchAllQuery())
             .addSort(SortBuilders.geoDistanceSort("locations", 40.7143528, -74.0059731).ignoreUnmapped(true).order(SortOrder.ASC))
             .get();
 
@@ -625,8 +624,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(((Number) searchResponse.getHits().getAt(1).getSortValues()[0]).doubleValue(), equalTo(Double.POSITIVE_INFINITY));
 
         // Order: Desc
-        searchResponse = client().prepareSearch("test1", "test2")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("test1", "test2").setQuery(matchAllQuery())
             .addSort(SortBuilders.geoDistanceSort("locations", 40.7143528, -74.0059731).ignoreUnmapped(true).order(SortOrder.DESC))
             .get();
 
@@ -637,8 +635,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(((Number) searchResponse.getHits().getAt(1).getSortValues()[0]).doubleValue(), closeTo(5286d, 10d));
 
         // Make sure that by default the unmapped fields continue to fail
-        searchResponse = client().prepareSearch("test1", "test2")
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch("test1", "test2").setQuery(matchAllQuery())
             .addSort(SortBuilders.geoDistanceSort("locations", 40.7143528, -74.0059731).order(SortOrder.DESC))
             .get();
         assertThat(searchResponse.getFailedShards(), greaterThan(0));

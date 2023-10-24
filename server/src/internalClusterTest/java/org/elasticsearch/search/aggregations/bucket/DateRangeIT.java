@@ -510,14 +510,9 @@ public class DateRangeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                dateRange("range").field("date")
-                    .addUnboundedTo(date(2, 15))
-                    .addRange(date(2, 15), date(3, 15))
-                    .addUnboundedFrom(date(3, 15))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            dateRange("range").field("date").addUnboundedTo(date(2, 15)).addRange(date(2, 15), date(3, 15)).addUnboundedFrom(date(3, 15))
+        ).get();
 
         assertNoFailures(response);
 
@@ -602,7 +597,6 @@ public class DateRangeIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("date", "type=date")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,

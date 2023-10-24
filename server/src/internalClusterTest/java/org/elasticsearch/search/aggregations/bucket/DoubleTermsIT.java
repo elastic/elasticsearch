@@ -453,11 +453,9 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped", "idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -476,13 +474,11 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmappedWithFormat() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped", "idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .format("0000.00")
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped", "idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                .format("0000.00")
+        ).get();
 
         assertNoFailures(response);
 
@@ -919,7 +915,6 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=float")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,

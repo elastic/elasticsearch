@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: warnings
+      features: allowed_warnings
   - do:
       indices.create:
         index: test
@@ -87,9 +87,9 @@ setup:
 ---
 unsupported:
   - do:
-      warnings:
+      allowed_warnings:
         - "Field [ip_noidx] cannot be retrieved, it is unsupported or not indexed; returning null"
-        - "No limit defined, adding default limit of \\[.*\\]"
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test'

@@ -15,8 +15,10 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
+import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Collection;
@@ -189,7 +191,26 @@ public class InternalUsers {
             null,
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(ReloadAnalyzerAction.NAME).build(), },
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(ReloadAnalyzerAction.NAME).build()},
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
+    public static final InternalUser SEMANTIC_TEXT_USER = new InternalUser(
+        UsernamesField.SEMANTIC_TEXT_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.SEMANTIC_TEXT_ROLE_NAME,
+            new String[] { "monitor" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".inference*", ".secrets-inference*")
+                    .privileges("read")
+                    .allowRestrictedIndices(true)
+                    .build()},
             null,
             null,
             null,
@@ -211,7 +232,8 @@ public class InternalUsers {
             ASYNC_SEARCH_USER,
             STORAGE_USER,
             DATA_STREAM_LIFECYCLE_USER,
-            SYNONYMS_USER
+            SYNONYMS_USER,
+            SEMANTIC_TEXT_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

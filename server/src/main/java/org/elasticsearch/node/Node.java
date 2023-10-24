@@ -149,7 +149,6 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.PipelinesBulkRequestPreprocessor;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -552,10 +551,6 @@ public class Node implements Closeable {
                 client,
                 IngestService.createGrokThreadWatchdog(this.environment, threadPool),
                 documentParsingObserverSupplier
-            );
-            final PipelinesBulkRequestPreprocessor pipelinesBulkRequestPreprocessor = new PipelinesBulkRequestPreprocessor(
-                documentParsingObserverSupplier,
-                ingestService
             );
             final FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor = new FieldInferenceBulkRequestPreprocessor(
                 documentParsingObserverSupplier,
@@ -1097,6 +1092,7 @@ public class Node implements Closeable {
                 b.bind(ScriptService.class).toInstance(scriptService);
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
+                b.bind(FieldInferenceBulkRequestPreprocessor.class).toInstance(fieldInferenceBulkRequestPreprocessor);
                 b.bind(IndexingPressure.class).toInstance(indexingLimits);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

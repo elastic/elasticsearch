@@ -51,7 +51,7 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
     }
 
     @Override
-    public boolean needsProcessing(DocWriteRequest docWriteRequest, IndexRequest indexRequest, Metadata metadata) {
+    public boolean needsProcessing(DocWriteRequest<?> docWriteRequest, IndexRequest indexRequest, Metadata metadata) {
         return (indexRequest.isFieldInferenceResolved() == false)
             && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
     }

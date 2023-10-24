@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -158,6 +159,9 @@ public final class AuthorizationUtils {
                 break;
             case SYNONYMS_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.SYNONYMS_USER, version, consumer);
+                break;
+            case FieldInferenceBulkRequestPreprocessor.SEMANTIC_TEXT_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.SEMANTIC_TEXT_USER, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

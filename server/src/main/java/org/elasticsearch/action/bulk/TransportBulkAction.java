@@ -61,7 +61,7 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.BulkRequestPreprocessor;
 import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
-import org.elasticsearch.ingest.PipelinesBulkRequestPreprocessor;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -111,7 +111,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ThreadPool threadPool,
         TransportService transportService,
         ClusterService clusterService,
-        PipelinesBulkRequestPreprocessor pipelinesBulkRequestPreprocessor,
+        IngestService ingestService,
         FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor,
         NodeClient client,
         ActionFilters actionFilters,
@@ -123,7 +123,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             threadPool,
             transportService,
             clusterService,
-            pipelinesBulkRequestPreprocessor,
+            ingestService,
             fieldInferenceBulkRequestPreprocessor,
             client,
             actionFilters,
@@ -138,7 +138,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ThreadPool threadPool,
         TransportService transportService,
         ClusterService clusterService,
-        PipelinesBulkRequestPreprocessor pipelinesBulkRequestPreprocessor,
+        IngestService ingestService,
         FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor,
         NodeClient client,
         ActionFilters actionFilters,
@@ -151,7 +151,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
-        this.bulkRequestPreprocessors = List.of(pipelinesBulkRequestPreprocessor, fieldInferenceBulkRequestPreprocessor);
+        this.bulkRequestPreprocessors = List.of(ingestService, fieldInferenceBulkRequestPreprocessor);
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -355,12 +355,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    private boolean preprocessBulkRequest(
-        Task task,
-        BulkRequest bulkRequest,
-        String executorName,
-        ActionListener<BulkResponse> listener
-    ) {
+    private boolean preprocessBulkRequest(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
         final Metadata metadata = clusterService.state().getMetadata();
         final Version minNodeVersion = clusterService.state().getNodes().getMinNodeVersion();
         boolean needsProcessing = false;
@@ -385,12 +380,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 // this path is never taken.
                 ActionListener.run(listener, l -> {
                     if (Assertions.ENABLED) {
-                        final boolean areRequestsProcessed = bulkRequest.requests()
+                        final boolean allRequestsUnprocessed = bulkRequest.requests()
                             .stream()
                             .map(TransportBulkAction::getIndexWriteRequest)
                             .filter(Objects::nonNull)
-                            .allMatch(preprocessor::hasBeenProcessed);
-                        assert areRequestsProcessed : bulkRequest;
+                            .noneMatch(preprocessor::hasBeenProcessed);
+                        assert allRequestsUnprocessed : bulkRequest;
                     }
                     if ((preprocessor.shouldExecuteOnIngestNode() == false) || clusterService.localNode().isIngestNode()) {
                         preprocessBulkRequestWithPreprocessor(preprocessor, task, bulkRequest, executorName, l);

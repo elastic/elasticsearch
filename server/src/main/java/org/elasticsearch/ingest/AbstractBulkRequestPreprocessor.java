@@ -70,7 +70,8 @@ public abstract class AbstractBulkRequestPreprocessor implements BulkRequestPrep
         int slot,
         RefCountingRunnable refs,
         IntConsumer onDropped,
-        BiConsumer<Integer, Exception> onFailure);
+        BiConsumer<Integer, Exception> onFailure
+    );
 
     /**
      * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.

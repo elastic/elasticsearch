@@ -27,7 +27,7 @@ public interface BulkRequestPreprocessor {
         String executorName
     );
 
-    boolean needsProcessing(DocWriteRequest docWriteRequest, IndexRequest indexRequest, Metadata metadata);
+    boolean needsProcessing(DocWriteRequest<?> docWriteRequest, IndexRequest indexRequest, Metadata metadata);
 
     boolean hasBeenProcessed(IndexRequest indexRequest);
 

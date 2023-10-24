@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.builder.SubSearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -363,12 +364,8 @@ public final class ClassicRetrieverBuilder extends RetrieverBuilder<ClassicRetri
     }
 
     public void doExtractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder) {
-        if (searchSourceBuilder.query() == null) {
-            if (queryBuilder != null) {
-                searchSourceBuilder.query(queryBuilder);
-            }
-        } else {
-            throw new IllegalStateException("[query] cannot be declared as a retriever value and as a global value");
+        if (queryBuilder != null) {
+            searchSourceBuilder.subSearches().add(new SubSearchSourceBuilder(queryBuilder));
         }
 
         if (searchSourceBuilder.searchAfter() == null) {

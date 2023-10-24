@@ -54,7 +54,7 @@ A common use case is a user searching FAQs, or a support agent searching a knowl
 The diagram below shows how documents are processed during ingestion.
 
 // Original diagram: https://whimsical.com/ml-in-enterprise-search-ErCetPqrcCPu2QYHvAwrgP@2bsEvpTYSt1Hiuq6UBf68tUWvFiXdzLt6ao
-image::../images/ingest/ingest-pipeline-search-inference-diagram.png[align="center"]
+image::../images/ingest/ingest-pipeline-ent-search-ui.png[align="center"]
 
 * Documents are processed by the `my-index-0001` pipeline, which happens automatically when indexing through a Search connector or crawler.
 * The `_run_ml_inference` field is set to `true` to ensure the ML inference pipeline (`my-index-0001@ml-inference`) is executed.

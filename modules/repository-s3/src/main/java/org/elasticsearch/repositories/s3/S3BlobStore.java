@@ -157,6 +157,10 @@ class S3BlobStore implements BlobStore {
         return service.compareAndExchangeTimeToLive;
     }
 
+    public TimeValue getCompareAndExchangeAntiContentionDelay() {
+        return service.compareAndExchangeAntiContentionDelay;
+    }
+
     // metrics collector that ignores null responses that we interpret as the request not reaching the S3 endpoint due to a network
     // issue
     private abstract static class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {

@@ -9,7 +9,6 @@
 package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.util.Maps;
@@ -220,43 +219,45 @@ public class SerialDiffIT extends AggregationIntegTestCase {
     }
 
     public void testBasicDiff() {
-        SearchRequestBuilder builder = prepareSearch("idx").addAggregation(
-            histogram("histo").field(INTERVAL_FIELD)
-                .interval(interval)
-                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
-                .subAggregation(metric)
-                .subAggregation(diff("diff_counts", "_count").lag(lag).gapPolicy(gapPolicy))
-                .subAggregation(diff("diff_values", "the_metric").lag(lag).gapPolicy(gapPolicy))
-        );
-        assertNoFailuresAndResponse(builder, response -> {
-            Histogram histo = response.getAggregations().get("histo");
-            assertThat(histo, notNullValue());
-            assertThat(histo.getName(), equalTo("histo"));
-            List<? extends Bucket> buckets = histo.getBuckets();
-            assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                histogram("histo").field(INTERVAL_FIELD)
+                    .interval(interval)
+                    .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
+                    .subAggregation(metric)
+                    .subAggregation(diff("diff_counts", "_count").lag(lag).gapPolicy(gapPolicy))
+                    .subAggregation(diff("diff_values", "the_metric").lag(lag).gapPolicy(gapPolicy))
+            ),
+            response -> {
+                Histogram histo = response.getAggregations().get("histo");
+                assertThat(histo, notNullValue());
+                assertThat(histo.getName(), equalTo("histo"));
+                List<? extends Bucket> buckets = histo.getBuckets();
+                assertThat("Size of buckets array is not correct.", buckets.size(), equalTo(mockHisto.size()));
 
-            List<Double> expectedCounts = testValues.get(MetricTarget.COUNT.toString());
-            List<Double> expectedValues = testValues.get(MetricTarget.VALUE.toString());
+                List<Double> expectedCounts = testValues.get(MetricTarget.COUNT.toString());
+                List<Double> expectedValues = testValues.get(MetricTarget.VALUE.toString());
 
-            Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
-            Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
-            Iterator<Double> expectedCountsIter = expectedCounts.iterator();
-            Iterator<Double> expectedValuesIter = expectedValues.iterator();
+                Iterator<? extends Histogram.Bucket> actualIter = buckets.iterator();
+                Iterator<PipelineAggregationHelperTests.MockBucket> expectedBucketIter = mockHisto.iterator();
+                Iterator<Double> expectedCountsIter = expectedCounts.iterator();
+                Iterator<Double> expectedValuesIter = expectedValues.iterator();
 
-            while (actualIter.hasNext()) {
-                assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
+                while (actualIter.hasNext()) {
+                    assertValidIterators(expectedBucketIter, expectedCountsIter, expectedValuesIter);
 
-                Histogram.Bucket actual = actualIter.next();
-                PipelineAggregationHelperTests.MockBucket expected = expectedBucketIter.next();
-                Double expectedCount = expectedCountsIter.next();
-                Double expectedValue = expectedValuesIter.next();
+                    Histogram.Bucket actual = actualIter.next();
+                    PipelineAggregationHelperTests.MockBucket expected = expectedBucketIter.next();
+                    Double expectedCount = expectedCountsIter.next();
+                    Double expectedValue = expectedValuesIter.next();
 
-                assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
-                assertThat("doc counts do not match", actual.getDocCount(), equalTo((long) expected.count));
+                    assertThat("keys do not match", ((Number) actual.getKey()).longValue(), equalTo(expected.key));
+                    assertThat("doc counts do not match", actual.getDocCount(), equalTo((long) expected.count));
 
-                assertBucketContents(actual, expectedCount, expectedValue);
+                    assertBucketContents(actual, expectedCount, expectedValue);
+                }
             }
-        });
+        );
     }
 
     public void testInvalidLagSize() {

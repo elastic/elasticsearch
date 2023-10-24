@@ -182,12 +182,12 @@ emp_no:integer |  job_positions:keyword
 doubleSort_OnDifferentThan_MvExpandedFields
 from employees | sort emp_no | mv_expand job_positions | keep emp_no, job_positions, salary | sort salary, job_positions | limit 5;
 
-emp_no:integer |job_positions:keyword|salary:integer
-10004          |Head Human Resources |36174          
-10004          |Reporting Analyst    |36174          
-10004          |Support Engineer     |36174          
-10004          |Tech Lead            |36174          
-10002          |Senior Team Lead     |56371
+emp_no:integer |  job_positions:keyword   |salary:integer
+10015          |Head Human Resources      |25324          
+10015          |Junior Developer          |25324          
+10015          |Principal Support Engineer|25324          
+10015          |Support Engineer          |25324          
+10035          |Data Scientist            |25945
 ;
 
 doubleLimit_expandLimitLowerThanAvailable

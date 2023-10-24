@@ -136,6 +136,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneColumns(),
             new PruneLiteralsInOrderBy(),
             new PushDownAndCombineLimits(),
+            new DuplicateLimitAfterMvExpand(),
             new PushDownAndCombineFilters(),
             new PushDownEval(),
             new PushDownRegexExtract(),
@@ -395,41 +396,21 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich) {
                     return unary.replaceChild(limit.replaceChild(unary.child()));
                 }
-
-                MvExpand mvExpand = descendantMvExpand(unary);
-                if (mvExpand != null) {
-                    Limit limitBeforeMvExpand = limitBeforeMvExpand(mvExpand);
-                    // if there is no "appropriate" limit before mv_expand, then push down a copy of the one after it so that:
-                    // - a possible TopN is properly built as low as possible in the tree (closed to Lucene)
-                    // - the input of mv_expand is as small as possible before it is expanded (less rows to inflate and occupy memory)
-                    if (limitBeforeMvExpand == null) {
-                        var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
-                        return limit.replaceChild(
-                            propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) limit.child())
-                        );
-                    }
-                }
                 // check if there's a 'visible' descendant limit lower than the current one
                 // and if so, align the current limit since it adds no value
                 // this applies for cases such as | limit 1 | sort field | limit 10
-                Limit descendantLimit = descendantLimit(unary);
-                if (descendantLimit != null) {
-                    var l1 = (int) limit.limit().fold();
-                    var l2 = (int) descendantLimit.limit().fold();
-                    if (l2 <= l1) {
-                        return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
+                else {
+                    Limit descendantLimit = descendantLimit(unary);
+                    if (descendantLimit != null) {
+                        var l1 = (int) limit.limit().fold();
+                        var l2 = (int) descendantLimit.limit().fold();
+                        if (l2 <= l1) {
+                            return new Limit(limit.source(), Literal.of(limit.limit(), l2), limit.child());
+                        }
                     }
                 }
             }
             return limit;
-        }
-
-        private LogicalPlan propagateDuplicateLimitUntilMvExpand(Limit duplicateLimit, MvExpand mvExpand, UnaryPlan child) {
-            if (child == mvExpand) {
-                return mvExpand.replaceChild(duplicateLimit);
-            } else {
-                return child.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) child.child()));
-            }
         }
 
         /**
@@ -455,20 +436,33 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
             return null;
         }
+    }
 
-        private static Limit limitBeforeMvExpand(MvExpand mvExpand) {
-            UnaryPlan plan = mvExpand;
-            while (plan instanceof Aggregate == false) {
-                if (plan instanceof Limit limit) {
-                    return limit;
-                }
-                if (plan.child() instanceof UnaryPlan unaryPlan) {
-                    plan = unaryPlan;
-                } else {
-                    break;
+    static class DuplicateLimitAfterMvExpand extends OptimizerRules.OptimizerRule<Limit> {
+
+        @Override
+        protected LogicalPlan rule(Limit limit) {
+            var child = limit.child();
+            var shouldSkip = child instanceof Eval
+                || child instanceof Project
+                || child instanceof RegexExtract
+                || child instanceof Enrich
+                || child instanceof Limit;
+
+            if (shouldSkip == false && child instanceof UnaryPlan unary) {
+                MvExpand mvExpand = descendantMvExpand(unary);
+                if (mvExpand != null) {
+                    Limit limitBeforeMvExpand = limitBeforeMvExpand(mvExpand);
+                    // if there is no "appropriate" limit before mv_expand, then push down a copy of the one after it so that:
+                    // - a possible TopN is properly built as low as possible in the tree (closed to Lucene)
+                    // - the input of mv_expand is as small as possible before it is expanded (less rows to inflate and occupy memory)
+                    if (limitBeforeMvExpand == null) {
+                        var duplicateLimit = new Limit(limit.source(), limit.limit(), mvExpand.child());
+                        return limit.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, unary));
+                    }
                 }
             }
-            return null;
+            return limit;
         }
 
         private static MvExpand descendantMvExpand(UnaryPlan unary) {
@@ -487,9 +481,30 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                         }
                     }
                     return mve;
-                }
-                if (plan instanceof Filter filter) {
+                } else if (plan instanceof Filter filter) {
+                    // gather all the filters' references to be checked later when a mv_expand is found
                     filterReferences.addAll(filter.references());
+                } else if (plan instanceof OrderBy) {
+                    // ordering after mv_expand COULD break the order of the results, so the limit shouldn't be copied past mv_expand
+                    // something like from test | sort emp_no | mv_expand job_positions | sort first_name | limit 5
+                    // (the sort first_name likely changes the order of the docs after sort emp_no, so "limit 5" shouldn't be copied down
+                    return null;
+                }
+
+                if (plan.child() instanceof UnaryPlan unaryPlan) {
+                    plan = unaryPlan;
+                } else {
+                    break;
+                }
+            }
+            return null;
+        }
+
+        private static Limit limitBeforeMvExpand(MvExpand mvExpand) {
+            UnaryPlan plan = mvExpand;
+            while (plan instanceof Aggregate == false) {
+                if (plan instanceof Limit limit) {
+                    return limit;
                 }
                 if (plan.child() instanceof UnaryPlan unaryPlan) {
                     plan = unaryPlan;
@@ -498,6 +513,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 }
             }
             return null;
+        }
+
+        private LogicalPlan propagateDuplicateLimitUntilMvExpand(Limit duplicateLimit, MvExpand mvExpand, UnaryPlan child) {
+            if (child == mvExpand) {
+                return mvExpand.replaceChild(duplicateLimit);
+            } else {
+                return child.replaceChild(propagateDuplicateLimitUntilMvExpand(duplicateLimit, mvExpand, (UnaryPlan) child.child()));
+            }
         }
     }
 
@@ -949,7 +972,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * | rename first_name AS x
      * | where x LIKE "*a*"
      * | limit 15
-     * PushDownAndCombineLimits rule will copy the "limit 15" after "sort emp_no" if there is no filter on the expanded values.
+     *
+     * or
+     *
+     * from test
+     * | sort emp_no
+     * | mv_expand first_name
+     * | sort first_name
+     * | limit 15
+     *
+     * PushDownAndCombineLimits rule will copy the "limit 15" after "sort emp_no" if there is no filter on the expanded values
+     * OR if there is no sort between "limit" and "mv_expand".
      * But, since this type of query has such a filter, the "sort emp_no" will have no limit when it reaches the current rule.
      */
     static class AddDefaultTopN extends ParameterizedOptimizerRule<LogicalPlan, LogicalOptimizerContext> {
@@ -957,7 +990,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         @Override
         protected LogicalPlan rule(LogicalPlan plan, LogicalOptimizerContext context) {
             if (plan instanceof UnaryPlan unary && unary.child() instanceof OrderBy order && order.child() instanceof EsRelation relation) {
-                var limit = new Literal(Source.EMPTY, context.configuration().resultTruncationDefaultSize(), DataTypes.INTEGER);
+                var limit = new Literal(Source.EMPTY, context.configuration().resultTruncationMaxSize(), DataTypes.INTEGER);
                 return unary.replaceChild(new TopN(plan.source(), relation, order.order(), limit));
             }
             return plan;

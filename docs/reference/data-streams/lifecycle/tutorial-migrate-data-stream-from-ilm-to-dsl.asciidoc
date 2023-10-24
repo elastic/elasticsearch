@@ -10,7 +10,7 @@ to be managed by {ilm-init} until they age out and get deleted by {ilm-init}; ho
 the new backing indices will be managed by Data stream lifecycle. 
 This way, a data stream is gradually migrated away from being managed by {ilm-cap} to 
 being managed by Data stream lifecycle. As we'll see, {ilm-cap} and Data stream lifecycle
-can co-manage a data stream however, an index can only be managed by one system at 
+can co-manage a data stream; however, an index can only be managed by one system at 
 a time.
 
 Let's first create a data stream with two backing indices managed by {ilm-cap}.

@@ -57,7 +57,6 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         assertAcked(
             prepareCreate("test").setSettings(settings(randomSupportedVersion()).build())
                 .setMapping("shape", "type=geo_shape,strategy=recursive,tree=geohash")
-                .get()
         );
         ensureGreen();
 
@@ -74,7 +73,7 @@ public class LegacyGeoShapeIT extends GeoShapeIntegTestCase {
         }));
 
         // test self crossing of circles
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(geoShapeQuery("shape", new Circle(30, 50, 77000))).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 }

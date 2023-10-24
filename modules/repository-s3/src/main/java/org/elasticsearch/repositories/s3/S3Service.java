@@ -60,6 +60,14 @@ class S3Service implements Closeable {
         Setting.Property.NodeScope
     );
 
+    private static final Setting<TimeValue> REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING = Setting.timeSetting(
+        "repository_s3.compare_and_exchange.anti_contention_delay",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueHours(24),
+        Setting.Property.NodeScope
+    );
+
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
@@ -79,6 +87,7 @@ class S3Service implements Closeable {
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
     final TimeValue compareAndExchangeTimeToLive;
+    final TimeValue compareAndExchangeAntiContentionDelay;
 
     S3Service(Environment environment, Settings nodeSettings) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
@@ -88,6 +97,7 @@ class S3Service implements Closeable {
             Clock.systemUTC()
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
+        compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
     }
 
     /**

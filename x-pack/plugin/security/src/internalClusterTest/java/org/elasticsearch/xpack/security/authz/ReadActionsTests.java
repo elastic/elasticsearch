@@ -410,11 +410,11 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     }
 
     private SearchRequestBuilder trySearch(String... indices) {
-        return client().prepareSearch(indices);
+        return prepareSearch(indices);
     }
 
     private SearchRequestBuilder trySearch(IndicesOptions options, String... indices) {
-        return client().prepareSearch(indices).setIndicesOptions(options);
+        return prepareSearch(indices).setIndicesOptions(options);
     }
 
     private static <T extends Throwable> T expectThrows(Class<T> expectedType, SearchRequestBuilder searchRequestBuilder) {

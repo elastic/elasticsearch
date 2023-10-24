@@ -116,8 +116,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         refresh();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(DFS_QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH)
             .setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
@@ -157,8 +156,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(DFS_QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH)
             .setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
@@ -195,8 +193,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSearchType(QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch("test").setSearchType(QUERY_THEN_FETCH)
             .setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
@@ -255,8 +252,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         prepareData();
 
         int total = 0;
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(termQuery("multi", "test"))
+        SearchResponse searchResponse = prepareSearch("test").setQuery(termQuery("multi", "test"))
             .setSize(60)
             .setExplain(true)
             .addSort("age", SortOrder.ASC)
@@ -357,9 +353,9 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         logger.info("Start Testing failed multi search with a wrong query");
 
         MultiSearchResponse response = client().prepareMultiSearch()
-            .add(client().prepareSearch("test").setQuery(new MatchQueryBuilder("foo", "biz")))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test").setQuery(new MatchQueryBuilder("foo", "biz")))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());
@@ -381,16 +377,15 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         MultiSearchResponse response = client().prepareMultiSearch()
             // Add custom score query with bogus script
             .add(
-                client().prepareSearch("test")
-                    .setQuery(
-                        QueryBuilders.functionScoreQuery(
-                            QueryBuilders.termQuery("nid", 1),
-                            new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap()))
-                        )
+                prepareSearch("test").setQuery(
+                    QueryBuilders.functionScoreQuery(
+                        QueryBuilders.termQuery("nid", 1),
+                        new ScriptScoreFunctionBuilder(new Script(ScriptType.INLINE, "bar", "foo", Collections.emptyMap()))
                     )
+                )
             )
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
-            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+            .add(prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
             .get();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());

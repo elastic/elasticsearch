@@ -9,6 +9,9 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.ObservableDoubleGauge;
+
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Collections;
 import java.util.Map;
@@ -18,7 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * DoubleGaugeAdapter wraps an otel ObservableDoubleMeasurement
  */
-public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableDoubleGauge>
+public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge>
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
@@ -30,7 +33,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.
     }
 
     @Override
-    io.opentelemetry.api.metrics.ObservableDoubleGauge buildInstrument(Meter meter) {
+    protected io.opentelemetry.api.metrics.ObservableDoubleGauge buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .gaugeBuilder(getName())
             .setDescription(getDescription())

@@ -39,8 +39,7 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
     }
 
     public void testAggregation() {
-        SearchResponse response = client().prepareSearch(DATA_INDEX)
-            .setSize(0)
+        SearchResponse response = prepareSearch(DATA_INDEX).setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
                 new CategorizeTextAggregationBuilder("categorize", "msg").subAggregation(AggregationBuilders.max("max").field("time"))
@@ -57,8 +56,7 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
     }
 
     public void testAggregationWithOnlyOneBucket() {
-        SearchResponse response = client().prepareSearch(DATA_INDEX)
-            .setSize(0)
+        SearchResponse response = prepareSearch(DATA_INDEX).setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
                 new CategorizeTextAggregationBuilder("categorize", "msg").size(1)
@@ -73,8 +71,7 @@ public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
     }
 
     public void testAggregationWithBroadCategories() {
-        SearchResponse response = client().prepareSearch(DATA_INDEX)
-            .setSize(0)
+        SearchResponse response = prepareSearch(DATA_INDEX).setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
                 // Overriding the similarity threshold to just 11% (default is 70%) results in the

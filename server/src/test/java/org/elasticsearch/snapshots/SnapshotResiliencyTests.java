@@ -160,6 +160,7 @@ import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
@@ -1936,6 +1937,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             null,
                             () -> DocumentParsingObserver.EMPTY_INSTANCE
                         ),
+                        new FieldInferenceBulkRequestPreprocessor(() -> DocumentParsingObserver.EMPTY_INSTANCE, client),
                         client,
                         actionFilters,
                         indexNameExpressionResolver,

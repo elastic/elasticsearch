@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -93,6 +94,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     TransportService transportService;
     ClusterService clusterService;
     IngestService ingestService;
+    FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor;
     ThreadPool threadPool;
 
     /** Arguments to callbacks we want to capture, but which require generics, so we must use @Captor */
@@ -133,6 +135,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 transportService,
                 clusterService,
                 ingestService,
+                fieldInferenceBulkRequestPreprocessor,
                 null,
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
@@ -229,6 +232,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
+        fieldInferenceBulkRequestPreprocessor = mock(FieldInferenceBulkRequestPreprocessor.class);
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action

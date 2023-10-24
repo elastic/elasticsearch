@@ -127,6 +127,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
             clusterService,
             null,
             null,
+            null,
             mock(ActionFilters.class),
             indexNameExpressionResolver,
             new IndexingPressure(Settings.EMPTY),

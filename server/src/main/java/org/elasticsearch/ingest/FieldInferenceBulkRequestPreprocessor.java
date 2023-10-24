@@ -28,7 +28,7 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
 
     public static final String SEMANTIC_TEXT_ORIGIN = "semantic_text";
 
-    private final Client client;
+    private final OriginSettingClient client;
 
     public FieldInferenceBulkRequestPreprocessor(Supplier<DocumentParsingObserver> documentParsingObserver, Client client) {
         super(documentParsingObserver);

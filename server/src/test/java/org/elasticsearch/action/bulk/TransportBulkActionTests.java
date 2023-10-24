@@ -83,6 +83,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 clusterService,
                 null,
                 null,
+                null,
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),

@@ -1,5 +1,5 @@
 pr: 100974
-summary: Create new feature API for querying features present on a cluster (v2)
-area: "Cluster Coordination, Infra/Core"
+summary: Create new cluster state API for querying features present on a cluster
+area: "Infra/Core"
 type: feature
 issues: []

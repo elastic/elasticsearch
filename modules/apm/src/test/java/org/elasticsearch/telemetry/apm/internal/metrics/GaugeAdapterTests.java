@@ -9,7 +9,10 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import org.elasticsearch.telemetry.Measurement;
-import org.elasticsearch.telemetry.apm.TestAPMMeterService;
+import org.elasticsearch.telemetry.apm.APMMeterRegistry;
+import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
+import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -20,25 +23,27 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class GaugeAdapterTests extends ESTestCase {
-    TestAPMMeterService meterService;
+    RecordingOtelMeter otelMeter;
+    APMMeterRegistry registry;
 
     @Before
     public void init() {
-        meterService = new TestAPMMeterService();
+        otelMeter = new RecordingOtelMeter();
+        registry = new APMMeterRegistry(otelMeter);
     }
 
     // testing that a value reported is then used in a callback
     @SuppressWarnings("unchecked")
     public void testLongGaugeRecord() {
-        LongGaugeAdapter longGaugeAdapter = new LongGaugeAdapter(meterService.getMeter(), "name", "desc", "unit");
+        LongGauge longGauge = registry.registerLongGauge("name", "desc", "unit");
 
         // recording a value
         Map<String, Object> attributes = Map.of("k", 1L);
-        longGaugeAdapter.record(1L, attributes);
+        longGauge.record(1L, attributes);
 
-        meterService.collectMetrics();
+        otelMeter.collectMetrics();
 
-        List<Measurement> metrics = meterService.getMetrics(longGaugeAdapter);
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(longGauge);
         assertThat(metrics, hasSize(1));
         assertThat(metrics.get(0).attributes(), equalTo(attributes));
         assertThat(metrics.get(0).getLong(), equalTo(1L));
@@ -47,12 +52,13 @@ public class GaugeAdapterTests extends ESTestCase {
     // testing that a value reported is then used in a callback
     @SuppressWarnings("unchecked")
     public void testDoubleGaugeRecord() {
-        DoubleGaugeAdapter doubleGaugeAdapter = new DoubleGaugeAdapter(meterService.getMeter(), "name", "desc", "unit");
+        DoubleGauge doubleGauge = registry.registerDoubleGauge("name", "desc", "unit");
         Map<String, Object> attributes = Map.of("k", 1L);
-        doubleGaugeAdapter.record(1.0, attributes);
-        meterService.collectMetrics();
+        doubleGauge.record(1.0, attributes);
 
-        List<Measurement> metrics = meterService.getMetrics(doubleGaugeAdapter);
+        otelMeter.collectMetrics();
+
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(doubleGauge);
         assertThat(metrics, hasSize(1));
         assertThat(metrics.get(0).attributes(), equalTo(attributes));
         assertThat(metrics.get(0).getDouble(), equalTo(1.0));

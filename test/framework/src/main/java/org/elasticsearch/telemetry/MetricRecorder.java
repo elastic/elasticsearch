@@ -71,14 +71,14 @@ public class MetricRecorder<I> {
     /**
      * Record a call made to a registered Elasticsearch {@link Instrument}.
      */
-    void call(Instrument instrument, Number value, Map<String, Object> attributes) {
+    public void call(Instrument instrument, Number value, Map<String, Object> attributes) {
         call(InstrumentType.fromInstrument(instrument), instrument.getName(), value, attributes);
     }
 
     /**
      * Record a call made to the registered instrument represented by the {@link InstrumentType} enum.
      */
-    void call(InstrumentType instrumentType, String name, Number value, Map<String, Object> attributes) {
+    public void call(InstrumentType instrumentType, String name, Number value, Map<String, Object> attributes) {
         metrics.get(instrumentType).call(name, new Measurement(value, attributes, instrumentType.isDouble));
     }
 
@@ -89,21 +89,21 @@ public class MetricRecorder<I> {
         return getMeasurements(InstrumentType.fromInstrument(instrument), instrument.getName());
     }
 
-    List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
+    public List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
     }
 
     /**
      * Get the {@link Registration} for a given elasticsearch {@link Instrument}.
      */
-    Registration getRegistration(Instrument instrument) {
+    public Registration getRegistration(Instrument instrument) {
         return metrics.get(InstrumentType.fromInstrument(instrument)).registered().get(instrument.getName());
     }
 
     /**
      * Fetch the instrument instance given the type and registered name.
      */
-    I getInstrument(InstrumentType instrumentType, String name) {
+    public I getInstrument(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).instruments.get(name);
     }
 }

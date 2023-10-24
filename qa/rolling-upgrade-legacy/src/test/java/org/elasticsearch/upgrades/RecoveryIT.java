@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -430,7 +431,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(IndexVersion.V_7_2_0)) {
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -500,7 +501,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (indexVersionCreated(indexName).onOrAfter(IndexVersion.V_7_2_0)) {
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
             assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
             ensureGreen(indexName);

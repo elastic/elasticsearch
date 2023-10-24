@@ -49,6 +49,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -537,7 +538,7 @@ public final class NodeEnvironment implements Closeable {
                     + "] is incompatible. Revert this node to version ["
                     + bestDowngradeVersion
                     + "] and delete any indices with versions earlier than ["
-                    + IndexVersion.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["

@@ -8,15 +8,20 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,7 +33,7 @@ import java.util.stream.Collectors;
 /**
  * Stores information on what features are present throughout the cluster
  */
-public class ClusterFeatures implements Diffable<ClusterFeatures> {
+public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXContentObject {
 
     /**
      * The features on each individual node
@@ -85,7 +90,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
     }
 
     /**
-     * Writes a canonical set of feature sets to {@code StreamOutput}
+     * Writes a canonical set of feature sets to {@code StreamOutput}.
      * This aims to minimise the data serialized by assuming that most feature sets are going to be identical
      * in any one cluster state.
      */
@@ -225,6 +230,19 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
     }
 
     @Override
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return Iterators.concat(
+            Iterators.single((builder, p) -> builder.startArray()),
+            nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).<ToXContent>map(e -> (builder, p) -> {
+                String[] features = e.getValue().toArray(String[]::new);
+                Arrays.sort(features);
+                return builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
+            }).iterator(),
+            Iterators.single((builder, p) -> builder.endArray())
+        );
+    }
+
+    @Override
     public String toString() {
         // sort for ease of debugging
         var features = new TreeMap<>(nodeFeatures);
@@ -235,6 +253,7 @@ public class ClusterFeatures implements Diffable<ClusterFeatures> {
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof ClusterFeatures == false) return false;
+        if (this == obj) return true;
 
         ClusterFeatures that = (ClusterFeatures) obj;
         return nodeFeatures.equals(that.nodeFeatures);

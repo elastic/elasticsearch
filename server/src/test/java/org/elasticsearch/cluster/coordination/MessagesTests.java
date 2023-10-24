@@ -250,10 +250,10 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
-        // Note: the explicit cast of the CopyFunction is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
+        EqualsHashCodeTestUtils.<JoinRequest>checkEqualsAndHashCode(
             initialJoinRequest,
-            (CopyFunction<JoinRequest>) joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
+            joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
             joinRequest -> {
                 if (randomBoolean() && joinRequest.getOptionalJoin().isPresent() == false) {
                     return new JoinRequest(
@@ -278,7 +278,7 @@ public class MessagesTests extends ESTestCase {
                     return new JoinRequest(
                         joinRequest.getSourceNode(),
                         joinRequest.getCompatibilityVersions(),
-                        Set.copyOf(randomSubsetOf(joinRequest.getFeatures())),
+                        Set.copyOf(randomSubsetOf(randomInt(joinRequest.getFeatures().size() - 1), joinRequest.getFeatures())),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );

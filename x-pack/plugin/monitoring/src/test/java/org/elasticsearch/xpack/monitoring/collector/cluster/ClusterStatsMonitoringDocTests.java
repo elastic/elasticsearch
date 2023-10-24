@@ -770,7 +770,12 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                   }
                 },
                 "nodes_versions": [],
-                "nodes_features": []
+                "nodes_features": [
+                  {
+                    "node_id": "_node_id",
+                    "features": []
+                  }
+                ]
               },
               "cluster_settings": {
                 "cluster": {

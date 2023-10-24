@@ -48,19 +48,22 @@ public class FeatureServiceTests extends ESTestCase {
     }
 
     public void testFailsDuplicateFeatures() {
-        FeatureSpecification fs = new TestFeatureSpecification(Set.of(new NodeFeature("f1")), Map.of());
-        FeatureSpecification hfs = new TestFeatureSpecification(Set.of(), Map.of(new NodeFeature("f1"), Version.V_8_11_0));
+        // these all need to be separate classes to trigger the exception
+        FeatureSpecification fs1 = new TestFeatureSpecification(Set.of(new NodeFeature("f1")), Map.of()) {};
+        FeatureSpecification fs2 = new TestFeatureSpecification(Set.of(new NodeFeature("f1")), Map.of()) {};
+        FeatureSpecification hfs1 = new TestFeatureSpecification(Set.of(), Map.of(new NodeFeature("f1"), Version.V_8_11_0)) {};
+        FeatureSpecification hfs2 = new TestFeatureSpecification(Set.of(), Map.of(new NodeFeature("f1"), Version.V_8_11_0)) {};
 
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs, fs))).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs1, fs2))).getMessage(),
             containsString("Duplicate feature")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(hfs, hfs))).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(hfs1, hfs2))).getMessage(),
             containsString("Duplicate feature")
         );
         assertThat(
-            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs, hfs))).getMessage(),
+            expectThrows(IllegalArgumentException.class, () -> new FeatureService(List.of(fs1, hfs1))).getMessage(),
             containsString("Duplicate feature")
         );
     }

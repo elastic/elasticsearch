@@ -38,7 +38,7 @@ public class FeatureService {
 
         NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
         Set<String> nodeFeatures = new HashSet<>();
-        for (var spec : specs) {
+        for (FeatureSpecification spec : specs) {
             for (var hfe : spec.getHistoricalFeatures().entrySet()) {
                 var existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);
                 // the same SPI class can be loaded multiple times if it's in the base classloader

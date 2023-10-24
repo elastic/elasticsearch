@@ -154,6 +154,8 @@ public class JoinRequest extends TransportRequest {
             + sourceNode
             + ", compatibilityVersions="
             + compatibilityVersions
+            + ", features="
+            + features
             + ", minimumTerm="
             + minimumTerm
             + ", optionalJoin="

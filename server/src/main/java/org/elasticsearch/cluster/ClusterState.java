@@ -51,7 +51,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -108,7 +107,6 @@ import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK
  * Security-sensitive data such as passwords or private keys should not be stored in the cluster state, since the contents of the cluster
  * state are exposed in various APIs.
  */
-@SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
 public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.DEFAULT).build();
@@ -504,7 +502,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
         }
         sb.append("cluster features:\n");
-        for (var nf : clusterFeatures.nodeFeatures().entrySet()) {
+        for (var nf : getNodeFeatures(clusterFeatures).entrySet()) {
             sb.append(TAB).append(nf.getKey()).append(": ").append(new TreeSet<>(nf.getValue())).append("\n");
         }
         sb.append(routingTable());
@@ -671,19 +669,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             ),
 
             // per-node feature information
-            // ensure it's all sorted for ease of debugging
-            chunkedSection(
-                metrics.contains(Metric.NODES),
-                (builder, params) -> builder.startArray("nodes_features"),
-                clusterFeatures.nodeFeatures().entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
-                e -> Iterators.single((builder, params) -> {
-                    String[] features = e.getValue().toArray(String[]::new);
-                    Arrays.sort(features);
-                    builder.startObject().field("node_id", e.getKey()).array("features", features);
-                    return builder.endObject();
-                }),
-                (builder, params) -> builder.endArray()
-            ),
+            metrics.contains(Metric.NODES)
+                ? Iterators.concat(
+                    Iterators.<ToXContent>single((b, p) -> b.field("nodes_features")),
+                    clusterFeatures.toXContentChunked(outerParams)
+                )
+                : Collections.emptyIterator(),
 
             // metadata
             metrics.contains(Metric.METADATA) ? metadata.toXContentChunked(outerParams) : Collections.emptyIterator(),
@@ -768,6 +759,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     @SuppressForbidden(reason = "directly reading ClusterState#clusterFeatures")
+    private static Map<String, Set<String>> getNodeFeatures(ClusterFeatures features) {
+        return features.nodeFeatures();
+    }
+
     public static class Builder {
 
         private ClusterState previous;
@@ -791,7 +786,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.uuid = state.stateUUID();
             this.nodes = state.nodes();
             this.compatibilityVersions = new HashMap<>(state.compatibilityVersions);
-            this.nodeFeatures = new HashMap<>(state.clusterFeatures().nodeFeatures());
+            this.nodeFeatures = new HashMap<>(getNodeFeatures(state.clusterFeatures()));
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
@@ -861,7 +856,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         public Builder nodeFeatures(ClusterFeatures features) {
             this.nodeFeatures.clear();
-            this.nodeFeatures.putAll(features.nodeFeatures());
+            this.nodeFeatures.putAll(getNodeFeatures(features));
             return this;
         }
 

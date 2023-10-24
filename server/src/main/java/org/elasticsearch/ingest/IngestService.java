@@ -106,13 +106,12 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
     private final ClusterService clusterService;
     private final ScriptService scriptService;
     private final Map<String, Processor.Factory> processorFactories;
-    protected final Client client;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
-    protected final ThreadPool threadPool;
+    private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
@@ -187,7 +186,6 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
         super(documentParsingObserverSupplier);
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.client = client;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -601,7 +599,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
 
         IngestDocument ingestDocument = newIngestDocument(indexRequest);
 
-        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
+        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
         indexRequest.setPipelinesHaveRun();
 
         assert indexRequest.index() != null;
@@ -721,7 +719,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void processBulkRequest(
+    public void executeBulkRequest(
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
@@ -755,7 +753,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
         });
     }
 
-    private void executePipelinesOnActionRequest(
+    private void executePipelines(
         DocWriteRequest<?> actionRequest,
         final int slot,
         final Releasable ref,
@@ -794,7 +792,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
 
         IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
 
-        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
+        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
         indexRequest.setPipelinesHaveRun();
 
         assert actionRequest.index() != null;
@@ -874,7 +872,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
         }
     }
 
-    private void executePipelinesOnActionRequest(
+    private void executePipelines(
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
@@ -994,7 +992,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelinesOnActionRequest(newPipelines, indexRequest, ingestDocument, listener);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);
@@ -1082,7 +1080,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    protected static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),

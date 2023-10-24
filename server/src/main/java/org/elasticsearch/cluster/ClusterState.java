@@ -950,8 +950,11 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             }
 
             // ensure every node in the cluster has a feature set
-            for (DiscoveryNode node : nodes) {
-                nodeFeatures.putIfAbsent(node.getId(), Set.of());
+            // nodes can be null in some tests
+            if (nodes != null) {
+                for (DiscoveryNode node : nodes) {
+                    nodeFeatures.putIfAbsent(node.getId(), Set.of());
+                }
             }
 
             return new ClusterState(

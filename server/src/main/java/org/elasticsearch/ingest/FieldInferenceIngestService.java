@@ -9,14 +9,11 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -38,45 +35,23 @@ public class FieldInferenceIngestService extends IngestService {
         super(clusterService, threadPool, env, scriptService, analysisRegistry, ingestPlugins, client, matcherWatchdog, documentParsingObserverSupplier);
     }
 
-    public void executeFieldInferenceBulkRequest(
-        final int numberOfActionRequests,
-        final Iterable<DocWriteRequest<?>> actionRequests,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
+    protected void processIndexRequest(
+        IndexRequest indexRequest,
+        int slot,
+        RefCountingRunnable refs,
+        IntConsumer onDropped,
+        final BiConsumer<Integer, Exception> onFailure
     ) {
-        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
-        threadPool.executor(executorName).execute(new AbstractRunnable() {
-
-            @Override
-            public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
-            }
-
-            @Override
-            protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
-                    int i = 0;
-                    for (DocWriteRequest<?> actionRequest : actionRequests) {
-                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                        if (indexRequest != null) {
-                            String index = indexRequest.index();
-                            Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-                            final int position = i;
-                            sourceMap.entrySet().stream().filter(entry -> fieldNeedsInference(index, entry.getKey())).forEach(entry -> {
-                                runInferenceForField(indexRequest, entry.getKey(), entry.getValue(), refs, position, onFailure);
-                            });
-                        }
-                        i++;
-                    }
-                }
-            }
+        String index = indexRequest.index();
+        Map<String, Object> sourceMap = indexRequest.sourceAsMap();
+        sourceMap.entrySet().stream().filter(entry -> fieldNeedsInference(index, entry.getKey())).forEach(entry -> {
+            runInferenceForField(indexRequest, entry.getKey(), refs, slot, onFailure);
         });
     }
-    public boolean needsFieldInference(IndexRequest indexRequest) {
+
+    @Override
+    public boolean needsProcessing(IndexRequest indexRequest) {
         return (indexRequest.isFieldInferenceResolved() == false)
             && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
     }
@@ -89,8 +64,7 @@ public class FieldInferenceIngestService extends IngestService {
     private void runInferenceForField(
         IndexRequest indexRequest,
         String fieldName,
-        Object fieldValue,
-        RefCountingRunnable ref,
+        RefCountingRunnable refs,
         int position,
         BiConsumer<Integer, Exception> onFailure
     ) {
@@ -99,7 +73,7 @@ public class FieldInferenceIngestService extends IngestService {
             return;
         }
 
-        ref.acquire();
+        refs.acquire();
 
         // TODO Hardcoding model ID and task type
         InferenceAction.Request inferenceRequest = new InferenceAction.Request(
@@ -115,13 +89,13 @@ public class FieldInferenceIngestService extends IngestService {
                 ingestDocument.setFieldValue(fieldName + "_inference", response.getResult().asMap(fieldName).get(fieldName));
                 updateIndexRequestSource(indexRequest, ingestDocument);
                 indexRequest.isFieldInferenceResolved(true);
-                ref.close();
+                refs.close();
             }
 
             @Override
             public void onFailure(Exception e) {
                 onFailure.accept(position, e);
-                ref.close();
+                refs.close();
             }
         });
     }

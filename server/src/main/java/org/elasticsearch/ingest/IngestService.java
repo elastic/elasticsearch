@@ -656,7 +656,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
-    public void executePipelinesBulkRequest(
+    public void processBulkRequest(
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
@@ -677,64 +677,63 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             protected void doRun() {
                 final Thread originalThread = Thread.currentThread();
                 try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
-                    int i = 0;
+                    int slot = 0;
                     for (DocWriteRequest<?> actionRequest : actionRequests) {
                         IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                        if (indexRequest == null) {
-                            i++;
-                            continue;
+                        if (indexRequest != null) {
+                            processIndexRequest(indexRequest, slot, refs, onDropped, onFailure);
                         }
-
-                        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
-                        if (pipelines.hasNext() == false) {
-                            i++;
-                            continue;
-                        }
-
-                        // start the stopwatch and acquire a ref to indicate that we're working on this document
-                        final long startTimeInNanos = System.nanoTime();
-                        totalMetrics.preIngest();
-                        final int slot = i;
-                        final Releasable ref = refs.acquire();
-                        // the document listener gives us three-way logic: a document can fail processing (1), or it can
-                        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
-                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Boolean kept) {
-                                assert kept != null;
-                                if (kept == false) {
-                                    onDropped.accept(slot);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                totalMetrics.ingestFailed();
-                                onFailure.accept(slot, e);
-                            }
-                        }, () -> {
-                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
-                            // that we're finished with this document
-                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                            totalMetrics.postIngest(ingestTimeInNanos);
-                            ref.close();
-                        });
-                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
-
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
-
-                        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
-                        indexRequest.setPipelinesHaveRun();
-
-                        assert actionRequest.index() != null;
-                        documentParsingObserver.setIndexName(actionRequest.index());
-                        documentParsingObserver.close();
-
-                        i++;
+                        slot++;
                     }
                 }
             }
         });
+    }
+
+    protected void processIndexRequest(IndexRequest indexRequest, int slot, RefCountingRunnable refs, IntConsumer onDropped,
+                                       final BiConsumer<Integer, Exception> onFailure) {
+        PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+        if (pipelines.hasNext() == false) {
+            return;
+        }
+
+        // start the stopwatch and acquire a ref to indicate that we're working on this document
+        final long startTimeInNanos = System.nanoTime();
+        totalMetrics.preIngest();
+        final Releasable ref = refs.acquire();
+        // the document listener gives us three-way logic: a document can fail processing (1), or it can
+        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
+        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean kept) {
+                assert kept != null;
+                if (kept == false) {
+                    onDropped.accept(slot);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                totalMetrics.ingestFailed();
+                onFailure.accept(slot, e);
+            }
+        }, () -> {
+            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+            // that we're finished with this document
+            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+            totalMetrics.postIngest(ingestTimeInNanos);
+            ref.close();
+        });
+        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
+
+        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
+
+        executePipelinesOnActionRequest(pipelines, indexRequest, ingestDocument, documentListener);
+        indexRequest.setPipelinesHaveRun();
+
+        assert indexRequest.index() != null;
+        documentParsingObserver.setIndexName(indexRequest.index());
+        documentParsingObserver.close();
     }
 
     private void executePipelinesOnActionRequest(
@@ -1407,6 +1406,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
 
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
+    }
+
+    public boolean needsProcessing(IndexRequest indexRequest) {
+        return hasPipeline(indexRequest);
     }
 
     /**

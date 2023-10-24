@@ -284,8 +284,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
                 IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
-                hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
-                needsFieldInference |= fieldInferenceIngestService.needsFieldInference(indexRequest);
+                hasIndexRequestsWithPipelines |= ingestService.needsProcessing(indexRequest);
+                needsFieldInference |= fieldInferenceIngestService.needsProcessing(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {
@@ -835,7 +835,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executePipelinesBulkRequest(
+        ingestService.processBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
@@ -894,7 +894,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        fieldInferenceIngestService.executeFieldInferenceBulkRequest(
+        fieldInferenceIngestService.processBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,

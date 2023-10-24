@@ -207,7 +207,15 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
 
         assertTrue(failure.get());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1106,7 +1114,8 @@ public class IngestServiceTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
 
-        ingestService.executeBulkRequest(
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             indexReq -> {},
@@ -1149,7 +1158,8 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             indexReq -> {},
@@ -1213,7 +1223,8 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             indexReq -> {},
@@ -1246,7 +1257,15 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -1279,7 +1298,15 @@ public class IngestServiceTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         final BiConsumer<Integer, Exception> failureHandler = (v, e) -> { throw new AssertionError("must never fail", e); };
         final BiConsumer<Thread, Exception> completionHandler = (t, e) -> latch.countDown();
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         latch.await();
         assertThat(indexRequest.getDynamicTemplates(), equalTo(Map.of("foo", "bar", "foo.bar", "baz")));
     }
@@ -1300,7 +1327,15 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -1354,7 +1389,15 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         verify(processor).execute(any(), any());
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1403,7 +1446,15 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1452,7 +1503,15 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         verify(failureHandler, never()).accept(eq(0), any(IngestProcessorException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
     }
@@ -1495,7 +1554,15 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         verify(processor).execute(eqIndexTypeId(indexRequest.version(), indexRequest.versionType(), Map.of()), any());
         verify(failureHandler, times(1)).accept(eq(0), any(RuntimeException.class));
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
@@ -1549,7 +1616,8 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             numRequest,
             bulkRequest.requests(),
             indexReq -> {},
@@ -1607,7 +1675,8 @@ public class IngestServiceTests extends ESTestCase {
         BiConsumer<Integer, Exception> requestItemErrorHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             numRequest,
             bulkRequest.requests(),
             indexReq -> {},
@@ -1720,7 +1789,15 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1").setFinalPipeline("_id2");
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            (integer, e) -> {},
+            (thread, e) -> {},
+            Names.WRITE
+        );
 
         {
             final IngestStats ingestStats = ingestService.stats();
@@ -1791,7 +1868,15 @@ public class IngestServiceTests extends ESTestCase {
         final IndexRequest indexRequest = new IndexRequest("_index");
         indexRequest.setPipeline("_id1").setFinalPipeline("_none");
         indexRequest.source(randomAlphaOfLength(10), randomAlphaOfLength(10));
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         final IngestStats afterFirstRequestStats = ingestService.stats();
         assertThat(afterFirstRequestStats.pipelineStats().size(), equalTo(2));
 
@@ -1808,7 +1893,15 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(0, afterFirstRequestStats, "_id2", 0, 0, 0);
 
         indexRequest.setPipeline("_id2");
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         final IngestStats afterSecondRequestStats = ingestService.stats();
         assertThat(afterSecondRequestStats.pipelineStats().size(), equalTo(2));
         // total
@@ -1830,7 +1923,15 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         final IngestStats afterThirdRequestStats = ingestService.stats();
         assertThat(afterThirdRequestStats.pipelineStats().size(), equalTo(2));
         // total
@@ -1853,7 +1954,15 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
-        ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, failureHandler, completionHandler, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
         final IngestStats afterForthRequestStats = ingestService.stats();
         assertThat(afterForthRequestStats.pipelineStats().size(), equalTo(2));
         // total
@@ -1941,7 +2050,8 @@ public class IngestServiceTests extends ESTestCase {
         final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
         @SuppressWarnings("unchecked")
         final IntConsumer dropHandler = mock(IntConsumer.class);
-        ingestService.executeBulkRequest(
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             bulkRequest.numberOfActions(),
             bulkRequest.requests(),
             dropHandler,
@@ -2029,7 +2139,15 @@ public class IngestServiceTests extends ESTestCase {
                 .setPipeline("_id")
                 .setFinalPipeline("_none");
 
-            ingestService.executeBulkRequest(1, List.of(indexRequest), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+            ingestService.processBulkRequest(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                1,
+                List.of(indexRequest),
+                indexReq -> {},
+                (integer, e) -> {},
+                (thread, e) -> {},
+                Names.WRITE
+            );
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));
@@ -2100,7 +2218,15 @@ public class IngestServiceTests extends ESTestCase {
         bulkRequest.add(indexRequest6);
         bulkRequest.add(indexRequest7);
         bulkRequest.add(indexRequest8);
-        ingestService.executeBulkRequest(8, bulkRequest.requests(), indexReq -> {}, (integer, e) -> {}, (thread, e) -> {}, Names.WRITE);
+        ingestService.processBulkRequest(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            8,
+            bulkRequest.requests(),
+            indexReq -> {},
+            (integer, e) -> {},
+            (thread, e) -> {},
+            Names.WRITE
+        );
 
         assertThat(indexRequest1.getRawTimestamp(), nullValue());
         assertThat(indexRequest2.getRawTimestamp(), nullValue());

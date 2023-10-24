@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -45,7 +44,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -717,87 +715,6 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
-    }
-
-    public void executeBulkRequest(
-        final int numberOfActionRequests,
-        final Iterable<DocWriteRequest<?>> actionRequests,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
-    ) {
-        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
-
-        threadPool.executor(executorName).execute(new AbstractRunnable() {
-
-            @Override
-            public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
-            }
-
-            @Override
-            protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
-                    int slot = 0;
-                    for (DocWriteRequest<?> actionRequest : actionRequests) {
-                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                        if (indexRequest != null) {
-                            processIndexRequest(indexRequest, slot, refs, onDropped, onFailure);
-                        }
-                        slot++;
-                    }
-                }
-            }
-        });
-    }
-
-    private void executePipelines(
-        DocWriteRequest<?> actionRequest,
-        final int slot,
-        final Releasable ref,
-        IndexRequest indexRequest,
-        PipelineIterator pipelines,
-        IntConsumer onDropped,
-        BiConsumer<Integer, Exception> onFailure
-    ) {
-        // start the stopwatch and acquire a ref to indicate that we're working on this document
-        final long startTimeInNanos = System.nanoTime();
-        totalMetrics.preIngest();
-        // the document listener gives us three-way logic: a document can fail processing (1), or it can
-        // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
-        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
-            @Override
-            public void onResponse(Boolean kept) {
-                assert kept != null;
-                if (kept == false) {
-                    onDropped.accept(slot);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                totalMetrics.ingestFailed();
-                onFailure.accept(slot, e);
-            }
-        }, () -> {
-            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
-            // that we're finished with this document
-            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-            totalMetrics.postIngest(ingestTimeInNanos);
-            ref.close();
-        });
-        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
-
-        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
-
-        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
-        indexRequest.setPipelinesHaveRun();
-
-        assert actionRequest.index() != null;
-        documentParsingObserver.setIndexName(actionRequest.index());
-        documentParsingObserver.close();
     }
 
     /**

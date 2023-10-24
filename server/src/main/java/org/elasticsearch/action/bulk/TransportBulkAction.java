@@ -59,6 +59,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.ingest.FieldInferenceIngestService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -96,6 +97,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
+    private final FieldInferenceIngestService fieldInferenceIngestService;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
@@ -110,6 +112,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FieldInferenceIngestService fieldInferenceIngestService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -121,6 +124,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             transportService,
             clusterService,
             ingestService,
+            fieldInferenceIngestService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -135,6 +139,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FieldInferenceIngestService fieldInferenceIngestService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -147,6 +152,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
+        this.fieldInferenceIngestService = fieldInferenceIngestService;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -279,7 +285,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (indexRequest != null) {
                 IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
-                needsFieldInference |= ingestService.needsFieldInference(indexRequest);
+                needsFieldInference |= fieldInferenceIngestService.needsFieldInference(indexRequest);
             }
 
             if (actionRequest instanceof IndexRequest ir) {
@@ -888,7 +894,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        ingestService.executeFieldInferenceBulkRequest(
+        fieldInferenceIngestService.executeFieldInferenceBulkRequest(
             original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,

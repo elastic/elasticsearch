@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.inference.InferenceAction;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -58,7 +57,6 @@ import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
@@ -107,15 +105,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
+    protected final Supplier<DocumentParsingObserver> documentParsingObserverSupplier;
     private final Map<String, Processor.Factory> processorFactories;
-    private final Client client;
+    protected final Client client;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
-    private final ThreadPool threadPool;
+    protected final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
@@ -156,10 +154,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
     };
 
-    public boolean needsFieldInference(IndexRequest indexRequest) {
-        return (indexRequest.isFieldInferenceResolved() == false)
-            && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
-    }
+
 
     /**
      * Specialized cluster state update task specifically for ingest pipeline operations.
@@ -742,90 +737,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
-    public void executeFieldInferenceBulkRequest(
-        final int numberOfActionRequests,
-        final Iterable<DocWriteRequest<?>> actionRequests,
-        final IntConsumer onDropped,
-        final BiConsumer<Integer, Exception> onFailure,
-        final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
-    ) {
-        assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
-
-        threadPool.executor(executorName).execute(new AbstractRunnable() {
-
-            @Override
-            public void onFailure(Exception e) {
-                onCompletion.accept(null, e);
-            }
-
-            @Override
-            protected void doRun() {
-                final Thread originalThread = Thread.currentThread();
-                try (var refs = new RefCountingRunnable(() -> onCompletion.accept(originalThread, null))) {
-                    int i = 0;
-                    for (DocWriteRequest<?> actionRequest : actionRequests) {
-                        IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(actionRequest);
-                        if (indexRequest != null) {
-                            String index = indexRequest.index();
-                            Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-                            final int position = i;
-                            sourceMap.entrySet().stream().filter(entry -> fieldNeedsInference(index, entry.getKey())).forEach(entry -> {
-                                runInferenceForField(indexRequest, entry.getKey(), entry.getValue(), refs, position, onFailure);
-                            });
-                        }
-                        i++;
-                    }
-                }
-            }
-        });
-    }
-
-    // TODO actual mapping check here
-    private boolean fieldNeedsInference(String index, String fieldName) {
-        return fieldName.startsWith("infer_");
-    }
-
-    private void runInferenceForField(
-        IndexRequest indexRequest,
-        String fieldName,
-        Object fieldValue,
-        RefCountingRunnable ref,
-        int position,
-        BiConsumer<Integer, Exception> onFailure
-    ) {
-        var ingestDocument = newIngestDocument(indexRequest, documentParsingObserverSupplier.get());
-        if (ingestDocument.hasField(fieldName) == false) {
-            return;
-        }
-
-        ref.acquire();
-
-        // TODO Hardcoding model ID and task type
-        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-            TaskType.SPARSE_EMBEDDING,
-            "my-elser-model",
-            ingestDocument.getFieldValue(fieldName, String.class),
-            Map.of()
-        );
-
-        client.execute(InferenceAction.INSTANCE, inferenceRequest, new ActionListener<InferenceAction.Response>() {
-            @Override
-            public void onResponse(InferenceAction.Response response) {
-                ingestDocument.setFieldValue(fieldName + "_inference", response.getResult().asMap(fieldName).get(fieldName));
-                updateIndexRequestSource(indexRequest, ingestDocument);
-                indexRequest.isFieldInferenceResolved(true);
-                ref.close();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                onFailure.accept(position, e);
-                ref.close();
-            }
-        });
-    }
-
     private void executePipelinesOnActionRequest(
         DocWriteRequest<?> actionRequest,
         final int slot,
@@ -1153,7 +1064,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
+    protected static IngestDocument newIngestDocument(final IndexRequest request, DocumentParsingObserver documentParsingObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),
@@ -1195,7 +1106,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Updates an index request based on the source of an ingest document, guarding against self-references if necessary.
      */
-    private static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
+    protected static void updateIndexRequestSource(final IndexRequest request, final IngestDocument document) {
         boolean ensureNoSelfReferences = document.doNoSelfReferencesCheck();
         // we already check for self references elsewhere (and clear the bit), so this should always be false,
         // keeping the check and assert as a guard against extraordinarily surprising circumstances

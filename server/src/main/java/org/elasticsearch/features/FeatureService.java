@@ -26,6 +26,11 @@ import java.util.TreeMap;
 
 public class FeatureService {
 
+    /**
+     * A feature indicating that node features are supported.
+     */
+    public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
+
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
 
     public static final Version CLUSTER_FEATURES_ADDED_VERSION = Version.V_8_12_0;

@@ -17,13 +17,8 @@ import java.util.Set;
  */
 public class FeaturesSupportedSpecification implements FeatureSpecification {
 
-    /**
-     * A feature indicating that node features are supported.
-     */
-    public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
-
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(FEATURES_SUPPORTED);
+        return Set.of(FeatureService.FEATURES_SUPPORTED);
     }
 }

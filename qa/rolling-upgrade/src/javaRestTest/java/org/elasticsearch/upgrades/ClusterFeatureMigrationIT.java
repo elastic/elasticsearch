@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.FeaturesSupportedSpecification;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,7 +49,7 @@ public class ClusterFeatureMigrationIT extends ParameterizedRollingUpgradeTestCa
 
             Set<String> missing = features.entrySet()
                 .stream()
-                .filter(e -> e.getValue().contains(FeaturesSupportedSpecification.FEATURES_SUPPORTED) == false)
+                .filter(e -> e.getValue().contains(FeatureService.FEATURES_SUPPORTED) == false)
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
             assertThat(missing + " out of " + features.keySet() + " does not have the required feature", missing, empty());

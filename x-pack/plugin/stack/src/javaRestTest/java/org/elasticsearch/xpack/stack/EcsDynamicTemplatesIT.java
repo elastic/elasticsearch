@@ -76,7 +76,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         String rawEcsComponentTemplate = TemplateUtils.loadTemplate(
             "/" + ECS_DYNAMIC_TEMPLATES_FILE,
             Integer.toString(1),
-            LegacyStackTemplateRegistry.TEMPLATE_VERSION_VARIABLE,
+            StackTemplateRegistry.TEMPLATE_VERSION_VARIABLE,
             Collections.emptyMap()
         );
         Map<String, Object> ecsDynamicTemplatesRaw;

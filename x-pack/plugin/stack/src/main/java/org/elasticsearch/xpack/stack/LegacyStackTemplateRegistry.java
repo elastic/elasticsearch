@@ -35,6 +35,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
 
+@Deprecated(since = "8.12.0", forRemoval = true)
 public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(LegacyStackTemplateRegistry.class);
 

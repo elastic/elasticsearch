@@ -186,6 +186,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         if (randomBoolean()) {
             queryStringQueryBuilder.fuzzyTranspositions(randomBoolean());
         }
+        if (randomBoolean()) {
+            queryStringQueryBuilder.boostDuplicates(randomBoolean());
+        }
         queryStringQueryBuilder.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
         return queryStringQueryBuilder;
     }
@@ -215,6 +218,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         String timeZone = instance.timeZone() == null ? null : instance.timeZone().getId();
         boolean autoGenerateSynonymsPhraseQuery = instance.autoGenerateSynonymsPhraseQuery();
         boolean fuzzyTranspositions = instance.fuzzyTranspositions();
+        boolean boostDuplicates = instance.boostDuplicates();
 
         switch (between(0, 23)) {
             case 0:
@@ -337,6 +341,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 break;
             case 23:
                 return changeNameOrBoost(instance);
+            case 24:
+                boostDuplicates = (boostDuplicates == false);
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
@@ -386,6 +393,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         newInstance.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         newInstance.fuzzyTranspositions(fuzzyTranspositions);
+        newInstance.boostDuplicates(boostDuplicates);
 
         return newInstance;
     }
@@ -1090,6 +1098,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "escape" : true,
                 "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_transpositions" : false,
+                "boost_duplicates" : false,
                 "boost" : 2.0
               }
             }""";
@@ -1100,6 +1109,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
         assertEquals(json, false, parsed.fuzzyTranspositions());
+        assertEquals(json, false, parsed.boostDuplicates());
     }
 
     public void testSimpleFromJson() throws IOException {
@@ -1118,6 +1128,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
         assertEquals(json, true, parsed.fuzzyTranspositions());
+        assertEquals(json, true, parsed.boostDuplicates());
     }
 
     public void testExpandedTerms() throws Exception {

@@ -33,7 +33,7 @@ public final class QueryParserHelper {
      * @param fields The list of fields encoded with optional boosts (e.g. ^0.35).
      * @return The converted map with field names and associated boosts.
      */
-    public static Map<String, Float> parseFieldsAndWeights(List<String> fields) {
+    public static Map<String, Float> parseFieldsAndWeights(List<String> fields, boolean boostDuplicates) {
         final Map<String, Float> fieldsAndWeights = new HashMap<>();
         for (String field : fields) {
             int boostIndex = field.indexOf('^');
@@ -46,7 +46,7 @@ public final class QueryParserHelper {
                 fieldName = field;
             }
             // handle duplicates
-            if (fieldsAndWeights.containsKey(field)) {
+            if (boostDuplicates && fieldsAndWeights.containsKey(field)) {
                 boost *= fieldsAndWeights.get(field);
             }
             fieldsAndWeights.put(fieldName, boost);

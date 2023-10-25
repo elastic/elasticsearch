@@ -415,7 +415,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             List<String> defaultFields = context.defaultFields();
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(
                 context,
-                QueryParserHelper.parseFieldsAndWeights(defaultFields)
+                QueryParserHelper.parseFieldsAndWeights(defaultFields, true)
             );
             isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
         }
@@ -525,7 +525,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
                     }
-                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
+                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields, true);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),

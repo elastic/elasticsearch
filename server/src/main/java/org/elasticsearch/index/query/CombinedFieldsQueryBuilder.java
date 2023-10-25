@@ -79,7 +79,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUERY_FIELD);
         PARSER.declareStringArray((builder, values) -> {
-            Map<String, Float> fieldsAndBoosts = QueryParserHelper.parseFieldsAndWeights(values);
+            Map<String, Float> fieldsAndBoosts = QueryParserHelper.parseFieldsAndWeights(values, true);
             builder.fields(fieldsAndBoosts);
         }, FIELDS_FIELD);
 

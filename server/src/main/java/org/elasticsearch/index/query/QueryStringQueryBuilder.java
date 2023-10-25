@@ -59,6 +59,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
+    public static final boolean DEFAULT_BOOST_DUPLICATES = true;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");
@@ -84,6 +85,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
     private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+    private static final ParseField BOOST_DUPLICATES_FIELD = new ParseField("boost_duplicates");
 
     private final String queryString;
 
@@ -143,6 +145,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
 
+    private boolean boostDuplicates = DEFAULT_BOOST_DUPLICATES;
+
     public QueryStringQueryBuilder(String queryString) {
         if (queryString == null) {
             throw new IllegalArgumentException("query text missing");
@@ -188,6 +192,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         maxDeterminizedStates = in.readVInt();
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
         fuzzyTranspositions = in.readBoolean();
+        boostDuplicates = in.readBoolean();
     }
 
     @Override
@@ -557,6 +562,19 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return this;
     }
 
+    /**
+     * Enables auto-boosting duplicate terms by their occurrence count in the query string.
+     * Defaults to {@code true}.
+     */
+    public QueryStringQueryBuilder boostDuplicates(boolean boostDuplicates) {
+        this.boostDuplicates = boostDuplicates;
+        return this;
+    }
+
+    public boolean boostDuplicates() {
+        return this.boostDuplicates;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -635,6 +653,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (this.fuzzyTranspositions != DEFAULT_FUZZY_TRANSPOSITIONS) {
             builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
         }
+        if (this.boostDuplicates != DEFAULT_BOOST_DUPLICATES) {
+            builder.field(BOOST_DUPLICATES_FIELD.getPreferredName(), boostDuplicates);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -669,6 +690,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         Map<String, Float> fieldsAndWeights = null;
         boolean autoGenerateSynonymsPhraseQuery = true;
         boolean fuzzyTranspositions = DEFAULT_FUZZY_TRANSPOSITIONS;
+        boolean boostDuplicates = DEFAULT_BOOST_DUPLICATES;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -679,7 +701,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         fields.add(parser.text());
                     }
-                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
+                    fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields, boostDuplicates);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -748,6 +770,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                     autoGenerateSynonymsPhraseQuery = parser.booleanValue();
                 } else if (FUZZY_TRANSPOSITIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     fuzzyTranspositions = parser.booleanValue();
+                } else if (BOOST_DUPLICATES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    boostDuplicates = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -796,6 +820,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.queryName(queryName);
         queryStringQuery.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         queryStringQuery.fuzzyTranspositions(fuzzyTranspositions);
+        queryStringQuery.boostDuplicates(boostDuplicates);
         return queryStringQuery;
     }
 
@@ -830,7 +855,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             && Objects.equals(escape, other.escape)
             && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
             && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
-            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
+            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
+            && Objects.equals(boostDuplicates, other.boostDuplicates);
     }
 
     @Override
@@ -860,7 +886,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             escape,
             maxDeterminizedStates,
             autoGenerateSynonymsPhraseQuery,
-            fuzzyTranspositions
+            fuzzyTranspositions,
+            boostDuplicates
         );
     }
 
@@ -893,7 +920,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             } else {
                 final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(
                     context,
-                    QueryParserHelper.parseFieldsAndWeights(defaultFields)
+                    QueryParserHelper.parseFieldsAndWeights(defaultFields, this.boostDuplicates)
                 );
                 queryParser = new QueryStringQueryParser(context, resolvedFields, isLenient);
             }

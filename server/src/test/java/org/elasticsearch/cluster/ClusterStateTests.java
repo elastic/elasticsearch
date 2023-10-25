@@ -44,6 +44,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -373,7 +374,7 @@ public class ClusterStateTests extends ESTestCase {
                         }""",
                     ephemeralId,
                     Version.CURRENT,
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current(),
                     TransportVersion.current(),
                     IndexVersion.current(),
@@ -630,7 +631,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),
@@ -893,7 +894,7 @@ public class ClusterStateTests extends ESTestCase {
                     }""",
                 ephemeralId,
                 Version.CURRENT,
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersion.current(),
                 TransportVersion.current(),
                 IndexVersion.current(),

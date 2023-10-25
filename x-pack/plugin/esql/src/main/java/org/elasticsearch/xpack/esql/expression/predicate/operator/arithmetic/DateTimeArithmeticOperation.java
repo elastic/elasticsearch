@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collection;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -100,10 +101,13 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
         DataType rightDataType = right().dataType();
         if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
-            Period l = (Period) left().fold();
-            Period r = (Period) right().fold();
+            var l = left().fold();
+            var r = right().fold();
+            if (l instanceof Collection<?> || r instanceof Collection<?>) {
+                return null;
+            }
             try {
-                return fold(l, r);
+                return fold((Period) l, (Period) r);
             } catch (ArithmeticException e) {
                 // Folding will be triggered before the plan is sent to the compute service, so we have to handle arithmetic exceptions
                 // manually and provide a user-friendly error message.

@@ -15,6 +15,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
@@ -31,7 +33,15 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
  * Reduce a multivalued string field to a single valued field by concatenating all values.
  */
 public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
-    public MvConcat(Source source, Expression field, Expression delim) {
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Reduce a multivalued string field to a single valued field by concatenating all values."
+    )
+    public MvConcat(
+        Source source,
+        @Param(name = "v", type = { "text", "keyword" }, description = "values to join") Expression field,
+        @Param(name = "delim", type = { "text", "keyword" }, description = "delimiter") Expression delim
+    ) {
         super(source, field, delim);
     }
 

@@ -9,38 +9,48 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.ObservableLongGauge;
 
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
+
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * LongGaugeAdapter wraps an otel ObservableLongMeasurement
  */
-public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableLongMeasurement>
-    implements
-        org.elasticsearch.telemetry.metric.LongGauge {
+public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
+    private final AtomicReference<ValueWithAttributes> valueWithAttributes;
 
     public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
+        this.valueWithAttributes = new AtomicReference<>(new ValueWithAttributes(0L, Collections.emptyMap()));
     }
 
     @Override
-    io.opentelemetry.api.metrics.ObservableLongMeasurement buildInstrument(Meter meter) {
+    protected io.opentelemetry.api.metrics.ObservableLongGauge buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .gaugeBuilder(getName())
             .ofLongs()
             .setDescription(getDescription())
             .setUnit(getUnit())
-            .buildObserver();
+            .buildWithCallback(measurement -> {
+                var localValueWithAttributed = valueWithAttributes.get();
+                measurement.record(localValueWithAttributed.value(), OtelHelper.fromMap(localValueWithAttributed.attributes()));
+            });
     }
 
     @Override
     public void record(long value) {
-        getInstrument().record(value);
+        record(value, Collections.emptyMap());
     }
 
     @Override
     public void record(long value, Map<String, Object> attributes) {
-        getInstrument().record(value, OtelHelper.fromMap(attributes));
+        this.valueWithAttributes.set(new ValueWithAttributes(value, attributes));
     }
+
+    private record ValueWithAttributes(long value, Map<String, Object> attributes) {}
 }

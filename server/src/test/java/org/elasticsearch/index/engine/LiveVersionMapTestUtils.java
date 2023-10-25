@@ -45,6 +45,12 @@ public class LiveVersionMapTestUtils {
         }
     }
 
+    public static void maybePutIndex(LiveVersionMap map, String id, IndexVersionValue version) {
+        try (Releasable r = acquireLock(map, uid(id))) {
+            map.maybePutIndexUnderLock(uid(id), version);
+        }
+    }
+
     public static void putDelete(LiveVersionMap map, String id, DeleteVersionValue version) {
         try (Releasable r = acquireLock(map, uid(id))) {
             map.putDeleteUnderLock(uid(id), version);

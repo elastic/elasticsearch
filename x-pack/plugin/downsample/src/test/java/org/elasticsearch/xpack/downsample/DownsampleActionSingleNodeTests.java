@@ -683,7 +683,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             indicesAdmin().preparePutTemplate(downsampleIndex)
                 .setPatterns(List.of(downsampleIndex))
                 .setSettings(Settings.builder().put("index.blocks.write", "true").build())
-                .get()
         );
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, indexer::execute);
@@ -1039,7 +1038,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         }
         int docsIndexed = docCount - duplicates;
         logger.info("Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
+        assertHitCount(client().prepareSearch(indexName).setSize(0), docsIndexed);
     }
 
     private void prepareSourceIndex(final String sourceIndex, boolean blockWrite) {
@@ -1047,14 +1046,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(sourceIndex)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), blockWrite).build())
-                .get()
         );
     }
 
     private void downsample(String sourceIndex, String downsampleIndex, DownsampleConfig config) {
         assertAcked(
             client().execute(DownsampleAction.INSTANCE, new DownsampleAction.Request(sourceIndex, downsampleIndex, TIMEOUT, config))
-                .actionGet()
         );
     }
 

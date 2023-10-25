@@ -129,7 +129,6 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99160")
     public final void testManyInitialManyPartialFinal() {
         BigArrays bigArrays = nonBreakingBigArrays();
         DriverContext driverContext = driverContext();
@@ -170,7 +169,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -194,7 +193,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         var runner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), listener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();

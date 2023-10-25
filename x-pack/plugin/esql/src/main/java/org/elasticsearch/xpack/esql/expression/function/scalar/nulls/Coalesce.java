@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -160,15 +161,17 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
                         1,
                         IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
                     );
-                    for (EvalOperator.ExpressionEvaluator eval : evaluators) {
-                        try (Block.Ref ref = eval.eval(limited)) {
-                            if (false == ref.block().isNull(0)) {
-                                result.copyFrom(ref.block(), 0, 1);
-                                continue position;
+                    try (Releasable ignored = limited::releaseBlocks) {
+                        for (EvalOperator.ExpressionEvaluator eval : evaluators) {
+                            try (Block.Ref ref = eval.eval(limited)) {
+                                if (false == ref.block().isNull(0)) {
+                                    result.copyFrom(ref.block(), 0, 1);
+                                    continue position;
+                                }
                             }
                         }
+                        result.appendNull();
                     }
-                    result.appendNull();
                 }
                 return Block.Ref.floating(result.build());
             }

@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -145,7 +145,7 @@ public class DesiredBalanceReconciler {
 
             final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
             // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(IndexVersion.V_7_2_0)
+            indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
                 || indexMetadata.getState() == IndexMetadata.State.OPEN
                 || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(

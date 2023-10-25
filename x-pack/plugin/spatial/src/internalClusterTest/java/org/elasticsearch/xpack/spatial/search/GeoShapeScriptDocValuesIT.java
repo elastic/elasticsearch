@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.apache.lucene.geo.Circle;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -51,7 +51,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -259,37 +260,36 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(geometry);
 
-        SearchResponse searchResponse = client().prepareSearch()
+        SearchRequestBuilder searchRequest = client().prepareSearch()
             .addStoredField("_source")
             .addScriptField("lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lat", Collections.emptyMap()))
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
             .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
             .addScriptField("label_lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lat", Collections.emptyMap()))
-            .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()))
-            .get();
-        assertSearchResponse(searchResponse);
-        Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
-        assertThat(fields.get("lat").getValue(), equalTo(value.getY()));
-        assertThat(fields.get("lon").getValue(), equalTo(value.getX()));
-        assertThat(fields.get("height").getValue(), equalTo(value.boundingBox().maxY() - value.boundingBox().minY()));
-        assertThat(fields.get("width").getValue(), equalTo(value.boundingBox().maxX() - value.boundingBox().minX()));
+            .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()));
 
-        // Check label position is in the geometry, but with a tolerance constructed as a circle of 1m radius to handle quantization
-        Point labelPosition = new Point(fields.get("label_lon").getValue(), fields.get("label_lat").getValue());
-        Circle tolerance = new Circle(labelPosition.getY(), labelPosition.getX(), 1);
-        assertTrue(
-            "Expect label position " + labelPosition + " to intersect geometry " + geometry,
-            value.relate(tolerance) != GeoRelation.QUERY_DISJOINT
-        );
-
-        // Check that the label position is the expected one, or the centroid in certain polygon cases
-        if (expectedLabelPosition != null) {
-            doTestLabelPosition(fields, expectedLabelPosition);
-        } else if (fallbackToCentroid && value.dimensionalShapeType() == DimensionalShapeType.POLYGON) {
-            // Use the centroid for all polygons, unless overwritten for specific cases
-            doTestLabelPosition(fields, GeoTestUtils.geoShapeValue(new Point(value.getX(), value.getY())));
-        }
+        assertCheckedResponse(searchRequest, response -> {
+            Map<String, DocumentField> fields = response.getHits().getHits()[0].getFields();
+            assertThat(fields.get("lat").getValue(), equalTo(value.getY()));
+            assertThat(fields.get("lon").getValue(), equalTo(value.getX()));
+            assertThat(fields.get("height").getValue(), equalTo(value.boundingBox().maxY() - value.boundingBox().minY()));
+            assertThat(fields.get("width").getValue(), equalTo(value.boundingBox().maxX() - value.boundingBox().minX()));
+            // Check label position is in the geometry, but with a tolerance constructed as a circle of 1m radius to handle quantization
+            Point labelPosition = new Point(fields.get("label_lon").getValue(), fields.get("label_lat").getValue());
+            Circle tolerance = new Circle(labelPosition.getY(), labelPosition.getX(), 1);
+            assertTrue(
+                "Expect label position " + labelPosition + " to intersect geometry " + geometry,
+                value.relate(tolerance) != GeoRelation.QUERY_DISJOINT
+            );
+            // Check that the label position is the expected one, or the centroid in certain polygon cases
+            if (expectedLabelPosition != null) {
+                doTestLabelPosition(fields, expectedLabelPosition);
+            } else if (fallbackToCentroid && value.dimensionalShapeType() == DimensionalShapeType.POLYGON) {
+                // Use the centroid for all polygons, unless overwritten for specific cases
+                doTestLabelPosition(fields, GeoTestUtils.geoShapeValue(new Point(value.getX(), value.getY())));
+            }
+        });
     }
 
     private void doTestLabelPosition(Map<String, DocumentField> fields, GeoShapeValues.GeoShapeValue expectedLabelPosition)
@@ -316,18 +316,18 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
         indicesAdmin().prepareRefresh("test").get();
 
-        SearchResponse searchResponse = client().prepareSearch()
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch()
             .addStoredField("_source")
             .addScriptField("lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lat", Collections.emptyMap()))
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
-            .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
-            .get();
-        assertSearchResponse(searchResponse);
-        Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
-        assertThat(fields.get("lat").getValue(), equalTo(Double.NaN));
-        assertThat(fields.get("lon").getValue(), equalTo(Double.NaN));
-        assertThat(fields.get("height").getValue(), equalTo(Double.NaN));
-        assertThat(fields.get("width").getValue(), equalTo(Double.NaN));
+            .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()));
+        assertNoFailuresAndResponse(searchRequestBuilder, response -> {
+            Map<String, DocumentField> fields = response.getHits().getHits()[0].getFields();
+            assertThat(fields.get("lat").getValue(), equalTo(Double.NaN));
+            assertThat(fields.get("lon").getValue(), equalTo(Double.NaN));
+            assertThat(fields.get("height").getValue(), equalTo(Double.NaN));
+            assertThat(fields.get("width").getValue(), equalTo(Double.NaN));
+        });
     }
 }

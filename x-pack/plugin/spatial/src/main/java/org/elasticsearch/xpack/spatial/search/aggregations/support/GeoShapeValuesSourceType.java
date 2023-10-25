@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 
 import java.io.IOException;
 
@@ -38,6 +37,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
         boolean isPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
         boolean isShape = fieldContext.indexFieldData() instanceof IndexShapeFieldData;
@@ -53,7 +53,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         if (isPoint) {
             return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
         }
-        return new GeoShapeValuesSource.Fielddata((LatLonShapeIndexFieldData) fieldContext.indexFieldData());
+        return new GeoShapeValuesSource.Fielddata((IndexShapeFieldData<GeoShapeValues>) fieldContext.indexFieldData());
     }
 
     @Override

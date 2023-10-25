@@ -32,7 +32,6 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
@@ -68,15 +67,7 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
 
     @Override
     public Object fold() {
-        if (field.dataType() == DataTypes.UNSIGNED_LONG) {
-            return decimals == null
-                ? field.fold()
-                : processUnsignedLong(safeToLong((Number) field.fold()), safeToLong((Number) decimals.fold()));
-        }
-        if (decimals == null) {
-            return Maths.round((Number) field.fold(), 0L);
-        }
-        return Maths.round((Number) field.fold(), ((Number) decimals.fold()).longValue());
+        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator(extraName = "DoubleNoDecimals")

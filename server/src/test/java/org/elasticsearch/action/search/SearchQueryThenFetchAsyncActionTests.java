@@ -15,6 +15,8 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -192,7 +194,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {
@@ -324,7 +326,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
-            new ActionListener<SearchResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onFailure(Exception e) {
                     responses.add(e);
@@ -336,7 +338,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             },
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         );
@@ -474,7 +476,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {
@@ -622,7 +624,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {

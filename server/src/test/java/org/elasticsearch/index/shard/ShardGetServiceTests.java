@@ -95,7 +95,6 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, noSource ? "" : "{\"bar\":\"bar\"}", "\"text\"", "foo", false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100487")
     public void testGetFromTranslogWithLongSourceMappingOptionsAndStoredFields() throws IOException {
         String docToIndex = """
             {"foo" : 7, "bar" : 42}

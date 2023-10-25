@@ -129,17 +129,17 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
         DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
 
-        boolean[] driverStarted = new boolean[1];
+        boolean driverStarted = false;
         try {
             Operator operator = simple(bigArrays).get(driverContext);
-            driverStarted[0] = true;
-            List<Page> result = drive(operator, input.iterator(), driverContext);
+            driverStarted = true;
+            drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
         } catch (CircuitBreakingException e) {
             logger.info("broken", e);
             assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
         }
-        if (driverStarted[0] == false) {
+        if (driverStarted == false) {
             // if drive hasn't even started then we need to release the input pages
             Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(input.iterator(), p -> p::releaseBlocks)));
         }
@@ -212,17 +212,19 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 unreleasedInputs++;
             }
         }
-        if ((canLeak() == false) && unreleasedInputs > 0) {
+        if (unreleasedInputs > 0) {
             throw new AssertionError("[" + unreleasedInputs + "] unreleased input blocks");
         }
     }
 
-    // Tests that finish then close without calling getOutput to retrieve a potential last page, releases all memory
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100496")
+    /**
+     * Tests that finish then close without calling {@link Operator#getOutput} to
+     * retrieve a potential last page, releases all memory.
+     */
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : input.size();
+        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
         Page page = input.get(0);
@@ -294,7 +296,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         var driverRunner = new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, between(1, 10000), driverListener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 10000), driverListener);
             }
         };
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -304,12 +306,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         } finally {
             terminate(threadPool);
         }
-    }
-
-    // TODO: Remove this once all operators do not leak anymore
-    // https://github.com/elastic/elasticsearch/issues/99826
-    protected boolean canLeak() {
-        return false;
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

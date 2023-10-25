@@ -39,7 +39,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -359,8 +359,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void deleteSnapshots(
             Collection<SnapshotId> snapshotIds,
-            long repositoryStateId,
-            IndexVersion repositoryMetaVersion,
+            long repositoryDataGeneration,
+            IndexVersion minimumNodeVersion,
             SnapshotDeleteListener listener
         ) {
             listener.onFailure(new UnsupportedOperationException());
@@ -483,7 +483,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
                 Map.of("bucket", "bucket-a"),
-                Meter.NOOP
+                MeterRegistry.NOOP
             );
         }
 
@@ -511,7 +511,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
                 Map.of("bucket", "bucket-b"),
-                Meter.NOOP
+                MeterRegistry.NOOP
             );
         }
 

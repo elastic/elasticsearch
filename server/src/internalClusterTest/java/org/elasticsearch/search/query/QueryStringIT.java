@@ -49,15 +49,15 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
+        SearchResponse resp = prepareSearch("test").setQuery(queryStringQuery("foo")).get();
         assertHitCount(resp, 2L);
         assertHits(resp.getHits(), "1", "3");
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("bar")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("bar")).get();
         assertHitCount(resp, 2L);
         assertHits(resp.getHits(), "1", "3");
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
         assertHitCount(resp, 3L);
         assertHits(resp.getHits(), "1", "2", "3");
     }
@@ -68,19 +68,19 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo bar")).get();
+        SearchResponse resp = prepareSearch("test").setQuery(queryStringQuery("foo bar")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("bar \"2015/09/02\"")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("bar \"2015/09/02\"")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\" \"2015/09/01\"")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\" \"2015/09/01\"")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
     }
@@ -95,19 +95,19 @@ public class QueryStringIT extends ESIntegTestCase {
         );
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo bar")).get();
+        SearchResponse resp = prepareSearch("test").setQuery(queryStringQuery("foo bar")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.2 \"2015/09/02\"")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("127.0.0.2 \"2015/09/02\"")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
     }
@@ -118,31 +118,31 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
+        SearchResponse resp = prepareSearch("test").setQuery(queryStringQuery("foo")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("Baz")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("Baz")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("19")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("19")).get();
         assertHits(resp.getHits(), "1");
         // nested doesn't match because it's hidden
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("1476383971")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("1476383971")).get();
         assertHits(resp.getHits(), "1");
         // bool doesn't match
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("7")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("7")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("23")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("23")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("1293")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("1293")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("42")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("42")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("1.7")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("1.7")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("1.5")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("1.5")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("127.0.0.1")).get();
         assertHits(resp.getHits(), "1");
         // binary doesn't match
         // suggest doesn't match
@@ -156,15 +156,15 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("3").setSource("f1", "foo bar"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
+        SearchResponse resp = prepareSearch("test").setQuery(queryStringQuery("foo")).get();
         assertHits(resp.getHits(), "3");
         assertHitCount(resp, 1L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("bar")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("bar")).get();
         assertHits(resp.getHits(), "2", "3");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("Foo Bar")).get();
+        resp = prepareSearch("test").setQuery(queryStringQuery("Foo Bar")).get();
         assertHits(resp.getHits(), "1", "2", "3");
         assertHitCount(resp, 3L);
     }
@@ -180,12 +180,9 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test_1").setId("1").setSource("f1", "foo", "f2", "eggplant"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test_1")
-            .setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.AND))
-            .get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test_1").setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.AND)), 0L);
 
-        resp = client().prepareSearch("test_1").setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
+        SearchResponse resp = prepareSearch("test_1").setQuery(queryStringQuery("foo eggplant").defaultOperator(Operator.OR)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
     }
@@ -196,12 +193,11 @@ public class QueryStringIT extends ESIntegTestCase {
         reqs.add(client().prepareIndex("test").setId("2").setSource("f1", "foo bar", "f4", "chicken parmesan"));
         indexRandom(true, false, reqs);
 
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"").lenient(true)), 0L);
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> client().prepareSearch("test").setQuery(queryStringQuery("f4:\"eggplant parmesan\"").lenient(false)).get()
+            () -> prepareSearch("test").setQuery(queryStringQuery("f4:\"eggplant parmesan\"").lenient(false)).get()
         );
         IllegalStateException ise = (IllegalStateException) ExceptionsHelper.unwrap(exc, IllegalStateException.class);
         assertNotNull(ise);
@@ -209,10 +205,7 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     public void testBooleanStrictQuery() throws Exception {
-        Exception e = expectThrows(
-            Exception.class,
-            () -> client().prepareSearch("test").setQuery(queryStringQuery("foo").field("f_bool")).get()
-        );
+        Exception e = expectThrows(Exception.class, () -> prepareSearch("test").setQuery(queryStringQuery("foo").field("f_bool")).get());
         assertThat(
             ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
             containsString("Can't parse boolean value [foo], expected [true] or [false]")
@@ -222,7 +215,7 @@ public class QueryStringIT extends ESIntegTestCase {
     public void testAllFieldsWithSpecifiedLeniency() throws IOException {
         Exception e = expectThrows(
             Exception.class,
-            () -> client().prepareSearch("test").setQuery(queryStringQuery("f_date:[now-2D TO now]").lenient(false)).get()
+            () -> prepareSearch("test").setQuery(queryStringQuery("f_date:[now-2D TO now]").lenient(false)).get()
         );
         assertThat(e.getCause().getMessage(), containsString("unit [D] not supported for date math [-2D]"));
     }
@@ -234,7 +227,7 @@ public class QueryStringIT extends ESIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
-        SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("value").field("f3_alias")).get();
+        SearchResponse response = prepareSearch("test").setQuery(queryStringQuery("value").field("f3_alias")).get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -248,7 +241,7 @@ public class QueryStringIT extends ESIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
-        SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("f3_alias:value AND f2:three")).get();
+        SearchResponse response = prepareSearch("test").setQuery(queryStringQuery("f3_alias:value AND f2:three")).get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -262,7 +255,7 @@ public class QueryStringIT extends ESIntegTestCase {
         indexRequests.add(client().prepareIndex("test").setId("3").setSource("f3", "another value", "f2", "three"));
         indexRandom(true, false, indexRequests);
 
-        SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("value").field("f3_*")).get();
+        SearchResponse response = prepareSearch("test").setQuery(queryStringQuery("value").field("f3_*")).get();
 
         assertNoFailures(response);
         assertHitCount(response, 2);
@@ -276,7 +269,7 @@ public class QueryStringIT extends ESIntegTestCase {
 
         // The wildcard field matches aliases for both a text and geo_point field.
         // By default, the geo_point field should be ignored when building the query.
-        SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("text").field("f*_alias")).get();
+        SearchResponse response = prepareSearch("test").setQuery(queryStringQuery("text").field("f*_alias")).get();
 
         assertNoFailures(response);
         assertHitCount(response, 1);

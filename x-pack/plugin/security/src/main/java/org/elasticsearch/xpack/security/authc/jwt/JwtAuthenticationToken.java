@@ -23,8 +23,8 @@ import java.util.TreeSet;
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
     private static final char PRINCIPAL_SEPARATOR = '|';
-    private final String principal;
     private SignedJWT signedJWT;
+    private final String principal;
     private final byte[] userCredentialsHash;
     @Nullable
     private final SecureString clientAuthenticationSharedSecret;
@@ -41,8 +41,8 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         byte[] userCredentialsHash,
         @Nullable final SecureString clientAuthenticationSharedSecret
     ) {
-        this.principal = buildPrincipal();
         this.signedJWT = Objects.requireNonNull(signedJWT);
+        this.principal = buildPrincipal();
         this.userCredentialsHash = Objects.requireNonNull(userCredentialsHash);
         if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");

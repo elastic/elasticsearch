@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -164,6 +166,55 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testActiveTranslogFilesNotPrunedOnFailure() throws Exception {
+        startMasterOnlyNode();
+
+        String indexNode = startIndexNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueHours(1L)).build()
+        );
+        ensureGreen(indexName);
+
+        final int iters = randomIntBetween(1, 20);
+        for (int i = 0; i < iters; i++) {
+            indexDocs(indexName, randomIntBetween(1, 100));
+        }
+
+        var translogReplicator = internalCluster().getInstance(TranslogReplicator.class, indexNode);
+
+        Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
+        assertThat(activeTranslogFiles.size(), greaterThan(0));
+
+        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var blobContainer = indexObjectStoreService.getTranslogBlobContainer();
+
+        Exception shardFailed = new Exception("Shard Failed");
+        if (randomBoolean()) {
+            ShardStateAction instance = internalCluster().getInstance(ShardStateAction.class, indexNode);
+            PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+            instance.localShardFailed(findIndexShard(indexName).routingEntry(), "test failure", shardFailed, listener);
+            listener.actionGet();
+        } else {
+            internalCluster().getInstance(IndicesService.class, indexNode)
+                .getShardOrNull(findIndexShard(indexName).shardId())
+                .getEngineOrNull()
+                .failEngine("test", shardFailed);
+        }
+
+        // Pause to wait async delete complete if it is scheduled
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(50));
+
+        assertThat(translogReplicator.getActiveTranslogFiles().size(), greaterThan(0));
+
+        for (TranslogReplicator.BlobTranslogFile translogFile : activeTranslogFiles) {
+            assertTrue(blobContainer.blobExists(operationPurpose, translogFile.blobName()));
+        }
+    }
+
     public void testActiveTranslogFilesArePrunedAfterRelocation() throws Exception {
         startMasterOnlyNode();
 
@@ -249,7 +300,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             assertThat(translogReplicator.getTranslogFilesToDelete().size(), equalTo(0));
         });
 
-        if (randomBoolean()) {
+        // TODO: Implement the mechanism to allow translog file prune when index deleted
+        if (true) {
             flush(indexNameB);
         } else {
             // If meanwhile the index is deleted, we should still be able to clean up the translog blobs, since

@@ -123,8 +123,7 @@ class ShardSyncState {
                     switch (state.get()) {
                         // Add if the shard is open. Decrement if shard is closed. Ignore is node is closing.
                         case OPEN -> referencedTranslogFiles.add(translogFile);
-                        case CLOSED -> translogFile.decRef();
-                        case CLOSED_NODE_STOPPING -> {
+                        case CLOSED, CLOSED_NODE_STOPPING -> {
                         }
                     }
                 }
@@ -213,13 +212,8 @@ class ShardSyncState {
             bufferState = null;
         }
 
-        // Release all of referenced translog files if the indice service is not stopped.
-        synchronized (referencedTranslogFiles) {
-            if (nodeStopping == false) {
-                releaseReferencedTranslogFiles(Long.MAX_VALUE);
-                assert referencedTranslogFiles.peek() == null : "concurrent addition of translog file unexpected during close";
-            }
-        }
+        // The relocation hand-off forces a flush while holding the operation permits to a clean relocation should fully release the files
+        // TODO: Not dec-ing files on close will cause them to leak in the translog replicator list. Clean-up in follow-up.
 
         ActionListener.onFailure(toComplete, alreadyClosedException(shardId));
     }

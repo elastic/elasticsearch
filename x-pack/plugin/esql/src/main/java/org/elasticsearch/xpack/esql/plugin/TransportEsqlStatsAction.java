@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -15,6 +14,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,13 +34,17 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     EsqlStatsRequest.NodeStatsRequest,
     EsqlStatsResponse.NodeStatsResponse> {
 
+    static final NodeFeature ESQL_STATS_FEATURE = new NodeFeature("esql.stats_node");
+
     // the plan executor holds the metrics
+    private final FeatureService featureService;
     private final PlanExecutor planExecutor;
 
     @Inject
     public TransportEsqlStatsAction(
         TransportService transportService,
         ClusterService clusterService,
+        FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         PlanExecutor planExecutor
@@ -52,17 +57,21 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
             EsqlStatsRequest.NodeStatsRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.featureService = featureService;
         this.planExecutor = planExecutor;
     }
 
     @Override
     protected void resolveRequest(EsqlStatsRequest request, ClusterState clusterState) {
-        String[] nodesIds = clusterState.nodes().resolveNodes(request.nodesIds());
-        DiscoveryNode[] concreteNodes = Arrays.stream(nodesIds)
-            .map(clusterState.nodes()::get)
-            .filter(n -> n.getVersion().onOrAfter(Version.V_8_11_0))
-            .toArray(DiscoveryNode[]::new);
-        request.setConcreteNodes(concreteNodes);
+        if (featureService.clusterHasFeature(clusterState, ESQL_STATS_FEATURE)) {
+            request.setConcreteNodes(
+                Arrays.stream(clusterState.nodes().resolveNodes(request.nodesIds()))
+                    .map(clusterState.nodes()::get)
+                    .toArray(DiscoveryNode[]::new)
+            );
+        } else {
+            request.setConcreteNodes(new DiscoveryNode[0]);
+        }
     }
 
     @Override

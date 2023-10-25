@@ -743,6 +743,8 @@ class NodeConstruction {
             threadPool
         );
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         Plugin.PluginServices services = new Plugin.PluginServices() {
             @Override
             public Client client() {
@@ -812,6 +814,11 @@ class NodeConstruction {
             @Override
             public IndicesService indicesService() {
                 return indicesService;
+            }
+
+            @Override
+            public FeatureService featureService() {
+                return featureService;
             }
         };
 
@@ -977,7 +984,6 @@ class NodeConstruction {
         );
         clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
         final DiscoveryModule discoveryModule = new DiscoveryModule(
             settings,
             transportService,

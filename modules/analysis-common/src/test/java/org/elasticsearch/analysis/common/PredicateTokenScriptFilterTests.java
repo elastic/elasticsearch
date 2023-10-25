@@ -82,8 +82,7 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             null,
             TelemetryProvider.NOOP,
             null,
-            null,
-            featureService
+            null
         );
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),

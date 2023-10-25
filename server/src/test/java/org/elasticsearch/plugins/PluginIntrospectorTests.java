@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -274,8 +273,7 @@ public class PluginIntrospectorTests extends ESTestCase {
                 Supplier<RepositoriesService> repositoriesServiceSupplier,
                 TelemetryProvider telemetryProvider,
                 AllocationService allocationService,
-                IndicesService indicesService,
-                FeatureService featureService
+                IndicesService indicesService
             ) {
                 return null;
             }

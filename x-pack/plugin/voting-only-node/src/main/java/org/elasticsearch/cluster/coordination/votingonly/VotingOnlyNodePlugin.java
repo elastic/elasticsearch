@@ -29,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -99,8 +98,7 @@ public class VotingOnlyNodePlugin extends Plugin implements ClusterCoordinationP
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService,
-        FeatureService featureService
+        IndicesService indicesService
     ) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();

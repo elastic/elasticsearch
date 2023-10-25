@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -244,8 +243,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService,
-        FeatureService featureService
+        IndicesService indicesService
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,

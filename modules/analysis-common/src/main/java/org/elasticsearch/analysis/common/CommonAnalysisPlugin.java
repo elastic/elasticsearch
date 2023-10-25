@@ -110,7 +110,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
@@ -171,8 +170,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService,
-        FeatureService featureService
+        IndicesService indicesService
     ) {
         this.scriptServiceHolder.set(scriptService);
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(client));

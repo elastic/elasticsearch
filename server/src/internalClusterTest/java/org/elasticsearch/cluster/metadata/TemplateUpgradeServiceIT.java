@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -80,8 +79,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
-            IndicesService indicesService,
-            FeatureService featureService
+            IndicesService indicesService
         ) {
             clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
@@ -100,8 +98,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 repositoriesServiceSupplier,
                 telemetryProvider,
                 allocationService,
-                indicesService,
-                featureService
+                indicesService
             );
         }
 

@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -85,7 +84,6 @@ public abstract class Plugin implements Closeable {
      * @param telemetryProvider           An interface for distributed tracing
      * @param allocationService           A service to manage shard allocation in the cluster
      * @param indicesService              A service to manage indices in the cluster
-     * @param featureService
      */
     public Collection<Object> createComponents(
         Client client,
@@ -101,8 +99,7 @@ public abstract class Plugin implements Closeable {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService,
-        FeatureService featureService
+        IndicesService indicesService
     ) {
         return Collections.emptyList();
     }

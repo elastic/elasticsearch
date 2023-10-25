@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
@@ -212,8 +211,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService,
-        FeatureService featureService
+        IndicesService indicesService
     ) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -231,7 +229,6 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         // Connector components
         final ConnectorTemplateRegistry connectorTemplateRegistry = new ConnectorTemplateRegistry(
             clusterService,
-            featureService,
             threadPool,
             client,
             xContentRegistry

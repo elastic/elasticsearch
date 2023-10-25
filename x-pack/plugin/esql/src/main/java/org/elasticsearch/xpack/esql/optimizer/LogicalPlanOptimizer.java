@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.ConstantBooleanVector;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
@@ -621,11 +620,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                     List<Attribute> output = AbstractPhysicalOperationProviders.intermediateAttributes(List.of(agg), List.of());
                     for (Attribute o : output) {
                         DataType dataType = o.dataType();
-                        if (dataType == DataTypes.BOOLEAN) {
-                            blocks.add(new ConstantBooleanVector(true, 1).asBlock());
-                        } else {
+                        // fill the boolean block later in LocalExecutionPlanner
+                        if (dataType != DataTypes.BOOLEAN) {
                             // look for count(literal) with literal != null
-                            var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(aggFunc.dataType()), 1);
+                            var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(dataType), 1);
                             if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
                                 wrapper.accept(0L);
                             } else {

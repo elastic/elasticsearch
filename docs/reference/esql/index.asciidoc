@@ -33,15 +33,7 @@ include::esql-get-started.asciidoc[]
 
 include::esql-language.asciidoc[]
 
-include::esql-rest.asciidoc[]
-
-include::metadata-fields.asciidoc[]
-
-include::esql-kibana.asciidoc[]
-
-include::task-management.asciidoc[]
-
-include::esql-enrich-data.asciidoc[]
+include::esql-using.asciidoc[]
 
 include::esql-limitations.asciidoc[]
 

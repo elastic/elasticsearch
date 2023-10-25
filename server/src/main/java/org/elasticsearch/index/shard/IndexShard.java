@@ -4178,7 +4178,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     @Deprecated
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
-        waitForPrimaryTermAndGeneration(Engine.UNKNOWN_PRIMARY_TERM, segmentGeneration, listener);
+        waitForPrimaryTermAndGeneration(getOperationPrimaryTerm(), segmentGeneration, listener);
     }
 
     /**

@@ -27,9 +27,9 @@ but generally also slower. `DISSECT` works well when data is reliably repeated.
 for example when the structure of your text varies from row to row.
 
 You can use both `DISSECT` and `GROK` for hybrid use cases. For example when a
-section of the line is reliably repeated, but the entire line is not. The
-`DISSECT` filter can deconstruct the section of the line that is repeated. The
-`GROK` filter can process the remaining field values using regular expressions.
+section of the line is reliably repeated, but the entire line is not. `DISSECT`
+can deconstruct the section of the line that is repeated. `GROK` can process the
+remaining field values using regular expressions.
 
 [[esql-process-data-with-dissect]]
 ==== Process data with `DISSECT`

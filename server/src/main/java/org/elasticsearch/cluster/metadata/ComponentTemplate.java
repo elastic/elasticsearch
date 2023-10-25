@@ -87,7 +87,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             this.metadata = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            this.deprecated = in.available() > 0 && in.readBoolean();
+            this.deprecated = in.readBoolean();
         } else {
             deprecated = false;
         }

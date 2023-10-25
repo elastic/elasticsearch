@@ -139,7 +139,13 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        return new LifecyclePolicy(
+            TimeseriesLifecycleType.INSTANCE,
+            lifecycleName,
+            phases,
+            randomMeta(),
+            randomBoolean() ? randomBoolean() : null
+        );
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
@@ -230,7 +236,13 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         } else {
             phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        return new LifecyclePolicy(
+            TimeseriesLifecycleType.INSTANCE,
+            lifecycleName,
+            phases,
+            randomMeta(),
+            randomBoolean() ? randomBoolean() : null
+        );
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
@@ -276,7 +288,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomBoolean());
     }
 
     @Override
@@ -305,7 +317,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta(), randomBoolean());
     }
 
     @Override

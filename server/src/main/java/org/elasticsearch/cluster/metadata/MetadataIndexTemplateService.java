@@ -731,7 +731,8 @@ public class MetadataIndexTemplateService {
         if (templateToValidate.deprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
             validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
-            // TODO validateUseOfDeprecatedIlmPolicies
+            // we don't have access to the core/main plugin here so we can't use the IndexLifecycleMetadata type
+            // validateUseOfDeprecatedIlmPolicies(name, currentState.metadata().custom(IndexLifecycleMetadata.TYPE), combinedSettings);
         }
 
         // Finally, right before adding the template, we need to ensure that the composite settings,

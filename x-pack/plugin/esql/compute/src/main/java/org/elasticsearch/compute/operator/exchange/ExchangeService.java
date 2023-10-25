@@ -42,9 +42,9 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and factories on the same or different nodes.
+ * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
  * It holds a map of {@link ExchangeSourceHandler} and {@link ExchangeSinkHandler} instances for each node in the cluster.
- * To connect exchange factories to exchange sinks, use the {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, int)} method.
+ * To connect exchange sources to exchange sinks, use the {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, int)} method.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
@@ -305,6 +305,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
     @Override
     public String toString() {
-        return "ExchangeService{" + "sinks=" + sinks.keySet() + ", factories=" + sources.keySet() + '}';
+        return "ExchangeService{" + "sinks=" + sinks.keySet() + ", sources=" + sources.keySet() + '}';
     }
 }

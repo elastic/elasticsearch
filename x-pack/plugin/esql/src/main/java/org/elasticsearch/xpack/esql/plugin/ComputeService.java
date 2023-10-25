@@ -194,7 +194,7 @@ public class ComputeService {
         List<TargetNode> targetNodes,
         Supplier<ActionListener<DataNodeResponse>> listener
     ) {
-        // Do not complete the exchange factories until we have linked all remote sinks
+        // Do not complete the exchange sources until we have linked all remote sinks
         final SubscribableListener<Void> blockingSinkFuture = new SubscribableListener<>();
         exchangeSource.addRemoteSink(
             (sourceFinished, l) -> blockingSinkFuture.addListener(l.map(ignored -> new ExchangeResponse(null, true))),

@@ -154,7 +154,7 @@ public final class ExchangeSourceHandler extends AbstractRefCounted {
             final LoopControl loopControl = new LoopControl();
             while (loopControl.isRunning()) {
                 loopControl.exiting();
-                // finish other sinks if one of them failed or factories no longer need pages.
+                // finish other sinks if one of them failed or source no longer need pages.
                 boolean toFinishSinks = buffer.noMoreInputs() || failure.get() != null;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();

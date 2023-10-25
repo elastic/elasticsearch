@@ -22,9 +22,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Resolves *how* ESQL loads field values.
+ */
 public final class BlockReaderFactories {
     private BlockReaderFactories() {}
 
+    /**
+     * Resolves *how* ESQL loads field values.
+     * @param searchContexts a search context per search index we're loading
+     *                       field from
+     * @param fieldName the name of the field to load
+     * @param asUnsupportedSource should the field be loaded as "unsupported"?
+     *                            These will always have {@code null} values
+     */
     public static List<BlockDocValuesReader.Factory> factories(
         List<SearchContext> searchContexts,
         String fieldName,
@@ -71,6 +82,11 @@ public final class BlockReaderFactories {
         return factories;
     }
 
+    /**
+     * Converts a {@link BlockLoader}, something defined in core elasticsearch at
+     * the field level, into a {@link BlockDocValuesReader.Factory} which can be
+     * used inside ESQL.
+     */
     public static BlockDocValuesReader.Factory loaderToFactory(IndexReader reader, BlockLoader loader) {
         return new BlockDocValuesReader.Factory() {
             @Override

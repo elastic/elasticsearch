@@ -291,7 +291,7 @@ public class IndexingIT extends ESRestTestCase {
      * @return Optional.empty() if the format is not recognized, or an Optional containing the major Integer otherwise
      */
     private static Optional<Integer> extractLegacyMajorVersion(String version) {
-        var semanticVersionMatcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*").matcher(version);
+        var semanticVersionMatcher = Pattern.compile("^(\\d+)\\.\\d+\\.\\d+\\D?.*").matcher(version);
         if (semanticVersionMatcher.matches() == false) {
             return Optional.empty();
         }

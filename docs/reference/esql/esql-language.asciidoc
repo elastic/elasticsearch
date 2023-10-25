@@ -10,12 +10,10 @@ Detailed information about the {esql} language:
 * <<esql-syntax>>
 * <<esql-commands>>
 * <<esql-functions>>
-* <<esql-metadata-fields>>
 * <<esql-multivalued-fields>>
 
 include::esql-syntax.asciidoc[]
 include::esql-commands.asciidoc[]
 include::esql-functions-operators.asciidoc[]
-include::metadata-fields.asciidoc[]
 include::multivalued-fields.asciidoc[]
 

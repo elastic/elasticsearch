@@ -35,6 +35,8 @@ include::esql-language.asciidoc[]
 
 include::esql-rest.asciidoc[]
 
+include::metadata-fields.asciidoc[]
+
 include::esql-kibana.asciidoc[]
 
 include::task-management.asciidoc[]

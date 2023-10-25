@@ -1,12 +1,13 @@
 [[esql-enrich-data]]
-== Data Enrichment
+== Data enrichment
 
 ++++
-<titleabbrev>Data Enrichment</titleabbrev>
+<titleabbrev>Data enrichment</titleabbrev>
 ++++
 
-The {esql}'s <<esql-enrich>> processing command combines at query-time
- data from one or more source indexes with field-value combinations found in {es} enrich indexes.
+The {esql} <<esql-enrich>> processing command combines, at query-time, data from
+one or more source indexes with field-value combinations found in {es} enrich
+indexes.
 
 For example, you can use `ENRICH` to:
 

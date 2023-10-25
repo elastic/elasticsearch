@@ -27,8 +27,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
+import org.elasticsearch.xpack.transform.transforms.scheduling.FakeClock;
 import org.junit.Before;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -53,6 +56,7 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
 
     private IndicesService indicesService;
     private CancellableTask task;
+    private FakeClock clock;
     private Set<ShardId> shards;
 
     @Before
@@ -95,6 +99,7 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         when(indicesService.indexServiceSafe(new Index("my-index-B", "B"))).thenReturn(indexServiceB);
 
         task = new CancellableTask(123, "type", "action", "description", new TaskId("dummy-node:456"), Map.of());
+        clock = new FakeClock(Instant.now());
         shards = Set.of(
             new ShardId(new Index("my-index-A", "A"), 0),
             new ShardId(new Index("my-index-A", "A"), 1),
@@ -103,11 +108,19 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         );
     }
 
-    public void testGetGlobalCheckpoints() throws InterruptedException {
+    public void testGetGlobalCheckpointsWithNoTimeout() throws InterruptedException {
+        testGetGlobalCheckpointsSuccess(null);
+    }
+
+    public void testGetGlobalCheckpointsWithHighTimeout() throws InterruptedException {
+        testGetGlobalCheckpointsSuccess(TimeValue.timeValueMinutes(1));
+    }
+
+    private void testGetGlobalCheckpointsSuccess(TimeValue timeout) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<GetCheckpointNodeAction.Response> responseHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, null, ActionListener.wrap(r -> {
+        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, timeout, clock, ActionListener.wrap(r -> {
             responseHolder.set(r);
             latch.countDown();
         }, e -> {
@@ -123,13 +136,13 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         assertThat(exceptionHolder.get(), is(nullValue()));
     }
 
-    public void testGetGlobalCheckpointsWithTaskCancelled() throws InterruptedException {
+    public void testGetGlobalCheckpointsFailureDueToTaskCancelled() throws InterruptedException {
         TaskCancelHelper.cancel(task, "due to apocalypse");
 
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<GetCheckpointNodeAction.Response> responseHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, null, ActionListener.wrap(r -> {
+        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, null, clock, ActionListener.wrap(r -> {
             responseHolder.set(r);
             latch.countDown();
         }, e -> {
@@ -138,27 +151,37 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
         }));
         latch.await(10, TimeUnit.SECONDS);
 
-        assertThat(responseHolder.get(), is(nullValue()));
+        assertThat("Response was: " + responseHolder.get(), responseHolder.get(), is(nullValue()));
         assertThat(exceptionHolder.get().getMessage(), is(equalTo("task cancelled [due to apocalypse]")));
     }
 
-    public void testGetGlobalCheckpointsWithTimeout() throws InterruptedException {
+    public void testGetGlobalCheckpointsFailureDueToTimeout() throws InterruptedException {
+        // Move the current time past the timeout.
+        clock.advanceTimeBy(Duration.ofSeconds(10));
+
         CountDownLatch latch = new CountDownLatch(1);
         SetOnce<GetCheckpointNodeAction.Response> responseHolder = new SetOnce<>();
         SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, task, shards, TimeValue.ZERO, ActionListener.wrap(r -> {
-            responseHolder.set(r);
-            latch.countDown();
-        }, e -> {
-            exceptionHolder.set(e);
-            latch.countDown();
-        }));
+        TransportGetCheckpointNodeAction.getGlobalCheckpoints(
+            indicesService,
+            task,
+            shards,
+            TimeValue.timeValueSeconds(5),
+            clock,
+            ActionListener.wrap(r -> {
+                responseHolder.set(r);
+                latch.countDown();
+            }, e -> {
+                exceptionHolder.set(e);
+                latch.countDown();
+            })
+        );
         latch.await(10, TimeUnit.SECONDS);
 
-        assertThat(responseHolder.get(), is(nullValue()));
+        assertThat("Response was: " + responseHolder.get(), responseHolder.get(), is(nullValue()));
         assertThat(
             exceptionHolder.get().getMessage(),
-            is(equalTo("Transform checkpointing timed out on node [dummy-node] after [0ms] having processed [0] of [4] shards"))
+            is(equalTo("Transform checkpointing timed out on node [dummy-node] after [5s] having processed [0] of [4] shards"))
         );
     }
 }

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -169,6 +170,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                         task,
                         oneNodeAndItsShards.getValue(),
                         timeout,
+                        Clock.systemUTC(),
                         groupedListener
                     );
                     continue;

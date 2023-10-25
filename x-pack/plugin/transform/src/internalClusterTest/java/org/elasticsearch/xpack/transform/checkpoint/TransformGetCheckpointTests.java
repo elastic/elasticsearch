@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -249,7 +250,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
             ActionListener<GetCheckpointNodeAction.Response> listener
         ) {
             ++calls;
-            getGlobalCheckpoints(mockIndicesService, task, request.getShards(), request.getTimeout(), listener);
+            getGlobalCheckpoints(mockIndicesService, task, request.getShards(), request.getTimeout(), Clock.systemUTC(), listener);
         }
 
         public int getCalls() {

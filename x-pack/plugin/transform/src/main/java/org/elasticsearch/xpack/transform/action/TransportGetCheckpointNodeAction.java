@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Response;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,7 +48,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        getGlobalCheckpoints(indicesService, task, request.getShards(), request.getTimeout(), listener);
+        getGlobalCheckpoints(indicesService, task, request.getShards(), request.getTimeout(), Clock.systemUTC(), listener);
     }
 
     protected static void getGlobalCheckpoints(
@@ -55,6 +56,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
         Task task,
         Set<ShardId> shards,
         TimeValue timeout,
+        Clock clock,
         ActionListener<Response> listener
     ) {
         Map<String, long[]> checkpointsByIndexOfThisNode = new HashMap<>();
@@ -67,7 +69,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
                 }
             }
             if (timeout != null) {
-                Instant now = Instant.now();
+                Instant now = clock.instant();
                 if (task.getStartTime() + timeout.millis() < now.toEpochMilli()) {
                     listener.onFailure(
                         new ElasticsearchTimeoutException(

@@ -85,7 +85,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertFalse(activeTranslogFile.hasReferences());
     }
 
-    public void testActiveTranslogFileIsReleasedAfterShardClose() throws IOException {
+    public void testActiveTranslogFileIsNotReleasedAfterShardClose() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 20);
         ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
@@ -109,7 +109,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.close(false);
 
-        assertFalse(activeTranslogFile.hasReferences());
+        assertTrue(activeTranslogFile.hasReferences());
     }
 
     public void testActiveTranslogFileIsNotReleasedWhenNodeShuttingDown() throws IOException {
@@ -163,11 +163,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncFinished(activeTranslogFile, syncMarker);
 
-        if (nodeClosing) {
-            assertTrue(activeTranslogFile.hasReferences());
-        } else {
-            assertFalse(activeTranslogFile.hasReferences());
-        }
+        assertTrue(activeTranslogFile.hasReferences());
     }
 
     public void testActiveTranslogFileCannotBeQueuedWithDifferentPrimaryTerm() throws IOException {

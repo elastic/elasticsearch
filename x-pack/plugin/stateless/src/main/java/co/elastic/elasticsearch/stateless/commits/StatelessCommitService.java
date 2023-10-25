@@ -877,6 +877,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
 
+                if (uploadedCommitConsumers != null) {
+                    listenersToFire = new ArrayList<>();
+
+                    for (var consumer : uploadedCommitConsumers) {
+                        listenersToFire.add(ActionListener.wrap(consumer::accept, e -> {}));
+                    }
+                }
+
                 if (generationListeners != null) {
                     for (Tuple<Long, ActionListener<Void>> tuple : generationListeners) {
                         Long generation = tuple.v1();
@@ -893,14 +901,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         }
                     }
                     generationListeners = listenersToReregister;
-                }
-                if (uploadedCommitConsumers != null) {
-                    if (listenersToFire == null) {
-                        listenersToFire = new ArrayList<>();
-                    }
-                    for (var consumer : uploadedCommitConsumers) {
-                        listenersToFire.add(ActionListener.wrap(consumer::accept, e -> {}));
-                    }
                 }
             }
 

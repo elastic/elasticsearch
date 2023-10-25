@@ -31,6 +31,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -283,9 +285,36 @@ public class IndexingIT extends ESRestTestCase {
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
     }
 
+    /**
+     * Tries to extract a major version from a version string, if this is in the major.minor.revision format
+     * @param version a string representing a version. Can be opaque or semantic
+     * @return Optional.empty() if the format is not recognized, or an Optional containing the major Integer otherwise
+     */
+    private static Optional<Integer> extractLegacyMajorVersion(String version) {
+        var semanticVersionMatcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*").matcher(version);
+        if (semanticVersionMatcher.matches() == false) {
+            return Optional.empty();
+        }
+        var major = Integer.parseInt(semanticVersionMatcher.group(1));
+        return Optional.of(major);
+    }
+
+    private static boolean syncedFlushDeprecated() {
+        // Only versions past 8.10 can be non-semantic, so we can safely assume that non-semantic versions have this "feature"
+        return extractLegacyMajorVersion(BWC_NODES_VERSION).map(m -> m >= 7).orElse(true);
+    }
+
+    private static boolean syncedFlushRemoved() {
+        // Only versions past 8.10 can be non-semantic, so we can safely assume that non-semantic versions have this "feature"
+        return extractLegacyMajorVersion(BWC_NODES_VERSION).map(m -> m >= 8).orElse(true);
+    }
+
     public void testSyncedFlushTransition() throws Exception {
         Nodes nodes = buildNodeAndVersions();
-        assumeTrue("bwc version is on 7.x", BWC_NODES_VERSION.startsWith("7."));
+        assumeTrue(
+            "bwc version is on 7.x (synced flush deprecated but not removed yet)",
+            syncedFlushDeprecated() && syncedFlushRemoved() == false
+        );
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes

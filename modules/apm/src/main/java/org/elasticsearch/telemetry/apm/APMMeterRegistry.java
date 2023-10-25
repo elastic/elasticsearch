@@ -6,12 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.telemetry.apm.internal.metrics;
+package org.elasticsearch.telemetry.apm;
 
 import io.opentelemetry.api.metrics.Meter;
 
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.DoubleUpDownCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
+import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
@@ -20,17 +28,18 @@ import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Container for registering and fetching instruments by type and name.
+ * Container for registering and fetching meterRegistrar by type and name.
  * Instrument names must be unique for a given type on registration.
- * {@link #setProvider(Meter)} is used to change the provider for all existing instruments.
+ * {@link #setProvider(Meter)} is used to change the provider for all existing meterRegistrar.
  */
-public class Instruments {
+public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
@@ -42,7 +51,7 @@ public class Instruments {
 
     private final Meter meter;
 
-    public Instruments(Meter meter) {
+    public APMMeterRegistry(Meter meter) {
         this.meter = meter;
     }
 
@@ -60,7 +69,7 @@ public class Instruments {
     // Access to registration has to be restricted when the provider is updated in ::setProvider
     protected final ReleasableLock registerLock = new ReleasableLock(new ReentrantLock());
 
-    public <T> DoubleCounter registerDoubleCounter(String name, String description, String unit) {
+    public DoubleCounter registerDoubleCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleCounters.register(new DoubleCounterAdapter(meter, name, description, unit));
         }
@@ -70,7 +79,7 @@ public class Instruments {
         return doubleCounters.get(name);
     }
 
-    public <T> DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
+    public DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleUpDownCounters.register(new DoubleUpDownCounterAdapter(meter, name, description, unit));
         }
@@ -80,7 +89,7 @@ public class Instruments {
         return doubleUpDownCounters.get(name);
     }
 
-    public <T> DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleGauges.register(new DoubleGaugeAdapter(meter, name, description, unit));
         }
@@ -90,7 +99,7 @@ public class Instruments {
         return doubleGauges.get(name);
     }
 
-    public <T> DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
+    public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleHistograms.register(new DoubleHistogramAdapter(meter, name, description, unit));
         }
@@ -100,7 +109,7 @@ public class Instruments {
         return doubleHistograms.get(name);
     }
 
-    public <T> LongCounter registerLongCounter(String name, String description, String unit) {
+    public LongCounter registerLongCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longCounters.register(new LongCounterAdapter(meter, name, description, unit));
         }
@@ -110,7 +119,7 @@ public class Instruments {
         return longCounters.get(name);
     }
 
-    public <T> LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
+    public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longUpDownCounters.register(new LongUpDownCounterAdapter(meter, name, description, unit));
         }
@@ -120,7 +129,7 @@ public class Instruments {
         return longUpDownCounters.get(name);
     }
 
-    public <T> LongGauge registerLongGauge(String name, String description, String unit) {
+    public LongGauge registerLongGauge(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longGauges.register(new LongGaugeAdapter(meter, name, description, unit));
         }
@@ -130,7 +139,7 @@ public class Instruments {
         return longGauges.get(name);
     }
 
-    public <T> LongHistogram registerLongHistogram(String name, String description, String unit) {
+    public LongHistogram registerLongHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longHistograms.register(new LongHistogramAdapter(meter, name, description, unit));
         }

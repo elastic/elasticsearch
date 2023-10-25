@@ -79,11 +79,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
      * K/V indices (such as profiling-stacktraces) are assumed to contain data from their creation date until the creation date
      * of the next index that is created by rollover. Due to client-side caching of K/V data we need to extend the validity period
      * of the prior index by this time. This means that for queries that cover a time period around the time when a new index has
-     * been created we will query not only the new index but also the prior one (for up to three hours by default).
+     * been created we will query not only the new index but also the prior one. The client-side parameters that influence cache duration
+     * are <code>elfInfoCacheTTL</code> for executables (default: 6 hours) and <code>traceExpirationTimeout</code> for stack
+     * traces (default: 3 hours).
      */
     public static final Setting<TimeValue> PROFILING_KV_INDEX_OVERLAP = Setting.positiveTimeSetting(
         "xpack.profiling.kv_index.overlap",
-        TimeValue.timeValueHours(3),
+        TimeValue.timeValueHours(6),
         Setting.Property.NodeScope
     );
 

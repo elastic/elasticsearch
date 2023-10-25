@@ -116,15 +116,12 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get();
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get();
         });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
         // can-match phase pre-filters access to non-existing field
-        assertEquals(
-            0,
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value
-        );
+        assertEquals(0, prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
@@ -144,16 +141,11 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertMappings(sourceIdx, requireRouting, true);
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(sourceIdx)
-                .setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
-                .get()
+            () -> prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get()
         );
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // can-match phase pre-filters access to non-existing field
-        assertEquals(
-            0,
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value
-        );
+        assertEquals(0, prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
@@ -259,10 +251,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertHits(String index, int numDocsExpected, boolean sourceHadDeletions) {
-        SearchResponse searchResponse = client().prepareSearch(index)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setSize(numDocsExpected)
-            .get();
+        SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected).get();
         BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
             SearchHits hits = res.getHits();
             long i = 0;
@@ -283,8 +272,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         };
         assertConsumer.accept(searchResponse, sourceHadDeletions);
         assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
-        searchResponse = client().prepareSearch(index)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+        searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
             .setScroll("1m")
             .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
             .setSize(randomIntBetween(1, 10))
@@ -348,7 +336,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         }
         indexRandom(true, builders);
         flushAndRefresh();
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")), 1);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")), 1);
 
         createSnapshot(repo, snapshot, Collections.singletonList(sourceIdx));
 

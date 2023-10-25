@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.profiling;
 
 public class GetFlameGraphActionIT extends ProfilingTestCase {
+    @Override
+    protected boolean useOnlyAllEvents() {
+        return true;
+    }
+
     public void testGetStackTracesUnfiltered() throws Exception {
         GetStackTracesRequest request = new GetStackTracesRequest(1, null);
         GetFlamegraphResponse response = client().execute(GetFlamegraphAction.INSTANCE, request).get();

@@ -9,6 +9,9 @@
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.api.metrics.ObservableLongGauge;
+
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Collections;
 import java.util.Map;
@@ -18,9 +21,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * LongGaugeAdapter wraps an otel ObservableLongMeasurement
  */
-public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.ObservableLongGauge>
-    implements
-        org.elasticsearch.telemetry.metric.LongGauge {
+public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
     private final AtomicReference<ValueWithAttributes> valueWithAttributes;
 
     public LongGaugeAdapter(Meter meter, String name, String description, String unit) {
@@ -29,8 +30,7 @@ public class LongGaugeAdapter extends AbstractInstrument<io.opentelemetry.api.me
     }
 
     @Override
-    io.opentelemetry.api.metrics.ObservableLongGauge buildInstrument(Meter meter) {
-
+    protected io.opentelemetry.api.metrics.ObservableLongGauge buildInstrument(Meter meter) {
         return Objects.requireNonNull(meter)
             .gaugeBuilder(getName())
             .ofLongs()

@@ -24,6 +24,9 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 
+/**
+ * Manages information on the features supported by nodes in the cluster
+ */
 public class FeatureService {
 
     /**
@@ -45,7 +48,7 @@ public class FeatureService {
         Set<String> nodeFeatures = new HashSet<>();
         for (FeatureSpecification spec : specs) {
             for (var hfe : spec.getHistoricalFeatures().entrySet()) {
-                var existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);
+                FeatureSpecification existing = allFeatures.putIfAbsent(hfe.getKey().id(), spec);
                 // the same SPI class can be loaded multiple times if it's in the base classloader
                 if (existing != null && existing.getClass() != spec.getClass()) {
                     throw new IllegalArgumentException(
@@ -68,7 +71,7 @@ public class FeatureService {
             }
 
             for (NodeFeature f : spec.getFeatures()) {
-                var existing = allFeatures.putIfAbsent(f.id(), spec);
+                FeatureSpecification existing = allFeatures.putIfAbsent(f.id(), spec);
                 if (existing != null && existing.getClass() != spec.getClass()) {
                     throw new IllegalArgumentException(
                         Strings.format("Duplicate feature - [%s] is declared by both [%s] and [%s]", f.id(), existing, spec)
@@ -99,14 +102,14 @@ public class FeatureService {
     }
 
     /**
-     * The non-historical features present on this node
+     * The non-historical features supported by this node.
      */
     public Set<String> getNodeFeatures() {
         return nodeFeatures;
     }
 
     /**
-     * Returns {@code true} if all nodes in {@code state} have feature {@code feature}.
+     * Returns {@code true} if all nodes in {@code state} support feature {@code feature}.
      */
     @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {

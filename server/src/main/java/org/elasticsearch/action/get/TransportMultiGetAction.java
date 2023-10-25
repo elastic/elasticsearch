@@ -77,9 +77,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                     lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
                 }
                 item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
-                shardId = clusterService.operationRouting()
-                    .getIndexShardRoutingTable(clusterState, concreteSingleIndex, item.id(), item.routing())
-                    .shardId();
+                shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex, item.id(), item.routing());
             } catch (RoutingMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;

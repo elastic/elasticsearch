@@ -56,11 +56,6 @@ public class OperationRouting {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
-    public IndexShardRoutingTable getIndexShardRoutingTable(ClusterState clusterState, String index, String id, @Nullable String routing) {
-        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
-        return clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
-    }
-
     /**
      * Shards to use for a {@code GET} operation.
      * @return A shard iterator that can be used for GETs, or null if e.g. due to preferences no match is found.
@@ -72,7 +67,8 @@ public class OperationRouting {
         @Nullable String routing,
         @Nullable String preference
     ) {
-        IndexShardRoutingTable shards = getIndexShardRoutingTable(clusterState, index, id, routing);
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
+        IndexShardRoutingTable shards = clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
         return preferenceActiveShardIterator(shards, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference, null, null);
     }
 

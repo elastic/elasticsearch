@@ -178,7 +178,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable DataStreamTemplate dataStreamTemplate,
         @Nullable Boolean allowAutoCreate,
         @Nullable List<String> ignoreMissingComponentTemplates,
-        @Nullable Boolean deprecated) {
+        @Nullable Boolean deprecated
+    ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
         this.componentTemplates = componentTemplates;

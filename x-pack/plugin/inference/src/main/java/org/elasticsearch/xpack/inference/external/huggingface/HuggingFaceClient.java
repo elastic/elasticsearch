@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.huggingface;
 
-import org.apache.http.ConnectionClosedException;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,12 +14,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequest;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -36,28 +36,84 @@ public class HuggingFaceClient {
         this.sender = sender;
     }
 
-    public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) throws IOException {
+    public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) {
         HttpRequestBase httpRequest = request.createRequest();
-        retryingSend(httpRequest, listener);
+        AtomicInteger failureCount = new AtomicInteger();
+        retryingSend(httpRequest, failureCount, listener);
     }
 
-    private void retryingSend(HttpRequestBase request, ActionListener<InferenceResults> listener) throws IOException {
-        AtomicInteger failureCount = new AtomicInteger();
-
-        ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
+    private void retryingSend(HttpRequestBase request, AtomicInteger failureCount, ActionListener<InferenceResults> listener) {
+        ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
             try {
-                listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
+                checkForFailureStatusCode(request, result);
+                checkForEmptyBody(request, result);
+
+                TextExpansionResults textExpansionResults = HuggingFaceElserResponseEntity.fromResponse(result);
+                listener.onResponse(textExpansionResults);
+            } catch (ElasticsearchException e) {
+                logException(request, result, e);
+                attemptRetry(request, e, failureCount, listener, SEND_REQUEST_RETRY_LIMIT);
             } catch (Exception e) {
-                String msg = format("Failed to parse the Hugging Face ELSER response for request [%s]", request.getRequestLine());
-                logger.warn(msg, e);
-                listener.onFailure(new ElasticsearchException(msg, e));
+                logException(request, result, e);
+
+                attemptRetry(
+                    request,
+                    new ElasticsearchException(
+                        format("Failed to process the Hugging Face ELSER response for request [%s]", request.getRequestLine()),
+                        e
+                    ),
+                    failureCount,
+                    listener,
+                    SEND_REQUEST_RETRY_LIMIT
+                );
             }
-        }, e -> handleFailure(request, e, failureCount, listener, SEND_REQUEST_RETRY_LIMIT));
+        }, e -> attemptRetry(request, e, failureCount, listener, SEND_REQUEST_RETRY_LIMIT));
 
         sender.send(request, responseListener);
     }
 
-    private void handleFailure(
+    private static void checkForFailureStatusCode(HttpRequestBase request, HttpResult result) {
+        if (result.response().getStatusLine().getStatusCode() >= 300) {
+            logger.warn(
+                format(
+                    "Received a failure status code for request [%s] status [%s] body [%s]",
+                    request.getRequestLine(),
+                    result.response().getStatusLine().getStatusCode(),
+                    // TODO is it PII issue or other potential issue if we log the response body?
+                    new String(result.body(), StandardCharsets.UTF_8)
+                )
+            );
+
+            throw new IllegalStateException(
+                format(
+                    "Received a failure status code for request [%s] status [%s]",
+                    request.getRequestLine(),
+                    result.response().getStatusLine().getStatusCode()
+                )
+            );
+        }
+    }
+
+    private static void checkForEmptyBody(HttpRequestBase request, HttpResult result) {
+        if (result.isBodyEmpty()) {
+            logger.warn(format("Response body was empty for request [%s]", request.getRequestLine()));
+            throw new IllegalStateException(format("Response body was empty for request [%s]", request.getRequestLine()));
+        }
+    }
+
+    private static void logException(HttpRequestBase request, HttpResult result, Exception exception) {
+        logger.warn(
+            format(
+                "Failed to process the Hugging Face ELSER response for request [%s] status [%s] [%s]",
+                request.getRequestLine(),
+                result.response().getStatusLine().getStatusCode(),
+                result.response().getStatusLine().getReasonPhrase()
+            ),
+            exception
+        );
+    }
+
+    private void attemptRetry(
         HttpRequestBase request,
         Exception exception,
         AtomicInteger failureCount,
@@ -65,14 +121,7 @@ public class HuggingFaceClient {
         int retries
     ) {
         try {
-            if (exception instanceof ElasticsearchException) {
-                listener.onFailure(exception);
-                return;
-            } else if (exception instanceof ConnectionClosedException == false) {
-                listener.onFailure(new ElasticsearchException(exception));
-                return;
-            }
-
+            // Let's retry all exceptions for now
             var count = failureCount.incrementAndGet();
             if (count >= retries) {
                 listener.onFailure(
@@ -84,9 +133,9 @@ public class HuggingFaceClient {
                 return;
             }
 
-            logger.debug(() -> format("Failed sending request [%s], [%s] times, retrying", request.getRequestLine(), count));
+            logger.debug(() -> format("Failed sending request [%s], [%s] times, retrying", request.getRequestLine(), count), exception);
             TimeUnit.SECONDS.sleep(TimeValue.timeValueSeconds(1).getSeconds());
-            retryingSend(request, listener);
+            retryingSend(request, failureCount, listener);
         } catch (Exception e) {
             listener.onFailure(
                 new ElasticsearchException(

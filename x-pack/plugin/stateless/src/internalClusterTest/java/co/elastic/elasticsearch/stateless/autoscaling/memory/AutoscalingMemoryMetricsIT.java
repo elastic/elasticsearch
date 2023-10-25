@@ -438,6 +438,61 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         });
     }
 
+    public void testMemoryMetricsRemainExactAfterAShardMovesToADifferentNodeAndMappingsChange() throws Exception {
+        var indexNode1 = startIndexNode(
+            Settings.builder().put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueMillis(50)).build()
+        );
+        var indexNode2 = startIndexNode(
+            Settings.builder().put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1)).build()
+        );
+
+        var indexName = randomIdentifier();
+        var numberOfFields = randomIntBetween(10, 100);
+        assertAcked(
+            prepareCreate(indexName).setMapping(createIndexMapping(numberOfFields))
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build())
+                .get()
+        );
+        var index = resolveIndex(indexName);
+
+        assertBusy(() -> {
+            var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .getIndicesMemoryMetrics()
+                .get(index);
+            assertThat(indexMemoryMetrics, is(notNullValue()));
+            final long sizeAfterIndexCreate = indexMemoryMetrics.getSizeInBytes();
+            assertThat(sizeAfterIndexCreate, greaterThan(0L));
+            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            // We need to ensure that the seq number goes beyond 10 to guarantee that once a new node
+            // takes over the new samples are taken into account. We have to wait until seqNo > 10 because
+            // assertBusy waits up to 10seconds and indexNode2 publishes a sample every second, meaning that
+            // the issue couldn't be reproduced if seqNo < 10.
+            assertThat(indexMemoryMetrics.getSeqNo(), is(greaterThan(10L)));
+        });
+
+        internalCluster().stopNode(indexNode1);
+
+        // Update index mapping ensuring that we add extra fields
+        assertAcked(indicesAdmin().putMapping(new PutMappingRequest(indexName).source(createIndexMapping(numberOfFields + 10))).get());
+
+        assertBusy(() -> {
+            var totalIndicesMappingSize = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .getTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndicesMappingSize.getSizeInBytes();
+            assertThat(sizeAfterIndexCreate, greaterThan(0L));
+            assertThat(totalIndicesMappingSize.getMetricQuality(), equalTo(MetricQuality.MINIMUM));
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
+
+        assertBusy(() -> {
+            var totalIndicesMappingSize = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .getTotalIndicesMappingSize();
+            assertThat(totalIndicesMappingSize.getSizeInBytes(), greaterThan(0L));
+            assertThat(totalIndicesMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        });
+    }
+
     private String startMasterNode() {
         return internalCluster().startMasterOnlyNode(
             nodeSettings().put(StoreHeartbeatService.MAX_MISSED_HEARTBEATS.getKey(), 1)

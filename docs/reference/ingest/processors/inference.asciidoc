@@ -30,7 +30,7 @@ include::common-options.asciidoc[]
 * You cannot use the `input_output` field with the `target_field` and 
 `field_map` fields. For NLP models, use the `input_output` option. For 
 {dfanalytics} models, use the `target_field` and `field_map` option.
-* The {infer} input fields must be single strings, not arrays of strings.
+* Each {infer} input field must be single strings, not arrays of strings.
 ==================================================
 
 [discrete]

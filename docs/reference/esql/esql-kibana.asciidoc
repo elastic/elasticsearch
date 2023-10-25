@@ -5,8 +5,13 @@
 <titleabbrev>Using {esql} in {kib}</titleabbrev>
 ++++
 
-{kib} supports {esql} to query and aggregate your data, create visualizations
-and set up alerts. 
+You can use {esql} in {kib} to query and aggregate your data, create
+visualizations, and set up alerts. 
+
+This guide shows you how to use {esql} in Kibana. To follow along with the
+queries, load the "Sample web logs" sample data set by clicking *Try sample
+data* from the {kib} Home, selecting *Other sample data sets*, and clicking *Add
+data* on the *Sample web logs* card.
 
 [discrete]
 [[esql-kibana-get-started]]
@@ -17,8 +22,8 @@ To get started with {esql} in Discover, open the main menu and select
 
 image::images/esql/esql-data-view-menu.png[align="center",width=33%]
 
-The ability to select {esql} from the data view can be enabled and disabled
-using the `discover:enableESQL` setting from
+The ability to select {esql} from the Data views menu can be enabled and
+disabled using the `discover:enableESQL` setting from
 {kibana-ref}/advanced-options.html[Advanced Settings].
 
 [discrete]
@@ -39,6 +44,14 @@ aliases. In this example, the data is retrieved from `kibana_sample_data_logs`.
 A source command can be followed by one or more <<esql-commands,processing
 commands>>. In this query, the processing command is <<esql-limit>>. `LIMIT`
 limits the number of rows that are retrieved.
+
+TIP: Click the help icon (image:images/esql/esql-icon-help.svg[]) to open the
+in-product reference documentation for all commands and functions.
+
+To make it easier to write queries, auto-complete offers suggestions with
+possible commands and functions:
+
+image::images/esql/esql-kibana-auto-complete.png[align="center"]
 
 [NOTE]
 ====
@@ -64,19 +77,19 @@ FROM kibana_sample_data_logs
 ----
 
 To make it easier to write multi-line queries, click the double-headed arrow
-icon (image:images/esql/esql-icon-expand-query-bar.svg[]) to expand the query
+button (image:images/esql/esql-icon-expand-query-bar.svg[]) to expand the query
 bar:
 
 image::images/esql/esql-expanded-query-bar.png[align="center"]
 
-To return to a compact query bar, click the minimize editor icon 
+To return to a compact query bar, click the minimize editor button 
 (image:images/esql/esql-icon-minimize-query-bar.svg[]).
 
 [discrete]
 ==== Warnings
 
 A query may result in warnings, for example when querying an unsupported field
-type. When that happens, a warning icon is shown in the query bar. To see the
+type. When that happens, a warning symbol is shown in the query bar. To see the
 detailed warning, expand the query bar, and click *warnings*.
 
 [discrete]
@@ -84,18 +97,29 @@ detailed warning, expand the query bar, and click *warnings*.
 === The results table
 
 For the example query, the results table shows 10 rows. Omitting the `LIMIT`
-command, the results table shows up to 500 rows. Using `LIMIT`, you can increase
-the limit to up to 10,000 rows.
+command, the results table defaults to up to 500 rows. Using `LIMIT`, you can
+increase the limit to up to 10,000 rows.
 
-Each row shows two columns for the example query: a columns with the
-`@timestamp` field and a columns with the full document. To display specific
-fields from the document, use the <<esql-keep>> command:
+Each row shows two columns for the example query: a column with the `@timestamp`
+field and a column with the full document. To display specific fields from the
+documents, use the <<esql-keep>> command:
 
 [source,esql]
 ----
 FROM kibana_sample_data_logs
 | KEEP @timestamp, bytes, geo.dest
 ----
+
+To display all fields as separate columns, use `KEEP *`:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| KEEP *
+----
+
+NOTE: The maximum number of columns in Discover is 50. If a query returns more
+than 50 columns, Discover only shows the first 50.
 
 [discrete]
 ==== Sorting
@@ -125,13 +149,15 @@ indices do not contain an `@timestamp` field, limit the time range using the
 
 [discrete]
 [[esql-kibana-visualizations]]
-=== Create and edit visualizations
+=== Analyze and visualize data
 
 Between the query bar and the results table, Discover shows a date histogram
-visualization. If the indices you're querying do not contain an `@timestamp` field the histogram is not shown. 
+visualization. If the indices you're querying do not contain an `@timestamp`
+field, the histogram is not shown.
 
-The visualization adapts to the query. Changing the query to aggregate the total
-number of bytes per destination country:
+The visualization adapts to the query. A query's nature determines the type of
+visualization. Changing the previous example query to aggregate the total number
+of bytes per destination country:
 
 [source,esql]
 ----
@@ -141,31 +167,66 @@ FROM kibana_sample_data_logs
 | LIMIT 3
 ----
 
-The visualization changes into a bar chart showing the top 3 countries:
+changes the visualization into a bar chart showing the top 3 countries:
 
 image::images/esql/esql-kibana-bar-chart.png[align="center"]
 
-To change the visualization into another type, click the *Visualization type*
+To change the visualization into another type, click the visualization type
 dropdown:
 
 image::images/esql/esql-kibana-visualization-type.png[align="center",width=33%]
 
-To make other changes to the visualization, such as the axes and colors, click
-the pencil icon (image:images/esql/esql-icon-edit-visualization.svg[]).
+To make other changes to the visualization, like the axes and colors, click the
+pencil button (image:images/esql/esql-icon-edit-visualization.svg[]). This opens
+an in-line editor:
 
-You can save the visualization to a new or existing dashboard by clicking the save icon (image:images/esql/esql-icon-save-visualization.svg[]).
+image::images/esql/esql-kibana-in-line-editor.png[align="center"]
 
-[discrete]
-[[esql-kibana-alerting-rule]]
-=== Create an alerting rule
+You can save the visualization to a new or existing dashboard by clicking the
+save button (image:images/esql/esql-icon-save-visualization.svg[]). Once saved
+to a dashboard, you can continue to make changes to visualization. Click the
+options button in the top-right (image:images/esql/esql-icon-options.svg[]) and
+select *Edit ESQL visualization* to open the in-line editor:
 
--
+image::images/esql/esql-kibana-edit-on-dashboard.png[align="center"]
 
 [discrete]
 [[esql-kibana-enrich]]
 === Create an enrich policy
 
-- 
+The {esql} <<esql-enrich>> command enables you to <<esql-enrich-data,enrich>>
+your query dataset with fields from another dataset. Before you can use
+`ENRICH`, you need to <<esql-set-up-enrich-policy,create and execute an enrich
+policy>>. If a policy exists, it will be suggested by auto-complete. If not,
+click *Click to create* to create one.
+
+image::images/esql/esql-kibana-enrich-autocomplete.png[align="center"]
+
+Next, you can enter a policy name, the policy type, source indices, and
+optionally a query:
+
+image::images/esql/esql-kibana-enrich-step-1.png[align="center",width="50%"]
+
+Click *Next* to select the match field and enrich fields:
+
+image::images/esql/esql-kibana-enrich-step-2.png[align="center",width="50%"]
+
+Finally, click *Create and execute*.
+
+Now, you can use the enrich policy in an {esql} query:
+
+image::images/esql/esql-kibana-enriched-data.png[align="center"]
+
+[discrete]
+[[esql-kibana-alerting-rule]]
+=== Create an alerting rule
+
+You can use {esql} queries to create alerts. From Discover, click *Alerts* and
+select *Create search threshold rule*. This opens a panel that enables you to
+create a rule using an {esql} query. Next, you can test the query, add a
+connector, and save the rule.
+
+image::images/esql/esql-kibana-create-rule.png[align="center",width=50%]
 
 [discrete]
 [[esql-kibana-limitations]]
@@ -174,5 +235,7 @@ You can save the visualization to a new or existing dashboard by clicking the sa
 * The user interface to filter data is not enabled when Discover is in {esql}
 mode. To filter data, write a query that uses the <<esql-where>> command
 instead.
-* In {esql} mode, clicking a field in the field list does not show quick
-statistics for that field.
+* In {esql} mode, clicking a field in the field list in Discover does not show
+quick statistics for that field.
+* Discover shows no more than 10,000 rows and 50 columns. If a query returns
+more than 50 columns, Discover only shows the first 50.

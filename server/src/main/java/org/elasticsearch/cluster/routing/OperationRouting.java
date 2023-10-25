@@ -56,12 +56,7 @@ public class OperationRouting {
         this.useAdaptiveReplicaSelection = useAdaptiveReplicaSelection;
     }
 
-    public IndexShardRoutingTable getIndexShardRoutingTable(
-        ClusterState clusterState,
-        String index,
-        String id,
-        @Nullable String routing
-    ) {
+    public IndexShardRoutingTable getIndexShardRoutingTable(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata(clusterState, index));
         return clusterState.getRoutingTable().shardRoutingTable(index, indexRouting.getShard(id, routing));
     }

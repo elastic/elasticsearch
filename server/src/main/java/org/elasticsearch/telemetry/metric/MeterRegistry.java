@@ -8,6 +8,8 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.function.Supplier;
+
 /**
  * Container for metering instruments.  Meters with the same name and type (DoubleCounter, etc) can
  * only be registered once.
@@ -51,9 +53,11 @@ public interface MeterRegistry {
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
+     * @param observer callback to use. This is called once during reporting period.
+     *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    DoubleGauge registerDoubleGauge(String name, String description, String unit);
+    DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer);
 
     /**
      * Retrieved a previously registered {@link DoubleGauge}.
@@ -61,22 +65,6 @@ public interface MeterRegistry {
      * @return the registered meter.
      */
     DoubleGauge getDoubleGauge(String name);
-
-    /**
-     * Register a {@link DoubleGaugeObserver}.  The returned object may be reused by only one observer may be set at a time
-     * @param name name of the gauge
-     * @param description description of purpose
-     * @param unit the unit (bytes, sec, hour)
-     * @return the registered meter.
-     */
-    DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit);
-
-    /**
-     * Retrieved a previously registered {@link DoubleGaugeObserver}.
-     * @param name name of the gauge
-     * @return the registered meter.
-     */
-    DoubleGaugeObserver getDoubleGaugeObserver(String name);
 
     /**
      * Register a {@link DoubleHistogram}.  The returned object may be reused.
@@ -131,9 +119,11 @@ public interface MeterRegistry {
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
+     * @param observer callback to use. This is called once during reporting period.
+     *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    LongGauge registerLongGauge(String name, String description, String unit);
+    LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer);
 
     /**
      * Retrieved a previously registered {@link LongGauge}.
@@ -141,22 +131,6 @@ public interface MeterRegistry {
      * @return the registered meter.
      */
     LongGauge getLongGauge(String name);
-
-    /**
-     * Register a {@link LongGaugeObserver}.  The returned object may be reused by only one observer may be set at a time
-     * @param name name of the gauge
-     * @param description description of purpose
-     * @param unit the unit (bytes, sec, hour)
-     * @return the registered meter.
-     */
-    LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit);
-
-    /**
-     * Retrieved a previously registered {@link LongGaugeObserver}.
-     * @param name name of the gauge
-     * @return the registered meter.
-     */
-    LongGaugeObserver getLongGaugeObserver(String name);
 
     /**
      * Register a {@link LongHistogram}.  The returned object may be reused.
@@ -198,23 +172,13 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+        public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer) {
             return DoubleGauge.NOOP;
         }
 
         @Override
         public DoubleGauge getDoubleGauge(String name) {
             return DoubleGauge.NOOP;
-        }
-
-        @Override
-        public DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit) {
-            return DoubleGaugeObserver.NOOP;
-        }
-
-        @Override
-        public DoubleGaugeObserver getDoubleGaugeObserver(String name) {
-            return DoubleGaugeObserver.NOOP;
         }
 
         @Override
@@ -248,23 +212,13 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongGauge registerLongGauge(String name, String description, String unit) {
+        public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer) {
             return LongGauge.NOOP;
         }
 
         @Override
         public LongGauge getLongGauge(String name) {
             return LongGauge.NOOP;
-        }
-
-        @Override
-        public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit) {
-            return LongGaugeObserver.NOOP;
-        }
-
-        @Override
-        public LongGaugeObserver getLongGaugeObserver(String name) {
-            return LongGaugeObserver.NOOP;
         }
 
         @Override

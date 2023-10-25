@@ -14,22 +14,20 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.DoubleGaugeObserverAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.DoubleUpDownCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
-import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeObserverAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
+import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.DoubleGaugeObserver;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
-import org.elasticsearch.telemetry.metric.LongGaugeObserver;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -37,6 +35,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 /**
  * Container for registering and fetching meterRegistrar by type and name.
@@ -47,12 +46,10 @@ public class APMMeterRegistry implements MeterRegistry {
     private final Registrar<DoubleCounterAdapter> doubleCounters = new Registrar<>();
     private final Registrar<DoubleUpDownCounterAdapter> doubleUpDownCounters = new Registrar<>();
     private final Registrar<DoubleGaugeAdapter> doubleGauges = new Registrar<>();
-    private final Registrar<DoubleGaugeObserverAdapter> doubleGaugeObservers = new Registrar<>();
     private final Registrar<DoubleHistogramAdapter> doubleHistograms = new Registrar<>();
     private final Registrar<LongCounterAdapter> longCounters = new Registrar<>();
     private final Registrar<LongUpDownCounterAdapter> longUpDownCounters = new Registrar<>();
     private final Registrar<LongGaugeAdapter> longGauges = new Registrar<>();
-    private final Registrar<LongGaugeObserverAdapter> longGaugeObservers = new Registrar<>();
     private final Registrar<LongHistogramAdapter> longHistograms = new Registrar<>();
 
     private final Meter meter;
@@ -75,102 +72,98 @@ public class APMMeterRegistry implements MeterRegistry {
     // Access to registration has to be restricted when the provider is updated in ::setProvider
     protected final ReleasableLock registerLock = new ReleasableLock(new ReentrantLock());
 
+    @Override
     public DoubleCounter registerDoubleCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleCounters.register(new DoubleCounterAdapter(meter, name, description, unit));
         }
     }
 
+    @Override
     public DoubleCounter getDoubleCounter(String name) {
         return doubleCounters.get(name);
     }
 
+    @Override
     public DoubleUpDownCounter registerDoubleUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleUpDownCounters.register(new DoubleUpDownCounterAdapter(meter, name, description, unit));
         }
     }
 
+    @Override
     public DoubleUpDownCounter getDoubleUpDownCounter(String name) {
         return doubleUpDownCounters.get(name);
     }
 
-    public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+    @Override
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleGauges.register(new DoubleGaugeAdapter(meter, name, description, unit));
+            return doubleGauges.register(new DoubleGaugeAdapter(meter, name, description, unit, observer));
         }
     }
 
+    @Override
     public DoubleGauge getDoubleGauge(String name) {
         return doubleGauges.get(name);
     }
 
-    public DoubleGaugeObserver registerDoubleGaugeObserver(String name, String description, String unit) {
-        try (ReleasableLock lock = registerLock.acquire()) {
-            return doubleGaugeObservers.register(new DoubleGaugeObserverAdapter(meter, name, description, unit));
-        }
-    }
-
-    public DoubleGaugeObserver getDoubleGaugeObserver(String name) {
-        return doubleGaugeObservers.get(name);
-    }
-
+    @Override
     public DoubleHistogram registerDoubleHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleHistograms.register(new DoubleHistogramAdapter(meter, name, description, unit));
         }
     }
 
+    @Override
     public DoubleHistogram getDoubleHistogram(String name) {
         return doubleHistograms.get(name);
     }
 
+    @Override
     public LongCounter registerLongCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longCounters.register(new LongCounterAdapter(meter, name, description, unit));
         }
     }
 
+    @Override
     public LongCounter getLongCounter(String name) {
         return longCounters.get(name);
     }
 
+    @Override
     public LongUpDownCounter registerLongUpDownCounter(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longUpDownCounters.register(new LongUpDownCounterAdapter(meter, name, description, unit));
         }
     }
 
+    @Override
     public LongUpDownCounter getLongUpDownCounter(String name) {
         return longUpDownCounters.get(name);
     }
 
-    public LongGauge registerLongGauge(String name, String description, String unit) {
+    @Override
+    public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
-            return longGauges.register(new LongGaugeAdapter(meter, name, description, unit));
+            return longGauges.register(new LongGaugeAdapter(meter, name, description, unit, observer));
         }
     }
 
+    @Override
     public LongGauge getLongGauge(String name) {
         return longGauges.get(name);
     }
 
-    public LongGaugeObserver registerLongGaugeObserver(String name, String description, String unit) {
-        try (ReleasableLock lock = registerLock.acquire()) {
-            return longGaugeObservers.register(new LongGaugeObserverAdapter(meter, name, description, unit));
-        }
-    }
-
-    public LongGaugeObserver getLongGaugeObserver(String name) {
-        return longGaugeObservers.get(name);
-    }
-
+    @Override
     public LongHistogram registerLongHistogram(String name, String description, String unit) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longHistograms.register(new LongHistogramAdapter(meter, name, description, unit));
         }
     }
 
+    @Override
     public LongHistogram getLongHistogram(String name) {
         return longHistograms.get(name);
     }

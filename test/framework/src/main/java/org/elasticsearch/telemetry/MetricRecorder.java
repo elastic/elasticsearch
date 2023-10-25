@@ -34,19 +34,24 @@ public class MetricRecorder<I> {
     private record RegisteredMetric<I>(
         Map<String, Registration> registered,
         Map<String, List<Measurement>> called,
-        Map<String, I> instruments
+        Map<String, I> instruments,
+        List<Runnable> callbacks
     ) {
         void register(String name, String description, String unit, I instrument) {
             assert registered.containsKey(name) == false
                 : Strings.format("unexpected [{}]: [{}][{}], already registered[{}]", name, description, unit, registered.get(name));
             registered.put(name, new Registration(name, description, unit));
             instruments.put(name, instrument);
+            if (instrument instanceof Runnable callback) {
+                callbacks.add(callback);
+            }
         }
 
         void call(String name, Measurement call) {
             assert registered.containsKey(name) : Strings.format("call for unregistered metric [{}]: [{}]", name, call);
             called.computeIfAbsent(Objects.requireNonNull(name), k -> new ArrayList<>()).add(call);
         }
+
     }
 
     /**
@@ -57,7 +62,7 @@ public class MetricRecorder<I> {
     public MetricRecorder() {
         metrics = new HashMap<>(InstrumentType.values().length);
         for (var instrument : InstrumentType.values()) {
-            metrics.put(instrument, new RegisteredMetric<>(new HashMap<>(), new HashMap<>(), new HashMap<>()));
+            metrics.put(instrument, new RegisteredMetric<>(new HashMap<>(), new HashMap<>(), new HashMap<>(), new ArrayList<>()));
         }
     }
 
@@ -109,5 +114,9 @@ public class MetricRecorder<I> {
 
     public void resetCalls() {
         metrics.forEach((it, rm) -> rm.called().clear());
+    }
+
+    public void collect() {
+        metrics.forEach((it, rm) -> rm.callbacks().forEach(Runnable::run));
     }
 }

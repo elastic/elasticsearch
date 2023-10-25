@@ -11,13 +11,16 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
+import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
+import org.elasticsearch.telemetry.metric.LongAttributes;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -33,34 +36,68 @@ public class GaugeAdapterTests extends ESTestCase {
     }
 
     // testing that a value reported is then used in a callback
-    @SuppressWarnings("unchecked")
-    public void testLongGaugeRecord() {
-        LongGauge longGauge = registry.registerLongGauge("name", "desc", "unit");
+    public void testLongGaugeRecord() throws Exception {
+        AtomicReference<LongAttributes> attrs = new AtomicReference<>();
+        LongGauge gauge = registry.registerLongGauge("name", "desc", "unit", attrs::get);
 
-        // recording a value
-        Map<String, Object> attributes = Map.of("k", 1L);
-        longGauge.record(1L, attributes);
+        attrs.set(new LongAttributes(1L, Map.of("k", 1L)));
 
         otelMeter.collectMetrics();
 
-        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(longGauge);
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(gauge);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).attributes(), equalTo(attributes));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
         assertThat(metrics.get(0).getLong(), equalTo(1L));
+
+        attrs.set(new LongAttributes(2L, Map.of("k", 5L)));
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 5L)));
+        assertThat(metrics.get(0).getLong(), equalTo(2L));
+
+        gauge.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(0));
     }
 
     // testing that a value reported is then used in a callback
-    @SuppressWarnings("unchecked")
-    public void testDoubleGaugeRecord() {
-        DoubleGauge doubleGauge = registry.registerDoubleGauge("name", "desc", "unit");
-        Map<String, Object> attributes = Map.of("k", 1L);
-        doubleGauge.record(1.0, attributes);
+    public void testDoubleGaugeRecord() throws Exception {
+        AtomicReference<DoubleAttributes> attrs = new AtomicReference<>();
+        DoubleGauge gauge = registry.registerDoubleGauge("name", "desc", "unit", attrs::get);
+
+        attrs.set(new DoubleAttributes(1.0d, Map.of("k", 1L)));
 
         otelMeter.collectMetrics();
 
-        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(doubleGauge);
+        List<Measurement> metrics = otelMeter.getRecorder().getMeasurements(gauge);
         assertThat(metrics, hasSize(1));
-        assertThat(metrics.get(0).attributes(), equalTo(attributes));
-        assertThat(metrics.get(0).getDouble(), equalTo(1.0));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
+        assertThat(metrics.get(0).getDouble(), equalTo(1.0d));
+
+        attrs.set(new DoubleAttributes(2.0d, Map.of("k", 5L)));
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(1));
+        assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 5L)));
+        assertThat(metrics.get(0).getDouble(), equalTo(2.0d));
+
+        gauge.close();
+
+        otelMeter.getRecorder().resetCalls();
+        otelMeter.collectMetrics();
+
+        metrics = otelMeter.getRecorder().getMeasurements(gauge);
+        assertThat(metrics, hasSize(0));
     }
 }

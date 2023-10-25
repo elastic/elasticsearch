@@ -143,15 +143,9 @@ public final class MultivalueDedupe {
         }
     }
 
-    private static class EvaluatorFactory implements ExpressionEvaluator.Factory {
-        private final ExpressionEvaluator.Factory field;
-        private final BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe;
-
-        protected EvaluatorFactory(ExpressionEvaluator.Factory field, BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe) {
-            this.field = field;
-            this.dedupe = dedupe;
-        }
-
+    private record EvaluatorFactory(ExpressionEvaluator.Factory field, BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe)
+        implements
+            ExpressionEvaluator.Factory {
         @Override
         public ExpressionEvaluator get(DriverContext context) {
             return new Evaluator(context.blockFactory(), field.get(context), dedupe);

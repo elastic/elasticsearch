@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -139,7 +140,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
             Request waitForGreen = new Request("GET", "/_cluster/health");
             waitForGreen.addParameter("wait_for_nodes", "3");
             client().performRequest(waitForGreen);
-            if (allNodesSupportBulkApi() == false) {
+            if (clusterSupportsBulkApi() == false) {
                 ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                 assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
                 assertThat(
@@ -409,22 +410,15 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
         );
     }
 
-    private boolean nodeSupportBulkApi(Map<?, ?> nodeInfo) {
-        // TODO[lor]: replace this check with a (historical) feature check ("supports bulk requests")
-        var versionString = nodeInfo.get("version").toString();
-        var version = Version.fromString(versionString);
-        return version.onOrAfter(Version.V_7_5_0);
-    }
-
-    private boolean allNodesSupportBulkApi() throws IOException {
+    // TODO[lor]: replace this check with a (historical) feature check ("supports bulk requests")
+    private boolean clusterSupportsBulkApi() throws IOException {
         Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
 
-        boolean allSupportBulkApi = true;
-        for (Map.Entry<?, ?> node : nodes.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            allSupportBulkApi &= nodeSupportBulkApi(nodeInfo);
-        }
-        return allSupportBulkApi;
+        Predicate<Map<?, ?>> nodeSupportsBulkApi = n -> Version.fromString(n.get("version").toString()).onOrAfter(Version.V_7_5_0);
+
+        return nodes.values().stream()
+            .map(o -> (Map<?, ?>) o)
+            .allMatch(nodeSupportsBulkApi);
     }
 }

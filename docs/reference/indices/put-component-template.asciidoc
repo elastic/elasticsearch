@@ -103,7 +103,7 @@ Name of the component template to create.
 {fleet-guide}/fleet-overview.html[{agent}] uses these templates to configure
 backing indices for its data streams.
 If you want to customize these templates, don't override them as they may be reset after an update.
-Instead, look for a `...@custom` component template in the `composed_of` section of the managed index template.
+Instead, look for a `*@custom` component template in the `composed_of` section of the managed index template.
 These custom component templates allow you to customize the mappings of managed index templates,
 without having to override managed index templates or component templates.
 Note that the custom component templates may not exist yet.
@@ -112,7 +112,7 @@ See <<data-streams-change-mappings-and-settings>> on how to apply the changes to
 
 To avoid naming collisions with built-in and Fleet-managed component templates,
 avoid using `@` as part of your own component template names.
-The exception of that rule are the `@custom` component templates that let you safely customize managed index templates.
+The exception of that rule are the `*@custom` component templates that let you safely customize managed index templates.
 ====
 
 [[put-component-template-api-query-params]]

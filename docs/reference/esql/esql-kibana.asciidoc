@@ -2,14 +2,177 @@
 == Using {esql} in {kib}
 
 ++++
-<titleabbrev>Kibana</titleabbrev>
+<titleabbrev>Using {esql} in {kib}</titleabbrev>
 ++++
 
+{kib} supports {esql} to query and aggregate your data, create visualizations
+and set up alerts. 
 
-Use {esql} in Discover to explore a data set. From the data view dropdown,
-select *Try {esql}* to get started.
+[discrete]
+[[esql-kibana-get-started]]
+=== Get started with {esql}
 
-NOTE: {esql} queries in Discover and Lens are subject to the time range selected
-with the time filter.
+To get started with {esql} in Discover, open the main menu and select
+*Discover*. Next, from the Data views menu, select *Try ES|QL*.
 
+image::images/esql/esql-data-view-menu.png[align="center",width=33%]
 
+The ability to select {esql} from the data view can be enabled and disabled
+using the `discover:enableESQL` setting from
+{kibana-ref}/advanced-options.html[Advanced Settings].
+
+[discrete]
+[[esql-kibana-query-bar]]
+=== The query bar
+
+After switching to {esql} mode, the query bar shows a sample query. For example:
+
+[source,esql]
+----
+from kibana_sample_data_logs | limit 10
+----
+
+Every query starts with a <<esql-commands,source command>>. In this query, the
+source command is <<esql-from>>. `FROM` retrieves data from data streams, indices, or
+aliases. In this example, the data is retrieved from `kibana_sample_data_logs`.
+
+A source command can be followed by one or more <<esql-commands,processing
+commands>>. In this query, the processing command is <<esql-limit>>. `LIMIT`
+limits the number of rows that are retrieved.
+
+[NOTE]
+====
+{esql} keywords are case-insensitive. The following query is identical to the
+previous one:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs | LIMIT 10
+----
+====
+
+[discrete]
+==== Expand the query bar
+
+For readability, you can put each processing command on a new line. The
+following query is identical to the previous one:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs 
+| LIMIT 10
+----
+
+To make it easier to write multi-line queries, click the double-headed arrow
+icon (image:images/esql/esql-icon-expand-query-bar.svg[]) to expand the query
+bar:
+
+image::images/esql/esql-expanded-query-bar.png[align="center"]
+
+To return to a compact query bar, click the minimize editor icon 
+(image:images/esql/esql-icon-minimize-query-bar.svg[]).
+
+[discrete]
+==== Warnings
+
+A query may result in warnings, for example when querying an unsupported field
+type. When that happens, a warning icon is shown in the query bar. To see the
+detailed warning, expand the query bar, and click *warnings*.
+
+[discrete]
+[[esql-kibana-results-table]]
+=== The results table
+
+For the example query, the results table shows 10 rows. Omitting the `LIMIT`
+command, the results table shows up to 500 rows. Using `LIMIT`, you can increase
+the limit to up to 10,000 rows.
+
+Each row shows two columns for the example query: a columns with the
+`@timestamp` field and a columns with the full document. To display specific
+fields from the document, use the <<esql-keep>> command:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| KEEP @timestamp, bytes, geo.dest
+----
+
+[discrete]
+==== Sorting
+
+To sort on one of the columns, click the column name you want to sort on and
+select the sort order. Note that this performs client-side sorting. It only
+sorts the rows that were retrieved by the query, which may not be the full
+dataset because of the (implicit) limit. To sort the full data set, use the
+<<esql-sort>> command:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| KEEP @timestamp, bytes, geo.dest
+| SORT bytes DESC
+----
+
+[discrete]
+[[esql-kibana-time-filter]]
+=== Time filtering
+
+To display data within a specified time range, use the
+{kibana-ref}/set-time-filter.html[time filter]. The time filter is only enabled
+when the indices you're querying contain a field called `@timestamp`. If your
+indices do not contain an `@timestamp` field, limit the time range using the
+<<esql-where>> command instead.
+
+[discrete]
+[[esql-kibana-visualizations]]
+=== Create and edit visualizations
+
+Between the query bar and the results table, Discover shows a date histogram
+visualization. If the indices you're querying do not contain an `@timestamp` field the histogram is not shown. 
+
+The visualization adapts to the query. Changing the query to aggregate the total
+number of bytes per destination country:
+
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| STATS total_bytes = SUM(bytes) BY geo.dest
+| SORT total_bytes DESC
+| LIMIT 3
+----
+
+The visualization changes into a bar chart showing the top 3 countries:
+
+image::images/esql/esql-kibana-bar-chart.png[align="center"]
+
+To change the visualization into another type, click the *Visualization type*
+dropdown:
+
+image::images/esql/esql-kibana-visualization-type.png[align="center",width=33%]
+
+To make other changes to the visualization, such as the axes and colors, click
+the pencil icon (image:images/esql/esql-icon-edit-visualization.svg[]).
+
+You can save the visualization to a new or existing dashboard by clicking the save icon (image:images/esql/esql-icon-save-visualization.svg[]).
+
+[discrete]
+[[esql-kibana-alerting-rule]]
+=== Create an alerting rule
+
+-
+
+[discrete]
+[[esql-kibana-enrich]]
+=== Create an enrich policy
+
+- 
+
+[discrete]
+[[esql-kibana-limitations]]
+=== Limitations
+
+* The user interface to filter data is not enabled when Discover is in {esql}
+mode. To filter data, write a query that uses the <<esql-where>> command
+instead.
+* In {esql} mode, clicking a field in the field list does not show quick
+statistics for that field.

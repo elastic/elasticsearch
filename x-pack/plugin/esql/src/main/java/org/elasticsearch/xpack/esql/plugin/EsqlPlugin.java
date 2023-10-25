@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -102,7 +103,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         CircuitBreaker circuitBreaker = indicesService.getBigArrays().breakerService().getBreaker("request");
         Objects.requireNonNull(circuitBreaker, "request circuit breaker wasn't set");

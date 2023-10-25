@@ -82,7 +82,8 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
             null,
             TelemetryProvider.NOOP,
             null,
-            null
+            null,
+            featureService
         );
         AnalysisModule module = new AnalysisModule(
             TestEnvironment.newEnvironment(settings),

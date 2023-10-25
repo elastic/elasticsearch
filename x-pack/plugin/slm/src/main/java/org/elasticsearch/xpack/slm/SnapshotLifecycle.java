@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -137,7 +138,8 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         final List<Object> components = new ArrayList<>();
 

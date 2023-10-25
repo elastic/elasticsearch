@@ -73,7 +73,23 @@ public class AzureStorageServiceTests extends ESTestCase {
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
         final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
+        plugin.createComponents(
+            null,
+            null,
+            threadPool,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            TelemetryProvider.NOOP,
+            null,
+            null,
+            featureService
+        );
         return plugin;
     }
 

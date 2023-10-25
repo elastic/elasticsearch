@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -77,7 +78,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            FeatureService featureService
         ) {
             return Collections.singletonList(service);
         }

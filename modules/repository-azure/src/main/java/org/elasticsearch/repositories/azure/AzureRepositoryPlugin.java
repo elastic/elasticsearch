@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -98,7 +99,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         AzureClientProvider azureClientProvider = AzureClientProvider.create(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));

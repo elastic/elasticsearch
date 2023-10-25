@@ -28,6 +28,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -456,7 +457,8 @@ public class NodeTests extends ESTestCase {
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            FeatureService featureService
         ) {
             List<Object> components = new ArrayList<>();
             components.add(new PluginComponentBinding<>(MyInterface.class, getRandomBool() ? new Foo() : new Bar()));

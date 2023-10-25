@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.MockLicenseState;
@@ -116,7 +117,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         return entSearchPlugin.createComponents(
             client,
@@ -132,7 +134,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
             repositoriesServiceSupplier,
             telemetryProvider,
             allocationService,
-            indicesService
+            indicesService,
+            featureService
         );
     }
 

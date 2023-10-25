@@ -75,7 +75,23 @@ public class WatcherPluginTests extends ESTestCase {
 
         // also no component creation if not enabled
         assertThat(
-            watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null),
+            watcher.createComponents(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                TelemetryProvider.NOOP,
+                null,
+                null,
+                featureService
+            ),
             hasSize(0)
         );
 

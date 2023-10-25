@@ -157,7 +157,8 @@ public class XPackPluginTests extends ESTestCase {
             null,
             null,
             null,
-            null
+            null,
+            featureService
         );
         assertEquals(license, XPackPlugin.getSharedLicenseService().getLicense());
         assertEquals(License.OperationMode.resolve(licenseType), XPackPlugin.getSharedLicenseState().getOperationMode());
@@ -211,7 +212,8 @@ public class XPackPluginTests extends ESTestCase {
             null,
             null,
             null,
-            null
+            null,
+            featureService
         );
         assertThat(XPackPlugin.getSharedLicenseService(), instanceOf(ClusterStateLicenseService.class));
         assertEquals(License.OperationMode.TRIAL, XPackPlugin.getSharedLicenseState().getOperationMode());

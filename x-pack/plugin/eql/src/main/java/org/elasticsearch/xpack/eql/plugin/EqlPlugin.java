@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -85,7 +86,8 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         return createComponents(client, environment.settings(), clusterService);
     }

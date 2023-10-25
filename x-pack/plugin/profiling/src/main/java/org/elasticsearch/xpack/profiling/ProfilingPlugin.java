@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -95,7 +96,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         logger.info("Profiling is {}", enabled ? "enabled" : "disabled");
         registry.set(new ProfilingIndexTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry));

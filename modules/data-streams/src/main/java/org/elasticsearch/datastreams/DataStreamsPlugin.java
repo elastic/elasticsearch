@@ -62,6 +62,7 @@ import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -172,7 +173,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
 
         Collection<Object> components = new ArrayList<>();

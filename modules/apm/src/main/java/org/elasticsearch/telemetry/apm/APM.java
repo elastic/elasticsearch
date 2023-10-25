@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -87,7 +88,8 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider unused,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         final APMTracer apmTracer = telemetryProvider.get().getTracer();
 

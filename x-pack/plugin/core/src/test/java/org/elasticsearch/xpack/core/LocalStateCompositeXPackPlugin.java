@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -207,7 +208,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         List<Object> components = new ArrayList<>(
             super.createComponents(
@@ -224,7 +226,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 repositoriesServiceSupplier,
                 telemetryProvider,
                 allocationService,
-                indicesService
+                indicesService,
+                featureService
             )
         );
 
@@ -244,7 +247,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                     repositoriesServiceSupplier,
                     telemetryProvider,
                     allocationService,
-                    indicesService
+                    indicesService,
+                    featureService
                 )
             )
         );

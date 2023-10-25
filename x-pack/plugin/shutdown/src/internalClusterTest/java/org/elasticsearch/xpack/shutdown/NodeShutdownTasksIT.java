@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -148,7 +149,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            FeatureService featureService
         ) {
             taskExecutor = new TaskExecutor(client, clusterService, threadPool);
             return Collections.singletonList(taskExecutor);

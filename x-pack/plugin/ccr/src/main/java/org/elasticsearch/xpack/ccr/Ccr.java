@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -191,7 +192,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         final Supplier<RepositoriesService> repositoriesServiceSupplier,
         TelemetryProvider telemetryProvider,
         AllocationService allocationService,
-        IndicesService indicesService
+        IndicesService indicesService,
+        FeatureService featureService
     ) {
         this.client = client;
         if (enabled == false) {

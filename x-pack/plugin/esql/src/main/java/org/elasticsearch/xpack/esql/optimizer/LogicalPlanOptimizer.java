@@ -602,7 +602,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                 // only care about non-grouped aggs might return something (count)
                 if (plan instanceof Aggregate agg && agg.groupings().isEmpty()) {
                     List<Block> emptyBlocks = aggsFromEmpty(agg.aggregates());
-                    assert emptyBlocks.size() == local.output().size() : emptyBlocks.size() + " != " + local.output().size();
                     p = skipPlan(plan, LocalSupplier.of(emptyBlocks.toArray(Block[]::new)));
                 } else {
                     p = skipPlan(plan);

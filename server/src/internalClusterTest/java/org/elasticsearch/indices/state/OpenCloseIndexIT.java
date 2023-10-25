@@ -296,7 +296,7 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         // check the index still contains the records that we indexed
         indicesAdmin().prepareOpen("test").execute().get();
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
+        SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, docs);
     }

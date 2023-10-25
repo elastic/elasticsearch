@@ -8,7 +8,6 @@
 
 package org.elasticsearch.legacygeo.search;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +31,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -101,9 +101,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             .get();
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get();
-
-        assertEquals(2, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(matchAllQuery()).get(), 2L);
     }
 
     public void testPointsOnly() throws Exception {
@@ -139,10 +137,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
         }
 
         // test that point was inserted
-        SearchResponse response = client().prepareSearch("geo_points_only")
-            .setQuery(geoIntersectionQuery(defaultFieldName, geometry))
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch("geo_points_only").setQuery(geoIntersectionQuery(defaultFieldName, geometry)), 1L);
     }
 
     public void testFieldAlias() throws IOException {
@@ -172,8 +167,7 @@ public class LegacyGeoShapeQueryTests extends GeoShapeQueryTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse response = client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)).get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertHitCount(client().prepareSearch(defaultIndexName).setQuery(geoShapeQuery("alias", multiPoint)), 1L);
     }
 
     /**

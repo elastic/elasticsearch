@@ -246,7 +246,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             ensureGreen(indices);
 
             for (String index : acknowledgedCloses) {
-                long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
+                long docsCount = prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
                 assertEquals(
                     "Expected "
                         + docsPerIndex.get(index)

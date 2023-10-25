@@ -1,3 +1,4 @@
+[discrete]
 [[esql-stats-by]]
 === `STATS ... BY`
 Use `STATS ... BY` to group rows according to a common value and calculate one
@@ -41,4 +42,4 @@ include::{esql-specs}/docs.csv-spec[tag=statsGroupByMultipleValues]
 
 The following aggregation functions are supported:
 
-include::../aggregation-functions.asciidoc[tag=functions]
+include::../functions/aggregation-functions.asciidoc[tag=agg_list]

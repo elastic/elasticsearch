@@ -286,9 +286,9 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected ForecastRequestStats getForecastStats(String jobId, String forecastId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId)))
-            .get();
+        SearchResponse searchResponse = prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(
+            QueryBuilders.idsQuery().addIds(ForecastRequestStats.documentId(jobId, forecastId))
+        ).get();
 
         if (searchResponse.getHits().getHits().length == 0) {
             return null;
@@ -313,8 +313,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     protected List<ForecastRequestStats> getForecastStats() {
         List<ForecastRequestStats> forecastStats = new ArrayList<>();
 
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setSize(1000)
+        SearchResponse searchResponse = prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").setSize(1000)
             .setQuery(
                 QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE))
@@ -339,22 +338,20 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected long countForecastDocs(String jobId, String forecastId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
-                    .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                    .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
-            )
-            .execute()
-            .actionGet();
+        SearchResponse searchResponse = prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").setQuery(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))
+                .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+                .filter(QueryBuilders.termQuery(Forecast.FORECAST_ID.getPreferredName(), forecastId))
+        ).execute().actionGet();
         return searchResponse.getHits().getTotalHits().value;
     }
 
     protected List<Forecast> getForecasts(String jobId, ForecastRequestStats forecastRequestStats) {
         List<Forecast> forecasts = new ArrayList<>();
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setSize((int) forecastRequestStats.getRecordCount())
+        SearchResponse searchResponse = prepareSearch(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").setSize(
+            (int) forecastRequestStats.getRecordCount()
+        )
             .setQuery(
                 QueryBuilders.boolQuery()
                     .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Forecast.RESULT_TYPE_VALUE))

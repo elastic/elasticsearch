@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -25,11 +27,21 @@ import java.util.List;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
- * Reduce a multivalued field to a single valued field containing the minimum value.
+ * Reduce a multivalued field to a single valued field containing the count of values.
  */
 public class MvCount extends AbstractMultivalueFunction {
-    public MvCount(Source source, Expression field) {
-        super(source, field);
+    @FunctionInfo(
+        returnType = "integer",
+        description = "Reduce a multivalued field to a single valued field containing the count of values."
+    )
+    public MvCount(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+        ) Expression v
+    ) {
+        super(source, v);
     }
 
     @Override

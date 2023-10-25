@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.Mapper;
@@ -30,7 +31,6 @@ public class PlanExecutor {
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
     private final FunctionRegistry functionRegistry;
-    private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
@@ -39,7 +39,6 @@ public class PlanExecutor {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
-        this.logicalPlanOptimizer = new LogicalPlanOptimizer();
         this.mapper = new Mapper(functionRegistry);
         this.metrics = new Metrics();
         this.verifier = new Verifier(metrics);
@@ -59,7 +58,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
-            logicalPlanOptimizer,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
             verifier
         );

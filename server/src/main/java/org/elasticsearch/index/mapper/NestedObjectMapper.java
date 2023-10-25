@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -117,7 +118,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
         super(name, fullPath, builder.enabled, Explicit.IMPLICIT_TRUE, builder.dynamic, mappers);
-        if (builder.indexCreatedVersion.before(IndexVersion.V_8_0_0)) {
+        if (builder.indexCreatedVersion.before(IndexVersions.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
         } else {
             this.nestedTypePath = fullPath;

@@ -1,0 +1,5 @@
+pr: 101032
+summary: Throw when wrapping rate agg in `DeferableBucketAggregator`
+area: TSDB
+type: bug
+issues: []

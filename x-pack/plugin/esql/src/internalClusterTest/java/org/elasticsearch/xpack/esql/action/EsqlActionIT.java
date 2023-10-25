@@ -1279,7 +1279,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         var functions = List.of("sum", "count", "avg", "count_distinct");
         for (String field : fields) {
             for (String function : functions) {
-                String stat = String.format("stats s = %s(%s)", function, field);
+                String stat = String.format(Locale.ROOT, "stats s = %s(%s)", function, field);
                 String command = String.format(Locale.ROOT, "from foo-index,bar-index | where %s is not null | %s", field, stat);
                 try (var resp = run(command)) {
                     var valuesList = getValuesList(resp);

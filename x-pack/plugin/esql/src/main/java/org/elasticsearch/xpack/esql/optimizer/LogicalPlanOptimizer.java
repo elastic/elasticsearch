@@ -626,11 +626,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
                             blocks.add(new ConstantBooleanVector(true, 1).asBlock());
                         } else {
                             // look for count(literal) with literal != null
-                            Object value = aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)
-                                ? 0L
-                                : null;
                             var wrapper = BlockUtils.wrapperFor(blockFactory, LocalExecutionPlanner.toElementType(aggFunc.dataType()), 1);
-                            wrapper.accept(value);
+                            if (aggFunc instanceof Count count && (count.foldable() == false || count.fold() != null)) {
+                                wrapper.accept(0L);
+                            } else {
+                                wrapper.accept(null);
+                            }
                             blocks.add(wrapper.builder().build());
                         }
                     }

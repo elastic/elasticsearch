@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -29,12 +28,16 @@ import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class StackTemplateRegistry extends IndexTemplateRegistry {
-    private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
+import static org.elasticsearch.xpack.stack.StackTemplateRegistry.STACK_TEMPLATES_ENABLED;
+
+@Deprecated(since = "8.12.0", forRemoval = true)
+public class LegacyStackTemplateRegistry extends IndexTemplateRegistry {
+    private static final Logger logger = LogManager.getLogger(LegacyStackTemplateRegistry.class);
 
     // Current version of the registry requires all nodes to be at least 8.9.0.
     public static final Version MIN_NODE_VERSION = Version.V_8_9_0;
@@ -44,62 +47,48 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final int REGISTRY_VERSION = 3;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
-    public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
-        "stack.templates.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
 
     // General mappings conventions for any data that ends up in a data stream
-    public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams@mappings";
+    public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";
 
     // ECS dynamic mappings
-    public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs@mappings";
+    public static final String ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME = "ecs@dynamic_templates";
 
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use
     //////////////////////////////////////////////////////////
-    public static final String ILM_7_DAYS_POLICY_NAME = "7-days@lifecycle";
-    public static final String ILM_30_DAYS_POLICY_NAME = "30-days@lifecycle";
-    public static final String ILM_90_DAYS_POLICY_NAME = "90-days@lifecycle";
-    public static final String ILM_180_DAYS_POLICY_NAME = "180-days@lifecycle";
-    public static final String ILM_365_DAYS_POLICY_NAME = "365-days@lifecycle";
+    public static final String ILM_7_DAYS_POLICY_NAME = "7-days-default";
+    public static final String ILM_30_DAYS_POLICY_NAME = "30-days-default";
+    public static final String ILM_90_DAYS_POLICY_NAME = "90-days-default";
+    public static final String ILM_180_DAYS_POLICY_NAME = "180-days-default";
+    public static final String ILM_365_DAYS_POLICY_NAME = "365-days-default";
 
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
     //////////////////////////////////////////////////////////
-    public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs@mappings";
-    public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs@settings";
-    public static final String LOGS_ILM_POLICY_NAME = "logs@lifecycle";
-    public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
+    public static final String LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "logs-mappings";
+    public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-settings";
+    public static final String LOGS_ILM_POLICY_NAME = "logs";
 
     //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
     //////////////////////////////////////////////////////////
-    public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics@mappings";
-    public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics@settings";
-    public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics@tsdb-settings";
-    public static final String METRICS_ILM_POLICY_NAME = "metrics@lifecycle";
-    public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
+    public static final String METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "metrics-mappings";
+    public static final String METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-settings";
+    public static final String METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME = "metrics-tsdb-settings";
+    public static final String METRICS_ILM_POLICY_NAME = "metrics";
 
     //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
     //////////////////////////////////////////////////////////
-    public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics@mappings";
-    public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics@settings";
-    public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics@lifecycle";
-    public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
+    public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics-mappings";
+    public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
+    public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
 
-    ///////////////////////////////////
-    // Kibana reporting template
-    ///////////////////////////////////
-    public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
-
-    public StackTemplateRegistry(
+    public LegacyStackTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -148,7 +137,11 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected List<LifecyclePolicy> getLifecyclePolicies() {
-        return lifecyclePolicies;
+        if (stackTemplateEnabled) {
+            return lifecyclePolicies;
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
@@ -225,33 +218,21 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return COMPONENT_TEMPLATE_CONFIGS;
-    }
-
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs@template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics@template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics@template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(
-            KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
-            "/kibana-reporting@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
-    @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (stackTemplateEnabled) {
-            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+            return COMPONENT_TEMPLATE_CONFIGS;
         } else {
             return Map.of();
         }
     }
 
+    @Override
+    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+        return Map.of();
+    }
+
     private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
-        new IngestPipelineConfig("logs@json-pipeline", "/logs@json-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IngestPipelineConfig("logs@default-pipeline", "/logs@default-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
+        new IngestPipelineConfig("logs@json-message", "/logs@json-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IngestPipelineConfig("logs-default-pipeline", "/logs@default-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
     );
 
     @Override

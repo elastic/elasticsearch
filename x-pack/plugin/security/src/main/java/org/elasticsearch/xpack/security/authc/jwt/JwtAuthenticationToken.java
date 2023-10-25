@@ -16,11 +16,13 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.TreeSet;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
+    private static final char PRINCIPAL_SEPARATOR = '|';
     private final String principal;
     private SignedJWT signedJWT;
     private final byte[] userCredentialsHash;
@@ -29,22 +31,19 @@ public class JwtAuthenticationToken implements AuthenticationToken {
 
     /**
      * Store a mandatory JWT and optional Shared Secret.
-     * @param principal The token's principal, useful as a realm order cache key
      * @param signedJWT The JWT parsed from the end-user credentials
      * @param userCredentialsHash The hash of the end-user credentials is used to compute the key for user cache at the realm level.
      *                            See also {@link JwtRealm#authenticate}.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
     public JwtAuthenticationToken(
-        String principal,
         SignedJWT signedJWT,
         byte[] userCredentialsHash,
         @Nullable final SecureString clientAuthenticationSharedSecret
     ) {
-        this.principal = Objects.requireNonNull(principal);
+        this.principal = buildPrincipal();
         this.signedJWT = Objects.requireNonNull(signedJWT);
         this.userCredentialsHash = Objects.requireNonNull(userCredentialsHash);
-
         if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
         }
@@ -70,7 +69,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             return signedJWT.getJWTClaimsSet();
         } catch (ParseException e) {
             assert false : "The JWT claims set should have already been successfully parsed before building the JWT authentication token";
-            throw new IllegalArgumentException(e);
+            throw new IllegalStateException(e);
         }
     }
 
@@ -94,5 +93,15 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     @Override
     public String toString() {
         return JwtAuthenticationToken.class.getSimpleName() + "=" + this.principal;
+    }
+
+    private String buildPrincipal() {
+        StringBuilder principalBuilder = new StringBuilder();
+        JWTClaimsSet jwtClaimsSet = getJWTClaimsSet();
+        principalBuilder.append(jwtClaimsSet.getIssuer().replace(PRINCIPAL_SEPARATOR, ' ')).append(PRINCIPAL_SEPARATOR);
+        principalBuilder.append(String.join(",", new TreeSet<>(jwtClaimsSet.getAudience())).replace(PRINCIPAL_SEPARATOR, ' '))
+            .append(PRINCIPAL_SEPARATOR);
+        principalBuilder.append(jwtClaimsSet.getSubject().replace(PRINCIPAL_SEPARATOR, ' ')).append(PRINCIPAL_SEPARATOR);
+        return principalBuilder.toString();
     }
 }

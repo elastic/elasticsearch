@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
 import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -45,8 +44,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeSet;
-import java.util.function.Function;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
@@ -77,7 +74,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private final JwtAuthenticator jwtAuthenticator;
     private final TimeValue allowedClockSkew;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-    private List<Function<JWTClaimsSet, String>> tokenPrincipalFunctions;
 
     public JwtRealm(final RealmConfig realmConfig, final SSLService sslService, final UserRoleMapper userRoleMapper)
         throws SettingsException {
@@ -131,7 +127,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     /**
      * If X-pack licensing allows it, initialize delegated authorization support.
-     * JWT realm will use the list of all realms to link to its named authorization realms.
      * @param allRealms List of all realms containing authorization realms for this JWT realm.
      * @param xpackLicenseState X-pack license state.
      */
@@ -142,14 +137,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
         // extract list of realms referenced by config.settings() value for DelegatedAuthorizationSettings.ROLES_REALMS
         delegatedAuthorizationSupport = new DelegatedAuthorizationSupport(allRealms, config, xpackLicenseState);
-
-        final List<Function<JWTClaimsSet, String>> tokenPrincipalFunctions = new ArrayList<>();
-        for (var realm : allRealms) {
-            if (realm instanceof final JwtRealm jwtRealm) {
-                tokenPrincipalFunctions.add(jwtRealm::buildTokenPrincipal);
-            }
-        }
-        this.tokenPrincipalFunctions = List.copyOf(tokenPrincipalFunctions);
     }
 
     /**
@@ -211,41 +198,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SignedJWT signedJWT;
         try {
             signedJWT = SignedJWT.parse(userCredentials.toString());
+            // trigger claim set parsing
+            signedJWT.getJWTClaimsSet();
         } catch (ParseException e) {
             throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
         }
 
-        final JWTClaimsSet jwtClaimsSet;
-        try {
-            jwtClaimsSet = signedJWT.getJWTClaimsSet();
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Failed to parse JWT claims set", e);
-        }
-
-        // If Issuer is not found, still return a JWT token since it is after still a JWT, authentication
-        // will fail later because issuer is mandated
-        final String issuer = jwtClaimsSet.getIssuer();
-        if (Strings.hasText(issuer) == false) {
-            logger.warn("Issuer claim 'iss' is missing.");
-            return new JwtAuthenticationToken("<unrecognized-jwt>", signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
-        }
-
-        // Try all known extraction functions to build the token principal
-        for (Function<JWTClaimsSet, String> func : tokenPrincipalFunctions) {
-            final String tokenPrincipalSuffix = func.apply(jwtClaimsSet);
-            if (tokenPrincipalSuffix != null) {
-                return new JwtAuthenticationToken(
-                    issuer + "/" + tokenPrincipalSuffix,
-                    signedJWT,
-                    JwtUtil.sha256(userCredentials),
-                    clientCredentials
-                );
-            }
-        }
-
-        // Token principal cannot be extracted even after trying all functions, but this is
-        // still a JWT token so that we should return as one.
-        return new JwtAuthenticationToken("<unrecognized-jwt> by " + issuer, signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
+        return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
     }
 
     @Override
@@ -449,11 +408,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         this.clientAuthenticationSharedSecret.rotate(clientSecret, config.getSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD));
     }
 
-    // package private for testing
-    RotatableSecret getClientAuthenticationSharedSecret() {
-        return clientAuthenticationSharedSecret;
-    }
-
     /**
      * Clean up JWT cache (if enabled).
      */
@@ -492,54 +446,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 .forEach(entry -> metadata.put("jwt_claim_" + entry.getKey(), entry.getValue()));
         }
         return Map.copyOf(metadata);
-    }
-
-    // We construct the token principal as a function of the JWT realm configuration. We also short circuit the extraction of the
-    // token principal while we iterate through the realms. For realms like the file realm this is not an issue since there is only
-    // one file realm. For realms like LDAP this is also not an issue since the token principal is identical across all realms regardless
-    // of how the realm is configured. However, for realms like JWT (and PKI realm) where the token principal is a function of the
-    // realm configuration AND multiple realms of that type can exist this can be an issue. This is an issue because realm1 might
-    // result in the token principal "abc", but realm2 (same JWT) might result in the token principal as "xyz". Since we short circuit the
-    // extraction of the token principal (i.e. use the first one that does not error) then the same JWT token can result in a
-    // token principal of either "abc" or "xyz" depending on which came first. This means that we can not rely on the value calculated here
-    // to be logically correct within the context of a given realm. The value is technically correct as the value is a function of
-    // the JWT itself, but which function (from realm1 or realm2) can not be known. The value emitted here should be used judiciously.
-    private String buildTokenPrincipal(JWTClaimsSet jwtClaimsSet) {
-        final Map<String, String> fallbackClaimNames = jwtAuthenticator.getFallbackClaimNames();
-        final FallbackableClaim subClaim = new FallbackableClaim("sub", fallbackClaimNames, jwtClaimsSet);
-        final String subject = subClaim.getStringClaimValue();
-        if (false == Strings.hasText(subject)) {
-            logger.debug(
-                "Can not build token principal for realm [{}] since claim [{}] is missing from claimSet [{}]",
-                name(),
-                subClaim,
-                jwtClaimsSet
-            );
-            return null;
-        }
-
-        final FallbackableClaim audClaim = new FallbackableClaim("aud", fallbackClaimNames, jwtClaimsSet);
-        final List<String> audiences = audClaim.getStringListClaimValue();
-        if (audiences == null || audiences.isEmpty()) {
-            logger.debug(
-                "Can not build token principal for realm [{}] since claim [{}] is missing from claimSet [{}]",
-                name(),
-                subClaim,
-                jwtClaimsSet
-            );
-            return null;
-        }
-
-        final String userPrincipal = claimParserPrincipal.getClaimValue(jwtClaimsSet);
-        if (false == Strings.hasText(userPrincipal)) {
-            logger.debug(
-                "Can not build token principal for realm [{}] since no user principal can be extracted with [{}]",
-                name(),
-                claimParserPrincipal
-            );
-            return null;
-        }
-        return String.join(",", new TreeSet<>(audiences)) + "/" + subject + "/" + userPrincipal;
     }
 
     /**

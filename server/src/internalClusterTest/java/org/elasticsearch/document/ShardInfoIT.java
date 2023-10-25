@@ -96,7 +96,6 @@ public class ShardInfoIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("idx").setSettings(indexSettings(numberOfPrimaryShards, numCopies - 1))
                 .setMapping("_routing", "required=" + routingRequired)
-                .get()
         );
         for (int i = 0; i < numberOfPrimaryShards; i++) {
             ensureActiveShardCopies(i, numNodes);

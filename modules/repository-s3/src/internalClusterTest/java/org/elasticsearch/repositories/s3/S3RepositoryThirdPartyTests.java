@@ -29,7 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -113,7 +113,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                Meter.NOOP
+                MeterRegistry.NOOP
             )
         ) {
             repository.start();

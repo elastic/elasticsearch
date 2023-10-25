@@ -134,7 +134,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
      */
     @Override
     public void initialize(final Iterable<Realm> allRealms, final XPackLicenseState xpackLicenseState) {
-        if (delegatedAuthorizationSupport != null || allRealms != null) {
+        if (delegatedAuthorizationSupport != null || this.allRealms != null) {
             throw new IllegalStateException("Realm " + name() + " has already been initialized");
         }
         // extract list of realms referenced by config.settings() value for DelegatedAuthorizationSettings.ROLES_REALMS

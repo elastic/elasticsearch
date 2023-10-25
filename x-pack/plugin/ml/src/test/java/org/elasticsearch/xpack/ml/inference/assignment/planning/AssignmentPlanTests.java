@@ -99,60 +99,103 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNode_GivenNewPlanSatisfiesCurrentAssignment() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(350).getBytes(), 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
-            "m_1",
-            ByteSizeValue.ofMb(30).getBytes(),
-            2,
-            2,
-            Map.of("n_1", 1),
-            0,
-            0,
-            0
-        );
+        {   // old memory format
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(30).getBytes(),
+                2,
+                2,
+                Map.of("n_1", 1),
+                0,
+                0,
+                0
+            );
 
-        AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-        builder.assignModelToNode(m, n, 1);
+            builder.assignModelToNode(m, n, 1);
 
-        assertThat(builder.getRemainingCores(n), equalTo(2));
-        assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(350).getBytes()));
-        assertThat(builder.getRemainingAllocations(m), equalTo(1));
-        assertThat(builder.getRemainingThreads(m), equalTo(2));
+            assertThat(builder.getRemainingCores(n), equalTo(2));
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(350).getBytes()));
+            assertThat(builder.getRemainingAllocations(m), equalTo(1));
+            assertThat(builder.getRemainingThreads(m), equalTo(2));
 
-        AssignmentPlan plan = builder.build();
+            AssignmentPlan plan = builder.build();
 
-        assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesCurrentAssignments(), is(true));
-        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.models(), contains(m));
+            assertThat(plan.satisfiesCurrentAssignments(), is(true));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+        }
+        {   // new memory format
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(25).getBytes(),
+                2,
+                2,
+                Map.of("n_1", 1),
+                0,
+                ByteSizeValue.ofMb(300).getBytes(),
+                ByteSizeValue.ofMb(25).getBytes()
+            );
+
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+
+            builder.assignModelToNode(m, n, 1);
+
+            assertThat(builder.getRemainingCores(n), equalTo(2));
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(325).getBytes()));
+            assertThat(builder.getRemainingAllocations(m), equalTo(1));
+            assertThat(builder.getRemainingThreads(m), equalTo(2));
+
+            AssignmentPlan plan = builder.build();
+
+            assertThat(plan.models(), contains(m));
+            assertThat(plan.satisfiesCurrentAssignments(), is(true));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+
+        }
     }
 
     public void testAssignModelToNode_GivenNewPlanDoesNotSatisfyCurrentAssignment() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
-            "m_1",
-            ByteSizeValue.ofMb(30).getBytes(),
-            2,
-            2,
-            Map.of("n_1", 2),
-            0,
-            0,
-            0
-        );
+        {
+            // old memory format
+            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 2, Map.of("n_1", 2), 0, 0, 0);
 
-        AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-        builder.assignModelToNode(m, n, 1);
+            builder.assignModelToNode(m, n, 1);
 
-        assertThat(builder.getRemainingCores(n), equalTo(2));
-        assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(300).getBytes()));
-        assertThat(builder.getRemainingAllocations(m), equalTo(1));
-        assertThat(builder.getRemainingThreads(m), equalTo(2));
+            assertThat(builder.getRemainingCores(n), equalTo(2));
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(300).getBytes()));
+            assertThat(builder.getRemainingAllocations(m), equalTo(1));
+            assertThat(builder.getRemainingThreads(m), equalTo(2));
 
-        AssignmentPlan plan = builder.build();
+            AssignmentPlan plan = builder.build();
 
-        assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesCurrentAssignments(), is(false));
-        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+            assertThat(plan.models(), contains(m));
+            assertThat(plan.satisfiesCurrentAssignments(), is(false));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+        }
+        {
+            // new memory format
+            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(25).getBytes(), 2, 2, Map.of("n_1", 2), 0, ByteSizeValue.ofMb(250).getBytes(), ByteSizeValue.ofMb(25).getBytes());
+
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+
+            builder.assignModelToNode(m, n, 1);
+
+            assertThat(builder.getRemainingCores(n), equalTo(2));
+            assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(275).getBytes()));
+            assertThat(builder.getRemainingAllocations(m), equalTo(1));
+            assertThat(builder.getRemainingThreads(m), equalTo(2));
+
+            AssignmentPlan plan = builder.build();
+
+            assertThat(plan.models(), contains(m));
+            assertThat(plan.satisfiesCurrentAssignments(), is(false));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
+        }
     }
 
     public void testAssignModelToNode_GivenPreviouslyUnassignedModelDoesNotFit() {
@@ -166,31 +209,50 @@ public class AssignmentPlanTests extends ESTestCase {
     }
 
     public void testAssignModelToNode_GivenPreviouslyAssignedModelDoesNotFit() {
-        Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
-        AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
-            "m_1",
-            ByteSizeValue.ofMb(50).getBytes(),
-            2,
-            2,
-            Map.of("n_1", 1),
-            0,
-            0,
-            0
-        );
+        { // old memory format
+            Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(50).getBytes(),
+                2,
+                2,
+                Map.of("n_1", 1),
+                0,
+                0,
+                0
+            );
 
-        AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-        // Exception e = expectThrows(IllegalArgumentException.class, () -> builder.assignModelToNode(m, n, 1));
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
-        // assertThat(e.getMessage(),
-        // equalTo("not enough memory on node [n_1] to assign [1] allocations to deployment [m_1]; required threads per allocation [2]"));
+            builder.assignModelToNode(m, n, 2);
+            AssignmentPlan plan = builder.build();
 
-        // assertThat(builder.canAssign(m, n, 1), is(false));
-        builder.assignModelToNode(m, n, 2);
-        AssignmentPlan plan = builder.build();
+            assertThat(plan.models(), contains(m));
+            assertThat(plan.satisfiesCurrentAssignments(), is(true));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
+        }
+        { // new memory format
+            Node n = new Node("n_1", ByteSizeValue.ofMb(340 - 1).getBytes(), 4);
+            AssignmentPlan.Deployment m = new AssignmentPlan.Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(30).getBytes(),
+                2,
+                2,
+                Map.of("n_1", 1),
+                0,
+                ByteSizeValue.ofMb(300).getBytes(),
+                ByteSizeValue.ofMb(5).getBytes()
+            );
 
-        assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesCurrentAssignments(), is(true));
-        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+
+            builder.assignModelToNode(m, n, 2);
+            AssignmentPlan plan = builder.build();
+
+            assertThat(plan.models(), contains(m));
+            assertThat(plan.satisfiesCurrentAssignments(), is(true));
+            assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
+        }
     }
 
     public void testAssignModelToNode_GivenNotEnoughCores_AndSingleThreadPerAllocation() {
@@ -251,7 +313,7 @@ public class AssignmentPlanTests extends ESTestCase {
         builder.assignModelToNode(m, n, 2);
 
         assertThat(builder.getRemainingCores(n), equalTo(2));
-        assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(550).getBytes()));
+        assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(500).getBytes()));
         assertThat(builder.getRemainingAllocations(m), equalTo(1));
         assertThat(builder.getRemainingThreads(m), equalTo(2));
 
@@ -273,11 +335,19 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testCanAssign_GivenPreviouslyAssignedModelDoesNotFit() {
         Node n = new Node("n_1", ByteSizeValue.ofMb(300).getBytes(), 5);
-        Deployment m = new AssignmentPlan.Deployment("m_1", ByteSizeValue.ofBytes(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, 0, 0);
-
-        AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-
-        assertThat(builder.canAssign(m, n, 1), is(true));
+        {
+            // old memory format
+            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, 0, 0);
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+            assertThat(builder.canAssign(m, n, 1), is(true));
+        }
+        {
+            // new memory format
+            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(25).getBytes(), 1, 1, Map.of("n_1", 1), 0,
+                                          ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(10).getBytes());
+            AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+            assertThat(builder.canAssign(m, n, 1), is(true));
+        }
     }
 
     public void testCanAssign_GivenEnoughMemory() {

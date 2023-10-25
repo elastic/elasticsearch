@@ -80,15 +80,18 @@ abstract class AbstractPreserveAllocations {
 
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
         for (Node n : nodes) {
+            // TODO: I think this first loop should happen in the builder constructor
             for (Deployment deploymentAllocationsToPreserve : deployments) {
 
-                int preservedAllocations = 0;
-                // if the model m is already allocated on the node n
-                if (deploymentAllocationsToPreserve.currentAllocationsByNodeId().containsKey(n.id())) {
-                    preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
-                    if (mergedPlanBuilder.canAssign(deploymentAllocationsToPreserve, n, preservedAllocations)) {
-                        mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations);
-                        mergedPlanBuilder.accountMemory(deploymentAllocationsToPreserve, n, preservedAllocations);
+//                int preservedAllocations = 0;
+                // if the model m is already allocated on the node n and I want to preserve this allocation
+                int preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
+//                if (deploymentAllocationsToPreserve.currentAllocationsByNodeId().containsKey(n.id())) {
+                if (preservedAllocations > 0) {
+                    long requiredMemory = deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations);
+                    if (mergedPlanBuilder.canAssign(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory)) {
+                        mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory);
+//                        mergedPlanBuilder.accountMemory(deploymentAllocationsToPreserve, n, requiredMemory);
                     }
                     // if (mergedPlanBuilder.getRemainingMemory(n) >=
                     // deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations)) {
@@ -118,8 +121,10 @@ abstract class AbstractPreserveAllocations {
                 // ) <= assignmentPlan.getRemainingNodeMemory(n.id())))) {
                 // mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
                 // }
-                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations)) {
+                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, newAllocations);
+                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations, requiredMemory)) {
                     mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
+//                    mergedPlanBuilder.accountMemory(deploymentNewAllocations, n, requiredMemory);
                 }
             }
         }

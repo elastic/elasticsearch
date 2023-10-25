@@ -37,53 +37,61 @@ public class PreserveOneAllocationTests extends ESTestCase {
     }
 
     public void testGivenPreviousAssignments() {
-        Node node1 = new Node("n_1", ByteSizeValue.ofMb(640).getBytes(), 8);
-        Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
-        PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(deployment1, deployment2));
+        {
+            // old memory format
 
-        List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
-        assertThat(nodesPreservingAllocations, hasSize(2));
+            Node node1 = new Node("n_1", ByteSizeValue.ofMb(640).getBytes(), 8);
+            Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
+            Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, 0, 0);
+            Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
+            PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(deployment1, deployment2));
 
-        assertThat(nodesPreservingAllocations.get(0).id(), equalTo("n_1"));
-        assertThat(nodesPreservingAllocations.get(0).availableMemoryBytes(), equalTo(0L));
-        assertThat(nodesPreservingAllocations.get(0).cores(), equalTo(3));
+            List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
+            assertThat(nodesPreservingAllocations, hasSize(2));
 
-        assertThat(nodesPreservingAllocations.get(1).id(), equalTo("n_2"));
-        assertThat(nodesPreservingAllocations.get(1).availableMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
-        assertThat(nodesPreservingAllocations.get(1).cores(), equalTo(4));
+            assertThat(nodesPreservingAllocations.get(0).id(), equalTo("n_1"));
+            assertThat(nodesPreservingAllocations.get(0).availableMemoryBytes(), equalTo(0L));
+            assertThat(nodesPreservingAllocations.get(0).cores(), equalTo(3));
 
-        List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveOneAllocation.modelsPreservingAllocations();
-        assertThat(modelsPreservingAllocations, hasSize(2));
+            assertThat(nodesPreservingAllocations.get(1).id(), equalTo("n_2"));
+            assertThat(nodesPreservingAllocations.get(1).availableMemoryBytes(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
+            assertThat(nodesPreservingAllocations.get(1).cores(), equalTo(4));
 
-        assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
-        assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
-        assertThat(modelsPreservingAllocations.get(0).allocations(), equalTo(1));
-        assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
-        assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
+            List<AssignmentPlan.Deployment> modelsPreservingAllocations = preserveOneAllocation.modelsPreservingAllocations();
+            assertThat(modelsPreservingAllocations, hasSize(2));
 
-        assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
-        assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
-        assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(4));
-        assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
-        assertThat(modelsPreservingAllocations.get(1).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 1)));
+            assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
+            assertThat(modelsPreservingAllocations.get(0).memoryBytes(), equalTo(ByteSizeValue.ofMb(30).getBytes()));
+            assertThat(modelsPreservingAllocations.get(0).allocations(), equalTo(1));
+            assertThat(modelsPreservingAllocations.get(0).threadsPerAllocation(), equalTo(1));
+            assertThat(modelsPreservingAllocations.get(0).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0)));
 
-        AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2))
-            .assignModelToNode(deployment1, node1, 2)
-            .assignModelToNode(deployment2, node2, 1)
-            .build();
-        assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 2)));
-        assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node2, 1)));
+            assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
+            assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
+            assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(4));
+            assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
+            assertThat(modelsPreservingAllocations.get(1).currentAllocationsByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 1)));
 
-        plan = preserveOneAllocation.mergePreservedAllocations(plan);
+            AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(deployment1, deployment2))
+                .assignModelToNode(deployment1, node1, 2)
+                .assignModelToNode(deployment2, node2, 1)
+                .build();
+            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 2)));
+            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node2, 1)));
 
-        assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
-        assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
-        assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(0L));
-        assertThat(plan.getRemainingNodeCores("n_1"), equalTo(1));
-        assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(ByteSizeValue.ofMb(300).getBytes()));
-        assertThat(plan.getRemainingNodeCores("n_2"), equalTo(0));
+            plan = preserveOneAllocation.mergePreservedAllocations(plan);
+
+            assertThat(plan.assignments(deployment1).get(), equalTo(Map.of(node1, 3)));
+            assertThat(plan.assignments(deployment2).get(), equalTo(Map.of(node1, 1, node2, 2)));
+            assertThat(plan.getRemainingNodeMemory("n_1"), equalTo(0L));
+            assertThat(plan.getRemainingNodeCores("n_1"), equalTo(1));
+            assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(ByteSizeValue.ofMb(300).getBytes()));
+            assertThat(plan.getRemainingNodeCores("n_2"), equalTo(0));
+        }
+        {
+            // new memory format
+            // TODO
+        }
     }
 
     public void testGivenModelWithPreviousAssignments_AndPlanToMergeHasNoAssignments() {

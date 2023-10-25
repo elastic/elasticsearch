@@ -1257,6 +1257,39 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testStatsMissingFields() {
+        String node1 = internalCluster().startDataOnlyNode();
+        String node2 = internalCluster().startDataOnlyNode();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("foo-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node1))
+                .setMapping("foo_int", "type=integer", "foo_long", "type=long", "foo_float", "type=float", "foo_double", "type=double")
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("bar-index")
+                .setSettings(Settings.builder().put("index.routing.allocation.require._name", node2))
+                .setMapping("bar_int", "type=integer", "bar_long", "type=long", "bar_float", "type=float", "bar_double", "type=double")
+        );
+
+        var fields = List.of("foo_int", "foo_long", "foo_float", "foo_double");
+        var functions = List.of("sum", "count", "avg", "count_distinct");
+        for (String field : fields) {
+            for (String function : functions) {
+                String stat = String.format(Locale.ROOT, "stats s = %s(%s)", function, field);
+                String command = String.format(Locale.ROOT, "from foo-index,bar-index | where %s is not null | %s", field, stat);
+                try (var resp = run(command)) {
+                    var valuesList = getValuesList(resp);
+                    assertEquals(1, resp.columns().size());
+                    assertEquals(1, valuesList.size());
+                }
+            }
+        }
+    }
+
     private void createNestedMappingIndex(String indexName) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();

@@ -10,17 +10,17 @@ package org.elasticsearch.telemetry;
 
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
-import org.elasticsearch.telemetry.metric.LongAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collections;
 import java.util.Map;
@@ -107,7 +107,7 @@ public class RecordingInstruments {
     }
 
     public static class RecordingDoubleGauge extends CallbackRecordingInstrument implements DoubleGauge {
-        public RecordingDoubleGauge(String name, Supplier<DoubleAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingDoubleGauge(String name, Supplier<DoubleWithAttributes> observer, MetricRecorder<Instrument> recorder) {
             super(name, () -> {
                 var observation = observer.get();
                 return new Tuple<>(observation.value(), observation.attributes());
@@ -170,7 +170,7 @@ public class RecordingInstruments {
 
     public static class RecordingLongGauge extends CallbackRecordingInstrument implements LongGauge {
 
-        public RecordingLongGauge(String name, Supplier<LongAttributes> observer, MetricRecorder<Instrument> recorder) {
+        public RecordingLongGauge(String name, Supplier<LongWithAttributes> observer, MetricRecorder<Instrument> recorder) {
             super(name, () -> {
                 var observation = observer.get();
                 return new Tuple<>(observation.value(), observation.attributes());

@@ -20,16 +20,16 @@ import org.elasticsearch.telemetry.apm.internal.metrics.LongCounterAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongGaugeAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongHistogramAdapter;
 import org.elasticsearch.telemetry.apm.internal.metrics.LongUpDownCounterAdapter;
-import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
-import org.elasticsearch.telemetry.metric.LongAttributes;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.List;
@@ -97,7 +97,7 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer) {
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return doubleGauges.register(new DoubleGaugeAdapter(meter, name, description, unit, observer));
         }
@@ -145,7 +145,7 @@ public class APMMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer) {
+    public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         try (ReleasableLock lock = registerLock.acquire()) {
             return longGauges.register(new LongGaugeAdapter(meter, name, description, unit, observer));
         }

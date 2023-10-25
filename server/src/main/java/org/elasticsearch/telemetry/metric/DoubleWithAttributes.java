@@ -10,6 +10,6 @@ package org.elasticsearch.telemetry.metric;
 
 import java.util.Map;
 
-public record LongAttributes(long value, Map<String, Object> attributes) {
+public record DoubleWithAttributes(double value, Map<String, Object> attributes) {
 
 }

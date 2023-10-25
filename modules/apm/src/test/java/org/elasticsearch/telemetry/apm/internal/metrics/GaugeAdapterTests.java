@@ -11,10 +11,10 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
-import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
-import org.elasticsearch.telemetry.metric.LongAttributes;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -37,10 +37,10 @@ public class GaugeAdapterTests extends ESTestCase {
 
     // testing that a value reported is then used in a callback
     public void testLongGaugeRecord() throws Exception {
-        AtomicReference<LongAttributes> attrs = new AtomicReference<>();
+        AtomicReference<LongWithAttributes> attrs = new AtomicReference<>();
         LongGauge gauge = registry.registerLongGauge("name", "desc", "unit", attrs::get);
 
-        attrs.set(new LongAttributes(1L, Map.of("k", 1L)));
+        attrs.set(new LongWithAttributes(1L, Map.of("k", 1L)));
 
         otelMeter.collectMetrics();
 
@@ -49,7 +49,7 @@ public class GaugeAdapterTests extends ESTestCase {
         assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
         assertThat(metrics.get(0).getLong(), equalTo(1L));
 
-        attrs.set(new LongAttributes(2L, Map.of("k", 5L)));
+        attrs.set(new LongWithAttributes(2L, Map.of("k", 5L)));
 
         otelMeter.getRecorder().resetCalls();
         otelMeter.collectMetrics();
@@ -70,10 +70,10 @@ public class GaugeAdapterTests extends ESTestCase {
 
     // testing that a value reported is then used in a callback
     public void testDoubleGaugeRecord() throws Exception {
-        AtomicReference<DoubleAttributes> attrs = new AtomicReference<>();
+        AtomicReference<DoubleWithAttributes> attrs = new AtomicReference<>();
         DoubleGauge gauge = registry.registerDoubleGauge("name", "desc", "unit", attrs::get);
 
-        attrs.set(new DoubleAttributes(1.0d, Map.of("k", 1L)));
+        attrs.set(new DoubleWithAttributes(1.0d, Map.of("k", 1L)));
 
         otelMeter.collectMetrics();
 
@@ -82,7 +82,7 @@ public class GaugeAdapterTests extends ESTestCase {
         assertThat(metrics.get(0).attributes(), equalTo(Map.of("k", 1L)));
         assertThat(metrics.get(0).getDouble(), equalTo(1.0d));
 
-        attrs.set(new DoubleAttributes(2.0d, Map.of("k", 5L)));
+        attrs.set(new DoubleWithAttributes(2.0d, Map.of("k", 5L)));
 
         otelMeter.getRecorder().resetCalls();
         otelMeter.collectMetrics();

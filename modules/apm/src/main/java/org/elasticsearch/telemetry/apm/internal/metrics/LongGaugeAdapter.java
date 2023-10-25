@@ -13,7 +13,7 @@ import io.opentelemetry.api.metrics.ObservableLongGauge;
 
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
-import org.elasticsearch.telemetry.metric.LongAttributes;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
@@ -23,11 +23,11 @@ import java.util.function.Supplier;
  * LongGaugeAdapter wraps an otel ObservableLongGauge
  */
 public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> implements org.elasticsearch.telemetry.metric.LongGauge {
-    private final Supplier<LongAttributes> observer;
+    private final Supplier<LongWithAttributes> observer;
     private final ReleasableLock closedLock = new ReleasableLock(new ReentrantLock());
     private boolean closed = false;
 
-    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<LongAttributes> observer) {
+    public LongGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         super(meter, name, description, unit);
         this.observer = observer;
     }
@@ -40,7 +40,7 @@ public class LongGaugeAdapter extends AbstractInstrument<ObservableLongGauge> im
             .setDescription(getDescription())
             .setUnit(getUnit())
             .buildWithCallback(measurement -> {
-                LongAttributes observation;
+                LongWithAttributes observation;
                 try {
                     observation = observer.get();
                 } catch (RuntimeException err) {

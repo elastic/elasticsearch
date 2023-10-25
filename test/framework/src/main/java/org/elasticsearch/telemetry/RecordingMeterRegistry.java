@@ -8,17 +8,17 @@
 
 package org.elasticsearch.telemetry;
 
-import org.elasticsearch.telemetry.metric.DoubleAttributes;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
-import org.elasticsearch.telemetry.metric.LongAttributes;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.function.Supplier;
@@ -68,7 +68,7 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer) {
+    public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
         DoubleGauge instrument = buildDoubleGauge(name, description, unit, observer);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
@@ -79,7 +79,7 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return (DoubleGauge) recorder.getInstrument(InstrumentType.DOUBLE_GAUGE, name);
     }
 
-    protected DoubleGauge buildDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer) {
+    protected DoubleGauge buildDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
         return new RecordingInstruments.RecordingDoubleGauge(name, observer, recorder);
     }
 
@@ -132,7 +132,7 @@ public class RecordingMeterRegistry implements MeterRegistry {
     }
 
     @Override
-    public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer) {
+    public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         LongGauge instrument = buildLongGauge(name, description, unit, observer);
         recorder.register(instrument, InstrumentType.fromInstrument(instrument), name, description, unit);
         return instrument;
@@ -143,7 +143,7 @@ public class RecordingMeterRegistry implements MeterRegistry {
         return (LongGauge) recorder.getInstrument(InstrumentType.LONG_GAUGE, name);
     }
 
-    protected LongGauge buildLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer) {
+    protected LongGauge buildLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
         return new RecordingInstruments.RecordingLongGauge(name, observer, recorder);
     }
 

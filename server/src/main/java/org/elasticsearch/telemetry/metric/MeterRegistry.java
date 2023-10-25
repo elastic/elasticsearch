@@ -57,7 +57,7 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer);
+    DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer);
 
     /**
      * Retrieved a previously registered {@link DoubleGauge}.
@@ -123,7 +123,7 @@ public interface MeterRegistry {
      *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer);
+    LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer);
 
     /**
      * Retrieved a previously registered {@link LongGauge}.
@@ -172,7 +172,7 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleAttributes> observer) {
+        public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
             return DoubleGauge.NOOP;
         }
 
@@ -212,7 +212,7 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongAttributes> observer) {
+        public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
             return LongGauge.NOOP;
         }
 

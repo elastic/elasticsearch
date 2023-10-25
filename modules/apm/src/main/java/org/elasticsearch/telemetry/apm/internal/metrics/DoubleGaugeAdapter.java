@@ -13,7 +13,7 @@ import io.opentelemetry.api.metrics.ObservableDoubleGauge;
 
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.telemetry.apm.AbstractInstrument;
-import org.elasticsearch.telemetry.metric.DoubleAttributes;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
@@ -26,11 +26,11 @@ public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge
     implements
         org.elasticsearch.telemetry.metric.DoubleGauge {
 
-    private final Supplier<DoubleAttributes> observer;
+    private final Supplier<DoubleWithAttributes> observer;
     private final ReleasableLock closedLock = new ReleasableLock(new ReentrantLock());
     private boolean closed = false;
 
-    public DoubleGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<DoubleAttributes> observer) {
+    public DoubleGaugeAdapter(Meter meter, String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
         super(meter, name, description, unit);
         this.observer = observer;
     }
@@ -42,7 +42,7 @@ public class DoubleGaugeAdapter extends AbstractInstrument<ObservableDoubleGauge
             .setDescription(getDescription())
             .setUnit(getUnit())
             .buildWithCallback(measurement -> {
-                DoubleAttributes observation;
+                DoubleWithAttributes observation;
                 try {
                     observation = observer.get();
                 } catch (RuntimeException err) {

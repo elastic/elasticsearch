@@ -94,7 +94,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             dataStreamTemplate,
             randomBoolean() ? null : randomBoolean(),
             ignoreMissingComponentTemplates,
-            randomBoolean()
+            randomBoolean() ? null : randomBoolean()
         );
     }
 

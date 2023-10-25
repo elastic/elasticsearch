@@ -619,7 +619,8 @@ public class MetadataIndexTemplateService {
                 template.metadata(),
                 template.getDataStreamTemplate(),
                 template.getAllowAutoCreate(),
-                template.getIgnoreMissingComponentTemplates()
+                template.getIgnoreMissingComponentTemplates(),
+                template.deprecated()
             );
         }
 
@@ -721,7 +722,8 @@ public class MetadataIndexTemplateService {
             indexTemplate.metadata(),
             indexTemplate.getDataStreamTemplate(),
             indexTemplate.getAllowAutoCreate(),
-            indexTemplate.getIgnoreMissingComponentTemplates()
+            indexTemplate.getIgnoreMissingComponentTemplates(),
+            indexTemplate.deprecated()
         );
 
         validate(name, templateToValidate);

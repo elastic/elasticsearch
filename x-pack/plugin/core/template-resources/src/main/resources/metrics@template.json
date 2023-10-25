@@ -3,9 +3,9 @@
   "priority": 100,
   "data_stream": {},
   "composed_of": [
-    "metrics-mappings",
-    "data-streams-mappings",
-    "metrics-settings"
+    "metrics@mappings",
+    "data-streams@mappings",
+    "metrics@settings"
   ],
   "allow_auto_create": true,
   "_meta": {

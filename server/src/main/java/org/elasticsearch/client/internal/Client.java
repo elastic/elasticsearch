@@ -73,6 +73,7 @@ import java.util.concurrent.Executor;
  */
 public interface Client extends ElasticsearchClient, Releasable {
 
+    // Note: This setting is registered only for bwc. The value is never read.
     Setting<String> CLIENT_TYPE_SETTING_S = new Setting<>("client.type", "node", (s) -> {
         return switch (s) {
             case "node", "transport" -> s;

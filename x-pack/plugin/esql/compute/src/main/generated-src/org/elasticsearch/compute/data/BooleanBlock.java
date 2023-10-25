@@ -186,11 +186,14 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
+    /**
+     * Builder for {@link BooleanBlock}
+     */
     sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {
-
         /**
          * Appends a boolean to the current entry.
          */
+        @Override
         Builder appendBoolean(boolean value);
 
         /**
@@ -214,12 +217,11 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

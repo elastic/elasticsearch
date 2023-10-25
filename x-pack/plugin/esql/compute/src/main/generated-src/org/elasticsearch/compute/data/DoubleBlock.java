@@ -187,11 +187,14 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         return blockFactory.newConstantDoubleBlockWith(value, positions);
     }
 
+    /**
+     * Builder for {@link DoubleBlock}
+     */
     sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {
-
         /**
          * Appends a double to the current entry.
          */
+        @Override
         Builder appendDouble(double value);
 
         /**
@@ -215,12 +218,11 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

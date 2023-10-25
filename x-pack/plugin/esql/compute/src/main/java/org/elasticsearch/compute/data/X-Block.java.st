@@ -223,11 +223,14 @@ $endif$
         return blockFactory.newConstant$Type$BlockWith(value, positions);
     }
 
+    /**
+     * Builder for {@link $Type$Block}
+     */
     sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {
-
         /**
          * Appends a $type$ to the current entry.
          */
+        @Override
         Builder append$Type$($type$ value);
 
         /**
@@ -251,12 +254,11 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

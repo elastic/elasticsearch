@@ -187,11 +187,14 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         return blockFactory.newConstantLongBlockWith(value, positions);
     }
 
+    /**
+     * Builder for {@link LongBlock}
+     */
     sealed interface Builder extends Block.Builder, BlockLoader.LongBuilder permits LongBlockBuilder {
-
         /**
          * Appends a long to the current entry.
          */
+        @Override
         Builder appendLong(long value);
 
         /**
@@ -215,12 +218,11 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

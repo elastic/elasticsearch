@@ -191,11 +191,14 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         return blockFactory.newConstantBytesRefBlockWith(value, positions);
     }
 
+    /**
+     * Builder for {@link BytesRefBlock}
+     */
     sealed interface Builder extends Block.Builder, BlockLoader.BytesRefBuilder permits BytesRefBlockBuilder {
-
         /**
          * Appends a BytesRef to the current entry.
          */
+        @Override
         Builder appendBytesRef(BytesRef value);
 
         /**
@@ -219,12 +222,11 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

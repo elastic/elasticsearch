@@ -186,11 +186,14 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         return blockFactory.newConstantIntBlockWith(value, positions);
     }
 
+    /**
+     * Builder for {@link IntBlock}
+     */
     sealed interface Builder extends Block.Builder, BlockLoader.IntBuilder permits IntBlockBuilder {
-
         /**
          * Appends a int to the current entry.
          */
+        @Override
         Builder appendInt(int value);
 
         /**
@@ -214,12 +217,11 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

@@ -85,7 +85,7 @@ setup:
           }
 
 ---
-unsupported:
+fetch:
   - do:
       allowed_warnings:
         - "Field [ip_noidx] cannot be retrieved, it is unsupported or not indexed; returning null"

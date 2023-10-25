@@ -269,7 +269,6 @@ public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientPro
      * 2) Ensures the status properly comes to rest at COMPLETE after the shards have moved.
      */
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77488")
     public void testShardsMoveOffRemovingNode() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
 

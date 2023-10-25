@@ -99,4 +99,29 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+        DateFormatter formatter) {
+      this.source = source;
+      this.val = val;
+      this.formatter = formatter;
+    }
+
+    @Override
+    public DateParseConstantEvaluator get(DriverContext context) {
+      return new DateParseConstantEvaluator(source, val.get(context), formatter, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateParseConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    }
+  }
 }

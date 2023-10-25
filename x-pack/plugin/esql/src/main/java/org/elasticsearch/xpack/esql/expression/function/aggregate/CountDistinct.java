@@ -87,7 +87,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (type == DataTypes.DOUBLE) {
             return new CountDistinctDoubleAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
-        if (type == DataTypes.KEYWORD || type == DataTypes.IP) {
+        if (type == DataTypes.KEYWORD || type == DataTypes.IP || type == DataTypes.TEXT) {
             return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, precision);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

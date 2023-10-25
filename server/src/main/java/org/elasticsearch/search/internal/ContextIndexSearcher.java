@@ -47,6 +47,8 @@ import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.Meter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,9 +103,10 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
-        boolean wrapWithExitableDirectoryReader
+        boolean wrapWithExitableDirectoryReader,
+        Meter meter
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null, -1, -1);
+        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, null, -1, -1, meter);
     }
 
     /** constructor for concurrent search */
@@ -116,7 +119,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
         int maximumNumberOfSlices,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        Meter meter
     ) throws IOException {
         this(
             reader,
@@ -127,8 +131,14 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             wrapWithExitableDirectoryReader,
             executor,
             maximumNumberOfSlices,
-            minimumDocsPerSlice
+            minimumDocsPerSlice,
+            meter
         );
+    }
+
+    private static LongCounter getOrRegisterLongCounter(Meter meter, String name, String description) {
+        LongCounter counter = meter.getLongCounter(name);
+        return counter != null ? counter : meter.registerLongCounter(name, description, "count");
     }
 
     @SuppressWarnings("this-escape")
@@ -141,7 +151,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         Executor executor,
         int maximumNumberOfSlices,
-        int minimumDocsPerSlice
+        int minimumDocsPerSlice,
+        Meter meter
     ) throws IOException {
         // we need to pass the executor up so it can potentially be used by query rewrite, which does not rely on slicing
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
@@ -155,6 +166,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             // we offload to the executor unconditionally, including requests that don't support concurrency
             this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
+
+            getOrRegisterLongCounter(
+                meter,
+                "elastic_search.search.leaf_slices_created_count",
+                "The number of leaf slices produced by the ContextIndexSearcher"
+            ).incrementBy(leafSlices.length);
+
             assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
         }
     }

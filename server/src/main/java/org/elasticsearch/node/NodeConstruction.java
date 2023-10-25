@@ -184,6 +184,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -443,6 +444,7 @@ class NodeConstruction {
             .orElse(TelemetryProvider.NOOP);
 
         final Tracer tracer = telemetryProvider.getTracer();
+        final Meter meter = telemetryProvider.getMeter();
 
         final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
@@ -969,7 +971,8 @@ class NodeConstruction {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            meter
         );
 
         final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);

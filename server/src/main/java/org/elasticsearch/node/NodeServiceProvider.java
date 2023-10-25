@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -120,7 +121,8 @@ class NodeServiceProvider {
         ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
-        Tracer tracer
+        Tracer tracer,
+        Meter meter
     ) {
         return new SearchService(
             clusterService,
@@ -132,7 +134,8 @@ class NodeServiceProvider {
             responseCollectorService,
             circuitBreakerService,
             executorSelector,
-            tracer
+            tracer,
+            meter
         );
     }
 

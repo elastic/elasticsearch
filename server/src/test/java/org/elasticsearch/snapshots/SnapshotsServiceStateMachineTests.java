@@ -60,6 +60,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -121,6 +124,7 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class SnapshotsServiceStateMachineTests extends ESTestCase {
 
+    private static final String REPOSITORY_TYPE = "fake";
     private DeterministicTaskQueue deterministicTaskQueue;
     private ThreadPool threadPool;
 
@@ -133,27 +137,217 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
         threadPool = deterministicTaskQueue.getThreadPool();
     }
 
-    public void testFoo() {
+    public void testBasicActivities() {
+        final var repositoryName = "repo";
+        try (var ts = createServices(Settings.EMPTY)) {
+            final var future = new PlainActionFuture<Void>();
+            SubscribableListener
 
-        final var settings = Settings.EMPTY;
+                .<AcknowledgedResponse>newForked(
+                    l -> ts.repositoriesService.registerRepository(new PutRepositoryRequest(repositoryName).type(REPOSITORY_TYPE), l)
+                )
+
+                .<SnapshotInfo>andThen((l, r) -> {
+                    logger.info("--> create snapshot");
+                    ts.snapshotsService.executeSnapshot(new CreateSnapshotRequest(repositoryName, "snap-1"), l);
+                })
+
+                .<SnapshotInfo>andThen((l, r) -> {
+                    logger.info("--> create snapshot");
+                    ts.snapshotsService.executeSnapshot(new CreateSnapshotRequest(repositoryName, "snap-2"), l);
+                })
+
+                .<Void>andThen((l, r) -> {
+                    logger.info("--> clone snapshot");
+                    ts.snapshotsService.cloneSnapshot(
+                        new CloneSnapshotRequest(repositoryName, "snap-2", "snap-3", new String[] { "*" }),
+                        l
+                    );
+                })
+
+                .<Void>andThen((l, r) -> {
+                    final var snapshotNames = Set.of("snap-1", "snap-2", "snap-3");
+                    ts.snapshotsService.deleteSnapshots(
+                        new DeleteSnapshotRequest(repositoryName, randomArray(1, 2, String[]::new, () -> randomFrom(snapshotNames))),
+                        l
+                    );
+                })
+
+                // TODO: repository cleanup
+                .addListener(future.map(ignored -> null));
+
+            deterministicTaskQueue.runAllTasksInTimeOrder();
+            assertTrue(future.isDone());
+            future.actionGet();
+
+            ts.assertStates();
+        }
+    }
+
+    public void testMaybeFailActivities() {
+        final var repositoryName = "repo";
+        try (var ts = createServices(Settings.EMPTY)) {
+            ts.shardSnapshotsMayFail.set(true);
+            final var future = new PlainActionFuture<Void>();
+            SubscribableListener
+
+                .<AcknowledgedResponse>newForked(
+                    l -> ts.repositoriesService.registerRepository(new PutRepositoryRequest(repositoryName).type(REPOSITORY_TYPE), l)
+                )
+
+                .<SnapshotInfo>andThen((l, r) -> {
+                    logger.info("--> create snapshot");
+                    ts.snapshotsService.executeSnapshot(new CreateSnapshotRequest(repositoryName, "snap-1"), l);
+                })
+
+                .<SnapshotInfo>andThen((l, r) -> {
+                    logger.info("--> create snapshot");
+                    ts.snapshotsService.executeSnapshot(new CreateSnapshotRequest(repositoryName, "snap-2"), l);
+                })
+
+                .<Void>andThen((l, r) -> {
+                    logger.info("--> clone snapshot");
+                    ts.snapshotsService.cloneSnapshot(
+                        new CloneSnapshotRequest(repositoryName, "snap-2", "snap-3", new String[] { "*" }),
+                        l
+                    );
+                })
+
+                .<Void>andThen((l0, r) -> {
+                    final var snapshotNames = Set.of("snap-1", "snap-2", "snap-3", "snap-4", "snap-5");
+                    try (var refs = new RefCountingRunnable(() -> l0.onResponse(null))) {
+                        runAsync(
+                            refs.acquireListener(),
+                            l -> ts.snapshotsService.executeSnapshot(
+                                new CreateSnapshotRequest(repositoryName, randomFrom(snapshotNames)),
+                                l.map(ignored -> null)
+                            )
+                        );
+
+                        runAsync(
+                            refs.acquireListener(),
+                            l -> ts.snapshotsService.deleteSnapshots(
+                                new DeleteSnapshotRequest(
+                                    repositoryName,
+                                    randomArray(1, 2, String[]::new, () -> randomFrom(snapshotNames))
+                                ),
+                                l
+                            )
+                        );
+
+                        runAsync(
+                            refs.acquireListener(),
+                            l -> ts.snapshotsService.cloneSnapshot(
+                                new CloneSnapshotRequest(
+                                    repositoryName,
+                                    randomFrom(snapshotNames),
+                                    randomFrom(snapshotNames),
+                                    new String[] { "*" }
+                                ),
+                                l
+                            )
+                        );
+                    }
+                })
+
+                .addListener(future.map(ignored -> null));
+
+            deterministicTaskQueue.runAllTasksInTimeOrder();
+            assertTrue(future.isDone());
+            future.actionGet();
+
+            ts.assertStates();
+        }
+    }
+
+    // TODO testRandomActivities
+    // TODO node leaves cluster while holding shards (shards may also be ABORTED; may also let an ongoing delete start)
+    // TODO index deleted while snapshot running
+    // TODO primary shard moves from INITIALIZING to STARTED
+    // TODO master failover, new master continues work of old master & old master completes listeners
+    // TODO clones!
+    // TODO name collisions (both running & completed)
+    // TODO cleanups
+    // TODO concurrency limit
+    // TODO invalid snapshot name
+    // TODO repository removed concurrently with snap operation
+    // TODO metadata filtering (drop global metadata, and datastream metadata)
+    // TODO snapshot a datastream concurrently with rollover (looks like we drop datastream metadata in this case)
+    // TODO interleaved finalizations, finalizing snapshot not at head of list
+    // TODO removing completed (failed?) snapshot ID from enqueued snapshot deletion
+    // TODO concurrent ops in multiple repositories
+    // TODO wildcard deletes (including match-none)
+    // TODO delete with concurrent restore
+    // TODO delete with concurrent clone
+    // TODO aborting snapshot with no started shards
+    // TODO batching deletes (adding snapshots to WAITING delete, and skipping snapshots in STARTED delete)
+    // TODO retries in executeConsistentStateUpdate
+    // TODO snapshot/clone enqueued behind running deletion
+
+    private <T> void runAsync(ActionListener<T> listener, CheckedConsumer<ActionListener<T>, Exception> consumer) {
+        threadPool.generic().execute(ActionRunnable.wrap(listener, consumer));
+    }
+
+    class TestServices implements Releasable {
+        final TransportService transportService;
+        final MasterService masterService;
+        final ClusterService clusterService;
+        final RepositoriesService repositoriesService;
+        final SnapshotsService snapshotsService;
+        private final AtomicBoolean shardSnapshotsMayFail;
+
+        TestServices(
+            TransportService transportService,
+            MasterService masterService,
+            ClusterService clusterService,
+            RepositoriesService repositoriesService,
+            SnapshotsService snapshotsService,
+            AtomicBoolean shardSnapshotsMayFail
+        ) {
+            this.transportService = transportService;
+            this.masterService = masterService;
+            this.clusterService = clusterService;
+            this.repositoriesService = repositoriesService;
+            this.snapshotsService = snapshotsService;
+            this.shardSnapshotsMayFail = shardSnapshotsMayFail;
+        }
+
+        public void start() {
+            transportService.start();
+            clusterService.start();
+            repositoriesService.start();
+            snapshotsService.start();
+            transportService.acceptIncomingRequests();
+        }
+
+        public void assertStates() {
+            assertTrue(snapshotsService.assertAllListenersResolved());
+            final var repository = (FakeRepository) repositoriesService.repository("repo");
+            repository.assertShardGenerationsPresent();
+            // TODO repository.assertShardGenerationsUnique();
+            // TODO also verify no leaked global metadata and snapshot info
+            // TODO also verify no leaked index metadata
+            logger.info("--> final states: {}", repository.repositoryShardStates);
+        }
+
+        @Override
+        public void close() {
+            snapshotsService.stop();
+            repositoriesService.stop();
+            clusterService.stop();
+            transportService.stop();
+            snapshotsService.close();
+            repositoriesService.close();
+            clusterService.close();
+            transportService.close();
+        }
+    }
+
+    private TestServices createServices(Settings settings) {
         final var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
-
         final var threadContext = threadPool.getThreadContext();
-
         final var localNode = DiscoveryNodeUtils.create("local");
-
-        final var transport = createFakeTransport();
-        final var transportService = new TransportService(
-            settings,
-            transport,
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            ignored -> localNode,
-            clusterSettings,
-            new ClusterConnectionManager(settings, transport, threadContext),
-            new TaskManager(settings, threadPool, Set.of()),
-            Tracer.NOOP
-        );
+        final var transportService = createTransportService(settings, localNode, clusterSettings, threadContext);
 
         final var clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
             @Override
@@ -165,8 +359,6 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
 
         final String clusterUUID = UUIDs.randomBase64UUID(random());
         final var initialRepositoryData = RepositoryData.EMPTY.withClusterUuid(clusterUUID);
-        final var repositoryName = "repo";
-        final var repositoryType = "fake";
 
         final int dataNodeCount = between(1, 10);
         final var discoveryNodes = DiscoveryNodes.builder();
@@ -214,7 +406,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
             final var newState = clusterStatePublicationEvent.getNewState();
             logger.info(
                 """
-                    --> cluster state version {} in term {}
+                    --> cluster state version [{}] in term [{}]
                     SnapshotsInProgress
                     {}
                     SnapshotDeletionsInProgress
@@ -247,7 +439,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
             settings,
             clusterService,
             transportService,
-            Map.of(repositoryType, repositoryMetadata -> new FakeRepository(repositoryMetadata, initialRepositoryData, masterService)),
+            Map.of(REPOSITORY_TYPE, repositoryMetadata -> new FakeRepository(repositoryMetadata, initialRepositoryData, masterService)),
             Map.of(),
             threadPool,
             List.of()
@@ -265,7 +457,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
             systemIndices
         );
 
-        final var shardSnapshotsMayFail = new AtomicBoolean(true);
+        final AtomicBoolean shardSnapshotsMayFail = new AtomicBoolean(false);
 
         clusterService.addStateApplier(new ClusterStateApplier() {
 
@@ -294,7 +486,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
                                         shardSnapshotStatusEntry.getValue().nodeId()
                                     );
                                     if (ongoingShardSnapshots.add(ongoingShardSnapshot)) {
-                                        threadPool.generic().execute(ActionRunnable.<Void>wrap(new ActionListener<>() {
+                                        runAsync(new ActionListener<Void>() {
                                             @Override
                                             public void onResponse(Void unused) {}
 
@@ -309,7 +501,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
                                                 shardSnapshotStatusEntry.getValue().generation(),
                                                 l
                                             )
-                                        ));
+                                        );
                                     }
                                 }
                                 case ABORTED -> {
@@ -414,135 +606,37 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
             }
         });
 
-        transportService.start();
-        clusterService.start();
-        repositoriesService.start();
-        snapshotsService.start();
-        transportService.acceptIncomingRequests();
+        final var testServices = new TestServices(
+            transportService,
+            masterService,
+            clusterService,
+            repositoriesService,
+            snapshotsService,
+            shardSnapshotsMayFail
+        );
+        testServices.start();
+        return testServices;
 
-        try {
-            final var future = new PlainActionFuture<Void>();
-            SubscribableListener
+    }
 
-                .<AcknowledgedResponse>newForked(
-                    l -> repositoriesService.registerRepository(new PutRepositoryRequest(repositoryName).type(repositoryType), l)
-                )
-
-                .<SnapshotInfo>andThen((l, r) -> {
-                    logger.info("--> create snapshot");
-                    snapshotsService.executeSnapshot(new CreateSnapshotRequest(repositoryName, "snap-1"), l);
-                })
-
-                .<SnapshotInfo>andThen((l, r) -> {
-                    logger.info("--> create snapshot");
-                    shardSnapshotsMayFail.set(false);
-                    snapshotsService.executeSnapshot(new CreateSnapshotRequest(repositoryName, "snap-2"), l);
-                })
-
-                .<Void>andThen((l, r) -> {
-                    logger.info("--> clone snapshot");
-                    shardSnapshotsMayFail.set(true);
-                    snapshotsService.cloneSnapshot(new CloneSnapshotRequest(repositoryName, "snap-2", "snap-3", new String[] { "*" }), l);
-                })
-
-                .<Void>andThen((l0, r) -> {
-                    final var snapshotNames = Set.of("snap-1", "snap-2", "snap-3", "snap-4", "snap-5");
-                    try (var refs = new RefCountingRunnable(() -> l0.onResponse(null))) {
-                        for (int i = 0; i < 2; i++) {
-                            if (randomBoolean()) {
-                                threadPool.generic()
-                                    .execute(
-                                        ActionRunnable.wrap(
-                                            refs.acquireListener(),
-                                            l -> snapshotsService.executeSnapshot(
-                                                new CreateSnapshotRequest(repositoryName, randomFrom(snapshotNames)),
-                                                l.map(ignored -> null)
-                                            )
-                                        )
-                                    );
-                            }
-                            if (randomBoolean()) {
-                                threadPool.generic()
-                                    .execute(
-                                        ActionRunnable.wrap(
-                                            refs.acquireListener(),
-                                            l -> snapshotsService.deleteSnapshots(
-                                                new DeleteSnapshotRequest(
-                                                    repositoryName,
-                                                    randomArray(1, 2, String[]::new, () -> randomFrom(snapshotNames))
-                                                ),
-                                                l
-                                            )
-                                        )
-                                    );
-                            }
-                            if (randomBoolean()) {
-                                threadPool.generic()
-                                    .execute(
-                                        ActionRunnable.wrap(
-                                            refs.acquireListener(),
-                                            l -> snapshotsService.cloneSnapshot(
-                                                new CloneSnapshotRequest(
-                                                    repositoryName,
-                                                    randomFrom(snapshotNames),
-                                                    randomFrom(snapshotNames),
-                                                    new String[] { "*" }
-                                                ),
-                                                l
-                                            )
-                                        )
-                                    );
-                            }
-                        }
-                    }
-                })
-
-                // TODO node leaves cluster while holding shards (shards may also be ABORTED; may also let an ongoing delete start)
-                // TODO index deleted while snapshot running
-                // TODO primary shard moves from INITIALIZING to STARTED
-                // TODO master failover, new master continues work of old master & old master completes listeners
-                // TODO clones!
-                // TODO name collisions (both running & completed)
-                // TODO cleanups
-                // TODO concurrency limit
-                // TODO invalid snapshot name
-                // TODO repository removed concurrently with snap operation
-                // TODO metadata filtering (drop global metadata, and datastream metadata)
-                // TODO snapshot a datastream concurrently with rollover (looks like we drop datastream metadata in this case)
-                // TODO interleaved finalizations, finalizing snapshot not at head of list
-                // TODO removing completed (failed?) snapshot ID from enqueued snapshot deletion
-                // TODO concurrent ops in multiple repositories
-                // TODO wildcard deletes (including match-none)
-                // TODO delete with concurrent restore
-                // TODO delete with concurrent clone
-                // TODO aborting snapshot with no started shards
-                // TODO batching deletes (adding snapshots to WAITING delete, and skipping snapshots in STARTED delete)
-                // TODO retries in executeConsistentStateUpdate
-                // TODO snapshot/clone enqueued behind running deletion
-
-                .addListener(future.map(ignored -> null));
-
-            deterministicTaskQueue.runAllTasksInTimeOrder();
-            assertTrue(future.isDone());
-            future.actionGet();
-            assertTrue(snapshotsService.assertAllListenersResolved());
-
-            final var repository = (FakeRepository) repositoriesService.repository("repo");
-            repository.assertShardGenerationsPresent();
-            // TODO repository.assertShardGenerationsUnique();
-            // TODO also verify no leaked global metadata and snapshot info
-            // TODO also verify no leaked index metadata
-            logger.info("--> final states: {}", repository.repositoryShardStates);
-        } finally {
-            snapshotsService.stop();
-            repositoriesService.stop();
-            clusterService.stop();
-            transportService.stop();
-            snapshotsService.close();
-            repositoriesService.close();
-            clusterService.close();
-            transportService.close();
-        }
+    private TransportService createTransportService(
+        Settings settings,
+        DiscoveryNode localNode,
+        ClusterSettings clusterSettings,
+        ThreadContext threadContext
+    ) {
+        final var transport = createFakeTransport();
+        return new TransportService(
+            settings,
+            transport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            ignored -> localNode,
+            clusterSettings,
+            new ClusterConnectionManager(settings, transport, threadContext),
+            new TaskManager(settings, threadPool, Set.of()),
+            Tracer.NOOP
+        );
     }
 
     private static FakeTransport createFakeTransport() {
@@ -556,26 +650,34 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
                     }
 
                     @Override
-                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-                        TransportException {
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                        throws TransportException {
 
                         switch (action) {
-                            case TransportService.HANDSHAKE_ACTION_NAME -> lookupResponseHandler(
-                                requestId,
-                                action).handleResponse(new TransportService.HandshakeResponse(Version.CURRENT,
-                                Build.current().hash(),
-                                discoveryNode,
-                                ClusterName.DEFAULT));
-                            case VerifyNodeRepositoryAction.ACTION_NAME ->
-                                lookupResponseHandler(requestId, action).handleResponse(TransportResponse.Empty.INSTANCE);
+                            case TransportService.HANDSHAKE_ACTION_NAME -> lookupResponseHandler(requestId, action).handleResponse(
+                                new TransportService.HandshakeResponse(
+                                    Version.CURRENT,
+                                    Build.current().hash(),
+                                    discoveryNode,
+                                    ClusterName.DEFAULT
+                                )
+                            );
+                            case VerifyNodeRepositoryAction.ACTION_NAME -> lookupResponseHandler(requestId, action).handleResponse(
+                                TransportResponse.Empty.INSTANCE
+                            );
                             default -> throw new UnsupportedOperationException("unexpected action [" + action + "]");
                         }
                     }
 
                     @SuppressWarnings("unchecked")
                     private TransportResponseHandler<TransportResponse> lookupResponseHandler(long requestId, String action) {
-                        return Objects.requireNonNull((TransportResponseHandler<TransportResponse>) getResponseHandlers().onResponseReceived(requestId,
-                            TransportMessageListener.NOOP_LISTENER), action);
+                        return Objects.requireNonNull(
+                            (TransportResponseHandler<TransportResponse>) getResponseHandlers().onResponseReceived(
+                                requestId,
+                                TransportMessageListener.NOOP_LISTENER
+                            ),
+                            action
+                        );
                     }
 
                     @Override

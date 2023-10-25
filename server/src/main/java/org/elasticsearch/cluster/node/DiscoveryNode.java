@@ -32,6 +32,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -488,14 +489,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return this.versionInfo.nodeVersion();
     }
 
-    public int getLegacyVersionIdOrThrow() {
+    public OptionalInt getPre811VersionId() {
         // Even if Version is removed from this class completely it will need to read the version ID
         // off the wire for old node versions, so the value of this variable can be obtained from that
         int versionId = versionInfo.nodeVersion().id;
-        if (versionId > Version.V_8_10_0.id) {
-            throw new IllegalStateException("getting legacy version id [" + versionId + "] not supported");
+        if (versionId >= Version.V_8_11_0.id) {
+            return OptionalInt.empty();
         }
-        return versionId;
+        return OptionalInt.of(versionId);
     }
 
     public IndexVersion getMinIndexVersion() {

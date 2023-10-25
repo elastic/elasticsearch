@@ -62,8 +62,67 @@ import java.util.function.UnaryOperator;
  */
 public abstract class Plugin implements Closeable {
 
+    public interface PluginServices {
+        Client client();
+
+        ClusterService clusterService();
+
+        ThreadPool threadPool();
+
+        ResourceWatcherService resourceWatcherService();
+
+        ScriptService scriptService();
+
+        NamedXContentRegistry xContentRegistry();
+
+        Environment environment();
+
+        NodeEnvironment nodeEnvironment();
+
+        NamedWriteableRegistry namedWriteableRegistry();
+
+        IndexNameExpressionResolver indexNameExpressionResolver();
+
+        Supplier<RepositoriesService> repositoriesServiceSupplier();
+
+        TelemetryProvider telemetryProvider();
+
+        AllocationService allocationService();
+
+        IndicesService indicesService();
+    }
+
     /**
      * Returns components added by this plugin.
+     * <p>
+     * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
+     * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
+     * to themselves.
+     *
+     * @param services                    Provides access to various Elasticsearch services
+     */
+    public Collection<Object> createComponents(PluginServices services) {
+        return createComponents(
+            services.client(),
+            services.clusterService(),
+            services.threadPool(),
+            services.resourceWatcherService(),
+            services.scriptService(),
+            services.xContentRegistry(),
+            services.environment(),
+            services.nodeEnvironment(),
+            services.namedWriteableRegistry(),
+            services.indexNameExpressionResolver(),
+            services.repositoriesServiceSupplier(),
+            services.telemetryProvider(),
+            services.allocationService(),
+            services.indicesService()
+        );
+    }
+
+    /**
+     * Returns components added by this plugin. Either this method or {@link #createComponents(PluginServices)}
+     * should be implemented.
      * <p>
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
@@ -84,7 +143,10 @@ public abstract class Plugin implements Closeable {
      * @param telemetryProvider           An interface for distributed tracing
      * @param allocationService           A service to manage shard allocation in the cluster
      * @param indicesService              A service to manage indices in the cluster
+     *
+     * @deprecated New services will only be added to {@link PluginServices}
      */
+    @Deprecated
     public Collection<Object> createComponents(
         Client client,
         ClusterService clusterService,

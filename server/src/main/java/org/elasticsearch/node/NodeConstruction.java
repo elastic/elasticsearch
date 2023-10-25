@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -52,6 +53,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -741,24 +743,79 @@ class NodeConstruction {
             threadPool
         );
 
-        Collection<Object> pluginComponents = pluginsService.flatMap(
-            p -> p.createComponents(
-                client,
-                clusterService,
-                threadPool,
-                resourceWatcherService,
-                scriptService,
-                xContentRegistry,
-                environment,
-                nodeEnvironment,
-                namedWriteableRegistry,
-                clusterModule.getIndexNameExpressionResolver(),
-                repositoriesServiceReference::get,
-                telemetryProvider,
-                clusterModule.getAllocationService(),
-                indicesService
-            )
-        ).toList();
+        Plugin.PluginServices services = new Plugin.PluginServices() {
+            @Override
+            public Client client() {
+                return client;
+            }
+
+            @Override
+            public ClusterService clusterService() {
+                return clusterService;
+            }
+
+            @Override
+            public ThreadPool threadPool() {
+                return threadPool;
+            }
+
+            @Override
+            public ResourceWatcherService resourceWatcherService() {
+                return resourceWatcherService;
+            }
+
+            @Override
+            public ScriptService scriptService() {
+                return scriptService;
+            }
+
+            @Override
+            public NamedXContentRegistry xContentRegistry() {
+                return xContentRegistry;
+            }
+
+            @Override
+            public Environment environment() {
+                return environment;
+            }
+
+            @Override
+            public NodeEnvironment nodeEnvironment() {
+                return nodeEnvironment;
+            }
+
+            @Override
+            public NamedWriteableRegistry namedWriteableRegistry() {
+                return namedWriteableRegistry;
+            }
+
+            @Override
+            public IndexNameExpressionResolver indexNameExpressionResolver() {
+                return clusterModule.getIndexNameExpressionResolver();
+            }
+
+            @Override
+            public Supplier<RepositoriesService> repositoriesServiceSupplier() {
+                return repositoriesServiceReference::get;
+            }
+
+            @Override
+            public TelemetryProvider telemetryProvider() {
+                return telemetryProvider;
+            }
+
+            @Override
+            public AllocationService allocationService() {
+                return clusterModule.getAllocationService();
+            }
+
+            @Override
+            public IndicesService indicesService() {
+                return indicesService;
+            }
+        };
+
+        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(services)).toList();
 
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 

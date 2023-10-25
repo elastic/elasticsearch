@@ -417,8 +417,6 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
 
         Predicate<Map<?, ?>> nodeSupportsBulkApi = n -> Version.fromString(n.get("version").toString()).onOrAfter(Version.V_7_5_0);
 
-        return nodes.values().stream()
-            .map(o -> (Map<?, ?>) o)
-            .allMatch(nodeSupportsBulkApi);
+        return nodes.values().stream().map(o -> (Map<?, ?>) o).allMatch(nodeSupportsBulkApi);
     }
 }

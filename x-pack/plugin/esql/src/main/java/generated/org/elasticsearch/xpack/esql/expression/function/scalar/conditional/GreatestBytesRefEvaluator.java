@@ -108,4 +108,23 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public GreatestBytesRefEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new GreatestBytesRefEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "GreatestBytesRefEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
+  }
 }

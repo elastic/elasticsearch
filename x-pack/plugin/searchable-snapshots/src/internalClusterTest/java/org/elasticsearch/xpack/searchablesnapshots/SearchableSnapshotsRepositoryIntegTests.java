@@ -68,7 +68,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             Storage storage = randomFrom(Storage.values());
             String restoredIndexName = (storage == Storage.FULL_COPY ? "fully-mounted-" : "partially-mounted-") + indexName + '-' + i;
             mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, Settings.EMPTY, storage);
-            assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get(), totalHits.value);
+            assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
             mountedIndices[i] = restoredIndexName;
         }
 
@@ -182,7 +182,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mounted).setTrackTotalHits(true), totalHits.value);
 
         final String mountedAgain = randomValueOtherThan(mounted, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
         final SnapshotRestoreException exception = expectThrows(
@@ -207,7 +207,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mountedAgain).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mountedAgain).setTrackTotalHits(true), totalHits.value);
 
         assertAcked(indicesAdmin().prepareDelete(mountedAgain));
         assertAcked(indicesAdmin().prepareDelete(mounted));
@@ -237,7 +237,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mounted).setTrackTotalHits(true), totalHits.value);
 
         if (randomBoolean()) {
             assertAcked(indicesAdmin().prepareClose(mounted));

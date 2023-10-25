@@ -33,6 +33,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
+    private final long totalSamples;
 
     public GetStackTracesResponse(StreamInput in) throws IOException {
         this.stackTraces = in.readBoolean()
@@ -59,6 +60,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
         this.samplingRate = in.readDouble();
+        this.totalSamples = in.readLong();
     }
 
     public GetStackTracesResponse(
@@ -67,7 +69,8 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
-        double samplingRate
+        double samplingRate,
+        long totalSamples
     ) {
         this.stackTraces = stackTraces;
         this.stackFrames = stackFrames;
@@ -75,6 +78,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
         this.samplingRate = samplingRate;
+        this.totalSamples = totalSamples;
     }
 
     @Override
@@ -115,6 +119,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         out.writeInt(totalFrames);
         out.writeDouble(samplingRate);
+        out.writeLong(totalSamples);
     }
 
     public Map<String, StackTrace> getStackTraces() {
@@ -141,6 +146,10 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return samplingRate;
     }
 
+    public long getTotalSamples() {
+        return totalSamples;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
@@ -151,7 +160,11 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
             Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
             Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
-            // start and end are intentionally not written to the XContent representation because we only need them on the transport layer
+            // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
+            //
+            // * start
+            // * end
+            // * totalSamples
             ChunkedToXContentHelper.endObject()
         );
     }

@@ -36,6 +36,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
@@ -108,8 +110,13 @@ public class DeprecationHttpIT extends ESRestTestCase {
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
-
         }, 30, TimeUnit.SECONDS);
+
+        assertBusy(() -> {
+            // wait for the data stream to really be deleted
+            var response = ESRestTestCase.entityAsMap(client().performRequest(new Request("GET", "/_data_stream")));
+            assertThat((Collection<?>) response.get("data_streams"), empty());
+        });
     }
 
     /**

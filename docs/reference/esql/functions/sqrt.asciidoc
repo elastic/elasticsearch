@@ -1,3 +1,4 @@
+[discrete]
 [[esql-sqrt]]
 === `SQRT`
 [.text-center]

@@ -1952,33 +1952,3 @@ coming::[8.11.0]
 === Tutorial: Natural language processing (NLP)
 
 coming::[8.11.0]
-
-[role="exclude",id="behavioral-analytics-overview"]
-=== Elastic Behavioral Analytics
-
-coming::[8.11.0]
-
-[role="exclude",id="behavioral-analytics-start"]
-=== Get started with Behavioral Analytics
-
-coming::[8.11.0]
-
-[role="exclude",id="behavioral-analytics-api"]
-=== Behavioral Analytics APIs
-
-coming::[8.11.0]
-
-[role="exclude",id="behavioral-analytics-event"]
-=== View Behavioral Analytics Events
-
-coming::[8.11.0]
-
-[role="exclude",id="behavioral-analytics-event-reference"]
-=== Behavioral Analytics events reference
-
-coming::[8.11.0]
-
-[role="exclude",id="behavioral-analytics-cors"]
-=== Set up CORS for Behavioral Analytics
-
-coming::[8.11.0]

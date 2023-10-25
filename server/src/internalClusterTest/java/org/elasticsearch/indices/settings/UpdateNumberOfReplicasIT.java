@@ -9,7 +9,6 @@
 package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -63,8 +62,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-            assertHitCount(countResponse, 10L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 10L);
         }
 
         final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
@@ -120,8 +118,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
         for (int i = 0; i < 10; i++) {
-            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-            assertHitCount(countResponse, 10L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 10L);
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
@@ -144,7 +141,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries));
 
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 10);
+            assertHitCount(prepareSearch().setQuery(matchAllQuery()), 10);
         }
 
         final long afterReplicaDecreaseSettingsVersion = clusterAdmin().prepareState()
@@ -469,7 +466,6 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("non-existent-*")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1))
                 .setIndicesOptions(options)
-                .get()
         );
         final int numberOfReplicas = Integer.parseInt(
             indicesAdmin().prepareGetSettings("test-index").get().getSetting("test-index", "index.number_of_replicas")

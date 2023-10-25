@@ -62,33 +62,80 @@ import java.util.function.UnaryOperator;
  */
 public abstract class Plugin implements Closeable {
 
+    /**
+     * Provides access to various Elasticsearch services.
+     */
     public interface PluginServices {
+        /**
+         * A client to make requests to the system
+         */
         Client client();
 
+        /**
+         * A service to allow watching and updating cluster state
+         */
         ClusterService clusterService();
 
+        /**
+         * A service to allow retrieving an executor to run an async action
+         */
         ThreadPool threadPool();
 
+        /**
+         * A service to watch for changes to node local files
+         */
         ResourceWatcherService resourceWatcherService();
 
+        /**
+         * A service to allow running scripts on the local node
+         */
         ScriptService scriptService();
 
+        /**
+         * The registry for extensible xContent parsing
+         */
         NamedXContentRegistry xContentRegistry();
 
+        /**
+         * The environment for path and setting configurations
+         */
         Environment environment();
 
+        /**
+         * The node environment used coordinate access to the data paths
+         */
         NodeEnvironment nodeEnvironment();
 
+        /**
+         * The registry for {@link NamedWriteable} object parsing
+         */
         NamedWriteableRegistry namedWriteableRegistry();
 
+        /**
+         * A service that resolves expression to index and alias names
+         */
         IndexNameExpressionResolver indexNameExpressionResolver();
 
+        /**
+         * A supplier for the service that manages snapshot repositories.
+         * This will return null when {@link #createComponents(PluginServices)} is called,
+         * but will return the repositories service once the node is initialized.
+         */
         Supplier<RepositoriesService> repositoriesServiceSupplier();
 
+        /**
+         * An interface for distributed tracing
+         */
         TelemetryProvider telemetryProvider();
 
+        /**
+         * A service to manage shard allocation in the cluster
+         */
         AllocationService allocationService();
 
+        /**
+         * A service to manage indices in the cluster
+         */
         IndicesService indicesService();
     }
 
@@ -99,9 +146,9 @@ public abstract class Plugin implements Closeable {
      * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
      * to themselves.
      *
-     * @param services                    Provides access to various Elasticsearch services
+     * @param services      Provides access to various Elasticsearch services
      */
-    public Collection<Object> createComponents(PluginServices services) {
+    public Collection<?> createComponents(PluginServices services) {
         return createComponents(
             services.client(),
             services.clusterService(),
@@ -133,10 +180,10 @@ public abstract class Plugin implements Closeable {
      * @param threadPool                  A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService      A service to watch for changes to node local files
      * @param scriptService               A service to allow running scripts on the local node
-     * @param xContentRegistry            the registry for extensible xContent parsing
-     * @param environment                 the environment for path and setting configurations
-     * @param nodeEnvironment             the node environment used coordinate access to the data paths
-     * @param namedWriteableRegistry      the registry for {@link NamedWriteable} object parsing
+     * @param xContentRegistry            The registry for extensible xContent parsing
+     * @param environment                 The environment for path and setting configurations
+     * @param nodeEnvironment             The node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry      The registry for {@link NamedWriteable} object parsing
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
      *                                    is called, but will return the repositories service once the node is initialized.
@@ -144,7 +191,7 @@ public abstract class Plugin implements Closeable {
      * @param allocationService           A service to manage shard allocation in the cluster
      * @param indicesService              A service to manage indices in the cluster
      *
-     * @deprecated New services will only be added to {@link PluginServices}
+     * @deprecated New services will only be added to {@link PluginServices}; this method is maintained for compatibility.
      */
     @Deprecated
     public Collection<Object> createComponents(

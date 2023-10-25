@@ -813,7 +813,7 @@ class NodeConstruction {
             }
         };
 
-        Collection<Object> pluginComponents = pluginsService.flatMap(p -> p.createComponents(services)).toList();
+        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(services)).toList();
 
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 

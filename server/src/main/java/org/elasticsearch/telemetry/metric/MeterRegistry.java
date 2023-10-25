@@ -8,6 +8,8 @@
 
 package org.elasticsearch.telemetry.metric;
 
+import java.util.function.Supplier;
+
 /**
  * Container for metering instruments.  Meters with the same name and type (DoubleCounter, etc) can
  * only be registered once.
@@ -51,9 +53,11 @@ public interface MeterRegistry {
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
+     * @param observer callback to use. This is called once during reporting period.
+     *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    DoubleGauge registerDoubleGauge(String name, String description, String unit);
+    DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer);
 
     /**
      * Retrieved a previously registered {@link DoubleGauge}.
@@ -115,9 +119,11 @@ public interface MeterRegistry {
      * @param name name of the gauge
      * @param description description of purpose
      * @param unit the unit (bytes, sec, hour)
+     * @param observer callback to use. This is called once during reporting period.
+     *                 Must not throw an exception and must be safe to call from different threads.
      * @return the registered meter.
      */
-    LongGauge registerLongGauge(String name, String description, String unit);
+    LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer);
 
     /**
      * Retrieved a previously registered {@link LongGauge}.
@@ -166,7 +172,7 @@ public interface MeterRegistry {
         }
 
         @Override
-        public DoubleGauge registerDoubleGauge(String name, String description, String unit) {
+        public DoubleGauge registerDoubleGauge(String name, String description, String unit, Supplier<DoubleWithAttributes> observer) {
             return DoubleGauge.NOOP;
         }
 
@@ -206,7 +212,7 @@ public interface MeterRegistry {
         }
 
         @Override
-        public LongGauge registerLongGauge(String name, String description, String unit) {
+        public LongGauge registerLongGauge(String name, String description, String unit, Supplier<LongWithAttributes> observer) {
             return LongGauge.NOOP;
         }
 

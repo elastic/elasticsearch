@@ -32,9 +32,7 @@ public enum InstrumentType {
     DOUBLE_HISTOGRAM(true),
     LONG_HISTOGRAM(false),
     DOUBLE_GAUGE(true),
-    LONG_GAUGE(false),
-    DOUBLE_GAUGE_OBSERVER(true),
-    LONG_GAUGE_OBSERVER(false);
+    LONG_GAUGE(false);
 
     public final boolean isDouble;
     public final boolean isLong;
@@ -59,9 +57,9 @@ public enum InstrumentType {
         } else if (instrument instanceof LongHistogram) {
             return InstrumentType.LONG_HISTOGRAM;
         } else if (instrument instanceof DoubleGauge) {
-            return InstrumentType.DOUBLE_GAUGE_OBSERVER;
+            return InstrumentType.DOUBLE_GAUGE;
         } else if (instrument instanceof LongGauge) {
-            return InstrumentType.LONG_GAUGE_OBSERVER;
+            return InstrumentType.LONG_GAUGE;
         } else {
             throw new IllegalArgumentException("unknown instrument [" + instrument.getClass().getName() + "]");
         }

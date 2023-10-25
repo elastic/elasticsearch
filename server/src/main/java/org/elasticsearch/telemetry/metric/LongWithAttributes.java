@@ -8,23 +8,8 @@
 
 package org.elasticsearch.telemetry.metric;
 
-/**
- * Record non-additive long values based on a callback
- */
-public interface LongGauge extends Instrument, AutoCloseable {
+import java.util.Map;
 
-    /**
-     * Noop gauge for tests
-     */
-    LongGauge NOOP = new LongGauge() {
-        @Override
-        public String getName() {
-            return "noop";
-        }
+public record LongWithAttributes(long value, Map<String, Object> attributes) {
 
-        @Override
-        public void close() throws Exception {
-
-        }
-    };
 }

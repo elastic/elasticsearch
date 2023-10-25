@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.analysis.VerificationException;
@@ -50,6 +51,8 @@ import java.util.stream.LongStream;
 import static java.util.Comparator.comparing;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.allOf;
@@ -81,7 +84,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(getValuesList(results).size(), equalTo(40));
             assertThat(getValuesList(results).get(0).get(0), equalTo(1));
         }
-
     }
 
     public void testStatsOverConstant() {
@@ -1177,6 +1179,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         for (String fn : functions) {
             String query = String.format(Locale.ROOT, "from %s | stats s = %s by kw", indexName, fn);
             run(query).close();
+        }
+    }
+
+    public void testLoadId() {
+        try (EsqlQueryResponse results = run("from test [metadata _id] | keep _id | sort _id ")) {
+            assertThat(results.columns(), equalTo(List.of(new ColumnInfo("_id", "keyword"))));
+            ListMatcher values = matchesList();
+            for (int i = 10; i < 50; i++) {
+                values = values.item(List.of(Integer.toString(i)));
+            }
+            assertMap(getValuesList(results), values);
         }
     }
 

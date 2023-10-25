@@ -23,7 +23,7 @@ import java.util.Objects;
  * Records invocations of the Instruments as {@link Measurement}s.
  * @param <I> The supertype of the registered instrument.
  */
-class MetricRecorder<I> {
+public class MetricRecorder<I> {
 
     /**
      * Container for Instrument of a given type, such as DoubleGauge, LongHistogram, etc.
@@ -54,7 +54,7 @@ class MetricRecorder<I> {
      */
     private final Map<InstrumentType, RegisteredMetric<I>> metrics;
 
-    MetricRecorder() {
+    public MetricRecorder() {
         metrics = new HashMap<>(InstrumentType.values().length);
         for (var instrument : InstrumentType.values()) {
             metrics.put(instrument, new RegisteredMetric<>(new HashMap<>(), new HashMap<>(), new HashMap<>()));
@@ -64,21 +64,21 @@ class MetricRecorder<I> {
     /**
      * Register an instrument.  Instruments must be registered before they are used.
      */
-    void register(I instrument, InstrumentType instrumentType, String name, String description, String unit) {
+    public void register(I instrument, InstrumentType instrumentType, String name, String description, String unit) {
         metrics.get(instrumentType).register(name, description, unit, instrument);
     }
 
     /**
      * Record a call made to a registered Elasticsearch {@link Instrument}.
      */
-    void call(Instrument instrument, Number value, Map<String, Object> attributes) {
+    public void call(Instrument instrument, Number value, Map<String, Object> attributes) {
         call(InstrumentType.fromInstrument(instrument), instrument.getName(), value, attributes);
     }
 
     /**
      * Record a call made to the registered instrument represented by the {@link InstrumentType} enum.
      */
-    void call(InstrumentType instrumentType, String name, Number value, Map<String, Object> attributes) {
+    public void call(InstrumentType instrumentType, String name, Number value, Map<String, Object> attributes) {
         metrics.get(instrumentType).call(name, new Measurement(value, attributes, instrumentType.isDouble));
     }
 
@@ -89,21 +89,21 @@ class MetricRecorder<I> {
         return getMeasurements(InstrumentType.fromInstrument(instrument), instrument.getName());
     }
 
-    List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
+    public List<Measurement> getMeasurements(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).called.getOrDefault(Objects.requireNonNull(name), Collections.emptyList());
     }
 
     /**
      * Get the {@link Registration} for a given elasticsearch {@link Instrument}.
      */
-    Registration getRegistration(Instrument instrument) {
+    public Registration getRegistration(Instrument instrument) {
         return metrics.get(InstrumentType.fromInstrument(instrument)).registered().get(instrument.getName());
     }
 
     /**
      * Fetch the instrument instance given the type and registered name.
      */
-    I getInstrument(InstrumentType instrumentType, String name) {
+    public I getInstrument(InstrumentType instrumentType, String name) {
         return metrics.get(instrumentType).instruments.get(name);
     }
 }

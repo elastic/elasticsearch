@@ -24,7 +24,7 @@ import java.util.Objects;
  * Enum with the different types for use as keys.  This enum acts a bridge between the Otel and Elasticsearch versions of each
  * of the instruments.
  */
-enum InstrumentType {
+public enum InstrumentType {
     DOUBLE_COUNTER(true),
     LONG_COUNTER(false),
     DOUBLE_UP_DOWN_COUNTER(true),

@@ -34,11 +34,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalDouble;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1293,6 +1295,32 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     assertEquals(1, valuesList.size());
                 }
             }
+        }
+    }
+
+    public void testCountTextField() {
+        assertAcked(client().admin().indices().prepareCreate("test_count").setMapping("name", "type=text"));
+        int numDocs = between(10, 1000);
+        Set<String> names = new HashSet<>();
+        for (int i = 0; i < numDocs; i++) {
+            String name = "name-" + randomIntBetween(1, 100);
+            names.add(name);
+            IndexRequestBuilder indexRequest = client().prepareIndex("test_count").setSource("name", name);
+            if (randomInt(100) < 5) {
+                indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            }
+            indexRequest.get();
+        }
+        client().admin().indices().prepareRefresh("test_count").get();
+        try (EsqlQueryResponse resp = run("FROM test_count | stats COUNT_DISTINCT(name)")) {
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo((long) names.size()));
+            assertFalse(row.hasNext());
+        }
+        try (EsqlQueryResponse resp = run("FROM test_count | stats COUNT(name)")) {
+            Iterator<Object> row = resp.values().next();
+            assertThat(row.next(), equalTo((long) numDocs));
+            assertFalse(row.hasNext());
         }
     }
 

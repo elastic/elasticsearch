@@ -12,6 +12,7 @@ Detailed information about the {esql} language:
 * <<esql-functions>>
 * <<esql-multivalued-fields>>
 * <<esql-metadata-fields>>
+* <<esql-process-data-with-dissect-and-grok>>
 * <<esql-enrich-data>>
 
 include::esql-syntax.asciidoc[]
@@ -19,5 +20,5 @@ include::esql-commands.asciidoc[]
 include::esql-functions-operators.asciidoc[]
 include::multivalued-fields.asciidoc[]
 include::metadata-fields.asciidoc[]
+include::esql-process-data-with-dissect-grok.asciidoc[]
 include::esql-enrich-data.asciidoc[]
-

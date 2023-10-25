@@ -38,7 +38,7 @@ Use `synonyms_set` configuration option to provide a synonym set created via Syn
 ----
   "filter": {
     "synonyms_filter": {
-      "type": "synonym",
+      "type": "synonym_graph",
       "synonyms_set": "my-synonym-set",
       "updateable": true
     }
@@ -51,7 +51,7 @@ Use `synonyms_path` to provide a synonym file :
 ----
   "filter": {
     "synonyms_filter": {
-      "type": "synonym",
+      "type": "synonym_graph",
       "synonyms_path": "analysis/synonym-set.txt"
     }
   }
@@ -66,7 +66,7 @@ Use `synonyms` to define inline synonyms:
 ----
   "filter": {
     "synonyms_filter": {
-      "type": "synonym",
+      "type": "synonym_graph",
       "synonyms": ["pc => personal computer", "computer, pc, laptop"]
     }
   }

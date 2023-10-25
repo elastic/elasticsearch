@@ -44,9 +44,9 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
         refresh();
 
-        SearchResponse response = client().prepareSearch(index)
-            .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3))
-            .get();
+        SearchResponse response = prepareSearch(index).addAggregation(
+            AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)
+        ).get();
 
         ArrayCompareCondition condition = new ArrayCompareCondition(
             "ctx.payload.aggregations.top_tweeters.buckets",
@@ -80,8 +80,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
         refresh();
 
-        response = client().prepareSearch(index)
-            .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3))
+        response = prepareSearch(index).addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3))
             .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));

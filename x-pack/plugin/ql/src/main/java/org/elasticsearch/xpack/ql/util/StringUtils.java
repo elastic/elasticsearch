@@ -139,7 +139,8 @@ public final class StringUtils {
     // * -> .*
     // ? -> .
     // escape character - can be 0 (in which case no regex gets escaped) or
-    // should be followed by % or _ (otherwise an exception is thrown)
+    // should be followed by * or ? or the escape character itself (otherwise an exception is thrown).
+    // Using * or ? as escape characters should be avoided because it will make it impossible to enter them as literals
     public static String wildcardToJavaPattern(String pattern, char escape) {
         StringBuilder regex = new StringBuilder(pattern.length() + 4);
 
@@ -157,7 +158,7 @@ public final class StringUtils {
                     case '*' -> regex.append(escaped ? "\\*" : ".*");
                     case '?' -> regex.append(escaped ? "\\?" : ".");
                     default -> {
-                        if (escaped) {
+                        if (escaped && escape != curr) {
                             throw new InvalidArgumentException(INVALID_REGEX_SEQUENCE);
                         }
                         // escape special regex characters

@@ -202,6 +202,7 @@ public class MemoryMetricsService implements ClusterStateListener {
 
         private synchronized void update(String metricShardNodeId) {
             this.metricShardNodeId = metricShardNodeId;
+            this.seqNo = 0;
         }
 
         // visible for testing
@@ -217,6 +218,11 @@ public class MemoryMetricsService implements ClusterStateListener {
         // visible for testing
         synchronized String getMetricShardNodeId() {
             return metricShardNodeId;
+        }
+
+        // visible for testing
+        synchronized long getSeqNo() {
+            return seqNo;
         }
     }
 }

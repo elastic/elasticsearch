@@ -8,12 +8,20 @@
 
 package org.elasticsearch.features;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 
 public class ClusterFeaturesIT extends ESIntegTestCase {
 
+    @SuppressForbidden(reason = "Directly checking node features in cluster state")
     public void testClusterHasFeatures() {
         internalCluster().startNodes(2);
         ensureGreen();
@@ -21,5 +29,15 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
         FeatureService service = internalCluster().getCurrentMasterNodeInstance(FeatureService.class);
 
         assertThat(service.getNodeFeatures(), hasItem(FeatureService.FEATURES_SUPPORTED.id()));
+
+        // check the nodes all have a feature in their cluster state (there should always be features_supported)
+        var response = clusterAdmin().state(new ClusterStateRequest().clear().nodes(true)).actionGet();
+        var features = response.getState().clusterFeatures().nodeFeatures();
+        Set<String> missing = features.entrySet()
+            .stream()
+            .filter(e -> e.getValue().contains(FeatureService.FEATURES_SUPPORTED.id()) == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        assertThat(missing + " out of " + features.keySet() + " does not have the required feature", missing, empty());
     }
 }

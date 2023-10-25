@@ -8,7 +8,6 @@
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -32,6 +31,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
 public class IndexingIT extends ESRestTestCase {
+    protected static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -188,7 +190,7 @@ public class IndexingIT extends ESRestTestCase {
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
             numDocs += indexDocs(index, 0, numberOfInitialDocs);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             logger.info("allowing shards on all nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
             ensureGreen(index);
@@ -199,7 +201,7 @@ public class IndexingIT extends ESRestTestCase {
             final int numberOfDocsAfterAllowingShardsOnAllNodes = 1 + randomInt(5);
             logger.info("indexing [{}] docs after allowing shards on all nodes", numberOfDocsAfterAllowingShardsOnAllNodes);
             numDocs += indexDocs(index, numDocs, numberOfDocsAfterAllowingShardsOnAllNodes);
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : 0, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             Shard primary = buildShards(index, nodes, newNodeClient).stream().filter(Shard::primary).findFirst().get();
             logger.info("moving primary to new node by excluding {}", primary.node().nodeName());
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.exclude._name", primary.node().nodeName()));
@@ -209,7 +211,7 @@ public class IndexingIT extends ESRestTestCase {
             logger.info("indexing [{}] docs after moving primary", numberOfDocsAfterMovingPrimary);
             numDocsOnNewPrimary += indexDocs(index, numDocs, numberOfDocsAfterMovingPrimary);
             numDocs += numberOfDocsAfterMovingPrimary;
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
             /*
              * Dropping the number of replicas to zero, and then increasing it to one triggers a recovery thus exercising any BWC-logic in
              * the recovery code.
@@ -228,7 +230,7 @@ public class IndexingIT extends ESRestTestCase {
             for (Shard shard : buildShards(index, nodes, newNodeClient)) {
                 assertCount(index, "_only_nodes:" + shard.node.nodeName, numDocs);
             }
-            assertSeqNoOnShards(index, nodes, nodes.getBWCVersion().major >= 6 ? numDocs : numDocsOnNewPrimary, newNodeClient);
+            assertSeqNoOnShards(index, nodes, numDocs, newNodeClient);
         }
     }
 
@@ -283,9 +285,36 @@ public class IndexingIT extends ESRestTestCase {
         request.setJsonEntity("{\"indices\": \"" + index + "\"}");
     }
 
+    /**
+     * Tries to extract a major version from a version string, if this is in the major.minor.revision format
+     * @param version a string representing a version. Can be opaque or semantic
+     * @return Optional.empty() if the format is not recognized, or an Optional containing the major Integer otherwise
+     */
+    private static Optional<Integer> extractLegacyMajorVersion(String version) {
+        var semanticVersionMatcher = Pattern.compile("^(\\d+)\\.\\d+\\.\\d+\\D?.*").matcher(version);
+        if (semanticVersionMatcher.matches() == false) {
+            return Optional.empty();
+        }
+        var major = Integer.parseInt(semanticVersionMatcher.group(1));
+        return Optional.of(major);
+    }
+
+    private static boolean syncedFlushDeprecated() {
+        // Only versions past 8.10 can be non-semantic, so we can safely assume that non-semantic versions have this "feature"
+        return extractLegacyMajorVersion(BWC_NODES_VERSION).map(m -> m >= 7).orElse(true);
+    }
+
+    private static boolean syncedFlushRemoved() {
+        // Only versions past 8.10 can be non-semantic, so we can safely assume that non-semantic versions have this "feature"
+        return extractLegacyMajorVersion(BWC_NODES_VERSION).map(m -> m >= 8).orElse(true);
+    }
+
     public void testSyncedFlushTransition() throws Exception {
         Nodes nodes = buildNodeAndVersions();
-        assumeTrue("bwc version is on 7.x", nodes.getBWCVersion().before(Version.V_8_0_0));
+        assumeTrue(
+            "bwc version is on 7.x (synced flush deprecated but not removed yet)",
+            syncedFlushDeprecated() && syncedFlushRemoved() == false
+        );
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
         // Allocate shards to new nodes then verify synced flush requests processed by old nodes/new nodes
@@ -496,13 +525,13 @@ public class IndexingIT extends ESRestTestCase {
         Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Nodes nodes = new Nodes();
+        Nodes nodes = new Nodes(BWC_NODES_VERSION);
         for (String id : nodesAsMap.keySet()) {
             nodes.add(
                 new Node(
                     id,
                     objectPath.evaluate("nodes." + id + ".name"),
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    objectPath.evaluate("nodes." + id + ".version"),
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );
@@ -514,7 +543,12 @@ public class IndexingIT extends ESRestTestCase {
 
     static final class Nodes extends HashMap<String, Node> {
 
+        private final String bwcNodesVersion;
         private String masterNodeId = null;
+
+        Nodes(String bwcNodesVersion) {
+            this.bwcNodesVersion = bwcNodesVersion;
+        }
 
         public Node getMaster() {
             return get(masterNodeId);
@@ -532,20 +566,11 @@ public class IndexingIT extends ESRestTestCase {
         }
 
         public List<Node> getNewNodes() {
-            Version bwcVersion = getBWCVersion();
-            return values().stream().filter(n -> n.version().after(bwcVersion)).collect(Collectors.toList());
+            return values().stream().filter(n -> n.version().equals(bwcNodesVersion) == false).collect(Collectors.toList());
         }
 
         public List<Node> getBWCNodes() {
-            Version bwcVersion = getBWCVersion();
-            return values().stream().filter(n -> n.version().equals(bwcVersion)).collect(Collectors.toList());
-        }
-
-        public Version getBWCVersion() {
-            if (isEmpty()) {
-                throw new IllegalStateException("no nodes available");
-            }
-            return Version.fromId(values().stream().map(node -> node.version().id).min(Integer::compareTo).get());
+            return values().stream().filter(n -> n.version().equals(bwcNodesVersion)).collect(Collectors.toList());
         }
 
         public Node getSafe(String id) {
@@ -567,7 +592,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
-    record Node(String id, String nodeName, Version version, HttpHost publishAddress) {}
+    record Node(String id, String nodeName, String version, HttpHost publishAddress) {}
 
     record Shard(Node node, boolean primary, SeqNoStats seqNoStats) {}
 }

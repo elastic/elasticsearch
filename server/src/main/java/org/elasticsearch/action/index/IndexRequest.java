@@ -106,7 +106,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private boolean isPipelineResolved;
 
-    private boolean isFieldInferenceResolved;
+    private boolean isFieldInferenceDone;
 
     private boolean requireAlias;
     /**
@@ -192,7 +192,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
-        isFieldInferenceResolved = in.getTransportVersion().before(SEMANTIC_TEXT_FIELD_ADDED) || in.readBoolean();
+        isFieldInferenceDone = in.getTransportVersion().before(SEMANTIC_TEXT_FIELD_ADDED) || in.readBoolean();
     }
 
     public IndexRequest() {
@@ -380,13 +380,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Sets if field inference for this request has been resolved by the coordinating node.
+     * Sets if field inference for this request has been done by the coordinating node.
      *
-     * @param isFieldInferenceResolved true if the field inference has been resolved
+     * @param isFieldInferenceDone true if the field inference has been resolved
      * @return the request
      */
-    public IndexRequest isFieldInferenceResolved(final boolean isFieldInferenceResolved) {
-        this.isFieldInferenceResolved = isFieldInferenceResolved;
+    public IndexRequest isFieldInferenceDone(final boolean isFieldInferenceDone) {
+        this.isFieldInferenceDone = isFieldInferenceDone;
         return this;
     }
 
@@ -395,8 +395,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      *
      * @return true if the pipeline has been resolved
      */
-    public boolean isFieldInferenceResolved() {
-        return this.isFieldInferenceResolved;
+    public boolean isFieldInferenceDone() {
+        return this.isFieldInferenceDone;
     }
 
     /**
@@ -780,7 +780,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
         if (out.getTransportVersion().onOrAfter(SEMANTIC_TEXT_FIELD_ADDED)) {
-            out.writeBoolean(isFieldInferenceResolved);
+            out.writeBoolean(isFieldInferenceDone);
         }
     }
 

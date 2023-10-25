@@ -18,6 +18,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -545,7 +547,7 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
 
     @Override
     public boolean hasBeenProcessed(IndexRequest indexRequest) {
-        return indexRequest.isPipelineResolved();
+        return hasPipeline(indexRequest) && indexRequest.isPipelineResolved();
     }
 
     @Override
@@ -561,6 +563,8 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
         IntConsumer onDropped,
         final BiConsumer<Integer, Exception> onFailure
     ) {
+        assert indexRequest.isPipelineResolved();
+
         IngestService.PipelineIterator pipelines = getAndResetPipelines(indexRequest);
         if (pipelines.hasNext() == false) {
             return;
@@ -1340,10 +1344,6 @@ public class IngestService extends AbstractBulkRequestPreprocessor implements Cl
         finalPipeline = Objects.requireNonNullElse(finalPipeline, NOOP_PIPELINE_NAME);
 
         return Optional.of(new Pipelines(defaultPipeline, finalPipeline));
-    }
-
-    public boolean needsProcessing(IndexRequest indexRequest) {
-        return hasPipeline(indexRequest);
     }
 
     /**

@@ -42,6 +42,7 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
         IntConsumer onDropped,
         final BiConsumer<Integer, Exception> onFailure
     ) {
+        assert indexRequest.isFieldInferenceDone() == false;
 
         String index = indexRequest.index();
         Map<String, Object> sourceMap = indexRequest.sourceAsMap();
@@ -52,13 +53,13 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
 
     @Override
     public boolean needsProcessing(DocWriteRequest<?> docWriteRequest, IndexRequest indexRequest, Metadata metadata) {
-        return (indexRequest.isFieldInferenceResolved() == false)
+        return (indexRequest.isFieldInferenceDone() == false)
             && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
     }
 
     @Override
     public boolean hasBeenProcessed(IndexRequest indexRequest) {
-        return indexRequest.isFieldInferenceResolved();
+        return indexRequest.isFieldInferenceDone();
     }
 
     @Override
@@ -100,17 +101,21 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
             public void onResponse(InferenceAction.Response response) {
                 ingestDocument.setFieldValue(fieldName + "_inference", response.getResult().asMap(fieldName).get(fieldName));
                 updateIndexRequestSource(indexRequest, ingestDocument);
-                indexRequest.isFieldInferenceResolved(true);
             }
 
             @Override
             public void onFailure(Exception e) {
-                onFailure.accept(position, e);
+                // Wrap exception in an illegal argument exception, as there is a problem with the model or model config
+                onFailure.accept(
+                    position,
+                    new IllegalArgumentException("Error performing inference for field [" + fieldName + "]: " + e.getMessage(), e)
+                );
                 ingestMetric.ingestFailed();
             }
         }, () -> {
             // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
             // that we're finished with this document
+            indexRequest.isFieldInferenceDone(true);
             final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
             ingestMetric.postIngest(ingestTimeInNanos);
             refs.close();

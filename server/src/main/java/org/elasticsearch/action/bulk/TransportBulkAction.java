@@ -790,18 +790,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
 
             if (needsProcessing) {
-                // this method (doExecute) will be called again, but with the bulk requests updated from the ingest node processing but
-                // also with requests updated with processing information. This ensures that this on the second time through this method
-                // this path is never taken.
                 ActionListener.run(listener, l -> {
-                    if (Assertions.ENABLED) {
-                        final boolean allRequestsUnprocessed = bulkRequest.requests()
-                            .stream()
-                            .map(TransportBulkAction::getIndexWriteRequest)
-                            .filter(Objects::nonNull)
-                            .noneMatch(preprocessor::hasBeenProcessed);
-                        assert allRequestsUnprocessed : bulkRequest;
-                    }
                     if ((preprocessor.shouldExecuteOnIngestNode() == false) || clusterService.localNode().isIngestNode()) {
                         preprocessBulkRequestWithPreprocessor(preprocessor, task, bulkRequest, executorName, l);
                     } else {

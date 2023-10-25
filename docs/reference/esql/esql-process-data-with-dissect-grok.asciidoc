@@ -1,8 +1,8 @@
 [[esql-process-data-with-dissect-and-grok]]
-=== Process data with `DISSECT` and `GROK`
+=== Data processing with `DISSECT` and `GROK`
 
 ++++
-<titleabbrev>Process data with DISSECT and GROK</titleabbrev>
+<titleabbrev>Data processing with `DISSECT` and `GROK`</titleabbrev>
 ++++
 
 Your data may contain unstructured strings that you want to structure. This

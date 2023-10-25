@@ -16,6 +16,10 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import java.io.Closeable;
 
 public interface Sender extends Closeable {
+
+    /**
+     * Must be called prior to calling send. Must be idempotent.
+     */
     void start();
 
     void send(HttpRequestBase request, ActionListener<HttpResult> listener);

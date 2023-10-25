@@ -97,6 +97,8 @@ public class HuggingFaceElserService implements InferenceService {
         }
 
         createSender();
+        // In the event that this node is restarted we need to start the sender. This will do nothing if it already started.
+        sender.get().start();
 
         HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
         HuggingFaceElserAction action = new HuggingFaceElserAction(

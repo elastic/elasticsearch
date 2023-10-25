@@ -32,6 +32,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -65,7 +66,6 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -592,8 +592,13 @@ class S3BlobContainer extends AbstractBlobContainer {
                 return;
             }
 
+            // Step 1: Start our upload and upload the new contents as its unique part.
+
             final var uploadId = initiateMultipartUpload();
             final var partETag = uploadPart(updated, uploadId);
+
+            // Step 2: List all uploads that are racing to complete, and compute our position in the list.
+
             final var currentUploads = listMultipartUploads();
             final var uploadIndex = getUploadIndex(uploadId, currentUploads);
 
@@ -603,48 +608,17 @@ class S3BlobContainer extends AbstractBlobContainer {
                 return;
             }
 
-            final var isComplete = new AtomicBoolean();
-            final Runnable doCleanup = () -> {
-                if (isComplete.compareAndSet(false, true)) {
-                    safeAbortMultipartUpload(uploadId);
-                }
-            };
+            SubscribableListener
 
-            try (
-                var listeners = new RefCountingListener(
-                    ActionListener.runAfter(
-                        listener.delegateFailure(
-                            (delegate1, ignored) -> getRegister(
-                                purpose,
-                                rawKey,
-                                delegate1.delegateFailure((delegate2, currentValue) -> ActionListener.completeWith(delegate2, () -> {
-                                    if (currentValue.isPresent() && currentValue.bytesReference().equals(expected)) {
-                                        completeMultipartUpload(uploadId, partETag);
-                                        isComplete.set(true);
-                                    }
-                                    return currentValue;
-                                }))
-                            )
-                        ),
-                        doCleanup
-                    )
-                )
-            ) {
-                if (currentUploads.size() > 1) {
+                // Step 3: Cancel all the other uploads against which we are racing, leaving some time if we are not first in the queue to
+                // give them some time to complete.
+
+                .<Void>newForked(otherUploadsCancelledListener -> {
                     // This is a small optimization to improve the liveness properties of this algorithm.
                     //
                     // When there are multiple competing updates, we order them by upload id and the first one tries to cancel the competing
                     // updates in order to make progress. To avoid liveness issues when the winner fails, the rest wait based on their
                     // upload_id-based position and try to make progress.
-
-                    var delayListener = listeners.acquire();
-                    final Runnable cancelConcurrentUpdates = () -> {
-                        try {
-                            cancelOtherUploads(uploadId, currentUploads, listeners);
-                        } finally {
-                            delayListener.onResponse(null);
-                        }
-                    };
 
                     if (uploadIndex > 0) {
                         threadPool.scheduleUnlessShuttingDown(
@@ -652,13 +626,42 @@ class S3BlobContainer extends AbstractBlobContainer {
                                 uploadIndex * blobStore.getCompareAndExchangeAntiContentionDelay().millis() + Randomness.get().nextInt(50)
                             ),
                             blobStore.getSnapshotExecutor(),
-                            cancelConcurrentUpdates
+                            ActionRunnable.wrap(otherUploadsCancelledListener, l -> cancelOtherUploads(uploadId, currentUploads, l))
                         );
                     } else {
-                        cancelConcurrentUpdates.run();
+                        cancelOtherUploads(uploadId, currentUploads, otherUploadsCancelledListener);
                     }
-                }
-            }
+                })
+
+                // Step 4: Read the current register value.
+
+                .<OptionalBytesReference>andThen((l, ignored) -> getRegister(purpose, rawKey, l))
+
+                // Step 5: Perform the compare-and-swap by completing our upload iff the witnessed value matches the expected value.
+
+                .<OptionalBytesReference>andThen((l, currentValue) -> ActionListener.completeWith(l, () -> {
+                    if (currentValue.isPresent() && currentValue.bytesReference().equals(expected)) {
+                        completeMultipartUpload(uploadId, partETag);
+                    } else {
+                        // Best-effort attempt to clean up after ourselves.
+                        safeAbortMultipartUpload(uploadId);
+                    }
+                    return currentValue;
+                }))
+
+                // Step 6: Complete the listener.
+
+                .addListener(listener.delegateResponse((l, e) -> {
+                    // Best-effort attempt to clean up after ourselves.
+                    safeAbortMultipartUpload(uploadId);
+                    l.onFailure(e);
+                }));
+
+            // No compare-and-exchange operations that started before ours can write to the register (in its step 5) after we have read the
+            // current value of the register (in our step 4) because we have ensured all earlier operations have completed (in our step 3).
+            // Conversely, if some other compare-and-exchange operation started after us then it will not read the register (in its step 4)
+            // until it has ensured we will not do a future write to the register (in our step 5) by cancelling all the racing uploads that
+            // it observed (in its step 3). Thus steps 4 and 5 can only complete successfully with no intervening writes to the register.
         }
 
         /**
@@ -756,12 +759,14 @@ class S3BlobContainer extends AbstractBlobContainer {
             return found ? uploadIndex : -1;
         }
 
-        private void cancelOtherUploads(String uploadId, List<MultipartUpload> currentUploads, RefCountingListener listeners) {
-            for (final var currentUpload : currentUploads) {
-                final var currentUploadId = currentUpload.getUploadId();
-                if (uploadId.equals(currentUploadId) == false) {
-                    blobStore.getSnapshotExecutor()
-                        .execute(ActionRunnable.run(listeners.acquire(), () -> abortMultipartUploadIfExists(currentUploadId)));
+        private void cancelOtherUploads(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {
+            final var executor = blobStore.getSnapshotExecutor();
+            try (var listeners = new RefCountingListener(listener)) {
+                for (final var currentUpload : currentUploads) {
+                    final var currentUploadId = currentUpload.getUploadId();
+                    if (uploadId.equals(currentUploadId) == false) {
+                        executor.execute(ActionRunnable.run(listeners.acquire(), () -> abortMultipartUploadIfExists(currentUploadId)));
+                    }
                 }
             }
         }

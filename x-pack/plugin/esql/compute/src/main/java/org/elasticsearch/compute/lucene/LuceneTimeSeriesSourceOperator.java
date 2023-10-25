@@ -27,6 +27,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -215,7 +216,7 @@ public final class LuceneTimeSeriesSourceOperator extends LuceneOperator {
 
             List<SortBuilder<?>> sorts = List.of(
                 new FieldSortBuilder(TimeSeriesIdFieldMapper.NAME),
-                new FieldSortBuilder(DataStream.TIMESTAMP_FIELD_NAME)
+                new FieldSortBuilder(DataStream.TIMESTAMP_FIELD_NAME, SortOrder.DESC)
             );
             Optional<SortAndFormats> sortAndFormats = SortBuilder.buildSort(sorts, searchContext.getSearchExecutionContext());
             if (sortAndFormats.isEmpty()) {

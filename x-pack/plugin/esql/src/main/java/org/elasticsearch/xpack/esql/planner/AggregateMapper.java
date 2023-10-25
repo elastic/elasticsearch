@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastValue;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Median;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
@@ -53,6 +54,7 @@ public class AggregateMapper {
     static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
         Count.class,
         CountDistinct.class,
+        LastValue.class,
         Max.class,
         Median.class,
         MedianAbsoluteDeviation.class,

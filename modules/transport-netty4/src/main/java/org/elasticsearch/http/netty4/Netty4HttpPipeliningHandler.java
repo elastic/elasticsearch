@@ -161,7 +161,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
             success = true;
             // see if we have any queued up responses that became writeable due to the above write
             doWriteQueued(ctx);
-        } catch (IllegalStateException e) {
+        } catch (Exception e) {
             ctx.channel().close();
         } finally {
             if (success == false) {

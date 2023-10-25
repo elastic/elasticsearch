@@ -3,9 +3,9 @@
   "priority": 100,
   "data_stream": {},
   "composed_of": [
-    "synthetics-mappings",
-    "data-streams-mappings",
-    "synthetics-settings"
+    "synthetics@mappings",
+    "data-streams@mappings",
+    "synthetics@settings"
   ],
   "allow_auto_create": true,
   "_meta": {

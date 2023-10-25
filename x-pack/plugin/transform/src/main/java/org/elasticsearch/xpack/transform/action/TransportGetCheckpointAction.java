@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.CancellableTask;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -89,7 +91,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             return;
         }
 
-        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), listener).start();
+        new AsyncGetCheckpointsFromNodesAction(state, task, nodesAndShards, new OriginalIndices(request), request.getTimeout(), listener)
+            .start();
     }
 
     private static Map<String, Set<ShardId>> resolveIndicesToPrimaryShards(ClusterState state, String[] concreteIndices) {
@@ -127,6 +130,7 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         private final ActionListener<Response> listener;
         private final Map<String, Set<ShardId>> nodesAndShards;
         private final OriginalIndices originalIndices;
+        private final TimeValue timeout;
         private final DiscoveryNodes nodes;
         private final String localNodeId;
 
@@ -135,12 +139,14 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             Task task,
             Map<String, Set<ShardId>> nodesAndShards,
             OriginalIndices originalIndices,
+            TimeValue timeout,
             ActionListener<Response> listener
         ) {
             this.task = task;
             this.listener = listener;
             this.nodesAndShards = nodesAndShards;
             this.originalIndices = originalIndices;
+            this.timeout = timeout;
             this.nodes = clusterState.nodes();
             this.localNodeId = clusterService.localNode().getId();
         }
@@ -163,6 +169,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                         indicesService,
                         task,
                         oneNodeAndItsShards.getValue(),
+                        timeout,
+                        Clock.systemUTC(),
                         groupedListener
                     );
                     continue;
@@ -170,7 +178,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
 
                 GetCheckpointNodeAction.Request nodeCheckpointsRequest = new GetCheckpointNodeAction.Request(
                     oneNodeAndItsShards.getValue(),
-                    originalIndices
+                    originalIndices,
+                    timeout
                 );
                 DiscoveryNode node = nodes.get(oneNodeAndItsShards.getKey());
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -41,8 +42,9 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
     protected Request mutateInstance(Request instance) {
         List<String> indices = instance.indices() != null ? new ArrayList<>(Arrays.asList(instance.indices())) : new ArrayList<>();
         IndicesOptions indicesOptions = instance.indicesOptions();
+        TimeValue timeout = instance.getTimeout();
 
-        switch (between(0, 1)) {
+        switch (between(0, 2)) {
             case 0:
                 indices.add(randomAlphaOfLengthBetween(1, 20));
                 break;
@@ -55,11 +57,14 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
                     SearchRequest.DEFAULT_INDICES_OPTIONS
                 );
                 break;
+            case 2:
+                timeout = timeout != null ? null : TimeValue.timeValueSeconds(randomIntBetween(1, 300));
+                break;
             default:
                 throw new AssertionError("Illegal randomization branch");
         }
 
-        return new Request(indices.toArray(new String[0]), indicesOptions);
+        return new Request(indices.toArray(new String[0]), indicesOptions, timeout);
     }
 
     public void testCreateTask() {
@@ -69,7 +74,7 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
     }
 
     public void testCreateTaskWithNullIndices() {
-        Request request = new Request(null, null);
+        Request request = new Request(null, null, null);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint[0]")));
     }
@@ -83,7 +88,8 @@ public class GetCheckpointActionRequestTests extends AbstractWireSerializingTest
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),
                 SearchRequest.DEFAULT_INDICES_OPTIONS
-            )
+            ),
+            randomBoolean() ? TimeValue.timeValueSeconds(randomIntBetween(1, 300)) : null
         );
     }
 }

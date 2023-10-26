@@ -171,4 +171,10 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
         assertThat(results, hasSize(pages));
     }
+
+    @Override
+    protected DriverContext driverContext() {
+        return nonBreakingDriverContext();
+    }
+
 }

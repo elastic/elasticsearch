@@ -100,17 +100,7 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
     /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
-        return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
-    }
-
-    private final List<CircuitBreaker> breakers = new ArrayList<>();
-    private final List<BlockFactory> blockFactories = new ArrayList<>();
-
-    /**
-     * A {@link DriverContext} with a breaking {@link BigArrays} and {@link BlockFactory}.
-     */
-    protected DriverContext breakingDriverContext() { // TODO move this to driverContext once everyone supports breaking
+    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
@@ -118,6 +108,13 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
         blockFactories.add(factory);
         return new DriverContext(bigArrays, factory);
     }
+
+    protected final DriverContext nonBreakingDriverContext() { // TODO drop this once the driverContext method isn't overrideable
+        return new DriverContext(nonBreakingBigArrays(), BlockFactory.getNonBreakingInstance());
+    }
+
+    private final List<CircuitBreaker> breakers = new ArrayList<>();
+    private final List<BlockFactory> blockFactories = new ArrayList<>();
 
     @After
     public void allBreakersEmpty() throws Exception {

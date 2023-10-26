@@ -384,9 +384,4 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         }
         assertDriverContext(driverContext);
     }
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
 }

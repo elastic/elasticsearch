@@ -140,7 +140,7 @@ public abstract class Plugin implements Closeable {
         IndicesService indicesService();
 
         /**
-         * A service to get information on cluster features
+         * A service to access features supported by nodes in the cluster
          */
         FeatureService featureService();
     }

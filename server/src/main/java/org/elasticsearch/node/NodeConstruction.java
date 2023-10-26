@@ -745,84 +745,42 @@ class NodeConstruction {
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
-        Plugin.PluginServices services = new Plugin.PluginServices() {
-            @Override
-            public Client client() {
-                return client;
-            }
+        record PluginServiceInstances(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            TelemetryProvider telemetryProvider,
+            AllocationService allocationService,
+            IndicesService indicesService,
+            FeatureService featureService
+        ) implements Plugin.PluginServices {}
+        PluginServiceInstances pluginServices = new PluginServiceInstances(
+            client,
+            clusterService,
+            threadPool,
+            resourceWatcherService,
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            clusterModule.getIndexNameExpressionResolver(),
+            repositoriesServiceReference::get,
+            telemetryProvider,
+            clusterModule.getAllocationService(),
+            indicesService,
+            featureService
+        );
 
-            @Override
-            public ClusterService clusterService() {
-                return clusterService;
-            }
-
-            @Override
-            public ThreadPool threadPool() {
-                return threadPool;
-            }
-
-            @Override
-            public ResourceWatcherService resourceWatcherService() {
-                return resourceWatcherService;
-            }
-
-            @Override
-            public ScriptService scriptService() {
-                return scriptService;
-            }
-
-            @Override
-            public NamedXContentRegistry xContentRegistry() {
-                return xContentRegistry;
-            }
-
-            @Override
-            public Environment environment() {
-                return environment;
-            }
-
-            @Override
-            public NodeEnvironment nodeEnvironment() {
-                return nodeEnvironment;
-            }
-
-            @Override
-            public NamedWriteableRegistry namedWriteableRegistry() {
-                return namedWriteableRegistry;
-            }
-
-            @Override
-            public IndexNameExpressionResolver indexNameExpressionResolver() {
-                return clusterModule.getIndexNameExpressionResolver();
-            }
-
-            @Override
-            public Supplier<RepositoriesService> repositoriesServiceSupplier() {
-                return repositoriesServiceReference::get;
-            }
-
-            @Override
-            public TelemetryProvider telemetryProvider() {
-                return telemetryProvider;
-            }
-
-            @Override
-            public AllocationService allocationService() {
-                return clusterModule.getAllocationService();
-            }
-
-            @Override
-            public IndicesService indicesService() {
-                return indicesService;
-            }
-
-            @Override
-            public FeatureService featureService() {
-                return featureService;
-            }
-        };
-
-        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(services)).toList();
+        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
 
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 

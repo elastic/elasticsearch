@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -39,30 +36,18 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
 
-    private static final Map<
-        DataType,
-        TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>> EVALUATORS = Map.of(
-            KEYWORD,
-            (fieldEval, source, driverContext) -> fieldEval,
-            BOOLEAN,
-            ToStringFromBooleanEvaluator::new,
-            DATETIME,
-            ToStringFromDatetimeEvaluator::new,
-            IP,
-            ToStringFromIPEvaluator::new,
-            DOUBLE,
-            ToStringFromDoubleEvaluator::new,
-            LONG,
-            ToStringFromLongEvaluator::new,
-            INTEGER,
-            ToStringFromIntEvaluator::new,
-            TEXT,
-            (fieldEval, source, driverContext) -> fieldEval,
-            VERSION,
-            ToStringFromVersionEvaluator::new,
-            UNSIGNED_LONG,
-            ToStringFromUnsignedLongEvaluator::new
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
+        Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
+        Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
+        Map.entry(IP, ToStringFromIPEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
+        Map.entry(TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new)
+    );
 
     public ToString(
         Source source,
@@ -75,9 +60,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     }
 
     @Override
-    protected
-        Map<DataType, TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>>
-        evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

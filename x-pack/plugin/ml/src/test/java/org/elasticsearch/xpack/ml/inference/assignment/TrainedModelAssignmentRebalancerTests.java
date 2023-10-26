@@ -658,8 +658,8 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
     public void testRebalance_GivenLowPriorityModelToAdd_NotEnoughMemoryNorProcessors() throws Exception {
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
-        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 1);
-        DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 1);
+        DiscoveryNode node1 = buildNode("node-1", nodeMemoryBytes, 8);
+        DiscoveryNode node2 = buildNode("node-2", nodeMemoryBytes, 8);
 
         Map<DiscoveryNode, NodeLoad> nodeLoads = new HashMap<>();
         nodeLoads.put(node1, NodeLoad.builder("node-1").setMaxMemory(nodeMemoryBytes).build());

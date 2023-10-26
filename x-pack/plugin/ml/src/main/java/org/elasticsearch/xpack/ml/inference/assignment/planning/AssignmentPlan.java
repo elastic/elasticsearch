@@ -73,7 +73,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return maxAssignedAllocations > 0;
         }
 
-        long estimateMemoryUsageBytes(int allocations) {
+        public long estimateMemoryUsageBytes(int allocations) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
                 id,
                 memoryBytes,

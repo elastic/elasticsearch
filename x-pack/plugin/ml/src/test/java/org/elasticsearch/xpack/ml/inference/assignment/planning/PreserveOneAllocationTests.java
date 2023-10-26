@@ -39,7 +39,6 @@ public class PreserveOneAllocationTests extends ESTestCase {
     public void testGivenPreviousAssignments() {
         {
             // old memory format
-
             Node node1 = new Node("n_1", ByteSizeValue.ofMb(640).getBytes(), 8);
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
             Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, 0, 0);

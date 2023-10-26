@@ -140,7 +140,8 @@ class TrainedModelAssignmentRebalancer {
                 if (m.currentAllocationsByNodeId().containsKey(originalNode.id())) {
                     // As the node has all its available memory we need to manually account memory of models with
                     // current allocations.
-                    dest.accountMemory(m, originalNode);
+                    long requiredMemory = m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId().get(originalNode.id()));
+                    dest.accountMemory(m, originalNode, requiredMemory);
                 }
             }
         }

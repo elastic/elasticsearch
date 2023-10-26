@@ -154,14 +154,14 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
+            SearchResponse countResponse = prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
             assertNoFailures(countResponse);
             assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // count with no query is a match all one
-            countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
+            countResponse = prepareSearch("test").setSize(0).execute().actionGet();
             assertThat(
                 "Failures " + countResponse.getShardFailures(),
                 countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,

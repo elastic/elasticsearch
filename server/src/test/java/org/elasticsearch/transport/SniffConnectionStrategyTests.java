@@ -34,6 +34,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.VersionUtils;
@@ -374,7 +375,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         VersionInformation incompatibleVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion(),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
         TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
@@ -453,7 +454,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         VersionInformation incompatibleVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion(),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
         TransportVersion incompatibleTransportVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
@@ -1086,7 +1087,7 @@ public class SniffConnectionStrategyTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(random());
         DiscoveryNode node = DiscoveryNodeUtils.builder("id")
             .address(address)
-            .version(version, IndexVersion.ZERO, IndexVersion.current())
+            .version(version, IndexVersions.ZERO, IndexVersion.current())
             .build();
         assertThat(nodePredicate.test(node), equalTo(Version.CURRENT.isCompatible(version)));
     }

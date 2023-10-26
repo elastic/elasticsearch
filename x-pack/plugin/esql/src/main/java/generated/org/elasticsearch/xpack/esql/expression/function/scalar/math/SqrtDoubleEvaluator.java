@@ -91,4 +91,25 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public SqrtDoubleEvaluator get(DriverContext context) {
+      return new SqrtDoubleEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SqrtDoubleEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

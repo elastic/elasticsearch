@@ -351,7 +351,6 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 .addAlias(new Alias("test_alias_2"))
                 .addAlias(new Alias("test_alias_3"))
                 .addAlias(new Alias("test_alias_4"))
-                .get()
         );
         // ok: user has manage_aliases on test_*
         assertAcked(client.admin().indices().prepareAliases().removeAlias("test_1", "test_alias_1").get());
@@ -824,11 +823,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         final Client aliasesClient = client(aliasHeaders);
 
         assertAcked(
-            createClient.admin()
-                .indices()
-                .prepareCreate(hiddenIndex)
-                .setSettings(Settings.builder().put("index.hidden", true).build())
-                .get()
+            createClient.admin().indices().prepareCreate(hiddenIndex).setSettings(Settings.builder().put("index.hidden", true).build())
         );
 
         assertAcked(

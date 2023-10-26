@@ -564,7 +564,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         1
                     )
                 ) {
-                    leafSlices = contextIndexSearcher.getSlicesForCollection();
+                    leafSlices = contextIndexSearcher.getSlices();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);
                     for (int i = 0; i < numThrowingLeafSlices; i++) {
                         LeafSlice throwingLeafSlice = leafSlices[randomIntBetween(0, Math.min(leafSlices.length, numAvailableThreads) - 1)];
@@ -700,7 +700,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         1
                     )
                 ) {
-                    leafSlices = contextIndexSearcher.getSlicesForCollection();
+                    leafSlices = contextIndexSearcher.getSlices();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);
                     for (int i = 0; i < numThrowingLeafSlices; i++) {
                         LeafSlice throwingLeafSlice = leafSlices[randomIntBetween(0, Math.min(leafSlices.length, numAvailableThreads) - 1)];

@@ -85,4 +85,22 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianDoubleEvaluator get(DriverContext context) {
+      return new MvMedianDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
+    }
+  }
 }

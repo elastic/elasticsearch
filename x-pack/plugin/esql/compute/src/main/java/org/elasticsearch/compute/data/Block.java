@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
@@ -160,7 +161,7 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
-    interface Builder extends Releasable {
+    interface Builder extends BlockLoader.Builder, Releasable {
 
         /**
          * Appends a null value to the block.

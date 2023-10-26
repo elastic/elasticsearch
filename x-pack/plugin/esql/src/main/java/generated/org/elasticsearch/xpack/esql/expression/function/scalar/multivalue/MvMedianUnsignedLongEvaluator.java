@@ -135,4 +135,22 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianUnsignedLongEvaluator get(DriverContext context) {
+      return new MvMedianUnsignedLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
+    }
+  }
 }

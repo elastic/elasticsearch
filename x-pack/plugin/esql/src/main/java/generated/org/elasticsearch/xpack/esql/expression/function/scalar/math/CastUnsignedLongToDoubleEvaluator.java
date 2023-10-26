@@ -77,4 +77,22 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastUnsignedLongToDoubleEvaluator get(DriverContext context) {
+      return new CastUnsignedLongToDoubleEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastUnsignedLongToDoubleEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

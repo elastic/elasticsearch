@@ -54,9 +54,17 @@ import static java.util.Collections.emptyMap;
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
 
-    private static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
+    static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
         "repository_s3.compare_and_exchange.time_to_live",
         StoreHeartbeatService.HEARTBEAT_FREQUENCY,
+        Setting.Property.NodeScope
+    );
+
+    static final Setting<TimeValue> REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING = Setting.timeSetting(
+        "repository_s3.compare_and_exchange.anti_contention_delay",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueHours(24),
         Setting.Property.NodeScope
     );
 
@@ -79,6 +87,7 @@ class S3Service implements Closeable {
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
     final TimeValue compareAndExchangeTimeToLive;
+    final TimeValue compareAndExchangeAntiContentionDelay;
 
     S3Service(Environment environment, Settings nodeSettings) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
@@ -88,6 +97,7 @@ class S3Service implements Closeable {
             Clock.systemUTC()
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
+        compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
     }
 
     /**

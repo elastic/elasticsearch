@@ -74,4 +74,22 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public NotEvaluator get(DriverContext context) {
+      return new NotEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NotEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

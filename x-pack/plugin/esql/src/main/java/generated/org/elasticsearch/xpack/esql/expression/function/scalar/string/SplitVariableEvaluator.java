@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -100,5 +101,30 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, delim);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory delim;
+
+    private final Function<DriverContext, BytesRef> scratch;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory delim, Function<DriverContext, BytesRef> scratch) {
+      this.str = str;
+      this.delim = delim;
+      this.scratch = scratch;
+    }
+
+    @Override
+    public SplitVariableEvaluator get(DriverContext context) {
+      return new SplitVariableEvaluator(str.get(context), delim.get(context), scratch.apply(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SplitVariableEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+    }
   }
 }

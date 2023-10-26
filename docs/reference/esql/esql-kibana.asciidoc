@@ -1,5 +1,5 @@
 [[esql-kibana]]
-== Using {esql} in {kib}
+=== Using {esql} in {kib}
 
 ++++
 <titleabbrev>Kibana</titleabbrev>

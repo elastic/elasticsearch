@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.readiness.MockReadinessService;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.readiness.MockReadinessService.tcpReadinessProbeFalse;
 import static org.elasticsearch.readiness.MockReadinessService.tcpReadinessProbeTrue;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
@@ -35,6 +37,19 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getMockPlugins());
         plugins.add(MockReadinessService.TestPlugin.class);
         return Collections.unmodifiableList(plugins);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(ShutdownPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(Settings.builder().put(ReadinessService.PORT.getKey(), 0).build());
+        return settings.build();
     }
 
     private void putNodeShutdown(String nodeId, SingleNodeShutdownMetadata.Type type, TimeValue allocationDelay) {
@@ -68,7 +83,7 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
 
     public void testShutdownReadinessService() throws Exception {
 
-        final String nodeName = internalCluster().startNode();
+        final String nodeName = internalCluster().startMasterOnlyNode();
         final String nodeId = getNodeId(nodeName);
 
         final var readinessService = internalCluster().getInstance(ReadinessService.class, nodeName);
@@ -77,8 +92,8 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
         tcpReadinessProbeTrue(readinessService);
 
         // Mark the node for shutdown and check that it's not ready
-        putNodeShutdown(nodeId, SingleNodeShutdownMetadata.Type.RESTART, TimeValue.timeValueMillis(1));
-        tcpReadinessProbeTrue(readinessService);
+        putNodeShutdown(nodeId, SingleNodeShutdownMetadata.Type.RESTART, TimeValue.timeValueMinutes(1));
+        tcpReadinessProbeFalse(readinessService);
 
         // Delete the shutdown request and verify that the node is ready again
         deleteNodeShutdown(nodeId);

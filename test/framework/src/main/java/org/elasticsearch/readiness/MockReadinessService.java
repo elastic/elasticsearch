@@ -100,7 +100,7 @@ public class MockReadinessService extends ReadinessService {
         }
     }
 
-    static void tcpReadinessProbeFalse(ReadinessService readinessService) {
+    public static void tcpReadinessProbeFalse(ReadinessService readinessService) {
         ServerSocketChannel mockedSocket = readinessService.serverChannel();
         if (mockedSocket != null && mockedSocket.isOpen()) {
             throw new AssertionError("Readiness socket should be closed");

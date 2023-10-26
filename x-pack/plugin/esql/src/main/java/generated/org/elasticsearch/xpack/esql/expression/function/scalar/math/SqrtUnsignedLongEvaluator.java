@@ -77,4 +77,22 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public SqrtUnsignedLongEvaluator get(DriverContext context) {
+      return new SqrtUnsignedLongEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SqrtUnsignedLongEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

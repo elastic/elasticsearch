@@ -100,4 +100,26 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   public void close() {
     Releasables.closeExpectNoException(str, suffix);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory suffix;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory suffix) {
+      this.str = str;
+      this.suffix = suffix;
+    }
+
+    @Override
+    public EndsWithEvaluator get(DriverContext context) {
+      return new EndsWithEvaluator(str.get(context), suffix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EndsWithEvaluator[" + "str=" + str + ", suffix=" + suffix + "]";
+    }
+  }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -360,7 +361,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             initWithSnapshotVersion(
                 repoName,
                 repoPath,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.V_8_9_0)
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_8_9_0)
             );
         }
     }
@@ -385,7 +386,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         repositoryData.snapshotsToXContent(jsonBuilder, version);
         final var currentVersionString = Strings.toString(jsonBuilder);
         final String oldVersionString;
-        if (version.onOrAfter(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+        if (version.onOrAfter(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
             oldVersionString = currentVersionString.replace(
                 ",\"index_version\":" + IndexVersion.current(),
                 ",\"index_version\":" + version

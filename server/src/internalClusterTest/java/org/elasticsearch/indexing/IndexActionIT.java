@@ -55,7 +55,7 @@ public class IndexActionIT extends ESIntegTestCase {
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
-                    SearchResponse response = client().prepareSearch("test").get();
+                    SearchResponse response = prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value
@@ -74,7 +74,7 @@ public class IndexActionIT extends ESIntegTestCase {
                 }
                 try {
                     logger.debug("running search with a specific type");
-                    SearchResponse response = client().prepareSearch("test").get();
+                    SearchResponse response = prepareSearch("test").get();
                     if (response.getHits().getTotalHits().value != numOfDocs) {
                         final String message = "Count is "
                             + response.getHits().getTotalHits().value

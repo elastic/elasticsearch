@@ -206,8 +206,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .should(QueryBuilders.termQuery("field3", "value"))
             )
             .get();
-        SearchResponse expected = client().prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
+        SearchResponse expected = prepareSearch("test").addSort("id", SortOrder.ASC)
             .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field1", "value")))
             .get();
         assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
@@ -226,8 +225,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .should(QueryBuilders.termQuery("field3", "value"))
             )
             .get();
-        expected = client().prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
+        expected = prepareSearch("test").addSort("id", SortOrder.ASC)
             .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field2", "value")))
             .get();
         assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));
@@ -246,8 +244,7 @@ public class FieldLevelSecurityRandomTests extends SecurityIntegTestCase {
                     .should(QueryBuilders.termQuery("field3", "value"))
             )
             .get();
-        expected = client().prepareSearch("test")
-            .addSort("id", SortOrder.ASC)
+        expected = prepareSearch("test").addSort("id", SortOrder.ASC)
             .setQuery(QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field3", "value")))
             .get();
         assertThat(actual.getHits().getTotalHits().value, equalTo(expected.getHits().getTotalHits().value));

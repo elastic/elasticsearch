@@ -99,4 +99,25 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToIP.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToIPFromStringEvaluator get(DriverContext context) {
+      return new ToIPFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToIPFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

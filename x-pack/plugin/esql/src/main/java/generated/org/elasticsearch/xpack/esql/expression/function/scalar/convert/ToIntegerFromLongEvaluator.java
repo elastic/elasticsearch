@@ -97,4 +97,25 @@ public final class ToIntegerFromLongEvaluator extends AbstractConvertFunction.Ab
     long value = container.getLong(index);
     return ToInteger.fromLong(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToIntegerFromLongEvaluator get(DriverContext context) {
+      return new ToIntegerFromLongEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToIntegerFromLongEvaluator[field=" + field + "]";
+    }
+  }
 }

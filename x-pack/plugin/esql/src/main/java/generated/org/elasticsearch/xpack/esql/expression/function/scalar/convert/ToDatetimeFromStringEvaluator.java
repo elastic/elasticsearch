@@ -100,4 +100,25 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToDatetime.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToDatetimeFromStringEvaluator get(DriverContext context) {
+      return new ToDatetimeFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDatetimeFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

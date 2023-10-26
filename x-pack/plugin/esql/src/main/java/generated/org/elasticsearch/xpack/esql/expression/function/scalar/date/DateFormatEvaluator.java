@@ -102,4 +102,29 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   public void close() {
     Releasables.closeExpectNoException(val, formatter);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory formatter;
+
+    private final Locale locale;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory formatter, Locale locale) {
+      this.val = val;
+      this.formatter = formatter;
+      this.locale = locale;
+    }
+
+    @Override
+    public DateFormatEvaluator get(DriverContext context) {
+      return new DateFormatEvaluator(val.get(context), formatter.get(context), locale, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateFormatEvaluator[" + "val=" + val + ", formatter=" + formatter + ", locale=" + locale + "]";
+    }
+  }
 }

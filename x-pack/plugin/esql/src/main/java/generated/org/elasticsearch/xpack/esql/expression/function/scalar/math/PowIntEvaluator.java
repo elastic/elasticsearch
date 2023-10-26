@@ -109,4 +109,29 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(base, exponent);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory base;
+
+    private final EvalOperator.ExpressionEvaluator.Factory exponent;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory base,
+        EvalOperator.ExpressionEvaluator.Factory exponent) {
+      this.source = source;
+      this.base = base;
+      this.exponent = exponent;
+    }
+
+    @Override
+    public PowIntEvaluator get(DriverContext context) {
+      return new PowIntEvaluator(source, base.get(context), exponent.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "PowIntEvaluator[" + "base=" + base + ", exponent=" + exponent + "]";
+    }
+  }
 }

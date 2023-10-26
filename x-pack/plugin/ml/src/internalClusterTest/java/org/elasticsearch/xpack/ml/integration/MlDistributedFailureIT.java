@@ -751,8 +751,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     // so when restarting job on another node the data counts
     // are what we expect them to be:
     private static DataCounts getDataCountsFromIndex(String jobId) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+        SearchResponse searchResponse = prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
             .get();
         if (searchResponse.getHits().getTotalHits().value != 1) {

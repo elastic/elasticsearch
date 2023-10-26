@@ -174,6 +174,7 @@ public final class ShardGenerations {
     public static final class Builder {
 
         private final Map<IndexId, Map<Integer, ShardGeneration>> generations = new HashMap<>();
+        private final Map<String, IndexId> indexIdsByName = new HashMap<>();
 
         /**
          * Filters out all generations that don't belong to any of the supplied {@code indices} and prunes all {@link #DELETED_SHARD_GEN}
@@ -219,6 +220,12 @@ public final class ShardGenerations {
         }
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
+            var indexIdWithSameName = indexIdsByName.put(indexId.getName(), indexId);
+            if (indexIdWithSameName != null && indexIdWithSameName.equals(indexId) == false) {
+                throw new IllegalStateException(
+                    "Unable to add: " + indexId + " There's another index id with the same name: " + indexIdWithSameName
+                );
+            }
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";

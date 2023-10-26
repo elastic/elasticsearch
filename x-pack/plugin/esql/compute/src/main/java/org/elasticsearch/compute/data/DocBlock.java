@@ -145,7 +145,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
-            throw new UnsupportedOperationException("doc blocks only contain one value per position");
+            return this;
         }
 
         @Override

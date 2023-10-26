@@ -256,6 +256,14 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.booleans(name());
+            }
+            return BlockSourceReader.booleans(sourceValueFetcher(blContext.sourcePaths(name())));
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 

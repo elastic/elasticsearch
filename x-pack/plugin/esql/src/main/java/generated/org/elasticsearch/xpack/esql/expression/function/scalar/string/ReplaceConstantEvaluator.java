@@ -118,4 +118,32 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   public void close() {
     Releasables.closeExpectNoException(str, newStr);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final Pattern regex;
+
+    private final EvalOperator.ExpressionEvaluator.Factory newStr;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, Pattern regex,
+        EvalOperator.ExpressionEvaluator.Factory newStr) {
+      this.source = source;
+      this.str = str;
+      this.regex = regex;
+      this.newStr = newStr;
+    }
+
+    @Override
+    public ReplaceConstantEvaluator get(DriverContext context) {
+      return new ReplaceConstantEvaluator(source, str.get(context), regex, newStr.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ReplaceConstantEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+    }
+  }
 }

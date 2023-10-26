@@ -100,4 +100,25 @@ public final class ToUnsignedLongFromStringEvaluator extends AbstractConvertFunc
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToUnsignedLong.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToUnsignedLongFromStringEvaluator get(DriverContext context) {
+      return new ToUnsignedLongFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToUnsignedLongFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

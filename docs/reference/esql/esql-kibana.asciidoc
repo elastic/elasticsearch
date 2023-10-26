@@ -100,6 +100,10 @@ For the example query, the results table shows 10 rows. Omitting the `LIMIT`
 command, the results table defaults to up to 500 rows. Using `LIMIT`, you can
 increase the limit to up to 10,000 rows.
 
+NOTE: the 10,000 row limit only applies to the number of rows that are retrieved
+by the query and displayed in Discover. Any query or aggregation runs on the
+full data set.
+
 Each row shows two columns for the example query: a column with the `@timestamp`
 field and a column with the full document. To display specific fields from the
 documents, use the <<esql-keep>> command:
@@ -143,9 +147,17 @@ FROM kibana_sample_data_logs
 
 To display data within a specified time range, use the
 {kibana-ref}/set-time-filter.html[time filter]. The time filter is only enabled
-when the indices you're querying contain a field called `@timestamp`. If your
-indices do not contain an `@timestamp` field, limit the time range using the
-<<esql-where>> command instead.
+when the indices you're querying have a field called `@timestamp`.
+
+If your indices do not have a timestamp field called `@timestamp`, you can limit
+the time range using the <<esql-where>> command and the <<esql-now>> function.
+For example, if the timestamp field is called `timestamp`, to query the last 15
+minutes of data:
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| WHERE timestamp > NOW() - 15minutes
+----
 
 [discrete]
 [[esql-kibana-visualizations]]
@@ -237,5 +249,8 @@ mode. To filter data, write a query that uses the <<esql-where>> command
 instead.
 * In {esql} mode, clicking a field in the field list in Discover does not show
 quick statistics for that field.
-* Discover shows no more than 10,000 rows and 50 columns. If a query returns
+* Discover shows no more than 10,000 rows. This limit only applies to the number
+of rows that are retrieved by the query and displayed in Discover. Any query or
+aggregation runs on the full data set.
+* Discover shows no more than 50 columns. If a query returns
 more than 50 columns, Discover only shows the first 50.

@@ -98,4 +98,25 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
     int value = container.getInt(index);
     return ToString.fromDouble(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromIntEvaluator get(DriverContext context) {
+      return new ToStringFromIntEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromIntEvaluator[field=" + field + "]";
+    }
+  }
 }

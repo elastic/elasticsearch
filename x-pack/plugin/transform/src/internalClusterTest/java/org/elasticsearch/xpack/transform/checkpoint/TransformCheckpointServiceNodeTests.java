@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
@@ -408,6 +409,7 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         );
         transformCheckpointService.getCheckpointingInfo(
             new ParentTaskAssigningClient(mockClientForCheckpointing, new TaskId("dummy-node:123456")),
+            TimeValue.timeValueSeconds(5),
             transformId,
             lastCheckpointNumber,
             nextCheckpointPosition,

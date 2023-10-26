@@ -186,7 +186,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             indicesAdmin().prepareResizeIndex("source", "first_split")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(firstSplitSettingsBuilder.build())
-                .get()
         );
         ensureGreen();
         assertHitCount(prepareSearch("first_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
@@ -214,7 +213,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             indicesAdmin().prepareResizeIndex("first_split", "second_split")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(indexSettings(secondSplitShards, 0).putNull("index.blocks.write").build())
-                .get()
         );
         ensureGreen();
         assertHitCount(prepareSearch("second_split").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), numDocs);
@@ -367,7 +365,6 @@ public class SplitIndexIT extends ESIntegTestCase {
                 indicesAdmin().prepareResizeIndex("source", "target")
                     .setResizeType(ResizeType.SPLIT)
                     .setSettings(indexSettings(2, createWithReplicas ? 1 : 0).putNull("index.blocks.write").build())
-                    .get()
             );
             ensureGreen();
             assertNoResizeSourceIndexSettings("target");
@@ -478,7 +475,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             indicesAdmin().prepareResizeIndex("source", "target")
                 .setResizeType(ResizeType.SPLIT)
                 .setSettings(indexSettings(4, 0).putNull("index.blocks.write").build())
-                .get()
         );
         ensureGreen();
         flushAndRefresh();

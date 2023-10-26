@@ -111,7 +111,7 @@ load everything:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test'
+          query: 'from test [metadata _id]'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}

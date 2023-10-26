@@ -337,7 +337,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .addAlias("test-idx-2", "alias-123")
                 .addAlias("test-idx-3", "alias-123")
                 .addAlias("test-idx-1", "alias-1")
-                .get()
         );
 
         assertFalse(indicesAdmin().prepareGetAliases("alias-123").get().getAliases().isEmpty());
@@ -398,7 +397,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepository("test-repo", "fs");
 
         logger.info("-->  creating test template");
-        assertThat(
+        assertAcked(
             indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(Collections.singletonList("te*"))
                 .setMapping(
@@ -418,9 +417,6 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
-                .isAcknowledged(),
-            equalTo(true)
         );
 
         createSnapshot("test-repo", "test-snap", Collections.emptyList());

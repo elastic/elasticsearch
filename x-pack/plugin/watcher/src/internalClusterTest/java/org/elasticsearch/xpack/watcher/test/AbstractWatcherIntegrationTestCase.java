@@ -274,11 +274,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
 
-        CreateIndexResponse createIndexResponse = indicesAdmin().prepareCreate(to)
-            .setMapping(mapping.sourceAsMap())
-            .setSettings(newSettings)
-            .get();
-        assertTrue(createIndexResponse.isAcknowledged());
+        assertAcked(indicesAdmin().prepareCreate(to).setMapping(mapping.sourceAsMap()).setSettings(newSettings));
         ensureGreen(to);
 
         AtomicReference<String> originalIndex = new AtomicReference<>(originalIndexOrAlias);

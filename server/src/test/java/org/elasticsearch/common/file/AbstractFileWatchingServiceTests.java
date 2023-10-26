@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -187,6 +188,13 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         assertTrue(result != prevWatchKey);
 
         verify(service, times(2)).retryDelayMillis(anyInt());
+    }
+
+    public void testMissingGrandparent() {
+        Path config = createTempDir().resolve("dne");
+        Path watchedFile = config.resolve("dir").resolve("file");
+        var e = expectThrows(IllegalArgumentException.class, () -> new TestFileWatchingService(null, watchedFile));
+        assertThat(e.getMessage(), containsString("Grandparent directory [" + config + "] must exist"));
     }
 
     // helpers

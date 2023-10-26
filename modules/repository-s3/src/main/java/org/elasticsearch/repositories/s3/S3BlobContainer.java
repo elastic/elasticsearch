@@ -610,16 +610,17 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             SubscribableListener
 
-                // Step 3: Cancel all the other uploads against which we are racing, leaving some time if we are not first in the queue to
-                // give them some time to complete.
+                // Step 3: Cancel any the other uploads against which we are racing.
 
                 .<Void>newForked(otherUploadsCancelledListener -> {
                     // This is a small optimization to improve the liveness properties of this algorithm.
                     //
-                    // When there are multiple competing updates, we order them by upload id and the first one tries to cancel the competing
-                    // updates in order to make progress. To avoid liveness issues when the winner fails, the rest wait based on their
-                    // upload_id-based position and try to make progress.
-
+                    // When there are updates racing to complete, we try and let them complete in order of their upload IDs. The one with
+                    // the first upload ID immediately tries to cancel the competing updates in order to make progress, but the ones with
+                    // greater upload IDs wait based on their position in the list before proceeding.
+                    //
+                    // TODO should we sort these by initiation time (and then upload ID as a tiebreaker)?
+                    // TODO should we listMultipartUploads() while waiting, so we can fail quicker if we are concurrently cancelled?
                     if (uploadIndex > 0) {
                         threadPool.scheduleUnlessShuttingDown(
                             TimeValue.timeValueMillis(

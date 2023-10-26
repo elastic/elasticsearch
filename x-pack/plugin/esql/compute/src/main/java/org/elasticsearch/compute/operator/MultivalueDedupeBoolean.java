@@ -91,41 +91,6 @@ public class MultivalueDedupeBoolean {
         }
     }
 
-    /**
-     * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
-     * things like hashing many fields together.
-     */
-    public BatchEncoder batchEncoder(int batchSize) {
-        return new BatchEncoder.Booleans(Math.max(2, batchSize)) {
-            @Override
-            protected void readNextBatch() {
-                for (int position = firstPosition(); position < block.getPositionCount(); position++) {
-                    if (hasCapacity(2) == false) {
-                        return;
-                    }
-                    int count = block.getValueCount(position);
-                    int first = block.getFirstValueIndex(position);
-                    switch (count) {
-                        case 0 -> encodeNull();
-                        case 1 -> {
-                            boolean v = block.getBoolean(first);
-                            startPosition();
-                            encode(v);
-                            endPosition();
-                        }
-                        default -> {
-                            readValues(first, count);
-                            startPosition();
-                            encodeUniquedWork(this);
-                            endPosition();
-                        }
-                    }
-                }
-            }
-        };
-    }
-
     private void readValues(int first, int count) {
         int end = first + count;
 
@@ -180,15 +145,6 @@ public class MultivalueDedupeBoolean {
         }
     }
 
-    private void encodeUniquedWork(BatchEncoder.Booleans encoder) {
-        if (seenFalse) {
-            encoder.encode(false);
-        }
-        if (seenTrue) {
-            encoder.encode(true);
-        }
-    }
-
     /**
      * Convert the boolean to an ordinal and track if it's been seen in {@code everSeen}.
      */
@@ -199,5 +155,55 @@ public class MultivalueDedupeBoolean {
         }
         everSeen[FALSE_ORD] = true;
         return FALSE_ORD;
+    }
+
+    public interface Deduplicator extends BlockMultiValueDeduplicator {
+        void moveToPosition(int position);
+
+        int valueCount();
+
+        boolean getBoolean(int offset);
+    }
+
+    public Deduplicator getDeduplicator() {
+        return new Deduplicator() {
+            @Override
+            public void moveToPosition(int position) {
+                seenFalse = false;
+                seenTrue = false;
+                int count = block.getValueCount(position);
+                if (count == 0) {
+                    return;
+                }
+                final int first = block.getFirstValueIndex(position);
+                if (count == 1) {
+                    if (block.getBoolean(first)) {
+                        seenTrue = true;
+                    } else {
+                        seenFalse = true;
+                    }
+                } else {
+                    for (int i = 0; i < count; i++) {
+                        if (block.getBoolean(first + i)) {
+                            seenTrue = true;
+                        } else {
+                            seenFalse = true;
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public int valueCount() {
+                int f = seenFalse ? 1 : 0;
+                int t = seenTrue ? 1 : 0;
+                return f + t;
+            }
+
+            @Override
+            public boolean getBoolean(int offset) {
+                return offset != 0 || seenFalse == false;
+            }
+        };
     }
 }

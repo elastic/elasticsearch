@@ -176,63 +176,6 @@ public class MultivalueDedupeInt {
     }
 
     /**
-     * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
-     * things like hashing many fields together.
-     */
-    public BatchEncoder batchEncoder(int batchSize) {
-        return new BatchEncoder.Ints(batchSize) {
-            @Override
-            protected void readNextBatch() {
-                int position = firstPosition();
-                if (w > 0) {
-                    // The last block didn't fit so we have to *make* it fit
-                    ensureCapacity(w);
-                    startPosition();
-                    encodeUniquedWork(this);
-                    endPosition();
-                    position++;
-                }
-                for (; position < block.getPositionCount(); position++) {
-                    int count = block.getValueCount(position);
-                    int first = block.getFirstValueIndex(position);
-                    switch (count) {
-                        case 0 -> encodeNull();
-                        case 1 -> {
-                            int v = block.getInt(first);
-                            if (hasCapacity(1)) {
-                                startPosition();
-                                encode(v);
-                                endPosition();
-                            } else {
-                                work[0] = v;
-                                w = 1;
-                                return;
-                            }
-                        }
-                        default -> {
-                            if (count < ALWAYS_COPY_MISSING) {
-                                copyMissing(first, count);
-                            } else {
-                                copyAndSort(first, count);
-                                convertSortedWorkToUnique();
-                            }
-                            if (hasCapacity(w)) {
-                                startPosition();
-                                encodeUniquedWork(this);
-                                endPosition();
-                            } else {
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-        };
-    }
-
-    /**
      * Copy all value from the position into {@link #work} and then
      * sorts it {@code n * log(n)}.
      */
@@ -340,15 +283,6 @@ public class MultivalueDedupeInt {
     }
 
     /**
-     * Writes a deduplicated {@link #work} to a {@link BatchEncoder.Ints}.
-     */
-    private void encodeUniquedWork(BatchEncoder.Ints encoder) {
-        for (int i = 0; i < w; i++) {
-            encoder.encode(work[i]);
-        }
-    }
-
-    /**
      * Converts {@link #work} from sorted array to a deduplicated array.
      */
     private void convertSortedWorkToUnique() {
@@ -369,5 +303,76 @@ public class MultivalueDedupeInt {
 
     private void hash(IntBlock.Builder builder, LongHash hash, int v) {
         builder.appendInt(Math.toIntExact(BlockHash.hashOrdToGroupNullReserved(hash.add(v))));
+    }
+
+    public interface Deduplicator extends BlockMultiValueDeduplicator {
+        int getInt(int offset);
+    }
+
+    private class NoopDeduplicator implements Deduplicator {
+        private int firstIndexValue;
+        private int count;
+
+        @Override
+        public void moveToPosition(int position) {
+            count = block.getValueCount(position);
+            if (count > 0) {
+                firstIndexValue = block.getFirstValueIndex(position);
+            }
+        }
+
+        @Override
+        public int valueCount() {
+            return count;
+        }
+
+        @Override
+        public int getInt(int offset) {
+            assert offset < count : offset + " >= " + count;
+            return block.getInt(firstIndexValue + offset);
+        }
+    }
+
+    private class AdaptiveDeduplicator implements Deduplicator {
+        @Override
+        public void moveToPosition(int position) {
+            int count = block.getValueCount(position);
+            if (count == 0) {
+                w = 0;
+                return;
+            }
+            final int first = block.getFirstValueIndex(position);
+            if (count == 1) {
+                work[0] = block.getInt(first);
+                w = 1;
+            } else {
+                if (count < ALWAYS_COPY_MISSING) {
+                    copyMissing(first, count);
+                } else {
+                    copyAndSort(first, count);
+                    convertSortedWorkToUnique();
+                }
+                assert 1 <= w && w <= count : "w=" + w + " ,count=" + count;
+            }
+        }
+
+        @Override
+        public int valueCount() {
+            return w;
+        }
+
+        @Override
+        public int getInt(int offset) {
+            assert offset < w : offset + " >= " + w;
+            return work[offset];
+        }
+    }
+
+    public Deduplicator getDeduplicator() {
+        if (block.mvDeduplicated()) {
+            return new NoopDeduplicator();
+        } else {
+            return new AdaptiveDeduplicator();
+        }
     }
 }

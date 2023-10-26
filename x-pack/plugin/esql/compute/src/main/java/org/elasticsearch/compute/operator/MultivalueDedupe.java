@@ -9,12 +9,8 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 
@@ -110,38 +106,6 @@ public final class MultivalueDedupe {
      * Result of calling "hash" on a multivalue dedupe.
      */
     public record HashResult(IntBlock ords, boolean sawNull) {}
-
-    /**
-     * Build a {@link BatchEncoder} which deduplicates values at each position
-     * and then encodes the results into a {@link byte[]} which can be used for
-     * things like hashing many fields together.
-     */
-    public static BatchEncoder batchEncoder(Block.Ref ref, int batchSize, boolean allowDirectEncoder) {
-        if (ref.block().areAllValuesNull()) {
-            return new BatchEncoder.DirectNulls(ref.block());
-        }
-        var elementType = ref.block().elementType();
-        if (allowDirectEncoder && ref.block().mvDeduplicated()) {
-            var block = ref.block();
-            return switch (elementType) {
-                case BOOLEAN -> new BatchEncoder.DirectBooleans((BooleanBlock) block);
-                case BYTES_REF -> new BatchEncoder.DirectBytesRefs((BytesRefBlock) block);
-                case INT -> new BatchEncoder.DirectInts((IntBlock) block);
-                case LONG -> new BatchEncoder.DirectLongs((LongBlock) block);
-                case DOUBLE -> new BatchEncoder.DirectDoubles((DoubleBlock) block);
-                default -> throw new IllegalArgumentException("Unknown [" + elementType + "]");
-            };
-        } else {
-            return switch (elementType) {
-                case BOOLEAN -> new MultivalueDedupeBoolean(ref).batchEncoder(batchSize);
-                case BYTES_REF -> new MultivalueDedupeBytesRef(ref).batchEncoder(batchSize);
-                case INT -> new MultivalueDedupeInt(ref).batchEncoder(batchSize);
-                case LONG -> new MultivalueDedupeLong(ref).batchEncoder(batchSize);
-                case DOUBLE -> new MultivalueDedupeDouble(ref).batchEncoder(batchSize);
-                default -> throw new IllegalArgumentException();
-            };
-        }
-    }
 
     private record EvaluatorFactory(ExpressionEvaluator.Factory field, BiFunction<BlockFactory, Block.Ref, Block.Ref> dedupe)
         implements

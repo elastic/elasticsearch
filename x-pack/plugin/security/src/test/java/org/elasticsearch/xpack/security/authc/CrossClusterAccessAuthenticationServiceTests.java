@@ -41,8 +41,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -90,7 +88,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
-        when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        // TODO
+        // when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
         final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
@@ -130,7 +129,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final Authenticator.Context authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
         when(authcContext.getRequest()).thenReturn(auditableRequest);
-        when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        // TODO
+        // when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
@@ -179,7 +179,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
-        when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        // TODO
+        // when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());
@@ -219,7 +220,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         final Authenticator.Context authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
         when(authcContext.getRequest()).thenReturn(auditableRequest);
-        when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        // TODO
+        // when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<Authentication>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(authenticationService).authenticate(eq(authcContext), listenerCaptor.capture());

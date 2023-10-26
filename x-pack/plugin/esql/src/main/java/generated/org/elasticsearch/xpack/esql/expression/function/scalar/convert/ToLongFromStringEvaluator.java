@@ -100,4 +100,25 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToLong.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToLongFromStringEvaluator get(DriverContext context) {
+      return new ToLongFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToLongFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

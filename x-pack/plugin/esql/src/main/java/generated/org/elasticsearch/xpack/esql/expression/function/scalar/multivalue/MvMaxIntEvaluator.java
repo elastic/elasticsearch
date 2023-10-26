@@ -134,4 +134,22 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxIntEvaluator get(DriverContext context) {
+      return new MvMaxIntEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
+    }
+  }
 }

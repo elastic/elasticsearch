@@ -25,10 +25,13 @@ ingested in the pipeline.
 include::common-options.asciidoc[]
 |======
 
-IMPORTANT: You cannot use the `input_output` field with the `target_field` and 
+[IMPORTANT]
+==================================================
+* You cannot use the `input_output` field with the `target_field` and 
 `field_map` fields. For NLP models, use the `input_output` option. For 
 {dfanalytics} models, use the `target_field` and `field_map` option.
-
+* Each {infer} input field must be single strings, not arrays of strings.
+==================================================
 
 [discrete]
 [[inference-input-output-example]]

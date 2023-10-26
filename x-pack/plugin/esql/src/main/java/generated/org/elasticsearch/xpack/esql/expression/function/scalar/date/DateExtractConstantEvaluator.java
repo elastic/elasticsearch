@@ -83,4 +83,29 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   public void close() {
     Releasables.closeExpectNoException(value);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final ChronoField chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory value, ChronoField chronoField,
+        ZoneId zone) {
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractConstantEvaluator get(DriverContext context) {
+      return new DateExtractConstantEvaluator(value.get(context), chronoField, zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractConstantEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
+  }
 }

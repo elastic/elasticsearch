@@ -117,4 +117,30 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   public void close() {
     Releasables.closeExpectNoException(str, start, length);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory start;
+
+    private final EvalOperator.ExpressionEvaluator.Factory length;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory start,
+        EvalOperator.ExpressionEvaluator.Factory length) {
+      this.str = str;
+      this.start = start;
+      this.length = length;
+    }
+
+    @Override
+    public SubstringEvaluator get(DriverContext context) {
+      return new SubstringEvaluator(str.get(context), start.get(context), length.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubstringEvaluator[" + "str=" + str + ", start=" + start + ", length=" + length + "]";
+    }
+  }
 }

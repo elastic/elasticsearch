@@ -394,7 +394,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         refresh(INDEX_NAME);
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
 
         final boolean closedIndex = randomBoolean();
         if (closedIndex) {
@@ -439,7 +439,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         if (closedIndex) {
             assertAcked(indicesAdmin().prepareOpen(INDEX_NAME));
         }
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numOfDocs);
     }
 
     public void testCancelNewShardRecoveryAndUsesExistingShardCopy() throws Exception {
@@ -925,7 +925,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
+        assertThat(prepareSearch(name).setSize(0).get().getHits().getTotalHits().value, equalTo((long) numDocs));
         return indicesAdmin().prepareStats(name).execute().actionGet();
     }
 
@@ -1076,7 +1076,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         }
 
         indicesAdmin().prepareRefresh("test").get();
-        assertHitCount(client().prepareSearch(), numDocs);
+        assertHitCount(prepareSearch(), numDocs);
     }
 
     /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */
@@ -1641,7 +1641,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(indexSettings(1, 1).put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), randomBoolean()))
-                .get()
         );
         final List<IndexRequestBuilder> indexRequests = IntStream.range(0, between(10, 500))
             .mapToObj(n -> client().prepareIndex(indexName).setSource("foo", "bar"))
@@ -1651,9 +1650,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().stopRandomDataNode();
         internalCluster().stopRandomDataNode();
         final String nodeWithoutData = internalCluster().startDataOnlyNode();
-        assertAcked(
-            clusterAdmin().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true)).get()
-        );
+        assertAcked(clusterAdmin().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeWithoutData, true)));
         internalCluster().startDataOnlyNode(randomNodeDataPathSettings);
         ensureGreen();
         for (ShardStats shardStats : indicesAdmin().prepareStats(indexName).get().getIndex(indexName).getShards()) {
@@ -2009,7 +2006,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), enableSnapshotPeerRecoveries)
                         .put("compress", false)
                 )
-                .get()
         );
     }
 

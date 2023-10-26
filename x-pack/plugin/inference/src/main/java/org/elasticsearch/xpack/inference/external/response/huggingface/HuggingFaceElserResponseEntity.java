@@ -100,8 +100,10 @@ public class HuggingFaceElserResponseEntity {
                 );
                 case FLOAT -> weightedTokens.add(new TextExpansionResults.WeightedToken(parser.currentName(), parser.floatValue()));
                 default -> {
-                    logger.warn(format("Received an invalid number value in response [%s]", parser.numberType()));
-                    throw new IllegalArgumentException("Expected Hugging Face Elser response to contain floats");
+                    logger.warn(format("Received an invalid number type in response [%s]", parser.numberType()));
+                    throw new IllegalArgumentException(
+                        format("Failed to parse object: expecting number token of type float or double but found [%s]", parser.numberType())
+                    );
                 }
             }
         }

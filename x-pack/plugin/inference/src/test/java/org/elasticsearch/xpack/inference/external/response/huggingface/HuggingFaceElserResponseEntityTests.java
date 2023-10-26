@@ -114,6 +114,50 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         );
     }
 
+    public void testFails_ValueInt() {
+        String responseJson = """
+            [
+              {
+                "field": 1
+              }
+            ]
+            """;
+
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> HuggingFaceElserResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to parse object: expecting number token of type float or double but found [INT]")
+        );
+    }
+
+    public void testFails_ValueLong() {
+        String responseJson = """
+            [
+              {
+                "field": 40294967295
+              }
+            ]
+            """;
+
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> HuggingFaceElserResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Failed to parse object: expecting number token of type float or double but found [LONG]")
+        );
+    }
+
     public void testFails_ValueObject() {
         String responseJson = """
             [

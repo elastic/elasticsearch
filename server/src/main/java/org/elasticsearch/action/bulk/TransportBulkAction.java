@@ -159,6 +159,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         clusterService.addStateApplier(this.ingestForwarder);
+
+        assert bulkRequestPreprocessors.get(bulkRequestPreprocessors.size() - 1) instanceof FieldInferenceBulkRequestPreprocessor
+            : "Last bulk request processor should be the inference processor";
     }
 
     /**

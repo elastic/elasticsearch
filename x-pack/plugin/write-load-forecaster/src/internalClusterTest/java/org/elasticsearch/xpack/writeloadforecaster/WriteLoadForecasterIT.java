@@ -164,7 +164,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                         null
                     )
                 )
-            ).actionGet()
+            )
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet());
 

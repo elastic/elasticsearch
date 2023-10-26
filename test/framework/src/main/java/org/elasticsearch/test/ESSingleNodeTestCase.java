@@ -133,7 +133,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         var deleteDataStreamsRequest = new DeleteDataStreamAction.Request("*");
         deleteDataStreamsRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         try {
-            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest).actionGet());
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamsRequest));
         } catch (IllegalStateException e) {
             // Ignore if action isn't registered, because data streams is a module and
             // if the delete action isn't registered then there no data streams to delete.

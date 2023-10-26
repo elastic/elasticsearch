@@ -108,4 +108,29 @@ public final class ModIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.source = source;
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public ModIntsEvaluator get(DriverContext context) {
+      return new ModIntsEvaluator(source, lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ModIntsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+  }
 }

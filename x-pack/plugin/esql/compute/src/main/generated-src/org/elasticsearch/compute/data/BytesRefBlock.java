@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -18,7 +19,7 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock, BytesRefArrayBlock, BytesRefVectorBlock {
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock {
 
     BytesRef NULL_VALUE = new BytesRef();
 
@@ -190,11 +191,14 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
         return blockFactory.newConstantBytesRefBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits BytesRefBlockBuilder {
-
+    /**
+     * Builder for {@link BytesRefBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.BytesRefBuilder permits BytesRefBlockBuilder {
         /**
          * Appends a BytesRef to the current entry.
          */
+        @Override
         Builder appendBytesRef(BytesRef value);
 
         /**
@@ -218,12 +222,11 @@ public sealed interface BytesRefBlock extends Block permits FilterBytesRefBlock,
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

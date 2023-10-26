@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -71,12 +70,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
 
     /** Arithmetic (quad) function. */
     interface ArithmeticEvaluator {
-        ExpressionEvaluator apply(
-            Source source,
-            ExpressionEvaluator expressionEvaluator1,
-            ExpressionEvaluator expressionEvaluator2,
-            DriverContext driverContext
-        );
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
     }
 
     private final ArithmeticEvaluator ints;
@@ -121,8 +115,8 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
 
-            var l = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
-            var r = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
+            var lhs = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
+            var rhs = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
 
             ArithmeticEvaluator eval;
             if (commonType == INTEGER) {
@@ -136,7 +130,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             } else {
                 throw new EsqlIllegalArgumentException("Unsupported type " + commonType);
             }
-            return dvrCtx -> eval.apply(source(), l.get(dvrCtx), r.get(dvrCtx), dvrCtx);
+            return eval.apply(source(), lhs, rhs);
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + leftType);
     }

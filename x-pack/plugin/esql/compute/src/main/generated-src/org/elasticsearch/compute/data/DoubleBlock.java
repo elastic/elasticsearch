@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Block that stores double values.
  * This class is generated. Do not edit it.
  */
-public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, DoubleArrayBlock, DoubleVectorBlock {
+public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, DoubleVectorBlock {
 
     /**
      * Retrieves the double value stored at the given value index.
@@ -186,11 +187,14 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         return blockFactory.newConstantDoubleBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits DoubleBlockBuilder {
-
+    /**
+     * Builder for {@link DoubleBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.DoubleBuilder permits DoubleBlockBuilder {
         /**
          * Appends a double to the current entry.
          */
+        @Override
         Builder appendDouble(double value);
 
         /**
@@ -214,12 +218,11 @@ public sealed interface DoubleBlock extends Block permits FilterDoubleBlock, Dou
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

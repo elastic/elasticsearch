@@ -28,7 +28,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.percentilesBucket;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -68,12 +68,11 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
     }
 
     public void testMetricTopLevelDefaultPercents() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-            .addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum"))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+        ).addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum")).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -101,16 +100,13 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
     }
 
     public void testWrongPercents() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .includeExclude(new IncludeExclude(null, "tag.*", null, null))
-                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-            )
-            .addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum").setPercents(PERCENTS))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .includeExclude(new IncludeExclude(null, "tag.*", null, null))
+                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+        ).addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum").setPercents(PERCENTS)).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -134,8 +130,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
         double[] badPercents = { -1.0, 110.0 };
 
         try {
-            client().prepareSearch("idx")
-                .addAggregation(terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
+            prepareSearch("idx").addAggregation(terms(termsName).field("tag").subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
                 .addAggregation(percentilesBucket("percentiles_bucket", termsName + ">sum").setPercents(badPercents))
                 .get();
 
@@ -161,18 +156,16 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
         double[] badPercents = { -1.0, 110.0 };
 
         try {
-            client().prepareSearch("idx")
-                .addAggregation(
-                    terms(termsName).field("tag")
-                        .order(BucketOrder.key(true))
-                        .subAggregation(
-                            histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
-                                .interval(interval)
-                                .extendedBounds(minRandomValue, maxRandomValue)
-                        )
-                        .subAggregation(percentilesBucket("percentiles_bucket", histoName + ">_count").setPercents(badPercents))
-                )
-                .get();
+            prepareSearch("idx").addAggregation(
+                terms(termsName).field("tag")
+                    .order(BucketOrder.key(true))
+                    .subAggregation(
+                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
+                            .interval(interval)
+                            .extendedBounds(minRandomValue, maxRandomValue)
+                    )
+                    .subAggregation(percentilesBucket("percentiles_bucket", histoName + ">_count").setPercents(badPercents))
+            ).get();
 
             fail("Illegal percent's were provided but no exception was thrown.");
         } catch (Exception e) {
@@ -194,21 +187,18 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
 
     public void testNestedWithDecimal() throws Exception {
         double[] percent = { 99.9 };
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms(termsName).field("tag")
-                    .order(BucketOrder.key(true))
-                    .subAggregation(
-                        histogram(histoName).field(SINGLE_VALUED_FIELD_NAME)
-                            .interval(interval)
-                            .extendedBounds(minRandomValue, maxRandomValue)
-                    )
-                    .subAggregation(percentilesBucket("percentile_histo_bucket", histoName + ">_count").setPercents(percent))
-            )
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms(termsName).field("tag")
+                .order(BucketOrder.key(true))
+                .subAggregation(
+                    histogram(histoName).field(SINGLE_VALUED_FIELD_NAME).interval(interval).extendedBounds(minRandomValue, maxRandomValue)
+                )
+                .subAggregation(percentilesBucket("percentile_histo_bucket", histoName + ">_count").setPercents(percent))
+        )
             .addAggregation(percentilesBucket("percentile_terms_bucket", termsName + ">percentile_histo_bucket[99.9]").setPercents(percent))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Terms terms = response.getAggregations().get(termsName);
         assertThat(terms, notNullValue());
@@ -257,12 +247,12 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
 
     private void assertPercentileBucket(double[] values, PercentilesBucket percentiles) {
         for (Percentile percentile : percentiles) {
-            assertEquals(percentiles.percentile(percentile.getPercent()), percentile.getValue(), 0d);
+            assertEquals(percentiles.percentile(percentile.percent()), percentile.value(), 0d);
             if (values.length == 0) {
-                assertThat(percentile.getValue(), equalTo(Double.NaN));
+                assertThat(percentile.value(), equalTo(Double.NaN));
             } else {
-                int index = (int) Math.round((percentile.getPercent() / 100.0) * (values.length - 1));
-                assertThat(percentile.getValue(), equalTo(values[index]));
+                int index = (int) Math.round((percentile.percent() / 100.0) * (values.length - 1));
+                assertThat(percentile.value(), equalTo(values[index]));
             }
         }
     }
@@ -271,7 +261,7 @@ public class PercentilesBucketIT extends BucketMetricsPipeLineAggregationTestCas
         Iterator<Percentile> it = percentiles.iterator();
         for (int i = 0; i < percents.length; ++i) {
             assertTrue(it.hasNext());
-            assertEquals(percents[i], it.next().getPercent(), 0d);
+            assertEquals(percents[i], it.next().percent(), 0d);
         }
         assertFalse(it.hasNext());
         assertPercentileBucket(values, percentiles);

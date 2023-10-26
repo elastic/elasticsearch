@@ -1,0 +1,28 @@
+[[esql-mv-functions]]
+==== {esql} multivalue functions
+
+++++
+<titleabbrev>Multivalue functions</titleabbrev>
+++++
+
+{esql} supports these multivalue functions:
+
+// tag::mv_list[]
+* <<esql-mv_avg>>
+* <<esql-mv_concat>>
+* <<esql-mv_count>>
+* <<esql-mv_dedupe>>
+* <<esql-mv_max>>
+* <<esql-mv_median>>
+* <<esql-mv_min>>
+* <<esql-mv_sum>>
+// end::mv_list[]
+
+include::mv_avg.asciidoc[]
+include::mv_concat.asciidoc[]
+include::mv_count.asciidoc[]
+include::mv_dedupe.asciidoc[]
+include::mv_max.asciidoc[]
+include::mv_median.asciidoc[]
+include::mv_min.asciidoc[]
+include::mv_sum.asciidoc[]

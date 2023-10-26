@@ -74,6 +74,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -130,16 +131,16 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersion.V_7_6_0;
+    public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_6_0;
 
-    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersion.V_7_9_0;
+    public static final IndexVersion INDEX_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_9_0;
 
-    public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersion.V_7_12_0;
+    public static final IndexVersion UUIDS_IN_REPO_DATA_VERSION = IndexVersions.V_7_12_0;
     public static final TransportVersion UUIDS_IN_REPO_DATA_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
-    public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersion.V_7_16_0;
+    public static final IndexVersion FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = IndexVersions.V_7_16_0;
 
-    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersion.V_7_5_0;
+    public static final IndexVersion OLD_SNAPSHOT_FORMAT = IndexVersions.V_7_5_0;
 
     public static final String POLICY_ID_METADATA_FIELD = "policy";
 
@@ -364,6 +365,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
                     minCompatibleVersion(currentState.nodes().getMaxDataNodeCompatibleIndexVersion(), repositoryData, null)
+                // NB minCompatibleVersion iterates over all the snapshots in the current repositoryData, which probably should happen on a
+                // different thread. Also is the _current_ repositoryData the right thing to consider? The minimum repository format version
+                // can only advance during a snapshot delete which today is never concurrent to other writes, but a future version may allow
+                // for more concurrency between deletes and writes that breaks some assumptions in this area.
                 );
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, snapshots.withAddedEntry(newEntry)).build();
             }
@@ -556,6 +561,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         // starting shard clones.
                         logger.warn("Did not find expected entry [{}] in the cluster state", cloneEntry);
                     }
+                }
+
+                @Override
+                public String toString() {
+                    return Strings.format("start snapshot clone [%s] from [%s]", updatedEntry.snapshot(), updatedEntry.source());
                 }
             }, "start snapshot clone", onFailure), onFailure)
         );
@@ -1440,7 +1450,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 );
             }, e -> handleFinalizationFailure(e, snapshot, repositoryData)));
         } catch (Exception e) {
-            assert false : new AssertionError(e);
+            logger.error(Strings.format("unexpected failure finalizing %s", snapshot), e);
+            assert false : new AssertionError("unexpected failure finalizing " + snapshot, e);
             handleFinalizationFailure(e, snapshot, repositoryData);
         }
     }
@@ -1883,9 +1894,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public void deleteSnapshots(final DeleteSnapshotRequest request, final ActionListener<Void> listener) {
         final String repositoryName = request.repository();
         final String[] snapshotNames = request.snapshots();
-        logger.info(
-            () -> format("deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
-        );
 
         final Repository repository = repositoriesService.repository(repositoryName);
         executeConsistentStateUpdate(repository, repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
@@ -1931,7 +1939,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         final SnapshotId foundId = snapshotsIdsInRepository.get(snapshotOrPattern);
                         if (foundId == null) {
                             if (snapshotIds.stream().noneMatch(snapshotId -> snapshotId.getName().equals(snapshotOrPattern))) {
-                                throw new SnapshotMissingException(repositoryName, snapshotOrPattern);
+                                final var snapshotMissingException = new SnapshotMissingException(repositoryName, snapshotOrPattern);
+                                logger.debug(snapshotMissingException.getMessage());
+                                throw snapshotMissingException;
                             }
                         } else {
                             snapshotIds.add(foundId);
@@ -2058,6 +2068,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                logger.info(
+                    () -> format("deleting snapshots [%s] from repository [%s]", arrayToCommaDelimitedString(snapshotNames), repositoryName)
+                );
+
                 if (completedNoCleanup.isEmpty() == false) {
                     logger.info("snapshots {} aborted", completedNoCleanup);
                 }
@@ -2087,6 +2101,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     }
                 }
+            }
+
+            @Override
+            public String toString() {
+                return Strings.format("delete snapshot task [%s]%s", repository, Arrays.toString(snapshotNames));
             }
         }, "delete snapshot [" + repository + "]" + Arrays.toString(snapshotNames), listener::onFailure);
     }
@@ -2315,56 +2334,64 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 return;
             }
             repositoriesService.repository(deleteEntry.repository())
-                .deleteSnapshots(
-                    snapshotIds,
-                    repositoryData.getGenId(),
-                    minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
-                    new SnapshotDeleteListener() {
+                .deleteSnapshots(snapshotIds, repositoryData.getGenId(), minNodeVersion, new SnapshotDeleteListener() {
 
-                        private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
+                    private final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
 
-                        @Override
-                        public void onDone() {
-                            logger.info("snapshots {} deleted", snapshotIds);
-                            doneFuture.onResponse(null);
-                        }
-
-                        @Override
-                        public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
-                            removeSnapshotDeletionFromClusterState(
-                                deleteEntry,
-                                updatedRepoData,
-                                listeners -> doneFuture.addListener(new ActionListener<>() {
-                                    @Override
-                                    public void onResponse(Void unused) {
-                                        completeListenersIgnoringException(listeners, null);
-                                    }
-
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        // this should never be called, once updated repository metadata has been written to the
-                                        // repository and the delete been removed from the cluster state, we ignore any further failures
-                                        // and always complete the delete successfully
-                                        assert false : e;
-                                    }
-                                })
-                            );
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            submitUnbatchedTask(
-                                "remove snapshot deletion metadata after failed delete",
-                                new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
-                                    @Override
-                                    protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
-                                        failListenersIgnoringException(deleteListeners, e);
-                                    }
-                                }
-                            );
-                        }
+                    @Override
+                    public void onDone() {
+                        logger.info("snapshots {} deleted", snapshotIds);
+                        doneFuture.onResponse(null);
                     }
-                );
+
+                    @Override
+                    public void onRepositoryDataWritten(RepositoryData updatedRepoData) {
+                        removeSnapshotDeletionFromClusterState(
+                            deleteEntry,
+                            updatedRepoData,
+                            listeners -> doneFuture.addListener(new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void unused) {
+                                    completeListenersIgnoringException(listeners, null);
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    // this should never be called, once updated repository metadata has been written to the
+                                    // repository and the delete been removed from the cluster state, we ignore any further failures
+                                    // and always complete the delete successfully
+                                    assert false : e;
+                                }
+                            })
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(() -> {
+                            final StringBuilder sb = new StringBuilder("failed to complete snapshot deletion for [");
+                            Strings.collectionToDelimitedStringWithLimit(
+                                deleteEntry.getSnapshots().stream().map(SnapshotId::getName).toList(),
+                                ",",
+                                "",
+                                "",
+                                1024,
+                                sb
+                            );
+                            sb.append("] from repository [").append(deleteEntry.repository()).append("]");
+                            return sb;
+                        }, e);
+                        submitUnbatchedTask(
+                            "remove snapshot deletion metadata after failed delete",
+                            new RemoveSnapshotDeletionAndContinueTask(deleteEntry, repositoryData) {
+                                @Override
+                                protected void handleListeners(List<ActionListener<Void>> deleteListeners) {
+                                    failListenersIgnoringException(deleteListeners, e);
+                                }
+                            }
+                        );
+                    }
+                });
         }
     }
 
@@ -2674,6 +2701,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         private static void markShardReassigned(RepositoryShardId shardId, Set<RepositoryShardId> reassignments) {
             final boolean added = reassignments.add(shardId);
             assert added : "should only ever reassign each shard once but assigned [" + shardId + "] multiple times";
+        }
+
+        @Override
+        public String toString() {
+            return "RemoveSnapshotDeletionAndContinueTask[" + deleteEntry + "]";
         }
     }
 
@@ -3568,9 +3600,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         synchronized boolean assertNotQueued(Snapshot snapshot) {
-            assert snapshotsToFinalize.getOrDefault(snapshot.getRepository(), new LinkedList<>())
+            if (snapshotsToFinalize.getOrDefault(snapshot.getRepository(), new LinkedList<>())
                 .stream()
-                .noneMatch(entry -> entry.equals(snapshot)) : "Snapshot [" + snapshot + "] is still in finalization queue";
+                .anyMatch(entry -> entry.equals(snapshot))) {
+
+                final var assertionError = new AssertionError("[" + snapshot + "] should not be in " + snapshotsToFinalize);
+                logger.error("assertNotQueued failure", assertionError);
+                throw assertionError;
+            }
             return true;
         }
 
@@ -3759,6 +3796,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             final Map<String, IndexId> indexIds = repositoryData.resolveNewIndices(indices, allIndices);
             final IndexVersion version = minCompatibleVersion(
+                // NB minCompatibleVersion iterates over all the snapshots in the current repositoryData, which probably should happen on a
+                // different thread. Also is the _current_ repositoryData the right thing to consider? The minimum repository format version
+                // can only advance during a snapshot delete which today is never concurrent to other writes, but a future version may allow
+                // for more concurrency between deletes and writes that breaks some assumptions in this area.
                 currentState.nodes().getMaxDataNodeCompatibleIndexVersion(),
                 repositoryData,
                 null

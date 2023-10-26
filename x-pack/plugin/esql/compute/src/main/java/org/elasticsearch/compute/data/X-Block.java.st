@@ -14,6 +14,7 @@ $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -21,7 +22,7 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock {
 
 $if(BytesRef)$
     BytesRef NULL_VALUE = new BytesRef();
@@ -222,11 +223,14 @@ $endif$
         return blockFactory.newConstant$Type$BlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {
-
+    /**
+     * Builder for {@link $Type$Block}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {
         /**
          * Appends a $type$ to the current entry.
          */
+        @Override
         Builder append$Type$($type$ value);
 
         /**
@@ -250,12 +254,11 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

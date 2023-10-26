@@ -97,4 +97,25 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     boolean value = container.getBoolean(index);
     return ToLong.fromBoolean(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToLongFromBooleanEvaluator get(DriverContext context) {
+      return new ToLongFromBooleanEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToLongFromBooleanEvaluator[field=" + field + "]";
+    }
+  }
 }

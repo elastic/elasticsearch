@@ -92,4 +92,25 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public SqrtLongEvaluator get(DriverContext context) {
+      return new SqrtLongEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SqrtLongEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

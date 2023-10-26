@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, BooleanArrayBlock, BooleanVectorBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
@@ -185,11 +186,14 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {
-
+    /**
+     * Builder for {@link BooleanBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {
         /**
          * Appends a boolean to the current entry.
          */
+        @Override
         Builder appendBoolean(boolean value);
 
         /**
@@ -213,12 +217,11 @@ public sealed interface BooleanBlock extends Block permits FilterBooleanBlock, B
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

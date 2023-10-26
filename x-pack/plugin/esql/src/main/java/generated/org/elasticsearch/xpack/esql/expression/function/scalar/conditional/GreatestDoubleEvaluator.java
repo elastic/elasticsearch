@@ -99,4 +99,23 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public GreatestDoubleEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new GreatestDoubleEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "GreatestDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
+  }
 }

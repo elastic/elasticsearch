@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 
 import java.util.Comparator;
 import java.util.HashMap;
@@ -18,25 +17,22 @@ import java.util.stream.Collectors;
 
 public final class TestNodes extends HashMap<String, TestNode> {
 
+    private final String bwcNodesVersion;
+
+    TestNodes(String bwcNodesVersion) {
+        this.bwcNodesVersion = bwcNodesVersion;
+    }
+
     public void add(TestNode node) {
         put(node.id(), node);
     }
 
     public List<TestNode> getNewNodes() {
-        Version bwcVersion = getBWCVersion();
-        return values().stream().filter(n -> n.version().after(bwcVersion)).collect(Collectors.toList());
+        return values().stream().filter(n -> n.version().equals(bwcNodesVersion) == false).collect(Collectors.toList());
     }
 
     public List<TestNode> getBWCNodes() {
-        Version bwcVersion = getBWCVersion();
-        return values().stream().filter(n -> n.version().equals(bwcVersion)).collect(Collectors.toList());
-    }
-
-    public Version getBWCVersion() {
-        if (isEmpty()) {
-            throw new IllegalStateException("no nodes available");
-        }
-        return values().stream().map(TestNode::version).min(Comparator.naturalOrder()).get();
+        return values().stream().filter(n -> n.version().equals(bwcNodesVersion)).collect(Collectors.toList());
     }
 
     public TransportVersion getBWCTransportVersion() {

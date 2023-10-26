@@ -70,7 +70,7 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
         BytesRefBlock.Builder builder,
         BytesRef str,
         @Fixed byte delim,
-        @Fixed(includeInToString = false) BytesRef scratch
+        @Fixed(includeInToString = false, build = true) BytesRef scratch
     ) {
         scratch.bytes = str.bytes;
         scratch.offset = str.offset;
@@ -96,7 +96,12 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Variable")
-    static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef delim, @Fixed(includeInToString = false) BytesRef scratch) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        BytesRef str,
+        BytesRef delim,
+        @Fixed(includeInToString = false, build = true) BytesRef scratch
+    ) {
         if (delim.length != 1) {
             throw new QlIllegalArgumentException("delimiter must be single byte for now");
         }
@@ -117,13 +122,12 @@ public class Split extends BinaryScalarFunction implements EvaluatorMapper {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var str = toEvaluator.apply(left());
         if (right().foldable() == false) {
-            var delim = toEvaluator.apply(right());
-            return dvrCtx -> new SplitVariableEvaluator(str.get(dvrCtx), delim.get(dvrCtx), new BytesRef(), dvrCtx);
+            return new SplitVariableEvaluator.Factory(str, toEvaluator.apply(right()), context -> new BytesRef());
         }
         BytesRef delim = (BytesRef) right().fold();
         if (delim.length != 1) {
             throw new QlIllegalArgumentException("for now delimiter must be a single byte");
         }
-        return dvrCtx -> new SplitSingleByteEvaluator(str.get(dvrCtx), delim.bytes[delim.offset], new BytesRef(), dvrCtx);
+        return new SplitSingleByteEvaluator.Factory(str, delim.bytes[delim.offset], context -> new BytesRef());
     }
 }

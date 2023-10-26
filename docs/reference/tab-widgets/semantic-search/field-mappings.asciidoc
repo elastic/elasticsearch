@@ -17,7 +17,7 @@ PUT my-index
 {
   "mappings": {
     "properties": {
-      "my_embeddings.tokens": { <1>
+      "my_tokens": { <1>
         "type": "sparse_vector" <2>
       },
       "my_text_field": { <3>

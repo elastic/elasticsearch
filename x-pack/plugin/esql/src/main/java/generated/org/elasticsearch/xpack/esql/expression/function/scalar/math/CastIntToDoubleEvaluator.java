@@ -76,4 +76,22 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastIntToDoubleEvaluator get(DriverContext context) {
+      return new CastIntToDoubleEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastIntToDoubleEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

@@ -16,7 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -53,7 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
-    private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.INTEGER);
+    private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
 
@@ -150,12 +148,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
     private void testSimple(int size, int limit) {
         DriverContext ctx = driverContext();
         LuceneTopNSourceOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
-        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(
-            reader,
-            CoreValuesSourceType.NUMERIC,
-            ElementType.LONG,
-            S_FIELD
-        );
+        Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD);
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(

@@ -33,7 +33,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -47,18 +46,10 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.fielddata.FieldDataContext;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.junit.After;
 
 import java.io.IOException;
@@ -95,21 +86,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
-        return factory(
-            reader,
-            CoreValuesSourceType.NUMERIC,
-            ElementType.LONG,
-            new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
-        );
+        return factory(reader, new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG));
     }
 
-    static Operator.OperatorFactory factory(IndexReader reader, ValuesSourceType vsType, ElementType elementType, MappedFieldType ft) {
-        IndexFieldData<?> fd = ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-        FieldContext fc = new FieldContext(ft.name(), fd, ft);
-        ValuesSource vs = vsType.getField(fc, null);
+    static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft) {
         return new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
-            List.of(new ValueSourceInfo(vsType, vs, elementType, reader)),
+            List.of(BlockReaderFactories.loaderToFactory(reader, ft.blockLoader(null))),
             0,
             ft.name()
         );
@@ -243,54 +225,16 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input) {
         List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
-            factory(
-                reader,
-                CoreValuesSourceType.NUMERIC,
-                ElementType.INT,
-                new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)
-            ).get(driverContext),
-            factory(
-                reader,
-                CoreValuesSourceType.NUMERIC,
-                ElementType.LONG,
-                new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)
-            ).get(driverContext),
-            factory(reader, CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("kwd")).get(
-                driverContext
-            ),
-            factory(reader, CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(
-                driverContext
-            ),
-            factory(reader, CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("bool")).get(
-                driverContext
-            ),
-            factory(reader, CoreValuesSourceType.BOOLEAN, ElementType.BOOLEAN, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(
-                driverContext
-            ),
-            factory(
-                reader,
-                CoreValuesSourceType.NUMERIC,
-                ElementType.INT,
-                new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)
-            ).get(driverContext),
-            factory(
-                reader,
-                CoreValuesSourceType.NUMERIC,
-                ElementType.LONG,
-                new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)
-            ).get(driverContext),
-            factory(
-                reader,
-                CoreValuesSourceType.NUMERIC,
-                ElementType.DOUBLE,
-                new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)
-            ).get(driverContext),
-            factory(
-                reader,
-                CoreValuesSourceType.NUMERIC,
-                ElementType.DOUBLE,
-                new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)
-            ).get(driverContext)
+            factory(reader, new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)).get(driverContext),
+            factory(reader, new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
+            factory(reader, new KeywordFieldMapper.KeywordFieldType("kwd")).get(driverContext),
+            factory(reader, new KeywordFieldMapper.KeywordFieldType("mv_kwd")).get(driverContext),
+            factory(reader, new BooleanFieldMapper.BooleanFieldType("bool")).get(driverContext),
+            factory(reader, new BooleanFieldMapper.BooleanFieldType("mv_bool")).get(driverContext),
+            factory(reader, new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)).get(driverContext),
+            factory(reader, new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
+            factory(reader, new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext),
+            factory(reader, new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext)
         );
         try (
             Driver d = new Driver(
@@ -418,10 +362,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
-                    factory(reader, CoreValuesSourceType.NUMERIC, ElementType.INT, intFt).get(driverContext),
-                    factory(reader, CoreValuesSourceType.NUMERIC, ElementType.LONG, longFt).get(driverContext),
-                    factory(reader, CoreValuesSourceType.NUMERIC, ElementType.DOUBLE, doubleFt).get(driverContext),
-                    factory(reader, CoreValuesSourceType.KEYWORD, ElementType.BYTES_REF, kwFt).get(driverContext)
+                    factory(reader, intFt).get(driverContext),
+                    factory(reader, longFt).get(driverContext),
+                    factory(reader, doubleFt).get(driverContext),
+                    factory(reader, kwFt).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
                     logger.debug("New page: {}", page);

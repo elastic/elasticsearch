@@ -612,8 +612,23 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planMvExpand(MvExpandExec mvExpandExec, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mvExpandExec.child(), context);
+        List<Attribute> childOutput = mvExpandExec.child().output();
         int blockSize = 5000;// TODO estimate row size and use context.pageSize()
-        return source.with(new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize), source.layout);
+
+        Layout.Builder layout = new Layout.Builder();
+        List<Layout.ChannelSet> inverse = source.layout.inverse();
+        for (int index = 0, size = childOutput.size(); index < size; index++) {
+            if (childOutput.get(index).name().equals(mvExpandExec.expanded().name())) {
+                layout.append(mvExpandExec.expanded());
+            } else {
+                layout.append(inverse.get(index));
+            }
+        }
+
+        return source.with(
+            new MvExpandOperator.Factory(source.layout.get(mvExpandExec.target().id()).channel(), blockSize),
+            layout.build()
+        );
     }
 
     /**

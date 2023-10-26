@@ -23,9 +23,11 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -77,10 +79,12 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -90,9 +94,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -132,6 +139,7 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1911,5 +1919,68 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             throw new AssertionError(e);
         }
         ensureGreen(indexName);
+    }
+
+    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
+    public void testPrimaryRelocationCancelledLogging() {
+        final var indexNodeA = startIndexNode();
+        startSearchNode();
+        final var indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(10, 50));
+
+        final var indexNodeB = startIndexNode();
+        final var indexNodeATransportService = asInstanceOf(
+            MockTransportService.class,
+            internalCluster().getInstance(TransportService.class, indexNodeA)
+        );
+
+        final var countDownLatch = new CountDownLatch(1);
+
+        indexNodeATransportService.addRequestHandlingBehavior(
+            START_RELOCATION_ACTION_NAME,
+            (handler, request, channel, task) -> internalCluster().getInstance(ShardStateAction.class, indexNodeB)
+                .localShardFailed(
+                    internalCluster().getInstance(IndicesService.class, indexNodeB)
+                        .indexService(asInstanceOf(StatelessPrimaryRelocationAction.Request.class, request).shardId().getIndex())
+                        .getShard(0)
+                        .routingEntry(),
+                    "simulated message",
+                    new ElasticsearchException("simulated exception"),
+                    new ChannelActionListener<>(channel).delegateFailureAndWrap(
+                        (l, ignored) -> internalCluster().getInstance(ThreadPool.class, indexNodeB)
+                            .generic()
+                            .execute(ActionRunnable.wrap(l, l2 -> handler.messageReceived(request, new TestTransportChannel(l2) {
+                                @Override
+                                public void sendResponse(Exception exception) {
+                                    assertThat(exception, instanceOf(IllegalIndexShardStateException.class));
+                                    super.sendResponse(exception);
+                                    countDownLatch.countDown();
+                                }
+                            }, task)))
+                    )
+                )
+        );
+
+        final var mockLogAppender = new MockLogAppender();
+
+        try (var ignored = mockLogAppender.capturing(IndicesClusterStateService.class)) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("warnings", IndicesClusterStateService.class.getCanonicalName(), Level.WARN, "*")
+            );
+
+            assertAcked(
+                admin().indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA))
+            );
+
+            safeAwait(countDownLatch);
+            ensureGreen(indexName);
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            indexNodeATransportService.clearAllRules();
+        }
     }
 }

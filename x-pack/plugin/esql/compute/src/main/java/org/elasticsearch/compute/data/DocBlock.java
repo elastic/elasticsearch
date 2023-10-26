@@ -145,6 +145,12 @@ public class DocBlock extends AbstractVectorBlock implements Block {
 
         @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
+            /*
+             * This is called when copying but otherwise doesn't do
+             * anything because there aren't multivalue fields in a
+             * block containing doc references. Every position can
+             * only reference one doc.
+             */
             return this;
         }
 

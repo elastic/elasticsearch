@@ -13,8 +13,8 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
-import org.apache.lucene.codecs.lucene95.Lucene95Codec;
-import org.apache.lucene.codecs.lucene95.Lucene95HnswVectorsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
@@ -263,7 +263,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             logger.info("--> stats {}", stats);
 
             long dataBytes = (long) numDocs * dimension * Float.BYTES; // size of flat vector data
-            long indexBytesEstimate = (long) numDocs * (Lucene95HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
+            long indexBytesEstimate = (long) numDocs * (Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN / 4); // rough size of HNSW graph
             assertThat("numDocs=" + numDocs + ";dimension=" + dimension, stats.total().getKnnVectorsBytes(), greaterThan(dataBytes));
             long connectionOverhead = stats.total().getKnnVectorsBytes() - dataBytes;
             assertThat("numDocs=" + numDocs, connectionOverhead, greaterThan(indexBytesEstimate));
@@ -326,7 +326,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     public void testCompletionField() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(false)
-            .setCodec(new Lucene95Codec(Lucene95Codec.Mode.BEST_SPEED) {
+            .setCodec(new Lucene99Codec(Lucene99Codec.Mode.BEST_SPEED) {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
@@ -413,25 +413,25 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     enum CodecMode {
         BEST_SPEED {
             @Override
-            Lucene95Codec.Mode mode() {
-                return Lucene95Codec.Mode.BEST_SPEED;
+            Lucene99Codec.Mode mode() {
+                return Lucene99Codec.Mode.BEST_SPEED;
             }
         },
 
         BEST_COMPRESSION {
             @Override
-            Lucene95Codec.Mode mode() {
-                return Lucene95Codec.Mode.BEST_COMPRESSION;
+            Lucene99Codec.Mode mode() {
+                return Lucene99Codec.Mode.BEST_COMPRESSION;
             }
         };
 
-        abstract Lucene95Codec.Mode mode();
+        abstract Lucene99Codec.Mode mode();
     }
 
     static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(randomBoolean())
-            .setCodec(new Lucene95Codec(codecMode.mode()));
+            .setCodec(new Lucene99Codec(codecMode.mode()));
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < numDocs; i++) {
                 final Document doc = new Document();
@@ -639,7 +639,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
             IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
-                .setCodec(new Lucene95Codec(mode.mode()) {
+                .setCodec(new Lucene99Codec(mode.mode()) {
                     @Override
                     public PostingsFormat getPostingsFormatForField(String field) {
                         return new Lucene90PostingsFormat();
@@ -652,7 +652,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
                     @Override
                     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                        return new Lucene95HnswVectorsFormat();
+                        return new Lucene99HnswVectorsFormat();
                     }
 
                     @Override

@@ -30,6 +30,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -234,6 +235,7 @@ public class SourceOnlySnapshot {
                     si.name,
                     si.maxDoc(),
                     false,
+                    si.getHasBlocks(),
                     si.getCodec(),
                     si.getDiagnostics(),
                     si.getId(),

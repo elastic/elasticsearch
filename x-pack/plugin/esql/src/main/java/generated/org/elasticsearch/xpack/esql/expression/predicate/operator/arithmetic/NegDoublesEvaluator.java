@@ -74,4 +74,22 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public NegDoublesEvaluator get(DriverContext context) {
+      return new NegDoublesEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegDoublesEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

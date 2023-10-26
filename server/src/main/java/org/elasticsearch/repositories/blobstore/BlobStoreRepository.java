@@ -1673,7 +1673,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     ),
                     repositoryStateId,
                     repositoryMetaVersion,
-                    finalizeSnapshotContext::updatedClusterState,
+                    new Function<>() {
+                        @Override
+                        public ClusterState apply(ClusterState state) {
+                            return finalizeSnapshotContext.updatedClusterState(state);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "finalizing snapshot [" + metadata.name() + "][" + snapshotId + "]";
+                        }
+                    },
                     l.map(newRepositoryData -> new RootBlobUpdateResult(existingRepositoryData, newRepositoryData))
                 );
                 // NB failure of writeIndexGen doesn't guarantee the update failed, so we cannot safely clean anything up on failure
@@ -2570,6 +2580,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                 setPendingStep.onResponse(newGen);
             }
+
+            @Override
+            public String toString() {
+                return Strings.format("start RepositoryData update from generation [%d], stateFilter=[%s]", expectedGen, stateFilter);
+            }
         });
 
         final ListenableFuture<RepositoryData> filterRepositoryDataStep = new ListenableFuture<>();
@@ -2630,7 +2645,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (ensureSafeGenerationExists(expectedGen, delegate::onFailure) == false) {
                 return;
             }
-            final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
+            final String indexBlob = INDEX_FILE_PREFIX + newGen;
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             writeAtomic(blobContainer(), indexBlob, out -> {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder(org.elasticsearch.core.Streams.noCloseStream(out))) {
@@ -2688,6 +2703,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
                     delegate.onResponse(newRepositoryData);
+                }
+
+                @Override
+                public String toString() {
+                    return Strings.format(
+                        "complete RepositoryData update from generation [%d] to generation [%d], stateFilter=[%s]",
+                        expectedGen,
+                        newGen,
+                        stateFilter
+                    );
                 }
             });
         }));

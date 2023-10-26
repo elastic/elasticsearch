@@ -247,7 +247,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(
             prepareCreate("test-idx-none", 1, indexSettingsNoReplicas(6).put("index.routing.allocation.include.tag", "nowhere"))
                 .setWaitForActiveShards(ActiveShardCount.NONE)
-                .get()
         );
         assertTrue(indexExists("test-idx-none"));
 

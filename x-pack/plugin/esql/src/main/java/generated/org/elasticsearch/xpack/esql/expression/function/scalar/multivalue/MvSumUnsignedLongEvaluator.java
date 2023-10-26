@@ -69,4 +69,25 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumUnsignedLongEvaluator get(DriverContext context) {
+      return new MvSumUnsignedLongEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
+    }
+  }
 }

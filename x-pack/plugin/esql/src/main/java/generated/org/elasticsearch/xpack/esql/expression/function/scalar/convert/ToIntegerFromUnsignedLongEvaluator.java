@@ -97,4 +97,25 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
     long value = container.getLong(index);
     return ToInteger.fromUnsignedLong(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToIntegerFromUnsignedLongEvaluator get(DriverContext context) {
+      return new ToIntegerFromUnsignedLongEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToIntegerFromUnsignedLongEvaluator[field=" + field + "]";
+    }
+  }
 }

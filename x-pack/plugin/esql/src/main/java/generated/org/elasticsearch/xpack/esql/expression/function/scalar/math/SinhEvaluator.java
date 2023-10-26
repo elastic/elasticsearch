@@ -91,4 +91,25 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public SinhEvaluator get(DriverContext context) {
+      return new SinhEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SinhEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

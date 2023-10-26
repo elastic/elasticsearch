@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -614,9 +615,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
-            var limit = limits.isEmpty() == false
-                ? context.configuration().resultTruncationMaxSize() // user provided a limit: cap result entries to the max
-                : context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            int limit;
+            if (limits.isEmpty()) {
+                HeaderWarning.addWarning(
+                    "No limit defined, adding default limit of [{}]",
+                    context.configuration().resultTruncationDefaultSize()
+                );
+                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+            } else {
+                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+            }
             return new Limit(Source.EMPTY, new Literal(Source.EMPTY, limit, DataTypes.INTEGER), logicalPlan);
         }
     }

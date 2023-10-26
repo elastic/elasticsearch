@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -38,6 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class AzureStorageServiceTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -73,7 +76,10 @@ public class AzureStorageServiceTests extends ESTestCase {
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
         final AzureRepositoryPlugin plugin = new AzureRepositoryPlugin(settings);
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null);
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.threadPool()).thenReturn(threadPool);
+        when(services.telemetryProvider()).thenReturn(TelemetryProvider.NOOP);
+        plugin.createComponents(services);
         return plugin;
     }
 

@@ -65,41 +65,11 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            TelemetryProvider telemetryProvider,
-            AllocationService allocationService,
-            IndicesService indicesService
-        ) {
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
+        public Collection<?> createComponents(PluginServices services) {
+            services.clusterService().getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
                 logger.debug("the template dummy setting was updated to {}", integer);
             });
-            return super.createComponents(
-                client,
-                clusterService,
-                threadPool,
-                resourceWatcherService,
-                scriptService,
-                xContentRegistry,
-                environment,
-                nodeEnvironment,
-                namedWriteableRegistry,
-                expressionResolver,
-                repositoriesServiceSupplier,
-                telemetryProvider,
-                allocationService,
-                indicesService
-            );
+            return super.createComponents(services);
         }
 
         @Override

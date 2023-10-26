@@ -14,6 +14,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +76,7 @@ public class WatcherPluginTests extends ESTestCase {
 
         // also no component creation if not enabled
         assertThat(
-            watcher.createComponents(null, null, null, null, null, null, null, null, null, null, null, TelemetryProvider.NOOP, null, null),
+            watcher.createComponents(mock(Plugin.PluginServices.class)),
             hasSize(0)
         );
 

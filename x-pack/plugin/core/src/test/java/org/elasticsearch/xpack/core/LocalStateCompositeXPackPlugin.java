@@ -193,59 +193,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         List<Object> components = new ArrayList<>(
-            super.createComponents(
-                client,
-                clusterService,
-                threadPool,
-                resourceWatcherService,
-                scriptService,
-                xContentRegistry,
-                environment,
-                nodeEnvironment,
-                namedWriteableRegistry,
-                expressionResolver,
-                repositoriesServiceSupplier,
-                telemetryProvider,
-                allocationService,
-                indicesService
-            )
+            super.createComponents(services)
         );
 
         filterPlugins(Plugin.class).forEach(
             p -> components.addAll(
-                p.createComponents(
-                    client,
-                    clusterService,
-                    threadPool,
-                    resourceWatcherService,
-                    scriptService,
-                    xContentRegistry,
-                    environment,
-                    nodeEnvironment,
-                    namedWriteableRegistry,
-                    expressionResolver,
-                    repositoriesServiceSupplier,
-                    telemetryProvider,
-                    allocationService,
-                    indicesService
-                )
+                p.createComponents(services)
             )
         );
         return components;

@@ -102,38 +102,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        return entSearchPlugin.createComponents(
-            client,
-            clusterService,
-            threadPool,
-            resourceWatcherService,
-            scriptService,
-            xContentRegistry,
-            environment,
-            nodeEnvironment,
-            namedWriteableRegistry,
-            indexNameExpressionResolver,
-            repositoriesServiceSupplier,
-            telemetryProvider,
-            allocationService,
-            indicesService
-        );
+    public Collection<?> createComponents(PluginServices services) {
+        return entSearchPlugin.createComponents(services);
     }
 
     @Override

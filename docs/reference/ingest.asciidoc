@@ -990,3 +990,4 @@ GET _nodes/stats/ingest?filter_path=nodes.*.ingest
 include::ingest/common-log-format-example.asciidoc[]
 include::ingest/enrich.asciidoc[]
 include::ingest/processors.asciidoc[]
+include::ingest/search-ingest-pipelines.asciidoc[]

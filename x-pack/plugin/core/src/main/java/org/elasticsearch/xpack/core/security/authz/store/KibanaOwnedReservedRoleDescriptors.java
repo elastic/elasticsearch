@@ -64,6 +64,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 "manage_saml",
                 "manage_token",
                 "manage_oidc",
+                // For SLO to install enrich policy
+                "manage_enrich",
                 // For Fleet package upgrade
                 "manage_pipeline",
                 "manage_ilm",

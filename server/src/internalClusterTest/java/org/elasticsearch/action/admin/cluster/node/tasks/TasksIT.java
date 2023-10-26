@@ -447,9 +447,6 @@ public class TasksIT extends ESIntegTestCase {
                             }
                         }
                     }
-
-                    @Override
-                    public void onTaskUnregistered(Task task) {}
                 });
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
@@ -601,9 +598,6 @@ public class TasksIT extends ESIntegTestCase {
             CountDownLatch waitForWaitingToStart = new CountDownLatch(1);
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
-                    @Override
-                    public void onTaskRegistered(Task task) {}
-
                     @Override
                     public void onTaskUnregistered(Task task) {
                         waitForWaitingToStart.countDown();

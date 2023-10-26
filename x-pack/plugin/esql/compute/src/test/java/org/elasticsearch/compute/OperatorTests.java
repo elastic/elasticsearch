@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -86,6 +88,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 // TODO: Move these tests to the right test classes.
+@Repeat(iterations=100)
 public class OperatorTests extends MapperServiceTestCase {
 
     public void testQueryOperator() throws IOException {
@@ -141,6 +144,7 @@ public class OperatorTests extends MapperServiceTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101413")
     public void testGroupingWithOrdinals() throws Exception {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();

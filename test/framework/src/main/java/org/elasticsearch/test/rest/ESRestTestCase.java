@@ -262,7 +262,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         serverless = true;
                     }
                 }
-                testNodesFeaturesBuilder.addInfoFromNode(nodeInfo);
+                testNodesFeaturesBuilder.addInfoFromNode(nodeInfo, serverless);
 
                 if (serverless) {
                     availableFeatures.removeAll(

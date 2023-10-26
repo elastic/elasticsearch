@@ -39,9 +39,17 @@ class VersionBasedNodesFeatures {
             Tuple.tuple(Version.V_7_6_0, "indices_auto_expand_allocation_filtering_rules_enforced")
         );
 
-        void addInfoFromNode(Map<?, ?> nodeInfo) {
-            Version version = Version.fromString(nodeInfo.get("version").toString());
-            var nodeFeatures = historicalFeatures.stream().map(t -> version.onOrAfter(t.v1())).toList();
+        void addInfoFromNode(Map<?, ?> nodeInfo, boolean serverless) {
+            final List<Boolean> nodeFeatures;
+            if (serverless) {
+                // Since serverless is always on the most recent version, assume all features needed by tests are enabled
+                // This avoids parsing "version" into a Version (it will fail, since in serverless "version" is an opaque string
+                // Note that this is a temporary solution while we are migrating to feature API (see TODO on the class header)
+                nodeFeatures = historicalFeatures.stream().map(t -> true).toList();
+            } else {
+                Version version = Version.fromString(nodeInfo.get("version").toString());
+                nodeFeatures = historicalFeatures.stream().map(t -> version.onOrAfter(t.v1())).toList();
+            }
             nodesFeaturesBitmap.add(nodeFeatures);
         }
 

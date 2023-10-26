@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -137,6 +138,11 @@ public abstract class Plugin implements Closeable {
          * A service to manage indices in the cluster
          */
         IndicesService indicesService();
+
+        /**
+         * A service to access features supported by nodes in the cluster
+         */
+        FeatureService featureService();
     }
 
     /**

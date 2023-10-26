@@ -743,6 +743,8 @@ class NodeConstruction {
             threadPool
         );
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
@@ -757,7 +759,8 @@ class NodeConstruction {
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            FeatureService featureService
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -773,7 +776,8 @@ class NodeConstruction {
             repositoriesServiceReference::get,
             telemetryProvider,
             clusterModule.getAllocationService(),
-            indicesService
+            indicesService,
+            featureService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
@@ -938,7 +942,6 @@ class NodeConstruction {
         );
         clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
-        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
         final DiscoveryModule discoveryModule = new DiscoveryModule(
             settings,
             transportService,

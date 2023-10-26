@@ -166,6 +166,6 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
     }
 
     public static ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEvaluator, Rounding.Prepared rounding) {
-        return dvrCtx -> new DateTruncEvaluator(fieldEvaluator.get(dvrCtx), rounding, dvrCtx);
+        return new DateTruncEvaluator.Factory(fieldEvaluator, rounding);
     }
 }

@@ -225,7 +225,7 @@ public class AggregateMapper {
             return "Long";
         } else if (type.equals(DataTypes.DOUBLE)) {
             return "Double";
-        } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP)) {
+        } else if (type.equals(DataTypes.KEYWORD) || type.equals(DataTypes.IP) || type.equals(DataTypes.TEXT)) {
             return "BytesRef";
         } else {
             throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());

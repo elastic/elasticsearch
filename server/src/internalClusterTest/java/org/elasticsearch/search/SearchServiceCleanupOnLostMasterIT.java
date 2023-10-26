@@ -73,7 +73,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
         index("test", "test", "{}");
 
-        assertThat(client().prepareSearch("test").setScroll("30m").get().getScrollId(), is(notNullValue()));
+        assertThat(prepareSearch("test").setScroll("30m").get().getScrollId(), is(notNullValue()));
 
         loseMaster.accept(master, dataNode);
         // in the past, this failed because the search context for the scroll would prevent the shard lock from being released.

@@ -79,4 +79,22 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public LengthEvaluator get(DriverContext context) {
+      return new LengthEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "LengthEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

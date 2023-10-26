@@ -74,4 +74,22 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.fieldVal = fieldVal;
+    }
+
+    @Override
+    public AbsLongEvaluator get(DriverContext context) {
+      return new AbsLongEvaluator(fieldVal.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AbsLongEvaluator[" + "fieldVal=" + fieldVal + "]";
+    }
+  }
 }

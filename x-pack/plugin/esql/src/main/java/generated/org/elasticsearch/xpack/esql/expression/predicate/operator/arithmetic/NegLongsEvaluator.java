@@ -91,4 +91,25 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
   public void close() {
     Releasables.closeExpectNoException(v);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory v) {
+      this.source = source;
+      this.v = v;
+    }
+
+    @Override
+    public NegLongsEvaluator get(DriverContext context) {
+      return new NegLongsEvaluator(source, v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegLongsEvaluator[" + "v=" + v + "]";
+    }
+  }
 }

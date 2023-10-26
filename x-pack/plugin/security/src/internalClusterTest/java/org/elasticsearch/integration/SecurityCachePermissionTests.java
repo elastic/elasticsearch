@@ -47,10 +47,9 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
     }
 
     public void testThatTermsFilterQueryDoesntLeakData() {
-        SearchResponse response = client().prepareSearch("data")
-            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens"))))
-            .execute()
-            .actionGet();
+        SearchResponse response = prepareSearch("data").setQuery(
+            QueryBuilders.constantScoreQuery(QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "1", "tokens")))
+        ).execute().actionGet();
         assertThat(response.isTimedOut(), is(false));
         assertThat(response.getHits().getHits().length, is(1));
 

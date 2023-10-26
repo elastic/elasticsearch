@@ -6,12 +6,9 @@
 <titleabbrev>Create {rollup-jobs}</titleabbrev>
 ++++
 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+
 Creates a {rollup-job}.
-
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-put-job-api-request]]
 ==== {api-request-title}
@@ -93,7 +90,7 @@ documents without a timestamp and a `date_histogram` group. The
 +
 .Properties of `date_histogram`
 [%collapsible%open]
-===== 
+=====
 `calendar_interval` or `fixed_interval`::::
 (Required, <<time-units,time units>>) The interval of time buckets to be
 generated when rolling up. For example, `60m` produces 60 minute (hourly)
@@ -139,11 +136,11 @@ in `UTC`.
 //Begin histogram
 `histogram`:::
 (Optional, object) The histogram group aggregates one or more numeric fields
-into numeric histogram intervals. 
+into numeric histogram intervals.
 +
 .Properties of `histogram`
 [%collapsible%open]
-===== 
+=====
 `fields`::::
 (Required, array) The set of fields that you wish to build histograms for. All
 fields specified must be some kind of numeric. Order does not matter.
@@ -175,7 +172,7 @@ judicious which high-cardinality fields are included for that reason.
 +
 .Properties of `terms`
 [%collapsible%open]
-===== 
+=====
 
 `fields`::::
 (Required, string) The set of fields that you wish to collect terms for. This

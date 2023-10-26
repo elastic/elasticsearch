@@ -23,6 +23,7 @@ import java.util.TreeSet;
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
     private static final char PRINCIPAL_SEPARATOR = '|';
+    private static final char PRINCIPAL_LITERAL_SEPARATOR_REPLACE = ' ';
     private SignedJWT signedJWT;
     private final String principal;
     private final byte[] userCredentialsHash;
@@ -98,10 +99,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     private String buildPrincipal() {
         StringBuilder principalBuilder = new StringBuilder();
         JWTClaimsSet jwtClaimsSet = getJWTClaimsSet();
-        principalBuilder.append(jwtClaimsSet.getIssuer().replace(PRINCIPAL_SEPARATOR, ' ')).append(PRINCIPAL_SEPARATOR);
-        principalBuilder.append(String.join(",", new TreeSet<>(jwtClaimsSet.getAudience())).replace(PRINCIPAL_SEPARATOR, ' '))
+        principalBuilder.append(replaceLiteralSeparator(jwtClaimsSet.getIssuer())).append(PRINCIPAL_SEPARATOR);
+        principalBuilder.append(replaceLiteralSeparator(String.join(",", new TreeSet<>(jwtClaimsSet.getAudience()))))
             .append(PRINCIPAL_SEPARATOR);
-        principalBuilder.append(jwtClaimsSet.getSubject().replace(PRINCIPAL_SEPARATOR, ' ')).append(PRINCIPAL_SEPARATOR);
+        principalBuilder.append(replaceLiteralSeparator(jwtClaimsSet.getSubject()));
         return principalBuilder.toString();
+    }
+
+    private String replaceLiteralSeparator(@Nullable String claimValue) {
+        return claimValue == null ? null : claimValue.replace(PRINCIPAL_SEPARATOR, PRINCIPAL_LITERAL_SEPARATOR_REPLACE);
     }
 }

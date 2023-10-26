@@ -28,7 +28,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.empty;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class NodeShutdownReadinessIT  extends ESIntegTestCase {
+public class NodeShutdownReadinessIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
@@ -47,12 +47,7 @@ public class NodeShutdownReadinessIT  extends ESIntegTestCase {
     }
 
     private void deleteNodeShutdown(String nodeId) {
-        assertAcked(
-            client().execute(
-                DeleteShutdownNodeAction.INSTANCE,
-                new DeleteShutdownNodeAction.Request(nodeId)
-            )
-        );
+        assertAcked(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(nodeId)));
     }
 
     private String getNodeId(String nodeName) {

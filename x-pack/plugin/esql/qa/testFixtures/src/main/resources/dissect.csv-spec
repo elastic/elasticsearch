@@ -48,6 +48,13 @@ a:keyword        | b:keyword   | c:keyword    | d:keyword
 foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
 ;
 
+appendSeparatorUppercase
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" APPEND_SEPARATOR=",";
+
+a:keyword        | b:keyword   | c:keyword    | d:keyword 
+foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
+;
+
 
 namedSkip
 row a = "foo bar baz" | dissect a "%{b} %{?c} %{d}";

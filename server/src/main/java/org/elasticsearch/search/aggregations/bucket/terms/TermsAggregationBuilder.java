@@ -135,11 +135,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    public boolean supportsParallelCollection() {
-        return false;
-    }
-
-    @Override
     protected ValuesSourceType defaultValueSourceType() {
         return CoreValuesSourceType.KEYWORD;
     }

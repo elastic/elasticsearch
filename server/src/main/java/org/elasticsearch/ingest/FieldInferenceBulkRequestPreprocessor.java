@@ -110,7 +110,10 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
                 // Transform into two subfields, one with the actual text and other with the inference
                 Map<String, Object> newFieldValue = new HashMap<>();
                 newFieldValue.put(SemanticTextFieldMapper.TEXT_SUBFIELD_NAME, fieldValue);
-                newFieldValue.put(SemanticTextFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, response.getResult().asMap(fieldName).get(fieldName));
+                newFieldValue.put(
+                    SemanticTextFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME,
+                    response.getResult().asMap(fieldName).get(fieldName)
+                );
                 ingestDocument.setFieldValue(fieldName, newFieldValue);
 
                 updateIndexRequestSource(indexRequest, ingestDocument);

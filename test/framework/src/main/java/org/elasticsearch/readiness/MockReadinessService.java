@@ -90,7 +90,7 @@ public class MockReadinessService extends ReadinessService {
         super(clusterService, environment, MockServerSocketChannel::openMock);
     }
 
-    static void tcpReadinessProbeTrue(ReadinessService readinessService) {
+    public static void tcpReadinessProbeTrue(ReadinessService readinessService) {
         ServerSocketChannel mockedSocket = readinessService.serverChannel();
         if (mockedSocket == null) {
             throw new AssertionError("Mocked socket not created for this node");

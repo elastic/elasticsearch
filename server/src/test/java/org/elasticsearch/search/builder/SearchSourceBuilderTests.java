@@ -914,12 +914,6 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(new MaxAggregationBuilder("max"));
             assertTrue(searchSourceBuilder.supportsParallelCollection());
-
-        }
-        {
-            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
-            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
-            assertFalse(searchSourceBuilder.supportsParallelCollection());
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();

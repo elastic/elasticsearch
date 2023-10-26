@@ -85,6 +85,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -2231,7 +2232,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     );
 
                     SearchSourceBuilder searchSourceAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
-                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    searchSourceAggDoesNotSupportParallelCollection.aggregation(new SignificantTermsAggregationBuilder("terms"));
                     assertFalse(
                         "Parallel collection should not be supported for the query phase when "
                             + "enabled && does not contains supported agg.",
@@ -2243,7 +2244,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     );
 
                     SearchSourceBuilder searchSourceMultiAggDoesNotSupportParallelCollection = new SearchSourceBuilder();
-                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new TermsAggregationBuilder("terms"));
+                    searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new SignificantTermsAggregationBuilder("terms"));
                     searchSourceMultiAggDoesNotSupportParallelCollection.aggregation(new DateRangeAggregationBuilder("dateRange"));
                     assertFalse(
                         "Parallel collection should not be supported for the query phase when when enabled && contains unsupported agg.",

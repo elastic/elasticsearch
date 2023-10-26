@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -318,19 +317,6 @@ public class AggregatorFactoriesTests extends ESTestCase {
     }
 
     public void testSupportsParallelCollection() {
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            assertTrue(builder.supportsParallelCollection());
-            builder.addAggregator(new FilterAggregationBuilder("name", new MatchAllQueryBuilder()));
-            assertTrue(builder.supportsParallelCollection());
-            builder.addAggregator(new TermsAggregationBuilder("terms"));
-            assertFalse(builder.supportsParallelCollection());
-        }
-        {
-            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
-            builder.addAggregator(new TermsAggregationBuilder("terms"));
-            assertFalse(builder.supportsParallelCollection());
-        }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));

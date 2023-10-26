@@ -18,7 +18,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.entity.Parser;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -33,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestTests.createRequest;
@@ -71,16 +71,9 @@ public class HuggingFaceClientTests extends ESTestCase {
 
             String responseJson = """
                 [
-                  {
-                    "outputs": [
-                      [
-                        [
-                          ".",
-                          0.133155956864357
-                        ]
-                      ]
-                    ]
-                  }
+                    {
+                        ".": 0.133155956864357
+                    }
                 ]
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -102,12 +95,9 @@ public class HuggingFaceClientTests extends ESTestCase {
             );
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            String jsonRequestBody = Parser.OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
-                .writeValueAsString(Parser.OBJECT_MAPPER.readTree(webServer.requests().get(0).getBody()));
-            assertThat(jsonRequestBody, is("""
-                {
-                  "inputs" : "abc"
-                }"""));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), is("abc"));
         }
     }
 
@@ -153,12 +143,9 @@ public class HuggingFaceClientTests extends ESTestCase {
             );
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
-            String jsonRequestBody = Parser.OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
-                .writeValueAsString(Parser.OBJECT_MAPPER.readTree(webServer.requests().get(0).getBody()));
-            assertThat(jsonRequestBody, is("""
-                {
-                  "inputs" : "abc"
-                }"""));
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.get("inputs"), is("abc"));
         }
     }
 

@@ -12,13 +12,13 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.entity.Parser;
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -35,12 +35,9 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaTypeWithoutParameters()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
 
-        String jsonOutput = Parser.OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
-            .writeValueAsString(Parser.OBJECT_MAPPER.readTree(httpPost.getEntity().getContent()));
-        assertThat(jsonOutput, is("""
-            {
-              "inputs" : "abc"
-            }"""));
+        var requestMap = entityAsMap(httpPost.getEntity().getContent());
+        assertThat(requestMap.size(), is(1));
+        assertThat(requestMap.get("inputs"), is("abc"));
     }
 
     public static HuggingFaceElserRequest createRequest(String url, String apiKey, String input) throws URISyntaxException {

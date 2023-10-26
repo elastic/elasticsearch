@@ -139,13 +139,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(
-            TimeseriesLifecycleType.INSTANCE,
-            lifecycleName,
-            phases,
-            randomMeta(),
-            randomOptionalBoolean()
-        );
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomOptionalBoolean());
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
@@ -236,13 +230,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         } else {
             phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
         }
-        return new LifecyclePolicy(
-            TimeseriesLifecycleType.INSTANCE,
-            lifecycleName,
-            phases,
-            randomMeta(),
-            randomOptionalBoolean()
-        );
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomOptionalBoolean());
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {

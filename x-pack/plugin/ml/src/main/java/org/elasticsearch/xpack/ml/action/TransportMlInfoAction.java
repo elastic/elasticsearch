@@ -177,7 +177,6 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
         OptionalLong smallestMLNode = mlNodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
-        // Can we scale vertically?
-        return smallestMLNode.isPresent() && smallestMLNode.getAsLong() < maxMLNodeSize.getBytes();
+        return smallestMLNode.isPresent() && smallestMLNode.getAsLong() >= maxMLNodeSize.getBytes();
     }
 }

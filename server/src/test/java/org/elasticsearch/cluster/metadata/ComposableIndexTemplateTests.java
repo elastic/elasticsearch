@@ -92,9 +92,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             randomBoolean() ? null : randomNonNegativeLong(),
             meta,
             dataStreamTemplate,
-            randomBoolean() ? null : randomBoolean(),
+            randomOptionalBoolean(),
             ignoreMissingComponentTemplates,
-            randomBoolean() ? null : randomBoolean()
+            randomOptionalBoolean()
         );
     }
 
@@ -287,7 +287,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.getDataStreamTemplate(),
                     orig.getAllowAutoCreate(),
                     orig.getIgnoreMissingComponentTemplates(),
-                    orig.deprecated() == false
+                    orig.deprecated() ? randomFrom(false, null) : true
                 );
             default:
                 throw new IllegalStateException("illegal randomization branch");

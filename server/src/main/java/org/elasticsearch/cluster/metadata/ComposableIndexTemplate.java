@@ -97,7 +97,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     @Nullable
     private final List<String> ignoreMissingComponentTemplates;
     @Nullable
-    private final boolean deprecated;
+    private final Boolean deprecated;
 
     static Diff<ComposableIndexTemplate> readITV2DiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComposableIndexTemplate::new, in);
@@ -140,7 +140,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable DataStreamTemplate dataStreamTemplate,
         @Nullable Boolean allowAutoCreate
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, allowAutoCreate, null);
     }
 
     ComposableIndexTemplate(
@@ -164,7 +164,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             dataStreamTemplate,
             allowAutoCreate,
             ignoreMissingComponentTemplates,
-            Boolean.FALSE
+            null
         );
     }
 
@@ -189,7 +189,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         this.dataStreamTemplate = dataStreamTemplate;
         this.allowAutoCreate = allowAutoCreate;
         this.ignoreMissingComponentTemplates = ignoreMissingComponentTemplates;
-        this.deprecated = Boolean.TRUE.equals(deprecated);
+        this.deprecated = deprecated;
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
@@ -211,9 +211,9 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.ignoreMissingComponentTemplates = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            this.deprecated = in.readBoolean();
+            this.deprecated = in.readOptionalBoolean();
         } else {
-            this.deprecated = false;
+            this.deprecated = null;
         }
     }
 
@@ -288,7 +288,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public boolean deprecated() {
-        return deprecated;
+        return Boolean.TRUE.equals(deprecated);
     }
 
     @Override
@@ -310,7 +310,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            out.writeBoolean(deprecated);
+            out.writeOptionalBoolean(deprecated);
         }
     }
 
@@ -351,8 +351,8 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (this.ignoreMissingComponentTemplates != null) {
             builder.stringListField(IGNORE_MISSING_COMPONENT_TEMPLATES.getPreferredName(), ignoreMissingComponentTemplates);
         }
-        if (this.deprecated) {
-            builder.field(DEPRECATED.getPreferredName(), true);
+        if (this.deprecated != null) {
+            builder.field(DEPRECATED.getPreferredName(), deprecated);
         }
         builder.endObject();
         return builder;
@@ -370,7 +370,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.dataStreamTemplate,
             this.allowAutoCreate,
             this.ignoreMissingComponentTemplates,
-            this.deprecated
+            deprecated()
         );
     }
 
@@ -392,7 +392,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates)
-            && this.deprecated == other.deprecated;
+            && deprecated() == other.deprecated();
     }
 
     static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
@@ -529,7 +529,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private DataStreamTemplate dataStreamTemplate;
         private Boolean allowAutoCreate;
         private List<String> ignoreMissingComponentTemplates;
-        private boolean deprecated;
+        private Boolean deprecated;
 
         public Builder() {}
 
@@ -578,7 +578,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
-        public Builder deprecated(boolean deprecated) {
+        public Builder deprecated(Boolean deprecated) {
             this.deprecated = deprecated;
             return this;
         }

@@ -88,7 +88,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             meta = randomMeta();
         }
-        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, randomBoolean());
+        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, randomOptionalBoolean());
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -190,14 +190,21 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             case 1 -> new ComponentTemplate(
                 orig.template(),
                 randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                orig.metadata()
+                orig.metadata(),
+                orig.deprecated()
             );
             case 2 -> new ComponentTemplate(
                 orig.template(),
                 orig.version(),
-                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+                randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta),
+                orig.deprecated()
             );
-            case 3 -> new ComponentTemplate(orig.template(), orig.version(), orig.metadata(), orig.deprecated() == false);
+            case 3 -> new ComponentTemplate(
+                orig.template(),
+                orig.version(),
+                orig.metadata(),
+                orig.deprecated() ? randomFrom(false, null) : true
+            );
             default -> throw new IllegalStateException("illegal randomization branch");
         };
     }

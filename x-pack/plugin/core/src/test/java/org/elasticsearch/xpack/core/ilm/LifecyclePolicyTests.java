@@ -144,7 +144,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             lifecycleName,
             phases,
             randomMeta(),
-            randomBoolean() ? randomBoolean() : null
+            randomOptionalBoolean()
         );
     }
 
@@ -241,7 +241,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             lifecycleName,
             phases,
             randomMeta(),
-            randomBoolean() ? randomBoolean() : null
+            randomOptionalBoolean()
         );
     }
 
@@ -288,7 +288,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
             String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomBoolean());
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta(), randomOptionalBoolean());
     }
 
     @Override
@@ -296,7 +296,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
         Map<String, Object> metadata = instance.getMetadata();
-        boolean deprecated = instance.isDeprecated();
+        Boolean deprecated = instance.isDeprecated();
         switch (between(0, 3)) {
             case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
             case 1 -> {
@@ -318,7 +318,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
             }
             case 2 -> metadata = randomValueOtherThan(metadata, LifecyclePolicyTests::randomMeta);
-            case 3 -> deprecated = deprecated == false;
+            case 3 -> deprecated = instance.isDeprecated() ? randomFrom(false, null) : true;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, metadata, deprecated);

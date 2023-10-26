@@ -72,7 +72,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     private final Map<String, Phase> phases;
     @Nullable
     private final Map<String, Object> metadata;
-    private final boolean deprecated;
+    private final Boolean deprecated;
 
     /**
      * @param name
@@ -83,7 +83,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      *
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
-        this(TimeseriesLifecycleType.INSTANCE, name, phases, null, false);
+        this(TimeseriesLifecycleType.INSTANCE, name, phases, null, null);
     }
 
     /**
@@ -98,7 +98,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
      *            the custom metadata of this {@link LifecyclePolicy}
      */
     public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
-        this(type, name, phases, metadata, false);
+        this(type, name, phases, metadata, null);
     }
 
     /**
@@ -110,9 +110,9 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         phases = in.readImmutableMap(Phase::new);
         this.metadata = in.readMap();
         if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            this.deprecated = in.readBoolean();
+            this.deprecated = in.readOptionalBoolean();
         } else {
-            deprecated = false;
+            this.deprecated = null;
         }
     }
 
@@ -138,7 +138,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         this.phases = phases;
         this.type = type;
         this.metadata = metadata;
-        this.deprecated = Boolean.TRUE.equals(deprecated);
+        this.deprecated = deprecated;
     }
 
     public void validate() {
@@ -156,7 +156,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         out.writeMap(phases, StreamOutput::writeWriteable);
         out.writeGenericMap(this.metadata);
         if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            out.writeBoolean(deprecated);
+            out.writeOptionalBoolean(deprecated);
         }
     }
 
@@ -190,7 +190,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     }
 
     public boolean isDeprecated() {
-        return deprecated;
+        return Boolean.TRUE.equals(deprecated);
     }
 
     @Override
@@ -204,8 +204,8 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), this.metadata);
         }
-        if (this.deprecated) {
-            builder.field(DEPRECATED.getPreferredName(), true);
+        if (this.deprecated != null) {
+            builder.field(DEPRECATED.getPreferredName(), this.deprecated);
         }
         builder.endObject();
         return builder;
@@ -338,7 +338,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, phases, metadata, deprecated);
+        return Objects.hash(name, phases, metadata, isDeprecated());
     }
 
     @Override
@@ -353,7 +353,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         return Objects.equals(name, other.name)
             && Objects.equals(phases, other.phases)
             && Objects.equals(metadata, other.metadata)
-            && deprecated == other.deprecated;
+            && isDeprecated() == other.isDeprecated();
     }
 
     @Override

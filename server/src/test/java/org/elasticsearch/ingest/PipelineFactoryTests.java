@@ -29,7 +29,7 @@ public class PipelineFactoryTests extends ESTestCase {
     private final String versionString = version != null ? Integer.toString(version) : null;
     private final ScriptService scriptService = mock(ScriptService.class);
     private final Map<String, Object> metadata = randomMapOfMaps();
-    private final Boolean deprecated = randomBoolean() ? randomBoolean() : null;
+    private final Boolean deprecated = randomOptionalBoolean();
 
     public void testCreate() throws Exception {
         Map<String, Object> processorConfig0 = new HashMap<>();

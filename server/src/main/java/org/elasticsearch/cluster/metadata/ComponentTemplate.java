@@ -57,7 +57,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private final Long version;
     @Nullable
     private final Map<String, Object> metadata;
-    private final boolean deprecated;
+    private final Boolean deprecated;
 
     static Diff<ComponentTemplate> readComponentTemplateDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(ComponentTemplate::new, in);
@@ -68,14 +68,14 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata) {
-        this(template, version, metadata, Boolean.FALSE);
+        this(template, version, metadata, null);
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata, Boolean deprecated) {
         this.template = template;
         this.version = version;
         this.metadata = metadata;
-        this.deprecated = Boolean.TRUE.equals(deprecated);
+        this.deprecated = deprecated;
     }
 
     public ComponentTemplate(StreamInput in) throws IOException {
@@ -87,9 +87,9 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             this.metadata = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            this.deprecated = in.readBoolean();
+            this.deprecated = in.readOptionalBoolean();
         } else {
-            deprecated = false;
+            deprecated = null;
         }
     }
 
@@ -108,7 +108,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public boolean deprecated() {
-        return deprecated;
+        return Boolean.TRUE.equals(deprecated);
     }
 
     @Override
@@ -122,13 +122,13 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             out.writeGenericMap(this.metadata);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.DEPRECATED_COMPONENT_TEMPLATES_ADDED)) {
-            out.writeBoolean(deprecated);
+            out.writeOptionalBoolean(this.deprecated);
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(template, version, metadata, deprecated);
+        return Objects.hash(template, version, metadata, deprecated());
     }
 
     @Override
@@ -143,7 +143,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
             && Objects.equals(metadata, other.metadata)
-            && deprecated == other.deprecated;
+            && deprecated() == other.deprecated();
     }
 
     @Override
@@ -170,8 +170,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), this.metadata);
         }
-        if (this.deprecated) {
-            builder.field(DEPRECATED.getPreferredName(), true);
+        if (this.deprecated != null) {
+            builder.field(DEPRECATED.getPreferredName(), this.deprecated);
         }
         builder.endObject();
         return builder;

@@ -809,6 +809,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
+    public static Boolean randomOptionalBoolean() {
+        return randomBoolean() ? randomBoolean() : null;
+    }
+
     public static byte randomByte() {
         return (byte) random().nextInt();
     }

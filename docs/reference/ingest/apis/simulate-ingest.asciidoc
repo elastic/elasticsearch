@@ -1,0 +1,444 @@
+
+[[simulate-ingest-api]]
+=== Simulate ingest API
+++++
+<titleabbrev>Simulate ingest</titleabbrev>
+++++
+
+Executes ingest pipelines against a set of provided documents, optionally
+with substitute pipeline definitions.
+
+////
+[source,console]
+----
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+POST /_ingest/_simulate
+{
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ],
+  "pipeline_substitutions": {
+    "my-pipeline-id": {
+      "processors": [
+        {
+          "set": {
+            "field": "field2",
+            "value": "_value"
+          }
+        }
+      ]
+    }
+  }
+}
+----
+
+
+[[simulate-ingest-api-request]]
+==== {api-request-title}
+
+`POST /_ingest/_simulate`
+
+`GET /_ingest//_simulate`
+
+[[simulate-ingest-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[simulate-ingest-api-desc]]
+==== {api-description-title}
+
+The simulate ingest API simulates ingesting data into an index. It
+executes the default and final pipeline for that index against a set
+of documents provided in the body of the request. If a pipeline
+contains a reroute processor, it follows that reroute processor to the
+new index, executing that index's pipelines as well the same way that
+a non-simulated ingest would. No data is indexed into ${es}. Instead,
+the transformed document is returned, along with the list of pipelines
+that have been executed and the name of the index where the document
+would have been indexed if this were not a simulation.
+
+
+By default, the pipeline definitions that are currently in the system
+are used. But you can supply substitute pipeline definitions in the
+body of the request. These will be used in place of the pipeline
+definitions that are already in the system. This can be used to replace
+existing pipeline definitions or to create new ones. The pipeline
+substitutions are only used within this request.
+
+
+[[simulate-ingest-api-query-params]]
+==== {api-query-parms-title}
+
+`<index>`::
+(Optional, string)
+The index to simulate ingesting into. This can be overridden by specifying an index
+on each document.
+
+`<pipeline>`::
+(Optional, string)
+Pipeline to use as the default pipeline. This can be used to override the default pipeline
+of the index being ingested into.
+
+
+[role="child_attributes"]
+[[simulate-ingest-api-request-body]]
+==== {api-request-body-title}
+
+`docs`::
+(Required, array of objects)
+Sample documents to test in the pipeline.
++
+.Properties of `docs` objects
+[%collapsible%open]
+====
+`_id`::
+(Optional, string)
+Unique identifier for the document. This ID must be unique within the `_index`.
+
+`_index`::
+(Optional, string)
+Name of the index containing the document.
+
+`_routing`::
+(Optional, string)
+Value used to send the document to a specific primary shard. See the
+<<mapping-routing-field,`_routing`>> field.
+
+`_source`::
+(Required, object)
+JSON body for the document.
+====
+
+`pipeline_substututions`::
+(Optional, map of strings to objects)
+Map of pipeline IDs to substitute pipeline definition objects.
++
+.Properties of pipeline definition objects
+[%collapsible%open]
+====
+include::put-pipeline.asciidoc[tag=pipeline-object]
+====
+
+[[simulate-ingest-api-example]]
+==== {api-examples-title}
+
+
+[[simulate-ingest-api-path-parm-ex]]
+===== Specify a pipeline as a path parameter
+
+[source,console]
+----
+POST /_ingest/_simulate
+{
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ]
+}
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+   "docs": [
+      {
+         "doc": {
+            "_id": "id",
+            "_index": "index",
+            "_version": "-3",
+            "_source": {
+               "field2": "_value",
+               "foo": "bar"
+            },
+            "_ingest": {
+               "timestamp": "2017-05-04T22:30:03.187Z"
+            }
+         }
+      },
+      {
+         "doc": {
+            "_id": "id",
+            "_index": "index",
+            "_version": "-3",
+            "_source": {
+               "field2": "_value",
+               "foo": "rab"
+            },
+            "_ingest": {
+               "timestamp": "2017-05-04T22:30:03.188Z"
+            }
+         }
+      }
+   ]
+}
+----
+// TESTRESPONSE[s/"2017-05-04T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2017-05-04T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
+
+
+[[simulate-ingest-api-request-body-ex]]
+===== Specify a pipeline in the request body
+
+[source,console]
+----
+POST /_ingest/pipeline/_simulate
+{
+  "pipeline" :
+  {
+    "description": "_description",
+    "processors": [
+      {
+        "set" : {
+          "field" : "field2",
+          "value" : "_value"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ]
+}
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+   "docs": [
+      {
+         "doc": {
+            "_id": "id",
+            "_index": "index",
+            "_version": "-3",
+            "_source": {
+               "field2": "_value",
+               "foo": "bar"
+            },
+            "_ingest": {
+               "timestamp": "2017-05-04T22:30:03.187Z"
+            }
+         }
+      },
+      {
+         "doc": {
+            "_id": "id",
+            "_index": "index",
+            "_version": "-3",
+            "_source": {
+               "field2": "_value",
+               "foo": "rab"
+            },
+            "_ingest": {
+               "timestamp": "2017-05-04T22:30:03.188Z"
+            }
+         }
+      }
+   ]
+}
+----
+// TESTRESPONSE[s/"2017-05-04T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2017-05-04T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
+
+
+[[ingest-verbose-param]]
+===== View verbose results
+
+You can use the simulate pipeline API
+to see how each processor affects the ingest document
+as it passes through the pipeline.
+To see the intermediate results
+of each processor in the simulate request,
+you can add the `verbose` parameter to the request.
+
+[source,console]
+----
+POST /_ingest/pipeline/_simulate?verbose=true
+{
+  "pipeline" :
+  {
+    "description": "_description",
+    "processors": [
+      {
+        "set" : {
+          "field" : "field2",
+          "value" : "_value2"
+        }
+      },
+      {
+        "set" : {
+          "field" : "field3",
+          "value" : "_value3"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "bar"
+      }
+    },
+    {
+      "_index": "index",
+      "_id": "id",
+      "_source": {
+        "foo": "rab"
+      }
+    }
+  ]
+}
+----
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "docs" : [
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "bar"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251836Z"
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "bar"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251836Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "processor_results" : [
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            }
+          }
+        },
+        {
+          "processor_type" : "set",
+          "status" : "success",
+          "doc" : {
+            "_index" : "index",
+            "_id" : "id",
+            "_version": "-3",
+            "_source" : {
+              "field3" : "_value3",
+              "field2" : "_value2",
+              "foo" : "rab"
+            },
+            "_ingest" : {
+              "pipeline" : "_simulate_pipeline",
+              "timestamp" : "2020-07-30T01:21:24.251863Z"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.1.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/$body.docs.1.processor_results.0.doc._ingest.timestamp/]
+// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/$body.docs.1.processor_results.1.doc._ingest.timestamp/]
+
+////
+[source,console]
+----
+----
+
+[source,console-result]
+----
+----
+////

@@ -78,7 +78,9 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
                     0,
                     DocWriteRequest.OpType.CREATE,
                     new SimulateIndexResponse(
+                        request.id(),
                         request.index(),
+                        request.version(),
                         ((IndexRequest) request).source(),
                         ((IndexRequest) request).getContentType(),
                         ((IndexRequest) request).getExecutedPipelines()

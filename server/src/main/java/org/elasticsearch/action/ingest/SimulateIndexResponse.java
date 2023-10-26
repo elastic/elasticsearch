@@ -38,9 +38,16 @@ public class SimulateIndexResponse extends IndexResponse {
         setShardInfo(new ReplicationResponse.ShardInfo(0, 0));
     }
 
-    public SimulateIndexResponse(String index, BytesReference source, XContentType sourceXContentType, List<String> pipelines) {
+    public SimulateIndexResponse(
+        String id,
+        String index,
+        long version,
+        BytesReference source,
+        XContentType sourceXContentType,
+        List<String> pipelines
+    ) {
         // We don't actually care about most of the IndexResponse fields:
-        super(new ShardId(index, "", 0), "", 0, 0, 0, true, pipelines);
+        super(new ShardId(index, "", 0), id == null ? "" : id, 0, 0, version, true, pipelines);
         this.source = source;
         this.sourceXContentType = sourceXContentType;
         setShardInfo(new ReplicationResponse.ShardInfo(0, 0));
@@ -48,7 +55,9 @@ public class SimulateIndexResponse extends IndexResponse {
 
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("_id", getId());
         builder.field("_index", getShardId().getIndexName());
+        builder.field("_version", getVersion());
         builder.field("_source", XContentHelper.convertToMap(source, false, sourceXContentType).v2());
         assert executedPipelines != null; // This ought to never be null because we always ask to list pipelines in simulate mode
         builder.array("executed_pipelines", executedPipelines.toArray());

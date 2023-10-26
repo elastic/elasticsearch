@@ -8,7 +8,8 @@
 
 package org.elasticsearch.rest.action.ingest;
 
-import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -19,11 +20,15 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -64,7 +69,6 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         Map<String, Object> sourceMap = XContentHelper.convertToMap(sourceTuple.v2(), false, sourceTuple.v1()).v2();
         bulkRequest.setPipelineSubstitutions((Map<String, Map<String, Object>>) sourceMap.remove("pipeline_substitutions"));
-        bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         BytesReference transformedData = convertToBulkRequestXContentBytes(sourceMap);
         bulkRequest.add(
             transformedData,
@@ -78,7 +82,7 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             request.getXContentType(),
             request.getRestApiVersion()
         );
-        return channel -> client.execute(SimulateBulkAction.INSTANCE, bulkRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(SimulateBulkAction.INSTANCE, bulkRequest, new SimulateIngestRestToXContentListener(channel));
     }
 
     private BytesReference convertToBulkRequestXContentBytes(Map<String, Object> sourceMap) throws IOException {
@@ -138,5 +142,39 @@ public class RestSimulateIngestAction extends BaseRestHandler {
     @Override
     public boolean allowsUnsafeBuffers() {
         return true;
+    }
+
+    private class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
+
+        SimulateIngestRestToXContentListener(RestChannel channel) {
+            super(channel);
+        }
+
+        public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
+            assert response.isFragment() == false; // would be nice if we could make default methods final
+            toXContent(response, builder, channel.request());
+            RestStatus restStatus = statusFunction.apply(response);
+            return new RestResponse(restStatus, builder);
+        }
+
+        private static XContentBuilder toXContent(BulkResponse response, XContentBuilder builder, ToXContent.Params params)
+            throws IOException {
+            builder.startObject();
+            builder.startArray("docs");
+            for (BulkItemResponse item : response) {
+                if (item.isFailed()) {
+                    item.toXContent(builder, params);
+                } else {
+                    builder.startObject();
+                    builder.startObject("doc");
+                    item.getResponse().innerToXContent(builder, params);
+                    builder.endObject();
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            builder.endObject();
+            return builder;
+        }
     }
 }

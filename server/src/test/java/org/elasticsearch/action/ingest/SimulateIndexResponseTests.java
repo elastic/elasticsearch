@@ -28,7 +28,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimulateIndexResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
+        String id = randomAlphaOfLength(10);
         String index = randomAlphaOfLength(5);
+        long version = randomLongBetween(0, 500);
         final List<String> pipelines = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 20); i++) {
             pipelines.add(randomAlphaOfLength(20));
@@ -36,14 +38,28 @@ public class SimulateIndexResponseTests extends ESTestCase {
         String source = """
             {"doc": {"key1": "val1", "key2": "val2"}}""";
         BytesReference sourceBytes = BytesReference.fromByteBuffer(ByteBuffer.wrap(source.getBytes(StandardCharsets.UTF_8)));
-        SimulateIndexResponse indexResponse = new SimulateIndexResponse(index, sourceBytes, XContentType.JSON, pipelines);
+        SimulateIndexResponse indexResponse = new SimulateIndexResponse(id, index, version, sourceBytes, XContentType.JSON, pipelines);
         String output = Strings.toString(indexResponse);
-        assertEquals(XContentHelper.stripWhitespace(Strings.format("""
-            {
-              "_index": "%s",
-              "_source": %s,
-              "executed_pipelines": [%s]
-            }""", index, source, pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(",")))), output);
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s]
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            output
+        );
     }
 
     public void testSerialization() throws IOException {
@@ -60,13 +76,15 @@ public class SimulateIndexResponseTests extends ESTestCase {
      * expected {@link IndexResponse} after parsing.
      */
     private static SimulateIndexResponse randomIndexResponse() {
+        String id = randomAlphaOfLength(10);
         String index = randomAlphaOfLength(5);
+        long version = randomLongBetween(0, 500);
         final List<String> pipelines = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(0, 20); i++) {
             pipelines.add(randomAlphaOfLength(20));
         }
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference sourceBytes = RandomObjects.randomSource(random(), xContentType);
-        return new SimulateIndexResponse(index, sourceBytes, xContentType, pipelines);
+        return new SimulateIndexResponse(id, index, version, sourceBytes, xContentType, pipelines);
     }
 }

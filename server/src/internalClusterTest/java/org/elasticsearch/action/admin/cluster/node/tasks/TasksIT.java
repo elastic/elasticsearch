@@ -378,10 +378,11 @@ public class TasksIT extends ESIntegTestCase {
             assertEquals(mainTask.get(0).taskId(), taskInfo.parentTaskId());
             assertTaskHeaders(taskInfo);
             switch (taskInfo.action()) {
-                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.DFS_ACTION_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
-                );
+                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.QUERY_CAN_MATCH_NAME,
+                    SearchTransportService.DFS_ACTION_NAME -> assertTrue(
+                        taskInfo.description(),
+                        Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
+                    );
                 case SearchTransportService.QUERY_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], indices[test]", taskInfo.description())
@@ -389,10 +390,6 @@ public class TasksIT extends ESIntegTestCase {
                 case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
-                );
-                case SearchTransportService.QUERY_CAN_MATCH_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
                 );
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
             }

@@ -242,15 +242,10 @@ class NodeConstruction {
     ) {
         List<Closeable> closeables = new ArrayList<>();
         try {
-            Settings envSettings = Settings.builder()
-                .put(initialEnvironment.settings())
-                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
-                .build();
-
             NodeConstruction constructor = new NodeConstruction(closeables);
-            Settings settings = constructor.createEnvironment(initialEnvironment, envSettings, serviceProvider);
+            Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
             ThreadPool threadPool = constructor.createThreadPool(settings);
-            SettingsModule settingsModule = constructor.validateSettings(envSettings, settings, threadPool);
+            SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
             constructor.construct(threadPool, settingsModule, serviceProvider, forbidPrivateIndexSettings);
 
@@ -353,9 +348,10 @@ class NodeConstruction {
         return Optional.of(plugin);
     }
 
-    private Settings createEnvironment(Environment initialEnvironment, Settings envSettings, NodeServiceProvider serviceProvider) {
+    private Settings createEnvironment(Environment initialEnvironment, NodeServiceProvider serviceProvider) {
         // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
-        DeprecationLogger.initialize(initialEnvironment.settings());
+        Settings envSettings = initialEnvironment.settings();
+        DeprecationLogger.initialize(envSettings);
 
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
         logger.info(

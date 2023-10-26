@@ -35,8 +35,7 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<Join>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialJoin,
             join -> copyWriteable(join, writableRegistry(), Join::new),
             join -> switch (randomInt(4)) {
@@ -101,8 +100,7 @@ public class MessagesTests extends ESTestCase {
 
     public void testPublishResponseEqualsHashCodeSerialization() {
         PublishResponse initialPublishResponse = new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<PublishResponse>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialPublishResponse,
             publishResponse -> copyWriteable(publishResponse, writableRegistry(), PublishResponse::new),
             publishResponse -> switch (randomInt(1)) {
@@ -136,8 +134,7 @@ public class MessagesTests extends ESTestCase {
             initialPublishResponse,
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<PublishWithJoinResponse>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialPublishWithJoinResponse,
             publishWithJoinResponse -> copyWriteable(publishWithJoinResponse, writableRegistry(), PublishWithJoinResponse::new),
             publishWithJoinResponse -> switch (randomInt(1)) {
@@ -168,8 +165,7 @@ public class MessagesTests extends ESTestCase {
 
     public void testStartJoinRequestEqualsHashCodeSerialization() {
         StartJoinRequest initialStartJoinRequest = new StartJoinRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong());
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<StartJoinRequest>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialStartJoinRequest,
             startJoinRequest -> copyWriteable(startJoinRequest, writableRegistry(), StartJoinRequest::new),
             startJoinRequest -> switch (randomInt(1)) {
@@ -193,8 +189,7 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<ApplyCommitRequest>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialApplyCommit,
             applyCommit -> copyWriteable(applyCommit, writableRegistry(), ApplyCommitRequest::new),
             applyCommit -> switch (randomInt(2)) {
@@ -234,8 +229,7 @@ public class MessagesTests extends ESTestCase {
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<JoinRequest>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialJoinRequest,
             joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
             joinRequest -> switch (randomInt(3)) {
@@ -297,8 +291,7 @@ public class MessagesTests extends ESTestCase {
 
     public void testPreVoteRequestEqualsHashCodeSerialization() {
         PreVoteRequest initialPreVoteRequest = new PreVoteRequest(createNode(randomAlphaOfLength(10)), randomNonNegativeLong());
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<PreVoteRequest>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialPreVoteRequest,
             preVoteRequest -> copyWriteable(preVoteRequest, writableRegistry(), PreVoteRequest::new),
             preVoteRequest -> switch (randomInt(1)) {
@@ -316,8 +309,7 @@ public class MessagesTests extends ESTestCase {
             randomLongBetween(1, currentTerm),
             randomNonNegativeLong()
         );
-        // Note: the explicit type parameter is needed for some IDE (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.<PreVoteResponse>checkEqualsAndHashCode(
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialPreVoteResponse,
             preVoteResponse -> copyWriteable(preVoteResponse, writableRegistry(), PreVoteResponse::new),
             preVoteResponse -> switch (randomInt(2)) {

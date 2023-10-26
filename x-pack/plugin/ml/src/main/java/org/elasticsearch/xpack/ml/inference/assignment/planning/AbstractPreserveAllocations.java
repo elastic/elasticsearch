@@ -83,15 +83,15 @@ abstract class AbstractPreserveAllocations {
             // TODO: I think this first loop should happen in the builder constructor
             for (Deployment deploymentAllocationsToPreserve : deployments) {
 
-//                int preservedAllocations = 0;
+                // int preservedAllocations = 0;
                 // if the model m is already allocated on the node n and I want to preserve this allocation
                 int preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
-//                if (deploymentAllocationsToPreserve.currentAllocationsByNodeId().containsKey(n.id())) {
+                // if (deploymentAllocationsToPreserve.currentAllocationsByNodeId().containsKey(n.id())) {
                 if (preservedAllocations > 0) {
                     long requiredMemory = deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations);
                     if (mergedPlanBuilder.canAssign(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory)) {
                         mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory);
-//                        mergedPlanBuilder.accountMemory(deploymentAllocationsToPreserve, n, requiredMemory);
+                        // mergedPlanBuilder.accountMemory(deploymentAllocationsToPreserve, n, requiredMemory);
                     }
                     // if (mergedPlanBuilder.getRemainingMemory(n) >=
                     // deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations)) {
@@ -124,7 +124,7 @@ abstract class AbstractPreserveAllocations {
                 long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, newAllocations);
                 if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations, requiredMemory)) {
                     mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
-//                    mergedPlanBuilder.accountMemory(deploymentNewAllocations, n, requiredMemory);
+                    // mergedPlanBuilder.accountMemory(deploymentNewAllocations, n, requiredMemory);
                 }
             }
         }

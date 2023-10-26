@@ -44,7 +44,10 @@ public class PreserveOneAllocationTests extends ESTestCase {
             Node node2 = new Node("n_2", ByteSizeValue.ofMb(640).getBytes(), 8);
             Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 2, 1, Map.of("n_1", 1), 1, 0, 0);
             Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(50).getBytes(), 6, 4, Map.of("n_1", 1, "n_2", 2), 3, 0, 0);
-            PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(deployment1, deployment2));
+            PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(
+                List.of(node1, node2),
+                List.of(deployment1, deployment2)
+            );
 
             List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
             assertThat(nodesPreservingAllocations, hasSize(2));

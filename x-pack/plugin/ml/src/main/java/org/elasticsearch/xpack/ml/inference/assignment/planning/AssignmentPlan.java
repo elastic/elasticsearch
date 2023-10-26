@@ -391,7 +391,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 // int assignedAllocations = deployment.currentAllocationsByNodeId().containsKey(node.id())
                 // ? deployment.currentAllocationsByNodeId().get(node.id())
                 // : assignments.get(deployment).get(node);
-                return deployment.estimateAdditionalMemoryUsageBytes(assignedAllocations, assignedAllocations+newAllocations);
+                return deployment.estimateAdditionalMemoryUsageBytes(assignedAllocations, assignedAllocations + newAllocations);
             }
             return deployment.estimateMemoryUsageBytes(newAllocations);
         }
@@ -430,23 +430,23 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 );
             }
 
-//            long deploymentMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
+            // long deploymentMemory = getDeploymentMemoryRequirement(deployment, node, allocations);
             assignments.get(deployment).compute(node, (n, remAllocations) -> remAllocations + allocations);
             accountMemory(deployment, node, requiredMemory);
-//            remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - deploymentMemory);
-//            if (remainingNodeMemory.get(node) < 0) {
-//                throw new IllegalArgumentException(
-//                    "not enough memory on node ["
-//                        + node.id()
-//                        + "] to assign ["
-//                        + allocations
-//                        + "] allocations to deployment ["
-//                        + deployment.id()
-//                        + "]; required threads per allocation ["
-//                        + deployment.threadsPerAllocation()
-//                        + "]"
-//                );
-//            }
+            // remainingNodeMemory.compute(node, (n, remMemory) -> remMemory - deploymentMemory);
+            // if (remainingNodeMemory.get(node) < 0) {
+            // throw new IllegalArgumentException(
+            // "not enough memory on node ["
+            // + node.id()
+            // + "] to assign ["
+            // + allocations
+            // + "] allocations to deployment ["
+            // + deployment.id()
+            // + "]; required threads per allocation ["
+            // + deployment.threadsPerAllocation()
+            // + "]"
+            // );
+            // }
             if (deployment.priority == Priority.NORMAL) {
                 remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * deployment.threadsPerAllocation());
             }

@@ -179,7 +179,16 @@ public class AssignmentPlanTests extends ESTestCase {
         }
         {
             // new memory format
-            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(25).getBytes(), 2, 2, Map.of("n_1", 2), 0, ByteSizeValue.ofMb(250).getBytes(), ByteSizeValue.ofMb(25).getBytes());
+            Deployment m = new Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(25).getBytes(),
+                2,
+                2,
+                Map.of("n_1", 2),
+                0,
+                ByteSizeValue.ofMb(250).getBytes(),
+                ByteSizeValue.ofMb(25).getBytes()
+            );
 
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
 
@@ -343,8 +352,16 @@ public class AssignmentPlanTests extends ESTestCase {
         }
         {
             // new memory format
-            Deployment m = new Deployment("m_1", ByteSizeValue.ofMb(25).getBytes(), 1, 1, Map.of("n_1", 1), 0,
-                                          ByteSizeValue.ofMb(300).getBytes(), ByteSizeValue.ofMb(10).getBytes());
+            Deployment m = new Deployment(
+                "m_1",
+                ByteSizeValue.ofMb(25).getBytes(),
+                1,
+                1,
+                Map.of("n_1", 1),
+                0,
+                ByteSizeValue.ofMb(300).getBytes(),
+                ByteSizeValue.ofMb(10).getBytes()
+            );
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
             assertThat(builder.canAssign(m, n, 1), is(true));
         }

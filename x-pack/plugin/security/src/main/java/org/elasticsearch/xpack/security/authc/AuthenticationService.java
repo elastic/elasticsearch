@@ -215,11 +215,9 @@ public class AuthenticationService {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-            null,
-            true,
+            token,
             realms
         );
-        context.addAuthenticationToken(token);
         authenticatorChain.authenticateAsync(context, listener);
     }
 
@@ -247,12 +245,11 @@ public class AuthenticationService {
         }
     }
 
-    Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
+    Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
         return new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
+            authenticationToken,
             realms
         );
     }

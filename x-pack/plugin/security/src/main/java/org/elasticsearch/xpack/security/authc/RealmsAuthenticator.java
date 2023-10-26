@@ -44,7 +44,6 @@ class RealmsAuthenticator implements Authenticator {
 
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
-    private boolean authenticationTokenExtracted = false;
 
     RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.numInvalidation = numInvalidation;
@@ -60,15 +59,10 @@ class RealmsAuthenticator implements Authenticator {
     public AuthenticationToken extractCredentials(Context context) {
         final AuthenticationToken authenticationToken = extractToken(context);
         if (authenticationToken != null) {
-            authenticationTokenExtracted = true;
+            // Once a token is extracted by realms, we should no longer handle null token if no realm can authenticate the token.
+            context.setHandleNullToken(false);
         }
         return authenticationToken;
-    }
-
-    @Override
-    public boolean canBeFollowedByNullTokenHandler() {
-        // TODO: once a token is extracted by realms, we should no longer handle null token if no realm can authenticate the token
-        return false == authenticationTokenExtracted;
     }
 
     @Override

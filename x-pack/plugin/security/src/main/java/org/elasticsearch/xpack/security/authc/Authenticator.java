@@ -45,13 +45,6 @@ public interface Authenticator {
     AuthenticationToken extractCredentials(Context context);
 
     /**
-     * Whether authentication with anonymous or fallback user is allowed after this authenticator.
-     */
-    default boolean canBeFollowedByNullTokenHandler() {
-        return true;
-    }
-
-    /**
      * Attempt to authenticate current request encapsulated by the {@link Context} object.
      * @param context The context object encapsulating current request and other information relevant for authentication.
      * @param listener The listener accepts a {@link AuthenticationResult} object indicating the outcome of authentication.
@@ -94,12 +87,29 @@ public interface Authenticator {
         private final User fallbackUser;
         private final boolean allowAnonymous;
         private final Realms realms;
-        private final List<AuthenticationToken> authenticationTokens = new ArrayList<>();
+        private List<AuthenticationToken> authenticationTokens = new ArrayList<>();
         private final List<String> unsuccessfulMessages = new ArrayList<>();
         private boolean handleNullToken = true;
+        private boolean extractCredentials = true;
         private SecureString bearerString = null;
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
+
+        public Context(
+            ThreadContext threadContext,
+            AuthenticationService.AuditableRequest request,
+            AuthenticationToken token,
+            Realms realms
+        ) {
+            this.threadContext = threadContext;
+            this.request = request;
+            this.fallbackUser = null;
+            this.allowAnonymous = false;
+            this.realms = realms;
+            this.authenticationTokens = List.of(token);
+            this.handleNullToken = false;
+            this.extractCredentials = false;
+        }
 
         public Context(
             ThreadContext threadContext,
@@ -135,8 +145,12 @@ public interface Authenticator {
             handleNullToken = value;
         }
 
-        public boolean shouldHandleNullToken() {
+        public boolean handleNullToken() {
             return handleNullToken;
+        }
+
+        public boolean extractCredentials() {
+            return extractCredentials;
         }
 
         public List<String> getUnsuccessfulMessages() {

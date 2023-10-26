@@ -53,21 +53,20 @@ public class CrossClusterAccessAuthenticationService {
     }
 
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
-        final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
-        final ThreadContext threadContext = authcContext.getThreadContext();
-
+        final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
+        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
-            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
+            apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
-            authcContext.addAuthenticationToken(apiKeyCredentials);
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
-            withRequestProcessingFailure(authcContext, ex, listener);
+            withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
             return;
         }
+        final Authenticator.Context authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
 
         // This check is to ensure all nodes understand cross_cluster_access subject type
         if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {

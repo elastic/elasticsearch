@@ -79,7 +79,7 @@ class AuthenticatorChain {
         });
         // If a token is directly provided in the context, authenticate with it
         if (context.getMostRecentAuthenticationToken() != null) {
-            authenticateAsyncWithExistingAuthenticationToken(context, listener);
+            doAuthenticate(context, listener);
             return;
         }
         final Authentication authentication;
@@ -93,23 +93,11 @@ class AuthenticatorChain {
             logger.trace("Found existing authentication [{}] in request [{}]", authentication, context.getRequest());
             listener.onResponse(authentication);
         } else {
-            doAuthenticate(context, true, ActionListener.runBefore(listener, context::close));
+            doAuthenticate(context, ActionListener.runBefore(listener, context::close));
         }
     }
 
-    /**
-     * Similar to {@link #authenticateAsync} but without extracting credentials. The credentials should
-     * be prepared by the called and made available in the context before calling this method.
-     * This method currently uses a shorter chain to match existing behaviour. But there is no reason
-     * why this could not use the same chain.
-     */
-    private void authenticateAsyncWithExistingAuthenticationToken(Authenticator.Context context, ActionListener<Authentication> listener) {
-        assert context.getMostRecentAuthenticationToken() != null : "existing authentication token must not be null";
-        context.setHandleNullToken(false);  // already has a token, should not try null token
-        doAuthenticate(context, false, listener);
-    }
-
-    private void doAuthenticate(Authenticator.Context context, boolean shouldExtractCredentials, ActionListener<Authentication> listener) {
+    private void doAuthenticate(Authenticator.Context context, ActionListener<Authentication> listener) {
         // The iterating listener walks through the list of Authenticators and attempts to authenticate using
         // each Authenticator (and optionally asks it to extract the authenticationToken).
         // Depending on the authentication result from each Authenticator, the iteration may stop earlier
@@ -121,14 +109,14 @@ class AuthenticatorChain {
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                     maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
-                    if (context.shouldHandleNullToken()) {
+                    if (context.handleNullToken()) {
                         handleNullToken(context, l);
                     } else {
                         l.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
                     }
                 }
             }),
-            getAuthenticatorConsumer(context, shouldExtractCredentials),
+            getAuthenticatorConsumer(context),
             allAuthenticators,
             context.getThreadContext(),
             Function.identity(),
@@ -138,11 +126,10 @@ class AuthenticatorChain {
     }
 
     private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
-        Authenticator.Context context,
-        boolean shouldExtractCredentials
+        Authenticator.Context context
     ) {
         return (authenticator, listener) -> {
-            if (shouldExtractCredentials) {
+            if (context.extractCredentials()) {
                 final AuthenticationToken authenticationToken;
                 try {
                     authenticationToken = authenticator.extractCredentials(context);
@@ -161,7 +148,6 @@ class AuthenticatorChain {
                 }
                 context.addAuthenticationToken(authenticationToken);
             }
-            context.setHandleNullToken(context.shouldHandleNullToken() && authenticator.canBeFollowedByNullTokenHandler());
 
             final Consumer<Exception> onFailure = (e) -> {
                 assert e != null : "exception cannot be null";

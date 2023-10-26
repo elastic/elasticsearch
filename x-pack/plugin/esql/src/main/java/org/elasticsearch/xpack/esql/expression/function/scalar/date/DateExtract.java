@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.BinaryDateTimeFunction.argumentTypesAreSwapped;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 
@@ -109,16 +108,7 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution resolution = argumentTypesAreSwapped(
-            children().get(0).dataType(),
-            children().get(1).dataType(),
-            DataTypes::isString,
-            sourceText()
-        );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

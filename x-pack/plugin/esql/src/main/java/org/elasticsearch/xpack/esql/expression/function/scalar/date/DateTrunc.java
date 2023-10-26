@@ -42,17 +42,7 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = argumentTypesAreSwapped(
-            left().dataType(),
-            right().dataType(),
-            EsqlDataTypes::isTemporalAmount,
-            sourceText()
-        );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        resolution = isDate(timestampField(), sourceText(), FIRST);
+        TypeResolution resolution = isDate(timestampField(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

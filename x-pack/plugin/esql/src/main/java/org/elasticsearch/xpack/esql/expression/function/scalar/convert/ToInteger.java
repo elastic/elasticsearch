@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -32,33 +29,22 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public class ToInteger extends AbstractConvertFunction {
 
-    private static final Map<
-        DataType,
-        TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>> EVALUATORS = Map.of(
-            INTEGER,
-            (fieldEval, source, driverContext) -> fieldEval,
-            BOOLEAN,
-            ToIntegerFromBooleanEvaluator::new,
-            DATETIME,
-            ToIntegerFromLongEvaluator::new,
-            KEYWORD,
-            ToIntegerFromStringEvaluator::new,
-            DOUBLE,
-            ToIntegerFromDoubleEvaluator::new,
-            UNSIGNED_LONG,
-            ToIntegerFromUnsignedLongEvaluator::new,
-            LONG,
-            ToIntegerFromLongEvaluator::new
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(INTEGER, (fieldEval, source) -> fieldEval),
+        Map.entry(BOOLEAN, ToIntegerFromBooleanEvaluator.Factory::new),
+        Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
+        Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new)
+    );
 
     public ToInteger(Source source, Expression field) {
         super(source, field);
     }
 
     @Override
-    protected
-        Map<DataType, TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>>
-        evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

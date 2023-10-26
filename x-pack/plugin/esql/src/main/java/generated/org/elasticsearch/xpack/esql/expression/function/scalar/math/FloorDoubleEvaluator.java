@@ -74,4 +74,22 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public FloorDoubleEvaluator get(DriverContext context) {
+      return new FloorDoubleEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "FloorDoubleEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

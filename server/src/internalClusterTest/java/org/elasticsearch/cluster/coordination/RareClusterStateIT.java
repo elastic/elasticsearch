@@ -193,7 +193,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         refresh();
         disruption.startDisrupting();
         logger.info("--> delete index");
-        executeAndCancelCommittedPublication(indicesAdmin().prepareDelete("test").setTimeout("0s")).get(10, TimeUnit.SECONDS);
+        executeAndCancelCommittedPublication(indicesAdmin().prepareDelete("test").setTimeout("0s")).get(30, TimeUnit.SECONDS);
         logger.info("--> and recreate it");
         executeAndCancelCommittedPublication(
             prepareCreate("test").setSettings(

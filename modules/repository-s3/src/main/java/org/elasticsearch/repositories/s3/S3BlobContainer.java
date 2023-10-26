@@ -619,6 +619,13 @@ class S3BlobContainer extends AbstractBlobContainer {
                     // the first upload ID immediately tries to cancel the competing updates in order to make progress, but the ones with
                     // greater upload IDs wait based on their position in the list before proceeding.
                     //
+                    // Note that this does not guarantee that any of the uploads actually succeeds. Another operation could start and see
+                    // a different collection of racing uploads and cancel all of them while they're sleeping. In theory this whole thing is
+                    // provably impossible anyway [1] but in practice it'll eventually work with sufficient retries.
+                    //
+                    // [1] Michael J. Fischer, Nancy A. Lynch, and Michael S. Paterson. 1985. Impossibility of distributed consensus with
+                    // one faulty process. J. ACM 32, 2 (April 1985), 374–382.
+                    //
                     // TODO should we sort these by initiation time (and then upload ID as a tiebreaker)?
                     // TODO should we listMultipartUploads() while waiting, so we can fail quicker if we are concurrently cancelled?
                     if (uploadIndex > 0) {

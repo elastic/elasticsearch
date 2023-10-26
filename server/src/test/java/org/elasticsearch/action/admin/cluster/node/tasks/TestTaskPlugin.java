@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -25,7 +24,6 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -423,13 +421,6 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
             listener.onResponse(new UnblockTestTaskResponse());
         }
 
-    }
-
-    public static class UnblockTestTasksRequestBuilder extends ActionRequestBuilder<UnblockTestTasksRequest, UnblockTestTasksResponse> {
-
-        protected UnblockTestTasksRequestBuilder(ElasticsearchClient client, ActionType<UnblockTestTasksResponse> action) {
-            super(client, action, new UnblockTestTasksRequest());
-        }
     }
 
     private static class OriginAssertingInterceptor implements TransportInterceptor {

@@ -9,10 +9,20 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.KeywordDocValuesField;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.Collections;
 
@@ -20,6 +30,8 @@ import java.util.Collections;
  * A field mapper that records fields that have been ignored because they were malformed.
  */
 public final class IgnoredFieldMapper extends MetadataFieldMapper {
+
+    public static final IndexVersion AGGS_SUPPORT_VERSION = IndexVersion.fromId(Version.V_8_12_0.id());
 
     public static final String NAME = "_ignored";
 
@@ -29,16 +41,25 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public static final String NAME = IgnoredFieldMapper.NAME;
     }
 
-    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType();
+    public static final IgnoredFieldType FIELD_TYPE = new IgnoredFieldType(true);
+    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper(FIELD_TYPE);
 
-    private static final IgnoredFieldMapper INSTANCE = new IgnoredFieldMapper();
+    public static final IgnoredFieldType LEGACY_FIELD_TYPE = new IgnoredFieldType(false);
+    private static final IgnoredFieldMapper LEGACY_INSTANCE = new IgnoredFieldMapper(LEGACY_FIELD_TYPE);
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
+
+    public static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
+        return indexVersion.onOrAfter(AGGS_SUPPORT_VERSION)
+            ? INSTANCE
+            : LEGACY_INSTANCE;
+    }
 
     public static final class IgnoredFieldType extends StringFieldType {
 
-        private IgnoredFieldType() {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+        private IgnoredFieldType(boolean hasDocValues) {
+            super(NAME, true, true, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -59,15 +80,34 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            if (hasDocValues() == false) {
+                throw new IllegalArgumentException(
+                    "aggregations for the '" + typeName()  + "' field are supported from version + " + AGGS_SUPPORT_VERSION
+                );
+            }
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            );
+        }
     }
 
-    private IgnoredFieldMapper() {
-        super(FIELD_TYPE);
+    private IgnoredFieldMapper(IgnoredFieldType fieldType) {
+        super(fieldType);
     }
 
     @Override
     public void postParse(DocumentParserContext context) {
+        MappedFieldType mappedFieldType = fieldType();
         for (String field : context.getIgnoredFields()) {
+            if (mappedFieldType.hasDocValues()) {
+                final BytesRef binaryValue = new BytesRef(field);
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            }
             context.doc().add(new StringField(NAME, field, Field.Store.YES));
         }
     }

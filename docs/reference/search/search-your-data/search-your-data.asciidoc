@@ -1,22 +1,90 @@
 [[search-with-elasticsearch]]
 = Search with Elasticsearch
 
-//[[search-query]]
+(Provide any needed context, define the scope/problem, and then introduce the solution)
 
-* <<term-level-queries>>
-* <<full-text-queries>>
-* <<analysis>>
-* <<knn-search>>
-* <<semantic-search>>
+[discrete]
+== Elasticsearch and Kibana
 
-//[discrete]
-//=== Run a search
+(Introduce Elasticsearch and Kibana, and the local and cloud install/start guides)
 
-* <<search-your-data>>
-* <<search-search>>
-* <<search-aggregations>>
-* <<query-dsl>>
-* <<search-application-overview>>
+*Get Elasticsearch and Kibana:*
+
+- <<run-elasticsearch-locally>>
+- https://www.elastic.co/guide/en/starting-with-the-elasticsearch-platform-and-its-solutions/current/getting-started-general-purpose.html[Getting started: Deploy your own platform to store, search, and visualize any data]
+
+// Find correct attribute
+// Revise link text
+
+[discrete]
+== Examples and concepts
+
+(Introduce elasticsearch-labs and Search Labs as sources for interactive examples and explanations of search concepts)
+
+*Browse examples and concepts:*
+
+* https://github.com/elastic/elasticsearch-labs[elasticsearch-labs] (GitHub repository)
+* https://www.elastic.co/search-labs[Search Labs] (Elastic website)
+
+[discrete]
+== Features
+
+(Brief explanation of the ingest/search/explore model for thinking about the features)
+
+[discrete]
+=== Ingest your data
+
+(Summary of the relevant ingestion features)
+
+*Explore ingestion features:*
+
+* Foo
+* Bar
+* Baz
+
+[discrete]
+=== Search your data
+
+(Summary of the relevant search features)
+
+*Explore search features:*
+
+* Foo
+* Bar
+* Baz
+
+// <<term-level-queries>>
+// <<full-text-queries>>
+// <<analysis>>
+// <<knn-search>>
+// <<semantic-search>>
+// <<search-your-data>>
+// <<search-search>>
+// <<search-aggregations>>
+// <<query-dsl>>
+// <<search-application-overview>>
+
+[discrete]
+=== Explore your data
+
+(Summary of the relevant analysis features)
+
+*Explore analysis features:*
+
+* Foo
+* Bar
+* Baz
+
+[discrete]
+== Enterprise Search server
+
+(Briefly explain how Enterprise Search server fits in)
+
+*Learn more about Enterprise Search:*
+
+* {enterprise-search-ref}/start.html[What is Elastic Enterprise Search?] (Enterprise Search documentation)
+
+// Where to move the content that was in this doc before?
 
 include::search-api.asciidoc[]
 include::search-application-overview.asciidoc[]

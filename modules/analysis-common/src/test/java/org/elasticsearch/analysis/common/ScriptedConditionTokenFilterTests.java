@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,7 +75,6 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.client()).thenReturn(client);
         when(services.scriptService()).thenReturn(scriptService);
-        when(services.telemetryProvider()).thenReturn(TelemetryProvider.NOOP);
         plugin.createComponents(services);
 
         AnalysisModule module = new AnalysisModule(

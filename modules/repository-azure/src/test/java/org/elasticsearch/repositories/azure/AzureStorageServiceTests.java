@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -78,7 +77,6 @@ public class AzureStorageServiceTests extends ESTestCase {
         new SettingsModule(settings, plugin.getSettings(), Collections.emptyList());
         Plugin.PluginServices services = mock(Plugin.PluginServices.class);
         when(services.threadPool()).thenReturn(threadPool);
-        when(services.telemetryProvider()).thenReturn(TelemetryProvider.NOOP);
         plugin.createComponents(services);
         return plugin;
     }

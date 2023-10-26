@@ -611,7 +611,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             SubscribableListener
 
-                // Step 3: Ensure all other uploads in currentUploads are complete.
+                // Step 3: Ensure all other uploads in currentUploads are complete (either successfully, aborted by us or by another upload)
 
                 .<Void>newForked(l -> ensureOtherUploadsComplete(uploadId, uploadIndex, currentUploads, l))
 

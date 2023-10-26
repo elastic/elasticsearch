@@ -247,7 +247,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             );
         }
 
-        String parentPath = context.nestedLookup().getNestedParent(fieldName);
         final BitSetProducer parentFilter;
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (QueryBuilder query : this.filterQueries) {
@@ -260,25 +259,29 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
+        String parentPath = context.nestedLookup().getNestedParent(fieldName);
         if (parentPath != null) {
-            NestedObjectMapper mapper = context.nestedLookup().getNestedMappers().get(parentPath);
-            NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
-            if (objectMapper == null) {
-                parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
-            } else {
-                parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
-            }
-            try {
-                context.nestedScope().nextLevel(mapper);
-                if (filterQuery != null) {
-                    filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
+            NestedObjectMapper originalObjectMapper = context.nestedScope().getObjectMapper();
+            if (originalObjectMapper != null) {
+                try {
+                    // we are in a nested context, to get the parent filter we need to go up one level
+                    context.nestedScope().previousLevel();
+                    NestedObjectMapper objectMapper = context.nestedScope().getObjectMapper();
+                    parentFilter = objectMapper == null
+                        ? context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()))
+                        : context.bitsetFilter(objectMapper.nestedTypeFilter());
+                } finally {
+                    context.nestedScope().nextLevel(originalObjectMapper);
                 }
-                return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, parentFilter);
-            } finally {
-                context.nestedScope().previousLevel();
+            } else {
+                // we are NOT in a nested context, coming from the top level knn search
+                parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
             }
+            if (filterQuery != null) {
+                filterQuery = new ToChildBlockJoinQuery(filterQuery, parentFilter);
+            }
+            return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, parentFilter);
         }
-
         return vectorFieldType.createKnnQuery(queryVector, numCands, filterQuery, vectorSimilarity, null);
     }
 

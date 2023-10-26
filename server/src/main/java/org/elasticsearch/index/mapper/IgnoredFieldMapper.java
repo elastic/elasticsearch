@@ -47,13 +47,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     public static final IgnoredFieldType LEGACY_FIELD_TYPE = new IgnoredFieldType(false);
     private static final IgnoredFieldMapper LEGACY_INSTANCE = new IgnoredFieldMapper(LEGACY_FIELD_TYPE);
 
-
     public static final TypeParser PARSER = new FixedTypeParser(c -> getInstance(c.indexVersionCreated()));
 
     public static MetadataFieldMapper getInstance(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(AGGS_SUPPORT_VERSION)
-            ? INSTANCE
-            : LEGACY_INSTANCE;
+        return indexVersion.onOrAfter(AGGS_SUPPORT_VERSION) ? INSTANCE : LEGACY_INSTANCE;
     }
 
     public static final class IgnoredFieldType extends StringFieldType {
@@ -85,7 +82,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (hasDocValues() == false) {
                 throw new IllegalArgumentException(
-                    "aggregations for the '" + typeName()  + "' field are supported from version + " + AGGS_SUPPORT_VERSION
+                    "aggregations for the '" + typeName() + "' field are supported from version + " + AGGS_SUPPORT_VERSION
                 );
             }
             return new SortedSetOrdinalsIndexFieldData.Builder(

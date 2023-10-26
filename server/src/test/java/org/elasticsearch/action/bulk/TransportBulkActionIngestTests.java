@@ -116,6 +116,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     /** True if the next call to the index action should act as an ingest node */
     boolean localIngest;
 
+    /** True if IngestService should process pipelines in the next request */
+    boolean shouldProcessPipelines;
+
     /** The nodes that forwarded index requests should be cycled through. */
     DiscoveryNodes nodes;
     DiscoveryNode remoteNode1;
@@ -232,6 +235,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
+        when(ingestService.shouldExecuteOnIngestNode()).thenReturn(true);
+        when(ingestService.needsProcessing(any(), any(), any())).thenAnswer(stub -> shouldProcessPipelines);
         fieldInferenceBulkRequestPreprocessor = mock(FieldInferenceBulkRequestPreprocessor.class);
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
@@ -772,6 +777,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         AtomicBoolean failureCalled = new AtomicBoolean(false);
         assertNull(indexRequest.getPipeline());
+        when(ingestService.needsProcessing(any(), eq(indexRequest), any())).thenAnswer(i -> {
+            IngestService.resolvePipelinesAndUpdateIndexRequest(i.getArgument(0), i.getArgument(1), i.getArgument(2));
+            return true;
+        });
         ActionTestUtils.execute(
             singleItemBulkWriteAction,
             null,
@@ -801,6 +810,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         // now check success
         indexRequest.setPipeline(IngestService.NOOP_PIPELINE_NAME); // this is done by the real pipeline execution service when processing
+        when(ingestService.needsProcessing(any(), eq(indexRequest), any())).thenReturn(false);
         completionHandler.getValue().accept(DUMMY_WRITE_THREAD, null);
         assertTrue(action.isExecuted);
         assertFalse(responseCalled.get()); // listener would only be called by real index action, not our mocked one

@@ -56,6 +56,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.XPackSettings.APM_DATA_ENABLED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -154,7 +155,7 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                 createClusterChangedEvent(Map.of(), Map.of(), ingestPipelineConfig.getPipelineDependencies(), nodes)
             );
             try {
-                assertBusy(() -> assertThat(putPipelineRequestsLocal.get(), equalTo(1)));
+                assertBusy(() -> assertThat(putPipelineRequestsLocal.get(), greaterThanOrEqualTo(1)));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

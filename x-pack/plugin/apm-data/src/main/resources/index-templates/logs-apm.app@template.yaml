@@ -7,13 +7,13 @@ _meta:
   description: Index template for logs-apm.app.*-*
   managed: true
 composed_of:
-- logs-mappings
+- logs@mappings
 - apm@mappings
 - apm@settings
 - apm-10d@lifecycle
 - apm@custom
 - logs-apm.app@custom
-- ecs@dynamic_templates
+- ecs@mappings
 ignore_missing_component_templates:
 - logs-apm.app@custom
 - apm@custom

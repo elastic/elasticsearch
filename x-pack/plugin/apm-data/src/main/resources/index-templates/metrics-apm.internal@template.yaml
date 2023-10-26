@@ -8,7 +8,7 @@ _meta:
   description: "Index template for metrics-apm.internal-*"
   managed: true
 composed_of:
-- metrics-mappings
+- metrics@mappings
 - apm@mappings
 - apm@settings
 - apm-90d@lifecycle
@@ -16,7 +16,7 @@ composed_of:
 - metrics-apm@settings
 - apm@custom
 - metrics-apm.internal@custom
-- ecs@dynamic_templates
+- ecs@mappings
 ignore_missing_component_templates:
 - apm@custom
 - metrics-apm.internal@custom

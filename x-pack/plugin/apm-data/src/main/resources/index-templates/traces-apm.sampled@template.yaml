@@ -12,7 +12,7 @@ composed_of:
 - apm@mappings
 - apm@settings
 - apm@custom
-- ecs@dynamic_templates
+- ecs@mappings
 ignore_missing_component_templates:
 - apm@custom
 template:

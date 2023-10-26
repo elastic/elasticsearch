@@ -9,7 +9,7 @@ _meta:
   description: Index template for metrics-apm.service_destination.60m-*
   managed: true
 composed_of:
-- metrics-mappings
+- metrics@mappings
 - apm@mappings
 - apm@settings
 - apm-390d@lifecycle
@@ -18,7 +18,7 @@ composed_of:
 - metrics-apm.service_destination@mappings
 - apm@custom
 - metrics-apm.service_destination@custom
-- ecs@dynamic_templates
+- ecs@mappings
 ignore_missing_component_templates:
 - apm@custom
 - metrics-apm.service_destination@custom

@@ -15,7 +15,7 @@ composed_of:
 - traces-apm@mappings
 - apm@custom
 - traces-apm@custom
-- ecs@dynamic_templates
+- ecs@mappings
 ignore_missing_component_templates:
 - traces-apm@custom
 - apm@custom

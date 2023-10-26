@@ -75,8 +75,14 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         this.eventListeners = new CopyOnWriteArrayList<>();
 
         if (Files.exists(watchedFileDir.getParent()) == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Grandparent directory [%s] must exist to watch file [%s]",
-                watchedFileDir.getParent(), watchedFile));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Grandparent directory [%s] must exist to watch file [%s]",
+                    watchedFileDir.getParent(),
+                    watchedFile
+                )
+            );
         }
     }
 

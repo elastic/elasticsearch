@@ -24,10 +24,9 @@ import java.util.Map;
 public class SemanticTextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "semantic_text";
-    private static final String SPARSE_VECTOR_SUFFIX = "_inference";
 
-    private static final String TEXT_SUBFIELD_NAME = "text";
-    private static final String SPARSE_VECTOR_SUBFIELD_NAME = "inference";
+    public static final String TEXT_SUBFIELD_NAME = "text";
+    public static final String SPARSE_VECTOR_SUBFIELD_NAME = "inference";
 
     private static SemanticTextFieldMapper toType(FieldMapper in) {
         return (SemanticTextFieldMapper) in;
@@ -55,33 +54,25 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] {
-                modelId,
-                meta };
+            return new Parameter<?>[] { modelId, meta };
         }
 
-        private SemanticTextFieldType buildFieldType(
-            MapperBuilderContext context
-        ) {
-                return new SemanticTextFieldType(
-                    context.buildFullName(name),
-                    modelId.getValue(),
-                    meta.getValue()
-            );
+        private SemanticTextFieldType buildFieldType(MapperBuilderContext context) {
+            return new SemanticTextFieldType(context.buildFullName(name), modelId.getValue(), meta.getValue());
         }
 
         @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             SemanticTextFieldType stft = new SemanticTextFieldType(context.buildFullName(name), modelId.getValue(), meta.getValue());
-            String fieldName = name() + SPARSE_VECTOR_SUFFIX;
-            SubFieldInfo sparseVectorFieldInfo = new SubFieldInfo(fieldName, new SparseVectorFieldMapper.Builder(fieldName).build(context));
+            SubFieldInfo sparseVectorFieldInfo = new SubFieldInfo(
+                SPARSE_VECTOR_SUBFIELD_NAME,
+                new SparseVectorFieldMapper.Builder(SPARSE_VECTOR_SUBFIELD_NAME).build(context)
+            );
             return new SemanticTextFieldMapper(name, stft, modelId.getValue(), sparseVectorFieldInfo, copyTo, this);
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) ->  new Builder(n), notInMultiFields(CONTENT_TYPE)
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
     private static final class SubFieldInfo {
 
@@ -101,13 +92,9 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         private final String modelId;
 
-        public SemanticTextFieldType(
-            String name,
-            String modelId,
-            Map<String, String> meta
-        ) {
+        public SemanticTextFieldType(String name, String modelId, Map<String, String> meta) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
-            this.modelId =  modelId;
+            this.modelId = modelId;
         }
 
         public String modelId() {
@@ -172,7 +159,8 @@ public class SemanticTextFieldMapper extends FieldMapper {
 
         boolean textFound = false;
         boolean inferenceFound = false;
-        for (XContentParser.Token token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser().nextToken()) {
+        for (XContentParser.Token token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser()
+            .nextToken()) {
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new IllegalArgumentException("[semantic_text] fields expect an object with field names, found " + token);
             }

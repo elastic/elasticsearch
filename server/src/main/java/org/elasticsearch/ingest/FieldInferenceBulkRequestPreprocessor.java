@@ -16,9 +16,11 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.IntConsumer;
@@ -105,10 +107,12 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
         client.execute(InferenceAction.INSTANCE, inferenceRequest, ActionListener.runAfter(new ActionListener<InferenceAction.Response>() {
             @Override
             public void onResponse(InferenceAction.Response response) {
-                ingestDocument.removeField(fieldName);
                 // Transform into two subfields, one with the actual text and other with the inference
-                ingestDocument.setFieldValue(fieldName + "._text", fieldValue);
-                ingestDocument.setFieldValue(fieldName + "._inference", response.getResult().asMap(fieldName).get(fieldName));
+                Map<String, Object> newFieldValue = new HashMap<>();
+                newFieldValue.put(SemanticTextFieldMapper.TEXT_SUBFIELD_NAME, fieldValue);
+                newFieldValue.put(SemanticTextFieldMapper.SPARSE_VECTOR_SUBFIELD_NAME, response.getResult().asMap(fieldName).get(fieldName));
+                ingestDocument.setFieldValue(fieldName, newFieldValue);
+
                 updateIndexRequestSource(indexRequest, ingestDocument);
             }
 

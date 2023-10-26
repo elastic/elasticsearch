@@ -92,4 +92,26 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(y, x);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory y;
+
+    private final EvalOperator.ExpressionEvaluator.Factory x;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory y,
+        EvalOperator.ExpressionEvaluator.Factory x) {
+      this.y = y;
+      this.x = x;
+    }
+
+    @Override
+    public Atan2Evaluator get(DriverContext context) {
+      return new Atan2Evaluator(y.get(context), x.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+    }
+  }
 }

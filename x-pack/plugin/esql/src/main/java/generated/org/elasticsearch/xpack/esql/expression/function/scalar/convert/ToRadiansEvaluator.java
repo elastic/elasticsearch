@@ -96,4 +96,25 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
     double value = container.getDouble(index);
     return ToRadians.process(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToRadiansEvaluator get(DriverContext context) {
+      return new ToRadiansEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToRadiansEvaluator[field=" + field + "]";
+    }
+  }
 }

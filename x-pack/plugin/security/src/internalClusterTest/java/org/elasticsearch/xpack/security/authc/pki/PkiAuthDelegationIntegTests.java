@@ -149,7 +149,6 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         new ClearRealmCacheRequestBuilder(client()).get();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97772")
     public void testDelegateThenAuthenticate() throws Exception {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
@@ -192,7 +191,6 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97772")
     public void testTokenInvalidate() throws Exception {
         final X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         final X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");
@@ -296,7 +294,6 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97772")
     public void testDelegatePkiWithRoleMapping() throws Exception {
         X509Certificate clientCertificate = readCertForPkiDelegation("testClient.crt");
         X509Certificate intermediateCA = readCertForPkiDelegation("testIntermediateCA.crt");

@@ -168,8 +168,8 @@ visualization. If the indices you're querying do not contain an `@timestamp`
 field, the histogram is not shown.
 
 The visualization adapts to the query. A query's nature determines the type of
-visualization. Changing the previous example query to aggregate the total number
-of bytes per destination country:
+visualization. For example, this query aggregates the total number of bytes per
+destination country:
 
 [source,esql]
 ----
@@ -179,7 +179,7 @@ FROM kibana_sample_data_logs
 | LIMIT 3
 ----
 
-changes the visualization into a bar chart showing the top 3 countries:
+The resulting visualization is a bar chart showing the top 3 countries:
 
 image::images/esql/esql-kibana-bar-chart.png[align="center"]
 

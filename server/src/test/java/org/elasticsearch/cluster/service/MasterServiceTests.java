@@ -231,9 +231,6 @@ public class MasterServiceTests extends ESTestCase {
 
             @Override
             public void onTaskUnregistered(Task task) {}
-
-            @Override
-            public void waitForTaskCompletion(Task task) {}
         });
 
         final CountDownLatch latch = new CountDownLatch(1);

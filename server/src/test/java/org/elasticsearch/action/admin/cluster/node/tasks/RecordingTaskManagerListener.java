@@ -47,9 +47,6 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
         }
     }
 
-    @Override
-    public void waitForTaskCompletion(Task task) {}
-
     public synchronized List<Tuple<Boolean, TaskInfo>> getEvents() {
         return List.copyOf(events);
     }

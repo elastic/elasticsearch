@@ -19,7 +19,5 @@ public interface MockTaskManagerListener {
 
     void onTaskUnregistered(Task task);
 
-    void waitForTaskCompletion(Task task);
-
     default void subscribeForRemovedTasks(RemovedTaskListener removedTaskListener) {}
 }

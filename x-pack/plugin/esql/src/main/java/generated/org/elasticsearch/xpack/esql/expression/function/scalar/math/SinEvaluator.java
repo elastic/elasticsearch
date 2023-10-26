@@ -74,4 +74,22 @@ public final class SinEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public SinEvaluator get(DriverContext context) {
+      return new SinEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SinEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

@@ -446,7 +446,7 @@ public class RecordingOtelMeter implements Meter {
         final Consumer<ObservableDoubleMeasurement> callback;
 
         DoubleGaugeRecorder(String name, Consumer<ObservableDoubleMeasurement> callback) {
-            super(name, InstrumentType.DOUBLE_GAUGE_OBSERVER);
+            super(name, InstrumentType.DOUBLE_GAUGE);
             this.callback = callback;
         }
 
@@ -517,7 +517,7 @@ public class RecordingOtelMeter implements Meter {
         final Consumer<ObservableLongMeasurement> callback;
 
         LongGaugeRecorder(String name, Consumer<ObservableLongMeasurement> callback) {
-            super(name, InstrumentType.LONG_GAUGE_OBSERVER);
+            super(name, InstrumentType.LONG_GAUGE);
             this.callback = callback;
         }
 

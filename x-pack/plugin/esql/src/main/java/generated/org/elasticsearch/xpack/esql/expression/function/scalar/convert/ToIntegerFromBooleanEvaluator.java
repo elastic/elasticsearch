@@ -97,4 +97,25 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     boolean value = container.getBoolean(index);
     return ToInteger.fromBoolean(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToIntegerFromBooleanEvaluator get(DriverContext context) {
+      return new ToIntegerFromBooleanEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToIntegerFromBooleanEvaluator[field=" + field + "]";
+    }
+  }
 }

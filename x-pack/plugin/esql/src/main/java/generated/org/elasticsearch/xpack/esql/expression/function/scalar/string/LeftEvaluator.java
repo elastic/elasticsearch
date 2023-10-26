@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.data.Block;
@@ -104,5 +105,35 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, length);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Function<DriverContext, BytesRef> out;
+
+    private final Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory length;
+
+    public Factory(Function<DriverContext, BytesRef> out,
+        Function<DriverContext, UnicodeUtil.UTF8CodePoint> cp,
+        EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory length) {
+      this.out = out;
+      this.cp = cp;
+      this.str = str;
+      this.length = length;
+    }
+
+    @Override
+    public LeftEvaluator get(DriverContext context) {
+      return new LeftEvaluator(out.apply(context), cp.apply(context), str.get(context), length.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeftEvaluator[" + "str=" + str + ", length=" + length + "]";
+    }
   }
 }

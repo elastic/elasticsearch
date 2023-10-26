@@ -100,4 +100,26 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   public void close() {
     Releasables.closeExpectNoException(str, prefix);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory prefix;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory prefix) {
+      this.str = str;
+      this.prefix = prefix;
+    }
+
+    @Override
+    public StartsWithEvaluator get(DriverContext context) {
+      return new StartsWithEvaluator(str.get(context), prefix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "StartsWithEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
+    }
+  }
 }

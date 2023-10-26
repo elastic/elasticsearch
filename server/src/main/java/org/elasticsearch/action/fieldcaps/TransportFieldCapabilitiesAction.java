@@ -330,10 +330,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // log relevant "5xx" errors that occurred in this 2xx response to ensure they are only logged once.
         // These failures have already been deduplicated, before this method was called.
         for (FieldCapabilitiesFailure failure : failures) {
-            LOGGER.warn(
-                "Field caps partial-results Exception for indices " + Arrays.toString(failure.getIndices()),
-                failure.getException()
-            );
+            if (shouldLogException(failure.getException())) {
+                LOGGER.warn(
+                    "Field caps partial-results Exception for indices " + Arrays.toString(failure.getIndices()),
+                    failure.getException()
+                );
+            }
         }
         return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }

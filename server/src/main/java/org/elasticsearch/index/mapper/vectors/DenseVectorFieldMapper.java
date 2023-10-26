@@ -1087,8 +1087,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             format = defaultFormat;
         } else {
             HnswIndexOptions hnswIndexOptions = (HnswIndexOptions) indexOptions;
-            format = new Lucene99HnswVectorsFormat(hnswIndexOptions.m, hnswIndexOptions.efConstruction,
-                new Lucene99ScalarQuantizedVectorsFormat());
+            format = new Lucene99HnswVectorsFormat(
+                hnswIndexOptions.m,
+                hnswIndexOptions.efConstruction,
+                new Lucene99ScalarQuantizedVectorsFormat()
+            );
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

@@ -17,6 +17,7 @@ Infra/Core::
 === Bug fixes
 
 Aggregations::
+* Adjust `DateHistogram's` bucket accounting to be iteratively {es-pull}101012[#101012]
 * Allow parsing on non-string routing fields {es-pull}97729[#97729]
 * Support runtime fields in synthetic source {es-pull}99796[#99796] (issue: {es-issue}98287[#98287])
 
@@ -24,6 +25,9 @@ Allocation::
 * Consider node shutdown in `DataTierAllocationDecider` {es-pull}98824[#98824] (issue: {es-issue}97207[#97207])
 
 Application::
+* Align look-back with client-side cache {es-pull}101264[#101264]
+* Increase K/V look-back time interval {es-pull}101205[#101205]
+* Provide stable resampling {es-pull}101255[#101255]
 * [Profiling] Tighten resource creation check {es-pull}99873[#99873]
 
 Authorization::
@@ -56,13 +60,17 @@ ES|QL::
 * Create a Vector when needed for IN {es-pull}99382[#99382] (issue: {es-issue}99347[#99347])
 * ESQL: Add identity check in Block equality {es-pull}100377[#100377] (issue: {es-issue}100374[#100374])
 * ESQL: Fix NPE when aggregating literals {es-pull}99827[#99827]
+* ESQL: Fix escaping of backslash in LIKE operator {es-pull}101120[#101120] (issue: {es-issue}101106[#101106])
 * ESQL: Graceful handling of non-bool condition in the filter {es-pull}100645[#100645] (issues: {es-issue}100049[#100049], {es-issue}100409[#100409])
 * ESQL: Handle queries with non-existing enrich policies and no field {es-pull}100647[#100647] (issue: {es-issue}100593[#100593])
 * ESQL: Improve verifier error for incorrect agg declaration {es-pull}100650[#100650] (issue: {es-issue}100641[#100641])
 * ESQL: Limit how many bytes `concat()` can process {es-pull}100360[#100360]
 * ESQL: Page shouldn't close a block twice {es-pull}100370[#100370] (issues: {es-issue}100356[#100356], {es-issue}100365[#100365])
+* ESQL: Preserve intermediate aggregation output in local relation {es-pull}100866[#100866] (issue: {es-issue}100807[#100807])
 * ESQL: Properly handle multi-values in fold() and date math {es-pull}100766[#100766] (issue: {es-issue}100497[#100497])
 * ESQL: Remove aliasing inside Eval {es-pull}100238[#100238] (issue: {es-issue}100174[#100174])
+* ESQL: Support date and time intervals as input params {es-pull}101001[#101001] (issue: {es-issue}99570[#99570])
+* ESQL: `mv_expand` pushes down limit and project and keep the limit after it untouched {es-pull}100782[#100782] (issues: {es-issue}99971[#99971], {es-issue}100774[#100774])
 * ESQL: fix non-null value being returned for unsupported data types in `ValueSources` {es-pull}100656[#100656] (issue: {es-issue}100048[#100048])
 * ESQL: support metric tsdb fields while querying index patterns {es-pull}100351[#100351] (issue: {es-issue}100144[#100144])
 * Implement serialization of `InvalidMappedField` {es-pull}98972[#98972] (issue: {es-issue}98851[#98851])
@@ -83,12 +91,16 @@ Highlighting::
 
 ILM+SLM::
 * Compute SLM retention from `RepositoryData` {es-pull}100092[#100092] (issue: {es-issue}99953[#99953])
+* `WaitForSnapshotStep` verifies if the index belongs to the latest snapshot of that SLM policy {es-pull}100911[#100911]
 
 Infra/Core::
 * Add `java.net.NetPermission` to APM module's permissions {es-pull}99474[#99474]
 * Revert "Kibana system index does not allow user templates to affect it" {es-pull}98888[#98888]
 * Specify correct current `IndexVersion` after 8.10 release {es-pull}98574[#98574] (issue: {es-issue}98555[#98555])
 * Tracing: Use `doPriv` when working with spans, use `SpanId` {es-pull}100232[#100232]
+
+Infra/Scripting::
+* Improve painless error wrapping {es-pull}100872[#100872]
 
 Ingest Node::
 * Update enrich execution to only set index false on fields that support it {es-pull}98038[#98038] (issue: {es-issue}98019[#98019])
@@ -106,12 +118,16 @@ Mapping::
 * Automatically disable `ignore_malformed` on datastream `@timestamp` fields {es-pull}99346[#99346]
 * Correct behaviour of `ContentPath::remove()` {es-pull}98332[#98332] (issue: {es-issue}98327[#98327])
 * Fix merges of mappings with `subobjects: false` for composable index templates {es-pull}97317[#97317] (issue: {es-issue}96768[#96768])
+* Percolator to support parsing script score query with params {es-pull}101051[#101051] (issue: {es-issue}97377[#97377])
 
 Network::
 * Do not report failure after connections are made {es-pull}99117[#99117]
 
 Percolator::
 * Fix percolator query for stored queries that expand on wildcard field names {es-pull}98878[#98878]
+
+Query Languages::
+* Preserve subfields for unsupported types {es-pull}100875[#100875] (issue: {es-issue}100869[#100869])
 
 Recovery::
 * Fix interruption of `markAllocationIdAsInSync` {es-pull}100610[#100610] (issues: {es-issue}96578[#96578], {es-issue}100589[#100589])
@@ -121,7 +137,6 @@ Search::
 * Fix UnsignedLong field range query gt "0" can get the result equal to 0 {es-pull}98843[#98843]
 * Fix `advanceExact` for doc values from sources {es-pull}99685[#99685]
 * Fork response-sending in `OpenPointInTimeAction` {es-pull}99222[#99222]
-* Search of remote clusters with no shards results in successful status {es-pull}100354[#100354]
 * [CI] `SearchResponseTests#testSerialization` failing resolved {es-pull}100020[#100020] (issue: {es-issue}100005[#100005])
 * fix fuzzy query rewrite parameter not work {es-pull}97642[#97642]
 
@@ -131,17 +146,19 @@ Security::
 Snapshot/Restore::
 * Fix thread context in `getRepositoryData` {es-pull}99627[#99627]
 * Frozen index input clone copy cache file {es-pull}98930[#98930]
-* Improve `RepositoryData` BwC {es-pull}100401[#100401]
+* Make S3 anti-contention delay configurable {es-pull}101245[#101245]
+* More robust timeout for repo analysis {es-pull}101184[#101184] (issue: {es-issue}101182[#101182])
 * Reinstate `RepositoryData` BwC {es-pull}100447[#100447]
 
 TSDB::
 * Don't ignore empty index template that have no template definition {es-pull}98840[#98840] (issue: {es-issue}98834[#98834])
+* Fix painless execute api and tsdb issue {es-pull}101212[#101212] (issue: {es-issue}101072[#101072])
 * Make tsdb settings public in Serverless {es-pull}99567[#99567] (issue: {es-issue}99563[#99563])
 
 Transform::
 * Fix possible NPE when getting transform stats for failed transforms {es-pull}98061[#98061] (issue: {es-issue}98052[#98052])
 * Make Transform Feature Reset really wait for all the tasks {es-pull}100624[#100624]
-* Shutdown the task immediately when `force` == `true` {es-pull}100203[#100203]
+* Make tasks that calculate checkpoints cancellable {es-pull}100808[#100808]
 
 Watcher::
 * Treating watcher webhook response header names as case-insensitive {es-pull}99717[#99717]
@@ -290,6 +307,9 @@ ES|QL::
 [[upgrade-8.11.0]]
 [float]
 === Upgrades
+
+Packaging::
+* Update bundled JDK to 21.0.1 {es-pull}101133[#101133]
 
 Search::
 * Upgrade main to Lucene 9.8.0 {es-pull}100138[#100138]

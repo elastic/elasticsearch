@@ -610,7 +610,8 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             SubscribableListener
 
-                // Step 3: Cancel any the other uploads against which we are racing.
+                // Step 3: Cancel any other uploads against which we believe we are racing (which definitely includes all the ones that
+                // started before us, and may include some later-started ones too).
 
                 .<Void>newForked(otherUploadsCancelledListener -> {
                     // This is a small optimization to improve the liveness properties of this algorithm.

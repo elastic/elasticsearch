@@ -8,19 +8,25 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
 import org.elasticsearch.telemetry.metric.DoubleGauge;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.DoubleUpDownCounter;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.Instrument;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongGauge;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 
 /**
  * Recording versions of Elasticsearch {@link Instrument}s.  All invocations are recorded via {@link MetricRecorder}.
@@ -45,6 +51,40 @@ public class RecordingInstruments {
         }
     }
 
+    protected interface NumberWithAttributesObserver extends Supplier<Tuple<Number, Map<String, Object>>> {
+
+    }
+
+    protected abstract static class CallbackRecordingInstrument extends RecordingInstrument implements AutoCloseable, Runnable {
+        private final NumberWithAttributesObserver observer;
+        private boolean closed = false;
+        private final ReleasableLock closedLock = new ReleasableLock(new ReentrantLock());
+
+        public CallbackRecordingInstrument(String name, NumberWithAttributesObserver observer, MetricRecorder<Instrument> recorder) {
+            super(name, recorder);
+            this.observer = observer;
+        }
+
+        @Override
+        public void run() {
+            try (ReleasableLock lock = closedLock.acquire()) {
+                if (closed) {
+                    return;
+                }
+                var observation = observer.get();
+                call(observation.v1(), observation.v2());
+            }
+        }
+
+        @Override
+        public void close() throws Exception {
+            try (ReleasableLock lock = closedLock.acquire()) {
+                assert closed == false : "double close";
+                closed = true;
+            }
+        }
+    }
+
     public static class RecordingDoubleCounter extends RecordingInstrument implements DoubleCounter {
         public RecordingDoubleCounter(String name, MetricRecorder<Instrument> recorder) {
             super(name, recorder);
@@ -66,19 +106,12 @@ public class RecordingInstruments {
         }
     }
 
-    public static class RecordingDoubleGauge extends RecordingInstrument implements DoubleGauge {
-        public RecordingDoubleGauge(String name, MetricRecorder<Instrument> recorder) {
-            super(name, recorder);
-        }
-
-        @Override
-        public void record(double value) {
-            record(value, Collections.emptyMap());
-        }
-
-        @Override
-        public void record(double value, Map<String, Object> attributes) {
-            call(value, attributes);
+    public static class RecordingDoubleGauge extends CallbackRecordingInstrument implements DoubleGauge {
+        public RecordingDoubleGauge(String name, Supplier<DoubleWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+            super(name, () -> {
+                var observation = observer.get();
+                return new Tuple<>(observation.value(), observation.attributes());
+            }, recorder);
         }
     }
 
@@ -135,19 +168,13 @@ public class RecordingInstruments {
         }
     }
 
-    public static class RecordingLongGauge extends RecordingInstrument implements LongGauge {
-        public RecordingLongGauge(String name, MetricRecorder<Instrument> recorder) {
-            super(name, recorder);
-        }
+    public static class RecordingLongGauge extends CallbackRecordingInstrument implements LongGauge {
 
-        @Override
-        public void record(long value) {
-            record(value, Collections.emptyMap());
-        }
-
-        @Override
-        public void record(long value, Map<String, Object> attributes) {
-            call(value, attributes);
+        public RecordingLongGauge(String name, Supplier<LongWithAttributes> observer, MetricRecorder<Instrument> recorder) {
+            super(name, () -> {
+                var observation = observer.get();
+                return new Tuple<>(observation.value(), observation.attributes());
+            }, recorder);
         }
     }
 

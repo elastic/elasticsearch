@@ -56,7 +56,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return dvrCtx -> new Evaluator(dvrCtx, fieldEval.get(dvrCtx));
+        return new EvaluatorFactory(fieldEval);
     }
 
     @Override
@@ -67,6 +67,18 @@ public class MvCount extends AbstractMultivalueFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, MvCount::new, field());
+    }
+
+    private record EvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+        @Override
+        public ExpressionEvaluator get(DriverContext context) {
+            return new Evaluator(context, field.get(context));
+        }
+
+        @Override
+        public String toString() {
+            return "MvCount[field=" + field + ']';
+        }
     }
 
     private static class Evaluator extends AbstractEvaluator {

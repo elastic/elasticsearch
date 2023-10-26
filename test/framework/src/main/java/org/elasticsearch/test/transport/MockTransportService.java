@@ -39,6 +39,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,6 +74,8 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.junit.Assert.assertNotNull;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -185,6 +188,14 @@ public class MockTransportService extends TransportService {
                 .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+        );
+    }
+
+    public static MockTransportService getInstance(String nodeName) {
+        assertNotNull("nodeName must not be null", nodeName);
+        return ESTestCase.asInstanceOf(
+            MockTransportService.class,
+            ESIntegTestCase.internalCluster().getInstance(TransportService.class, nodeName)
         );
     }
 

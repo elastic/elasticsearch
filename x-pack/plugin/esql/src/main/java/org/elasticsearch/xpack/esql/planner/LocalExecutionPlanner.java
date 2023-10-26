@@ -617,8 +617,9 @@ public class LocalExecutionPlanner {
 
         Layout.Builder layout = new Layout.Builder();
         List<Layout.ChannelSet> inverse = source.layout.inverse();
-        for (int index = 0, size = childOutput.size(); index < size; index++) {
-            if (childOutput.get(index).name().equals(mvExpandExec.expanded().name())) {
+        var expandedName = mvExpandExec.expanded().name();
+        for (int index = 0; index < inverse.size(); index++) {
+            if (childOutput.get(index).name().equals(expandedName)) {
                 layout.append(mvExpandExec.expanded());
             } else {
                 layout.append(inverse.get(index));

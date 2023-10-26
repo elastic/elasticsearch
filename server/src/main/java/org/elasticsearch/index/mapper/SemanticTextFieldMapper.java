@@ -26,8 +26,8 @@ public class SemanticTextFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "semantic_text";
     private static final String SPARSE_VECTOR_SUFFIX = "_inference";
 
-    private static ParseField TEXT_FIELD = new ParseField("text");
-    private static ParseField INFERENCE_FIELD = new ParseField("inference");
+    private static final String TEXT_SUBFIELD_NAME = "text";
+    private static final String SPARSE_VECTOR_SUBFIELD_NAME = "inference";
 
     private static SemanticTextFieldMapper toType(FieldMapper in) {
         return (SemanticTextFieldMapper) in;
@@ -161,24 +161,49 @@ public class SemanticTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(DocumentParserContext context) throws IOException {
+    public void parse(DocumentParserContext context) throws IOException {
 
-        XContentParser parser = context.parser();
-        final String value = parser.textOrNull();
-
-        if (value == null) {
-            return;
+        context.parser();
+        if (context.parser().currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException(
+                "[semantic_text] fields must be a json object, expected a START_OBJECT but got: " + context.parser().currentToken()
+            );
         }
 
-        // Create field for original text
-        context.doc().add(new StringField(name(), value, Field.Store.NO));
+        boolean textFound = false;
+        boolean inferenceFound = false;
+        for (XContentParser.Token token = context.parser().nextToken(); token != XContentParser.Token.END_OBJECT; token = context.parser().nextToken()) {
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new IllegalArgumentException("[semantic_text] fields expect an object with field names, found " + token);
+            }
 
-        // Parses inference field, for now a separate field in the doc
-        // TODO make inference field a multifield / child field?
-        context.path().add(simpleName() + SPARSE_VECTOR_SUFFIX);
-        parser.nextToken();
-        sparseVectorFieldInfo.sparseVectorFieldMapper.parse(context);
-        context.path().remove();
+            String fieldName = context.parser().currentName();
+            XContentParser.Token valueToken = context.parser().nextToken();
+            switch (fieldName) {
+                case TEXT_SUBFIELD_NAME:
+                    context.doc().add(new StringField(name() + TEXT_SUBFIELD_NAME, context.parser().textOrNull(), Field.Store.NO));
+                    textFound = true;
+                    break;
+                case SPARSE_VECTOR_SUBFIELD_NAME:
+                    sparseVectorFieldInfo.sparseVectorFieldMapper.parse(context);
+                    inferenceFound = true;
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unexpected subfield value: " + fieldName);
+            }
+        }
+
+        if (textFound == false) {
+            throw new IllegalArgumentException("[semantic_text] value does not contain [" + TEXT_SUBFIELD_NAME + "] subfield");
+        }
+        if (inferenceFound == false) {
+            throw new IllegalArgumentException("[semantic_text] value does not contain [" + SPARSE_VECTOR_SUBFIELD_NAME + "] subfield");
+        }
+    }
+
+    @Override
+    protected void parseCreateField(DocumentParserContext context) {
+        throw new AssertionError("parse is implemented directly");
     }
 
     @Override

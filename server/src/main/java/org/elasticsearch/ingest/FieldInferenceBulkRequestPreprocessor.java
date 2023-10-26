@@ -46,7 +46,7 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
 
         String index = indexRequest.index();
         Map<String, Object> sourceMap = indexRequest.sourceAsMap();
-        sourceMap.entrySet().stream().filter(entry -> fieldNeedsInference(index, entry.getKey())).forEach(entry -> {
+        sourceMap.entrySet().stream().filter(entry -> fieldNeedsInference(index, entry.getKey(), entry.getValue())).forEach(entry -> {
             runInferenceForField(indexRequest, entry.getKey(), refs, slot, onFailure);
         });
     }
@@ -54,7 +54,10 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
     @Override
     public boolean needsProcessing(DocWriteRequest<?> docWriteRequest, IndexRequest indexRequest, Metadata metadata) {
         return (indexRequest.isFieldInferenceDone() == false)
-            && indexRequest.sourceAsMap().keySet().stream().anyMatch(fieldName -> fieldNeedsInference(indexRequest.index(), fieldName));
+            && indexRequest.sourceAsMap()
+                .entrySet()
+                .stream()
+                .anyMatch(entry -> fieldNeedsInference(indexRequest.index(), entry.getKey(), entry.getValue()));
     }
 
     @Override
@@ -67,9 +70,11 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
         return false;
     }
 
-    // TODO actual mapping check here
-    private boolean fieldNeedsInference(String index, String fieldName) {
-        return fieldName.startsWith("infer_");
+    private boolean fieldNeedsInference(String index, String fieldName, Object fieldValue) {
+        // TODO actual mapping check here
+        return fieldName.startsWith("infer_")
+            // We want to perform inference when we don't have already calculated it
+            && (fieldValue instanceof String);
     }
 
     private void runInferenceForField(
@@ -87,10 +92,11 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
         refs.acquire();
 
         // TODO Hardcoding model ID and task type
+        final String fieldValue = ingestDocument.getFieldValue(fieldName, String.class);
         InferenceAction.Request inferenceRequest = new InferenceAction.Request(
             TaskType.SPARSE_EMBEDDING,
             "my-elser-model",
-            ingestDocument.getFieldValue(fieldName, String.class),
+            fieldValue,
             Map.of()
         );
 
@@ -99,7 +105,10 @@ public class FieldInferenceBulkRequestPreprocessor extends AbstractBulkRequestPr
         client.execute(InferenceAction.INSTANCE, inferenceRequest, ActionListener.runAfter(new ActionListener<InferenceAction.Response>() {
             @Override
             public void onResponse(InferenceAction.Response response) {
-                ingestDocument.setFieldValue(fieldName + "_inference", response.getResult().asMap(fieldName).get(fieldName));
+                ingestDocument.removeField(fieldName);
+                // Transform into two subfields, one with the actual text and other with the inference
+                ingestDocument.setFieldValue(fieldName + "._text", fieldValue);
+                ingestDocument.setFieldValue(fieldName + "._inference", response.getResult().asMap(fieldName).get(fieldName));
                 updateIndexRequestSource(indexRequest, ingestDocument);
             }
 

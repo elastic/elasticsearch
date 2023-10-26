@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -52,6 +53,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -739,24 +741,40 @@ class NodeConstruction {
             threadPool
         );
 
-        Collection<Object> pluginComponents = pluginsService.flatMap(
-            p -> p.createComponents(
-                client,
-                clusterService,
-                threadPool,
-                resourceWatcherService,
-                scriptService,
-                xContentRegistry,
-                environment,
-                nodeEnvironment,
-                namedWriteableRegistry,
-                clusterModule.getIndexNameExpressionResolver(),
-                repositoriesServiceReference::get,
-                telemetryProvider,
-                clusterModule.getAllocationService(),
-                indicesService
-            )
-        ).toList();
+        record PluginServiceInstances(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            TelemetryProvider telemetryProvider,
+            AllocationService allocationService,
+            IndicesService indicesService
+        ) implements Plugin.PluginServices {}
+        PluginServiceInstances pluginServices = new PluginServiceInstances(
+            client,
+            clusterService,
+            threadPool,
+            resourceWatcherService,
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            clusterModule.getIndexNameExpressionResolver(),
+            repositoriesServiceReference::get,
+            telemetryProvider,
+            clusterModule.getAllocationService(),
+            indicesService
+        );
+
+        Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
 
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 

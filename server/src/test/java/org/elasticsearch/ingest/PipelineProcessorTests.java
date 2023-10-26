@@ -164,7 +164,7 @@ public class PipelineProcessorTests extends ESTestCase {
             null,
             new CompoundProcessor(pipeline1Processor),
             relativeTimeProvider,
-            false
+            null
         );
 
         String key1 = randomAlphaOfLength(10);
@@ -179,13 +179,13 @@ public class PipelineProcessorTests extends ESTestCase {
                 ingestDocument.setFieldValue(key1, randomInt());
             }), pipeline2Processor), List.of()),
             relativeTimeProvider,
-            false
+            null
         );
         relativeTimeProvider = mock(LongSupplier.class);
         when(relativeTimeProvider.getAsLong()).thenReturn(0L, TimeUnit.MILLISECONDS.toNanos(2));
         Pipeline pipeline3 = new Pipeline(pipeline3Id, null, null, null, new CompoundProcessor(new TestProcessor(ingestDocument -> {
             throw new RuntimeException("error");
-        })), relativeTimeProvider, false);
+        })), relativeTimeProvider, null);
         when(ingestService.getPipeline(pipeline1Id)).thenReturn(pipeline1);
         when(ingestService.getPipeline(pipeline2Id)).thenReturn(pipeline2);
         when(ingestService.getPipeline(pipeline3Id)).thenReturn(pipeline3);

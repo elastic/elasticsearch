@@ -197,12 +197,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 orig.version(),
                 randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
             );
-            case 3 -> new ComponentTemplate(
-                orig.template(),
-                orig.version(),
-                orig.metadata(),
-                orig.deprecated() == false
-            );
+            case 3 -> new ComponentTemplate(orig.template(), orig.version(), orig.metadata(), orig.deprecated() == false);
             default -> throw new IllegalStateException("illegal randomization branch");
         };
     }

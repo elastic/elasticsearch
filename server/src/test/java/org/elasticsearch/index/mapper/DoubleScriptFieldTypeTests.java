@@ -230,6 +230,18 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         }
     }
 
+    public void testBlockLoader() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
+                assertThat(blockLoaderReadValues(reader, fieldType), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromSingleDoc(reader, fieldType), equalTo(List.of(2d, 3d)));
+            }
+        }
+    }
+
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(List.of(randomLong()), ctx);

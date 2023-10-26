@@ -642,14 +642,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
+            "logs@lifecycle",
             "metrics",
+            "metrics@lifecycle",
             "profiling",
+            "profiling@lifecycle",
             "synthetics",
+            "synthetics@lifecycle",
             "7-days-default",
+            "7-days@lifecycle",
             "30-days-default",
+            "30-days@lifecycle",
             "90-days-default",
+            "90-days@lifecycle",
             "180-days-default",
+            "180-days@lifecycle",
             "365-days-default",
+            "365-days@lifecycle",
             ".fleet-files-ilm-policy",
             ".fleet-file-data-ilm-policy",
             ".fleet-actions-results-ilm-policy",
@@ -1869,6 +1878,10 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
+        if (name.contains("@")) {
+            // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
+            return true;
+        }
         if (name.startsWith("apm@")
             || name.startsWith("apm-")
             || name.startsWith("traces-apm")
@@ -1890,7 +1903,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics-settings":
             case "metrics-tsdb-settings":
             case "metrics-mappings":
-            case "traces@mappings":
             case "synthetics":
             case "synthetics-settings":
             case "synthetics-mappings":
@@ -1899,7 +1911,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
-            case "ecs@dynamic_templates":
             case "search-acl-filter":
             case ".kibana-reporting":
                 return true;

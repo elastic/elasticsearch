@@ -82,7 +82,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     public void assertWatchExecuted() {
         try {
             refresh();
-            SearchResponse searchResponse = client().prepareSearch("my-index").get();
+            SearchResponse searchResponse = prepareSearch("my-index").get();
             assertHitCount(searchResponse, 1);
             assertThat(searchResponse.getHits().getAt(0).getSourceAsString(), containsString("the-most-awesome-index-ever"));
         } catch (IndexNotFoundException e) {

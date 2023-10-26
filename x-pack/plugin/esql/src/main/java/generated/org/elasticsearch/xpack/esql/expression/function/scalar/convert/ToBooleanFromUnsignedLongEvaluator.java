@@ -97,4 +97,25 @@ public final class ToBooleanFromUnsignedLongEvaluator extends AbstractConvertFun
     long value = container.getLong(index);
     return ToBoolean.fromUnsignedLong(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToBooleanFromUnsignedLongEvaluator get(DriverContext context) {
+      return new ToBooleanFromUnsignedLongEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToBooleanFromUnsignedLongEvaluator[field=" + field + "]";
+    }
+  }
 }

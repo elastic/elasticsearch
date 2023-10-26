@@ -159,10 +159,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Set<String> modelPlotTerms(String jobId, String fieldName) {
-        SearchResponse searchResponse = client().prepareSearch(".ml-anomalies-" + jobId)
-            .setQuery(QueryBuilders.termQuery("result_type", "model_plot"))
-            .addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName))
-            .get();
+        SearchResponse searchResponse = prepareSearch(".ml-anomalies-" + jobId).setQuery(
+            QueryBuilders.termQuery("result_type", "model_plot")
+        ).addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName)).get();
 
         Terms aggregation = searchResponse.getAggregations().get("model_plot_terms");
         return aggregation.getBuckets().stream().map(agg -> agg.getKeyAsString()).collect(Collectors.toSet());

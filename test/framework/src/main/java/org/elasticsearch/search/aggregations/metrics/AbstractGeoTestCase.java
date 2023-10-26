@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -229,12 +229,11 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         // value for NUMBER_FIELD_NAME. This will check that after random indexing each document only has 1 value for
         // NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting
         // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type.
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME)
-            .addStoredField(NUMBER_FIELD_NAME)
+        SearchResponse response = prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME)
             .addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC))
             .setSize(5000)
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         long totalHits = response.getHits().getTotalHits().value;
         XContentBuilder builder = XContentFactory.jsonBuilder();
         ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);

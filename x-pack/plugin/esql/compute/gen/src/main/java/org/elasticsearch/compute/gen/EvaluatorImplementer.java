@@ -11,6 +11,7 @@ import com.squareup.javapoet.ArrayTypeName;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.lang.model.element.ExecutableElement;
@@ -36,6 +38,7 @@ import static org.elasticsearch.compute.gen.Types.BLOCK_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.RELEASABLE;
 import static org.elasticsearch.compute.gen.Types.RELEASABLES;
@@ -82,6 +85,8 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(EXPRESSION_EVALUATOR);
 
+        builder.addType(factory());
+
         if (processFunction.warnExceptions.isEmpty() == false) {
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
         }
@@ -106,6 +111,7 @@ public class EvaluatorImplementer {
             builder.addStatement("this.warnings = new Warnings(source)");
         }
         processFunction.args.stream().forEach(a -> a.implementCtor(builder));
+
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.driverContext = driverContext");
         return builder.build();
@@ -247,6 +253,55 @@ public class EvaluatorImplementer {
         return builder.build();
     }
 
+    private TypeSpec factory() {
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
+        builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
+        builder.addModifiers(Modifier.STATIC);
+
+        if (processFunction.warnExceptions.isEmpty() == false) {
+            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+        }
+        processFunction.args.stream().forEach(a -> a.declareFactoryField(builder));
+
+        builder.addMethod(factoryCtor());
+        builder.addMethod(factoryGet());
+        builder.addMethod(toStringMethod());
+
+        return builder.build();
+    }
+
+    private MethodSpec factoryCtor() {
+        MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (processFunction.warnExceptions.isEmpty() == false) {
+            builder.addParameter(SOURCE, "source");
+            builder.addStatement("this.source = source");
+        }
+        processFunction.args.stream().forEach(a -> a.implementFactoryCtor(builder));
+
+        return builder.build();
+    }
+
+    private MethodSpec factoryGet() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("get").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "context");
+        builder.returns(implementation);
+
+        List<String> args = new ArrayList<>();
+        if (processFunction.warnExceptions.isEmpty() == false) {
+            args.add("source");
+        }
+        for (ProcessFunctionArg arg : processFunction.args) {
+            String invocation = arg.factoryInvocation(builder);
+            if (invocation != null) {
+                args.add(invocation);
+            }
+        }
+        args.add("context");
+        builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
+        return builder.build();
+    }
+
     private interface ProcessFunctionArg {
         /**
          * Type containing the actual data for a page of values for this field. Usually a
@@ -260,15 +315,33 @@ public class EvaluatorImplementer {
         String paramName(boolean blockStyle);
 
         /**
-         * Declare any required fields on the type for this parameter.
+         * Declare any required fields for the evaluator to implement this type of parameter.
          */
         void declareField(TypeSpec.Builder builder);
+
+        /**
+         * Declare any required fields for the evaluator factory to implement this type of parameter.
+         */
+        void declareFactoryField(TypeSpec.Builder builder);
 
         /**
          * Implement the ctor for this parameter. Will declare parameters
          * and assign values to declared fields.
          */
         void implementCtor(MethodSpec.Builder builder);
+
+        /**
+         * Implement the ctor for the evaluator factory for this parameter.
+         * Will declare parameters and assign values to declared fields.
+         */
+        void implementFactoryCtor(MethodSpec.Builder builder);
+
+        /**
+         * Invocation called in the ExpressionEvaluator.Factory#get method to
+         * convert from whatever the factory holds to what the evaluator needs,
+         * or {@code null} this parameter isn't passed to the evaluator's ctor.
+         */
+        String factoryInvocation(MethodSpec.Builder factoryMethodBuilder);
 
         /**
          * Emits code to evaluate this parameter to a Block.Ref or array of Block.Refs
@@ -341,9 +414,25 @@ public class EvaluatorImplementer {
         }
 
         @Override
+        public void declareFactoryField(TypeSpec.Builder builder) {
+            builder.addField(EXPRESSION_EVALUATOR_FACTORY, name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
         public void implementCtor(MethodSpec.Builder builder) {
             builder.addParameter(EXPRESSION_EVALUATOR, name);
             builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void implementFactoryCtor(MethodSpec.Builder builder) {
+            builder.addParameter(EXPRESSION_EVALUATOR_FACTORY, name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+            return name + ".get(context)";
         }
 
         @Override
@@ -444,9 +533,32 @@ public class EvaluatorImplementer {
         }
 
         @Override
+        public void declareFactoryField(TypeSpec.Builder builder) {
+            builder.addField(ArrayTypeName.of(EXPRESSION_EVALUATOR_FACTORY), name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
         public void implementCtor(MethodSpec.Builder builder) {
             builder.addParameter(ArrayTypeName.of(EXPRESSION_EVALUATOR), name);
             builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void implementFactoryCtor(MethodSpec.Builder builder) {
+            builder.addParameter(ArrayTypeName.of(EXPRESSION_EVALUATOR_FACTORY), name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+            factoryMethodBuilder.addStatement(
+                "$T[] $L = Arrays.stream(this.$L).map(a -> a.get(context)).toArray($T[]::new)",
+                EXPRESSION_EVALUATOR,
+                name,
+                name,
+                EXPRESSION_EVALUATOR
+            );
+            return name;
         }
 
         @Override
@@ -541,7 +653,7 @@ public class EvaluatorImplementer {
         }
     }
 
-    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean releasable)
+    private record FixedProcessFunctionArg(TypeName type, String name, boolean includeInToString, boolean build, boolean releasable)
         implements
             ProcessFunctionArg {
         @Override
@@ -561,9 +673,29 @@ public class EvaluatorImplementer {
         }
 
         @Override
+        public void declareFactoryField(TypeSpec.Builder builder) {
+            builder.addField(factoryFieldType(), name, Modifier.PRIVATE, Modifier.FINAL);
+        }
+
+        @Override
         public void implementCtor(MethodSpec.Builder builder) {
             builder.addParameter(type, name);
             builder.addStatement("this.$L = $L", name, name);
+        }
+
+        @Override
+        public void implementFactoryCtor(MethodSpec.Builder builder) {
+            builder.addParameter(factoryFieldType(), name);
+            builder.addStatement("this.$L = $L", name, name);
+        }
+
+        private TypeName factoryFieldType() {
+            return build ? ParameterizedTypeName.get(ClassName.get(Function.class), DRIVER_CONTEXT, type.box()) : type;
+        }
+
+        @Override
+        public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+            return build ? name + ".apply(context)" : name;
         }
 
         @Override
@@ -635,8 +767,23 @@ public class EvaluatorImplementer {
         }
 
         @Override
+        public void declareFactoryField(TypeSpec.Builder builder) {
+            // Nothing to declare
+        }
+
+        @Override
         public void implementCtor(MethodSpec.Builder builder) {
             // Nothing to do
+        }
+
+        @Override
+        public void implementFactoryCtor(MethodSpec.Builder builder) {
+            // Nothing to do
+        }
+
+        @Override
+        public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
+            return null; // Not used in the factory
         }
 
         @Override
@@ -711,6 +858,7 @@ public class EvaluatorImplementer {
                             type,
                             name,
                             fixed.includeInToString(),
+                            fixed.build(),
                             Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
                         )
                     );

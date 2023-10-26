@@ -37,6 +37,11 @@ previous versions.
 
 `<policy_id>`::
   (Required, string) Identifier for the policy.
++
+[IMPORTANT]
+====
+To avoid naming collisions with built-in and Fleet-managed ILM policies, avoid using `@` as part of the id of your own ILM policies.
+====
 
 [[ilm-put-lifecycle-query-params]]
 ==== {api-query-parms-title}

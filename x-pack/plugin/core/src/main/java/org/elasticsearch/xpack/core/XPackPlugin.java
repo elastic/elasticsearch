@@ -312,7 +312,7 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(PluginServices services) {
+    public Collection<?> createComponents(PluginServices services) {
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(services.environment(), services.resourceWatcherService());

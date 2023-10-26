@@ -129,6 +129,7 @@ public abstract class BWCCodec extends Codec {
             org.apache.lucene.util.Version.LATEST,
             segmentInfo.name,
             segmentInfo.maxDoc(),
+            segmentInfo.getHasBlocks(),
             segmentInfo.getUseCompoundFile(),
             codec,
             segmentInfo.getDiagnostics(),

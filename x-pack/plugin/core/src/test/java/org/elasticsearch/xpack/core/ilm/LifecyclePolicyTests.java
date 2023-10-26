@@ -295,7 +295,9 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
     protected LifecyclePolicy mutateInstance(LifecyclePolicy instance) {
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
-        switch (between(0, 1)) {
+        Map<String, Object> metadata = instance.getMetadata();
+        boolean deprecated = instance.isDeprecated();
+        switch (between(0, 3)) {
             case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
             case 1 -> {
                 // Remove the frozen phase, because it makes a lot of invalid phases when randomly mutating an existing policy
@@ -315,9 +317,11 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                 phases = new LinkedHashMap<>(phases);
                 phases.put(phaseName, new Phase(phaseName, null, Collections.emptyMap()));
             }
+            case 2 -> metadata = randomValueOtherThan(metadata, LifecyclePolicyTests::randomMeta);
+            case 3 -> deprecated = deprecated == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta(), randomBoolean());
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, metadata, deprecated);
     }
 
     @Override

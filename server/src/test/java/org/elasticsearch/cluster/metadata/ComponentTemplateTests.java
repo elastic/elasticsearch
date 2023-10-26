@@ -136,7 +136,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     public static ComponentTemplate mutateTemplate(ComponentTemplate orig) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 Template ot = orig.template();
                 yield switch (randomIntBetween(0, 3)) {
@@ -148,7 +148,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
                         new Template(
@@ -158,7 +159,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
                         new Template(
@@ -168,7 +170,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             ot.lifecycle()
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
                         new Template(
@@ -178,7 +181,8 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                             randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle)
                         ),
                         orig.version(),
-                        orig.metadata()
+                        orig.metadata(),
+                        orig.deprecated()
                     );
                     default -> throw new IllegalStateException("illegal randomization branch");
                 };
@@ -192,6 +196,12 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 orig.template(),
                 orig.version(),
                 randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+            );
+            case 3 -> new ComponentTemplate(
+                orig.template(),
+                orig.version(),
+                orig.metadata(),
+                orig.deprecated() == false
             );
             default -> throw new IllegalStateException("illegal randomization branch");
         };

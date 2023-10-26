@@ -597,7 +597,8 @@ class S3BlobContainer extends AbstractBlobContainer {
             final var uploadId = initiateMultipartUpload();
             final var partETag = uploadPart(updated, uploadId);
 
-            // Step 2: List all uploads that are racing to complete, and compute our position in the list.
+            // Step 2: List all uploads that are racing to complete, and compute our position in the list. This definitely includes all the
+            // uploads that started before us and are still in-progress, and may include some later-started in-progress ones too.
 
             final var currentUploads = listMultipartUploads();
             final var uploadIndex = getUploadIndex(uploadId, currentUploads);
@@ -610,37 +611,9 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             SubscribableListener
 
-                // Step 3: Cancel any other uploads against which we believe we are racing (which definitely includes all the ones that
-                // started before us, and may include some later-started ones too).
+                // Step 3: Ensure all other uploads in currentUploads are complete.
 
-                .<Void>newForked(otherUploadsCancelledListener -> {
-                    // This is a small optimization to improve the liveness properties of this algorithm.
-                    //
-                    // When there are updates racing to complete, we try and let them complete in order of their upload IDs. The one with
-                    // the first upload ID immediately tries to cancel the competing updates in order to make progress, but the ones with
-                    // greater upload IDs wait based on their position in the list before proceeding.
-                    //
-                    // Note that this does not guarantee that any of the uploads actually succeeds. Another operation could start and see
-                    // a different collection of racing uploads and cancel all of them while they're sleeping. In theory this whole thing is
-                    // provably impossible anyway [1] but in practice it'll eventually work with sufficient retries.
-                    //
-                    // [1] Michael J. Fischer, Nancy A. Lynch, and Michael S. Paterson. 1985. Impossibility of distributed consensus with
-                    // one faulty process. J. ACM 32, 2 (April 1985), 374–382.
-                    //
-                    // TODO should we sort these by initiation time (and then upload ID as a tiebreaker)?
-                    // TODO should we listMultipartUploads() while waiting, so we can fail quicker if we are concurrently cancelled?
-                    if (uploadIndex > 0) {
-                        threadPool.scheduleUnlessShuttingDown(
-                            TimeValue.timeValueMillis(
-                                uploadIndex * blobStore.getCompareAndExchangeAntiContentionDelay().millis() + Randomness.get().nextInt(50)
-                            ),
-                            blobStore.getSnapshotExecutor(),
-                            ActionRunnable.wrap(otherUploadsCancelledListener, l -> cancelOtherUploads(uploadId, currentUploads, l))
-                        );
-                    } else {
-                        cancelOtherUploads(uploadId, currentUploads, otherUploadsCancelledListener);
-                    }
-                })
+                .<Void>newForked(l -> ensureOtherUploadsComplete(uploadId, uploadIndex, currentUploads, l))
 
                 // Step 4: Read the current register value.
 
@@ -766,6 +739,40 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
 
             return found ? uploadIndex : -1;
+        }
+
+        private void ensureOtherUploadsComplete(
+            String uploadId,
+            int uploadIndex,
+            List<MultipartUpload> currentUploads,
+            ActionListener<Void> listener
+        ) {
+            // This is a small optimization to improve the liveness properties of this algorithm.
+            //
+            // When there are updates racing to complete, we try and let them complete in order of their upload IDs. The one with the first
+            // upload ID immediately tries to cancel the competing updates in order to make progress, but the ones with greater upload IDs
+            // wait based on their position in the list before proceeding.
+            //
+            // Note that this does not guarantee that any of the uploads actually succeeds. Another operation could start and see a
+            // different collection of racing uploads and cancel all of them while they're sleeping. In theory this whole thing is provably
+            // impossible anyway [1] but in practice it'll eventually work with sufficient retries.
+            //
+            // [1] Michael J. Fischer, Nancy A. Lynch, and Michael S. Paterson. 1985. Impossibility of distributed consensus with one faulty
+            // process. J. ACM 32, 2 (April 1985), 374–382.
+            //
+            // TODO should we sort these by initiation time (and then upload ID as a tiebreaker)?
+            // TODO should we listMultipartUploads() while waiting, so we can fail quicker if we are concurrently cancelled?
+            if (uploadIndex > 0) {
+                threadPool.scheduleUnlessShuttingDown(
+                    TimeValue.timeValueMillis(
+                        uploadIndex * blobStore.getCompareAndExchangeAntiContentionDelay().millis() + Randomness.get().nextInt(50)
+                    ),
+                    blobStore.getSnapshotExecutor(),
+                    ActionRunnable.wrap(listener, l -> cancelOtherUploads(uploadId, currentUploads, l))
+                );
+            } else {
+                cancelOtherUploads(uploadId, currentUploads, listener);
+            }
         }
 
         private void cancelOtherUploads(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {

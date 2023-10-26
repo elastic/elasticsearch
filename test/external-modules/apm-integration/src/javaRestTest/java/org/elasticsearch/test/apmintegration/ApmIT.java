@@ -16,6 +16,8 @@ import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class ApmIT extends ESRestTestCase {
     @ClassRule
     public static RecordingApmServer mockApmServer = new RecordingApmServer();
@@ -44,12 +46,13 @@ public class ApmIT extends ESRestTestCase {
             assertThat(
                 usageRecords,
                 Matchers.hasItems(
-                    Matchers.containsString("\"testDoubleCounter\":{\"value\":1.0}"),
-                    Matchers.containsString("\"testLongCounter\":{\"value\":1.0}"),
-                    Matchers.containsString("\"testDoubleHistogram\":{\"values\":["),// value?
-                    Matchers.containsString("\"testLongHistogram\":{\"values\":["),// value?
-                    Matchers.containsString("\"testDoubleGauge\":{\"value\":1.0}"),
-                    Matchers.containsString("\"testLongGauge\":{\"value\":1}")
+                    containsString("\"testDoubleCounter\":{\"value\":1.0}"),
+                    containsString("\"testLongCounter\":{\"value\":1.0}"),
+                    containsString("\"testDoubleHistogram\":{\"values\":[0.8535535000000001,1.7071049999999999],\"counts\":[1,1]"),
+                    // long is represented as doubles in apm server
+                    containsString("\"testLongHistogram\":{\"values\":[0.8535535000000001,1.7071049999999999],\"counts\":[1,1]"),
+                    containsString("\"testDoubleGauge\":{\"value\":1.0}"),
+                    containsString("\"testLongGauge\":{\"value\":1}")
                 )
             );
 

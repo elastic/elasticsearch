@@ -68,11 +68,7 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     private List<String> readJsonMessages(InputStream input) throws IOException {
-        // XContentParser parser = XCONTENT.XContent().createParser(XContentParserConfiguration.EMPTY, input);
-        // if (parser.currentToken() == null) {
-        // parser.nextToken();
-        // }
-        // return XContentParserUtils.parseList(parser, XContentParser::textOrNull);
+        // parse NDJSON
         return Arrays.stream(new String(input.readAllBytes(), StandardCharsets.UTF_8).split(System.lineSeparator())).toList();
     }
 

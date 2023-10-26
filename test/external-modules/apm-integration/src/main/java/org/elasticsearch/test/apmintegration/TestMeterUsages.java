@@ -41,8 +41,6 @@ public class TestMeterUsages {
         longCounter.increment();
         doubleHistogram.record(1.0);
         doubleHistogram.record(2.0);
-        doubleHistogram.record(2.0);
-        longHistogram.record(1);
         longHistogram.record(1);
         longHistogram.record(2);
         doubleWithAttributes.set(new DoubleWithAttributes(1.0, Map.of()));

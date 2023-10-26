@@ -16,6 +16,6 @@ import java.util.Map;
 public class EsqlFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_10_0);
+        return Map.of(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0);
     }
 }

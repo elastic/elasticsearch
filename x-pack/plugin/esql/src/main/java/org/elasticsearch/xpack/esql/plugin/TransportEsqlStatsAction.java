@@ -22,7 +22,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -64,13 +63,11 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     @Override
     protected void resolveRequest(EsqlStatsRequest request, ClusterState clusterState) {
         if (featureService.clusterHasFeature(clusterState, ESQL_STATS_FEATURE)) {
-            request.setConcreteNodes(
-                Arrays.stream(clusterState.nodes().resolveNodes(request.nodesIds()))
-                    .map(clusterState.nodes()::get)
-                    .toArray(DiscoveryNode[]::new)
-            );
+            // use the whole cluster
+            super.resolveRequest(request, clusterState);
         } else {
-            request.setConcreteNodes(new DiscoveryNode[0]);
+            // not all nodes in the cluster have upgraded to esql - just use this node for now
+            request.setConcreteNodes(new DiscoveryNode[] { clusterService.localNode() });
         }
     }
 

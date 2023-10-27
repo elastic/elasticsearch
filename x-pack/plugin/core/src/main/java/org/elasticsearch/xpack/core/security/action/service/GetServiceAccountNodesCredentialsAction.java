@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetServiceAccountNodesCredentialsAction extends ActionType<GetServiceAccountCredentialsNodesResponse> {
 
@@ -15,6 +16,6 @@ public class GetServiceAccountNodesCredentialsAction extends ActionType<GetServi
     public static final GetServiceAccountNodesCredentialsAction INSTANCE = new GetServiceAccountNodesCredentialsAction();
 
     public GetServiceAccountNodesCredentialsAction() {
-        super(NAME, GetServiceAccountCredentialsNodesResponse::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 }

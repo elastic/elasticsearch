@@ -42,7 +42,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
 
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        return List.of(TestInferenceService::new);
+        return List.of(TestInferenceService::new, TestInferenceServiceClusterService::new);
     }
 
     @Override
@@ -54,9 +54,38 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         );
     }
 
-    public static class TestInferenceService implements InferenceService {
-
+    public static class TestInferenceService extends TestInferenceServiceBase {
         private static final String NAME = "test_service";
+
+        public TestInferenceService(InferenceServiceFactoryContext context) {
+            super(context);
+        }
+
+        @Override
+        public String name() {
+            return NAME;
+        }
+    }
+
+    public static class TestInferenceServiceClusterService extends TestInferenceServiceBase {
+        private static final String NAME = "test_service_in_cluster_service";
+
+        public TestInferenceServiceClusterService(InferenceServiceFactoryContext context) {
+            super(context);
+        }
+
+        @Override
+        public boolean isInClusterService() {
+            return true;
+        }
+
+        @Override
+        public String name() {
+            return NAME;
+        }
+    }
+
+    public abstract static class TestInferenceServiceBase implements InferenceService {
 
         private static Map<String, Object> getTaskSettingsMap(Map<String, Object> settings) {
             Map<String, Object> taskSettingsMap;
@@ -70,13 +99,8 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             return taskSettingsMap;
         }
 
-        public TestInferenceService(InferenceServicePlugin.InferenceServiceFactoryContext context) {
+        public TestInferenceServiceBase(InferenceServicePlugin.InferenceServiceFactoryContext context) {
 
-        }
-
-        @Override
-        public String name() {
-            return NAME;
         }
 
         @Override
@@ -93,11 +117,11 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            throwIfNotEmptyMap(config, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
+            throwIfNotEmptyMap(config, name());
+            throwIfNotEmptyMap(serviceSettingsMap, name());
+            throwIfNotEmptyMap(taskSettingsMap, name());
 
-            return new TestServiceModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
         }
 
         @Override
@@ -116,7 +140,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
             var taskSettingsMap = getTaskSettingsMap(config);
             var taskSettings = TestTaskSettings.fromMap(taskSettingsMap);
 
-            return new TestServiceModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            return new TestServiceModel(modelId, taskType, name(), serviceSettings, taskSettings, secretSettings);
         }
 
         @Override
@@ -125,7 +149,7 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
                 case SPARSE_EMBEDDING -> listener.onResponse(TextExpansionResultsTests.createRandomResults(1, 10));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
-                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
+                        TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
                         RestStatus.BAD_REQUEST
                     )
                 );
@@ -137,6 +161,9 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public void start(Model model, ActionListener<Boolean> listener) {
             listener.onResponse(true);
         }
+
+        @Override
+        public void close() throws IOException {}
     }
 
     public static class TestServiceModel extends Model {

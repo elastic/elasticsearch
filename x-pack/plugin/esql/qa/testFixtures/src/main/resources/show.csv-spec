@@ -36,22 +36,22 @@ greatest                 |"? greatest(first:integer|long|double|boolean|keyword|
 is_finite                |? is_finite(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 is_infinite              |? is_infinite(arg1:?)                                   |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-least                 |"? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
-left                     |"? left(string:keyword, length:integer)"                              |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
+least                    |"? least(first:integer|long|double|boolean|keyword|text|ip|version, rest...:integer|long|double|boolean|keyword|text|ip|version)"        |[first, rest]            |["integer|long|double|boolean|keyword|text|ip|version", "integer|long|double|boolean|keyword|text|ip|version"]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
+left                     |"? left(string:keyword, length:integer)"                |[string, length]         |["keyword", "integer"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 length                   |? length(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-log10                    |"? log10(n:integer|long|double|unsigned_long)"    |n                        |"integer|long|double|unsigned_long" | ""                                                 |?                    | ""                      | false                | false
+log10                    |"? log10(n:integer|long|double|unsigned_long)"          |n                        |"integer|long|double|unsigned_long" | ""                                                 |?                    | ""                      | false                | false
 ltrim                    |? ltrim(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 max                      |? max(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 median                   |? median(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 median_absolute_deviation|? median_absolute_deviation(arg1:?)                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 min                      |? min(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 mv_avg                   |? mv_avg(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-mv_concat                |? mv_concat(arg1:?, arg2:?)                             |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
-mv_count                 |? mv_count(arg1:?)                                      |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-mv_dedupe                |? mv_dedupe(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-mv_max                   |? mv_max(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+mv_concat                |"keyword mv_concat(v:text|keyword, delim:text|keyword)" |[v, delim]               |["text|keyword", "text|keyword"] |["values to join", "delimiter"]      |keyword              | "Reduce a multivalued string field to a single valued field by concatenating all values." | [false, false]       | false
+mv_count                 |"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v      | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" | integer | "Reduce a multivalued field to a single valued field containing the count of values."       | false                | false
+mv_dedupe                |"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)" |v | "boolean|date|double|ip|text|integer|keyword|version|long" | "" |?   | "Remove duplicate values from a multivalued field."                      | false                | false
+mv_max                   |"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the maximum value." | false                | false
 mv_median                |? mv_median(arg1:?)                                     |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-mv_min                   |? mv_min(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
+mv_min                   |"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)" |v | "unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long" | "" |?      | "Reduce a multivalued field to a single valued field containing the minimum value." | false                | false
 mv_sum                   |? mv_sum(arg1:?)                                        |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 now                      |? now()                                                 | null                    |null              | null                                               |?                    | ""                      | null                 | false
 percentile               |? percentile(arg1:?, arg2:?)                            |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -135,12 +135,12 @@ synopsis:keyword
 ? median_absolute_deviation(arg1:?)                     
 ? min(arg1:?)                                           
 ? mv_avg(arg1:?)                                        
-? mv_concat(arg1:?, arg2:?)                             
-? mv_count(arg1:?)                                      
-? mv_dedupe(arg1:?)                                     
-? mv_max(arg1:?)                                        
+"keyword mv_concat(v:text|keyword, delim:text|keyword)"
+"integer mv_count(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
+"? mv_dedupe(v:boolean|date|double|ip|text|integer|keyword|version|long)"
+"? mv_max(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_median(arg1:?)                                     
-? mv_min(arg1:?)                                        
+"? mv_min(v:unsigned_long|date|boolean|double|ip|text|integer|keyword|version|long)"
 ? mv_sum(arg1:?)                                        
 ? now()                                                 
 ? percentile(arg1:?, arg2:?)                            

@@ -164,6 +164,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         }
 
         if (eventStateMinTransportVersionIsBeforeDistributedModelAllocationTransportVersion(event)) {
+            logger.trace("min transport version is before assignment change on " + event.state().nodes().getAllNodes().size() + " nodes");
+
             // we should not try to rebalance assignments while there may be nodes running on a version
             // prior to introducing distributed model allocation.
             // But we should remove routing to removed or shutting down nodes.
@@ -238,6 +240,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     private void removeRoutingToRemovedOrShuttingDownNodes(ClusterChangedEvent event) {
+        logger.trace("remove routing to removed or shutting down nodes ");
         if (areAssignedNodesRemoved(event)) {
             submitUnbatchedTask("removing routing entries for removed or shutting down nodes", new ClusterStateUpdateTask() {
                 @Override
@@ -282,6 +285,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     // Visible for testing
     static ClusterState removeRoutingToUnassignableNodes(ClusterState currentState) {
+        logger.trace("remove routing to unassignable nodes");
         Set<String> assignableNodes = getAssignableNodes(currentState).stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
         TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
@@ -431,6 +435,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     public void setModelAssignmentToStopping(String modelId, ActionListener<AcknowledgedResponse> listener) {
+        logger.trace("set to stopping");
         submitUnbatchedTask("set model assignment stopping", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -450,6 +455,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
     }
 
     public void removeModelAssignment(String deploymentId, ActionListener<AcknowledgedResponse> listener) {
+        logger.trace("remove model assignments");
         submitUnbatchedTask("delete model deployment assignment", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -486,6 +492,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
     // Used by the reset action directly
     public void removeAllModelAssignments(ActionListener<AcknowledgedResponse> listener) {
+        logger.trace("remove all assignments");
         submitUnbatchedTask("delete all model assignments", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -518,9 +525,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         logger.debug(() -> format("updated assignments: %s", modelAssignments.build()));
         Metadata.Builder metadata = Metadata.builder(currentState.metadata());
         if (currentState.getMinTransportVersion().onOrAfter(RENAME_ALLOCATION_TO_ASSIGNMENT_TRANSPORT_VERSION)) {
+            logger.trace("putting custom new name");
             metadata.putCustom(TrainedModelAssignmentMetadata.NAME, modelAssignments.build())
                 .removeCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME);
         } else {
+            logger.trace("putting custom old name");
             metadata.putCustom(TrainedModelAssignmentMetadata.DEPRECATED_NAME, modelAssignments.buildOld());
         }
         return ClusterState.builder(currentState).metadata(metadata).build();
@@ -616,6 +625,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 modelToAdd.get().getModelId(),
                 mlNodesArchitectures
             );
+            logger.info(reasonToStop);
             updatedState = callSetToStopping(reasonToStop, modelToAdd.get().getDeploymentId(), clusterState);
         }
         return updatedState;
@@ -653,6 +663,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         );
 
         Set<String> shuttingDownNodeIds = currentState.metadata().nodeShutdowns().getAllNodeIds();
+        /*
+         * To signal that we should gracefully stop the deployments routed to a particular node we set the routing state to stopping.
+         * The TrainedModelAssignmentNodeService will see that the route is in stopping for a shutting down node and gracefully shut down
+         * the native process after draining the queues.
+         */
         TrainedModelAssignmentMetadata.Builder rebalanced = setShuttingDownNodeRoutesToStopping(
             currentMetadata,
             shuttingDownNodeIds,

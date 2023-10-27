@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: allowed_warnings_regex
+      features: allowed_warnings
   - do:
       indices.create:
         index: test
@@ -85,10 +85,11 @@ setup:
           }
 
 ---
-unsupported:
+fetch:
   - do:
-      allowed_warnings_regex:
-        - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+      allowed_warnings:
+        - "Field [ip_noidx] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test'
@@ -129,18 +130,18 @@ unsupported:
   - length: { values: 1 }
 
   - match: { values.0.0: true }
-  - match: { values.0.1: null }
+  - match: { values.0.1: true }
   - match: { values.0.2: "2021-04-28T18:50:04.467Z" }
-  - match: { values.0.3: null }
+  - match: { values.0.3: "2021-04-28T18:50:04.467Z" }
   - match: { values.0.4: 40 }
-  - match: { values.0.5: null }
+  - match: { values.0.5: 40 }
   - match: { values.0.6: 30 }
-  - match: { values.0.7: null }
+  - match: { values.0.7: 30 }
   - match: { values.0.8: 10 }
-  - match: { values.0.9: null }
+  - match: { values.0.9: 10 }
   - match: { values.0.10: "192.168.0.1" }
   - match: { values.0.11: null }
   - match: { values.0.12: "foo" }
-  - match: { values.0.13: "foo" } # this is a special case, ESQL can retrieve keywords from source
+  - match: { values.0.13: "foo" }
   - match: { values.0.14: 20 }
-  - match: { values.0.15: null }
+  - match: { values.0.15: 20 }

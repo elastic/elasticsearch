@@ -168,7 +168,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get(), httpClientStatsTracker.getClientStats());
+        return new HttpStats(
+            httpChannels.size(),
+            totalChannelsAccepted.get(),
+            httpClientStatsTracker.getClientStats(),
+            dispatcher.getStats()
+        );
     }
 
     protected void bindServer() {

@@ -34,12 +34,12 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
+        SearchResponse response = prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
         assertThat(response.getHits().getAt(0).getVersion(), notNullValue());
 
-        response = client().prepareSearch("test").storedFields("_none_").get();
+        response = prepareSearch("test").storedFields("_none_").get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
@@ -50,8 +50,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value", "nested", Collections.singletonMap("title", "foo")).get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test")
-            .storedFields("_none_")
+        SearchResponse response = prepareSearch("test").storedFields("_none_")
             .setFetchSource(false)
             .setQuery(
                 new NestedQueryBuilder("nested", new TermQueryBuilder("nested.title", "foo"), ScoreMode.Total).innerHit(
@@ -77,12 +76,12 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").setRouting("toto").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").storedFields("_none_").setFetchSource(false).get();
+        SearchResponse response = prepareSearch("test").storedFields("_none_").setFetchSource(false).get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
-        response = client().prepareSearch("test").storedFields("_none_").get();
+        response = prepareSearch("test").storedFields("_none_").get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
@@ -97,7 +96,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException exc = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test").setFetchSource(true).storedFields("_none_").get()
+                () -> prepareSearch("test").setFetchSource(true).storedFields("_none_").get()
             );
             Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
             assertNotNull(rootCause);
@@ -107,7 +106,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             SearchPhaseExecutionException exc = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test").storedFields("_none_").addFetchField("field").get()
+                () -> prepareSearch("test").storedFields("_none_").addFetchField("field").get()
             );
             Throwable rootCause = ExceptionsHelper.unwrap(exc, SearchException.class);
             assertNotNull(rootCause);
@@ -117,14 +116,14 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
-                () -> client().prepareSearch("test").storedFields("_none_", "field1").setVersion(true).get()
+                () -> prepareSearch("test").storedFields("_none_", "field1").setVersion(true).get()
             );
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }
         {
             IllegalArgumentException exc = expectThrows(
                 IllegalArgumentException.class,
-                () -> client().prepareSearch("test").storedFields("_none_").storedFields("field1").setVersion(true).get()
+                () -> prepareSearch("test").storedFields("_none_").storedFields("field1").setVersion(true).get()
             );
             assertThat(exc.getMessage(), equalTo("cannot combine _none_ with other fields"));
         }

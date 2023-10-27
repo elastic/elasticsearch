@@ -1,0 +1,5 @@
+pr: 100519
+summary: Disallow vectors whose magnitudes will not fit in a float
+area: Vector Search
+type: bug
+issues: []

@@ -97,4 +97,26 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   public void close() {
     Releasables.closeExpectNoException(str, start);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory start;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory start) {
+      this.str = str;
+      this.start = start;
+    }
+
+    @Override
+    public SubstringNoLengthEvaluator get(DriverContext context) {
+      return new SubstringNoLengthEvaluator(str.get(context), start.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubstringNoLengthEvaluator[" + "str=" + str + ", start=" + start + "]";
+    }
+  }
 }

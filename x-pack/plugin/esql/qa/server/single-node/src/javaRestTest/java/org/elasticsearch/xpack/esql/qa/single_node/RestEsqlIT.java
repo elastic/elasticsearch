@@ -54,7 +54,14 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     public void testInvalidPragma() throws IOException {
         assumeTrue("pragma only enabled on snapshot builds", Build.current().isSnapshot());
-        RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
+        createIndex("test-index");
+        for (int i = 0; i < 10; i++) {
+            Request request = new Request("POST", "/test-index/_doc/");
+            request.addParameter("refresh", "true");
+            request.setJsonEntity("{\"f\":" + i + "}");
+            assertOK(client().performRequest(request));
+        }
+        RequestObjectBuilder builder = new RequestObjectBuilder().query("from test-index | limit 1 | keep f");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         builder.build();
         ResponseException re = expectThrows(ResponseException.class, () -> runEsql(builder));

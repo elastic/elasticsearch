@@ -20,13 +20,15 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, ConstantNullVector {
 $elseif(boolean)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
+    ConstantNullVector {
 $elseif(double)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
+    ConstantNullVector {
 $else$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector {
 $endif$
 
 $if(BytesRef)$

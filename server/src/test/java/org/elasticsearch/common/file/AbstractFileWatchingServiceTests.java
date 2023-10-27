@@ -190,13 +190,6 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         verify(service, times(2)).retryDelayMillis(anyInt());
     }
 
-    public void testMissingGrandparent() {
-        Path config = createTempDir().resolve("dne");
-        Path watchedFile = config.resolve("dir").resolve("file");
-        var e = expectThrows(IllegalArgumentException.class, () -> new TestFileWatchingService(null, watchedFile));
-        assertThat(e.getMessage(), containsString("Grandparent directory [" + config + "] must exist"));
-    }
-
     // helpers
     private void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();

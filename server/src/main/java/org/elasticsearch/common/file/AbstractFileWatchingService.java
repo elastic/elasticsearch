@@ -66,24 +66,14 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     private FileUpdateState fileUpdateState;
     private WatchKey settingsDirWatchKey;
     private WatchKey configDirWatchKey;
-    private volatile boolean active = false;
+    private volatile boolean active;
 
     public AbstractFileWatchingService(ClusterService clusterService, Path watchedFile) {
         this.clusterService = clusterService;
         this.watchedFile = watchedFile;
         this.watchedFileDir = watchedFile.getParent();
         this.eventListeners = new CopyOnWriteArrayList<>();
-
-        if (Files.exists(watchedFileDir.getParent()) == false) {
-            throw new IllegalArgumentException(
-                String.format(
-                    Locale.ROOT,
-                    "Grandparent directory [%s] must exist to watch file [%s]",
-                    watchedFileDir.getParent(),
-                    watchedFile
-                )
-            );
-        }
+        this.active = Files.exists(watchedFileDir.getParent());
     }
 
     /**
@@ -157,7 +147,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.active = true;
+        if (active == false) {
+            // we don't have a config directory, we can't possibly launch the file settings service
+            return;
+        }
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addListener(this);
         }

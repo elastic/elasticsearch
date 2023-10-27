@@ -100,4 +100,25 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToInteger.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToIntegerFromStringEvaluator get(DriverContext context) {
+      return new ToIntegerFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToIntegerFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

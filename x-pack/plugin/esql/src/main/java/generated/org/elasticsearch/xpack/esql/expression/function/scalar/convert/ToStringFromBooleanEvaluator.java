@@ -98,4 +98,25 @@ public final class ToStringFromBooleanEvaluator extends AbstractConvertFunction.
     boolean value = container.getBoolean(index);
     return ToString.fromBoolean(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromBooleanEvaluator get(DriverContext context) {
+      return new ToStringFromBooleanEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromBooleanEvaluator[field=" + field + "]";
+    }
+  }
 }

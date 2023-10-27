@@ -46,11 +46,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
         }
         indexRandom(true, docs);
 
-        SearchResponse response = client().prepareSearch("foo")
-            .setScroll(TimeValue.timeValueSeconds(5L))
-            .setQuery(matchAllQuery())
-            .setSize(1)
-            .get();
+        SearchResponse response = prepareSearch("foo").setScroll(TimeValue.timeValueSeconds(5L)).setQuery(matchAllQuery()).setSize(1).get();
         assertEquals(numDocs, response.getHits().getTotalHits().value);
         assertEquals(1, response.getHits().getHits().length);
 
@@ -81,8 +77,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
             docs[i] = client().prepareIndex("idx").setSource("field", "value");
         }
         indexRandom(true, docs);
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .setScroll(TimeValue.timeValueSeconds(5L))
             .setSize(randomIntBetween(1, 10))
             .get();

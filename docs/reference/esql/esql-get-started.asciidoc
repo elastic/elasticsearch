@@ -1,0 +1,34 @@
+[[esql-getting-started]]
+== Getting started with {esql}
+
+++++
+<titleabbrev>Getting started</titleabbrev>
+++++
+
+A simple example of an {esql} query is shown below:
+[source,esql]
+----
+FROM employees
+| EVAL age = DATE_DIFF(NOW(), birth_date, 'Y')
+| STATS AVG(age) BY department
+| SORT age DESC
+----
+
+Each {esql} query starts with a <<esql-commands,source command>>. A source command produces
+a table, typically with data from {es}.
+
+image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
+
+A source command can be followed by one or more
+<<esql-commands,processing commands>>. Processing commands change an
+input table by adding, removing, or changing rows and columns.
+Processing commands can perform filtering, projection, aggregation, and more.
+
+image::images/esql/processing-command.svg[A processing command changing an input table,align="center"]
+
+You can chain processing commands, separated by a pipe character: `|`. Each
+processing command works on the output table of the previous command.
+
+image::images/esql/chaining-processing-commands.svg[Processing commands can be chained,align="center"]
+
+The result of a query is the table produced by the final processing command.

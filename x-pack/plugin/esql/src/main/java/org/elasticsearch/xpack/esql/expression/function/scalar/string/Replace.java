@@ -128,10 +128,10 @@ public class Replace extends ScalarFunction implements EvaluatorMapper {
                 // but for the moment we let the exception through
                 throw pse;
             }
-            return (drvCtx) -> new ReplaceConstantEvaluator(source(), strEval.get(drvCtx), regexPattern, newStrEval.get(drvCtx), drvCtx);
+            return new ReplaceConstantEvaluator.Factory(source(), strEval, regexPattern, newStrEval);
         }
 
         var regexEval = toEvaluator.apply(regex);
-        return (drvCtx) -> new ReplaceEvaluator(source(), strEval.get(drvCtx), regexEval.get(drvCtx), newStrEval.get(drvCtx), drvCtx);
+        return new ReplaceEvaluator.Factory(source(), strEval, regexEval, newStrEval);
     }
 }

@@ -70,7 +70,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         ScriptService scriptService,
         NamedXContentRegistry namedXContentRegistry
     ) {
-        super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(RankEvalPlugin.ACTION.name(), transportService, actionFilters, RankEvalRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
         this.client = client;

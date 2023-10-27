@@ -9,33 +9,19 @@
 package org.elasticsearch.telemetry.apm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.APMTelemetryProvider;
-import org.elasticsearch.telemetry.apm.internal.metrics.APMMeter;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * This module integrates Elastic's APM product with Elasticsearch. Elasticsearch has
@@ -73,32 +59,16 @@ public class APM extends Plugin implements NetworkPlugin, TelemetryPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider unused,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         final APMTracer apmTracer = telemetryProvider.get().getTracer();
 
-        apmTracer.setClusterName(clusterService.getClusterName().value());
-        apmTracer.setNodeName(clusterService.getNodeName());
+        apmTracer.setClusterName(services.clusterService().getClusterName().value());
+        apmTracer.setNodeName(services.clusterService().getNodeName());
 
         final APMAgentSettings apmAgentSettings = new APMAgentSettings();
         apmAgentSettings.syncAgentSystemProperties(settings);
-        apmAgentSettings.addClusterSettingsListeners(clusterService, telemetryProvider.get());
-
-        final APMMeter apmMeter = telemetryProvider.get().getMeter();
+        final APMMeterService apmMeter = new APMMeterService(settings);
+        apmAgentSettings.addClusterSettingsListeners(services.clusterService(), telemetryProvider.get(), apmMeter);
 
         return List.of(apmTracer, apmMeter);
     }

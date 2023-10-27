@@ -10,11 +10,8 @@ package org.elasticsearch.xpack.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -23,24 +20,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.InferenceServicePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.inference.action.DeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.GetInferenceModelAction;
@@ -52,6 +40,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -69,9 +58,10 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
-    public static final String HTTP_CLIENT_SENDER_THREAD_POOL_NAME = "inference_http_client_sender";
     private final Settings settings;
-    private final SetOnce<HttpClientManager> httpClientManager = new SetOnce<>();
+    private final SetOnce<HttpRequestSenderFactory> httpRequestSenderFactory = new SetOnce<>();
+    // We'll keep a reference to the http manager just in case the inference services don't get closed individually
+    private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -106,25 +96,12 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        httpClientManager.set(HttpClientManager.create(settings, threadPool, clusterService));
-
-        ModelRegistry modelRegistry = new ModelRegistry(client);
+    public Collection<?> createComponents(PluginServices services) {
+        httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService()));
+        httpRequestSenderFactory.set(
+            new HttpRequestSenderFactory(services.threadPool(), httpManager.get(), services.clusterService(), settings)
+        );
+        ModelRegistry modelRegistry = new ModelRegistry(services.client());
         return List.of(modelRegistry);
     }
 
@@ -165,26 +142,17 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
                 TimeValue.timeValueMinutes(10),
                 false,
                 "xpack.inference.utility_thread_pool"
-            ),
-            /*
-             * This executor is specifically for enqueuing requests to be sent. The underlying
-             * connection pool used by the http client will block if there are no available connections to lease.
-             * See here for more info: https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/connmgmt.html
-             */
-            new ScalingExecutorBuilder(
-                HTTP_CLIENT_SENDER_THREAD_POOL_NAME,
-                0,
-                1,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.http_client_sender_thread_pool"
             )
         );
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Stream.concat(HttpSettings.getSettings().stream(), HttpClientManager.getSettings().stream()).collect(Collectors.toList());
+        return Stream.of(
+            HttpSettings.getSettings(),
+            HttpClientManager.getSettings(),
+            HttpRequestSenderFactory.HttpRequestSender.getSettings()
+        ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
     @Override
@@ -209,8 +177,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public void close() {
-        if (httpClientManager.get() != null) {
-            IOUtils.closeWhileHandlingException(httpClientManager.get());
+        if (httpManager.get() != null) {
+            IOUtils.closeWhileHandlingException(httpManager.get());
         }
     }
 }

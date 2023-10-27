@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -531,7 +532,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","some_unknown_parameter":true,"required":"value"}""";
         TestMapper mapper = fromMapping(
             mapping,
-            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0),
+            IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0),
             TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.V_7_0_0,
@@ -549,7 +550,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersions.V_8_0_0, true)
+            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0, true)
         );
         assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
@@ -586,7 +587,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         // 'index' is declared explicitly, 'store' is not, but is one of the previously always-accepted params
         String mapping = """
             {"type":"test_mapper","index":false,"store":true,"required":"value"}""";
-        TestMapper mapper = fromMapping(mapping, IndexVersion.V_7_8_0, TransportVersions.V_7_8_0);
+        TestMapper mapper = fromMapping(mapping, IndexVersions.V_7_8_0, TransportVersions.V_7_8_0);
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
         assertEquals("""
@@ -594,7 +595,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> fromMapping(mapping, IndexVersion.V_8_0_0, TransportVersions.V_8_0_0)
+            () -> fromMapping(mapping, IndexVersions.V_8_0_0, TransportVersions.V_8_0_0)
         );
         assertEquals("unknown parameter [store] on mapper [field] of type [test_mapper]", e.getMessage());
     }

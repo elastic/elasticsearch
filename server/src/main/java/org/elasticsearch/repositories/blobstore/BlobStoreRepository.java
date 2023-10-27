@@ -72,6 +72,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledIterator;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -1140,11 +1141,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Updating the shard-level metadata and accumulating results
 
         private void writeUpdatedShardMetadataAndComputeDeletes(ActionListener<Void> listener) {
-            try (var listeners = new RefCountingListener(listener)) {
-                for (IndexId indexId : originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds)) {
-                    new IndexSnapshotsDeletion(indexId).run(listeners.acquire());
-                }
-            }
+            // noinspection resource -- closed safely at the end of the iteration
+            final var listeners = new RefCountingListener(listener);
+
+            // Each per-index process takes some nonzero amount of working memory to hold the relevant snapshot IDs and metadata generations
+            // etc. which we can keep under tighter limits and release sooner if we limit the number of concurrently processing indices.
+            // Each one needs at least one snapshot thread at all times, so threadPool.info(SNAPSHOT).getMax() of them at once is enough to
+            // keep the threadpool fully utilized.
+            ThrottledIterator.run(
+                originalRepositoryData.indicesToUpdateAfterRemovingSnapshot(snapshotIds),
+                (ref, indexId) -> ActionListener.run(
+                    ActionListener.releaseAfter(listeners.acquire(), ref),
+                    l -> new IndexSnapshotsDeletion(indexId).run(l)
+                ),
+                threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+                () -> {},
+                listeners::close
+            );
         }
 
         private class IndexSnapshotsDeletion {
@@ -1660,7 +1673,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     ),
                     repositoryStateId,
                     repositoryMetaVersion,
-                    finalizeSnapshotContext::updatedClusterState,
+                    new Function<>() {
+                        @Override
+                        public ClusterState apply(ClusterState state) {
+                            return finalizeSnapshotContext.updatedClusterState(state);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "finalizing snapshot [" + metadata.name() + "][" + snapshotId + "]";
+                        }
+                    },
                     l.map(newRepositoryData -> new RootBlobUpdateResult(existingRepositoryData, newRepositoryData))
                 );
                 // NB failure of writeIndexGen doesn't guarantee the update failed, so we cannot safely clean anything up on failure
@@ -2557,6 +2580,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.trace("[{}] successfully set pending repository generation to [{}]", metadata.name(), newGen);
                 setPendingStep.onResponse(newGen);
             }
+
+            @Override
+            public String toString() {
+                return Strings.format("start RepositoryData update from generation [%d], stateFilter=[%s]", expectedGen, stateFilter);
+            }
         });
 
         final ListenableFuture<RepositoryData> filterRepositoryDataStep = new ListenableFuture<>();
@@ -2617,7 +2645,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (ensureSafeGenerationExists(expectedGen, delegate::onFailure) == false) {
                 return;
             }
-            final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
+            final String indexBlob = INDEX_FILE_PREFIX + newGen;
             logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
             writeAtomic(blobContainer(), indexBlob, out -> {
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder(org.elasticsearch.core.Streams.noCloseStream(out))) {
@@ -2675,6 +2703,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.trace("[{}] successfully set safe repository generation to [{}]", metadata.name(), newGen);
                     cacheRepositoryData(newRepositoryData, version);
                     delegate.onResponse(newRepositoryData);
+                }
+
+                @Override
+                public String toString() {
+                    return Strings.format(
+                        "complete RepositoryData update from generation [%d] to generation [%d], stateFilter=[%s]",
+                        expectedGen,
+                        newGen,
+                        stateFilter
+                    );
                 }
             });
         }));

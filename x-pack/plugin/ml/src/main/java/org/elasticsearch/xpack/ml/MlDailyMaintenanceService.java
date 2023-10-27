@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -324,7 +324,7 @@ public class MlDailyMaintenanceService implements Releasable {
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                ListTasksAction.INSTANCE,
+                TransportListTasksAction.TYPE,
                 new ListTasksRequest().setActions(DeleteJobAction.NAME),
                 listTasksActionListener
             );

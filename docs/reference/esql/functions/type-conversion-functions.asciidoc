@@ -1,0 +1,34 @@
+[[esql-type-conversion-functions]]
+==== {esql} type conversion functions
+
+++++
+<titleabbrev>Type conversion functions</titleabbrev>
+++++
+
+{esql} supports these type conversion functions:
+
+// tag::type_list[]
+* <<esql-to_boolean>>
+* <<esql-to_datetime>>
+* <<esql-to_degrees>>
+* <<esql-to_double>>
+* <<esql-to_integer>>
+* <<esql-to_ip>>
+* <<esql-to_long>>
+* <<esql-to_radians>>
+* <<esql-to_string>>
+* <<esql-to_unsigned_long>>
+* <<esql-to_version>>
+// end::type_list[]
+
+include::to_boolean.asciidoc[]
+include::to_datetime.asciidoc[]
+include::to_degrees.asciidoc[]
+include::to_double.asciidoc[]
+include::to_integer.asciidoc[]
+include::to_ip.asciidoc[]
+include::to_long.asciidoc[]
+include::to_radians.asciidoc[]
+include::to_string.asciidoc[]
+include::to_unsigned_long.asciidoc[]
+include::to_version.asciidoc[]

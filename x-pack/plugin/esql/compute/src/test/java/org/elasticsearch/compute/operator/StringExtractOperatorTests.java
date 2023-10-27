@@ -126,4 +126,9 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo4"));
         assertThat(brb.getBytesRef(idx + 2, spare).utf8ToString(), equalTo("foo5"));
     }
+
+    @Override
+    protected DriverContext driverContext() {
+        return nonBreakingDriverContext();
+    }
 }

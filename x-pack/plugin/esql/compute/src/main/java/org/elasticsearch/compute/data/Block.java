@@ -25,16 +25,9 @@ import java.util.List;
  * or dense data. A Block can represent either single or multi valued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
- * TODO: update comment
- * <p> All Blocks share the same set of data retrieval methods, but actual concrete implementations
- * effectively support a subset of these, throwing {@code UnsupportedOperationException} where a
- * particular data retrieval method is not supported. For example, a Block of primitive longs may
- * not support retrieval as an integer, {code getInt}. This greatly simplifies Block usage and
- * avoids cumbersome use-site casting.
- *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block extends Accountable, NamedWriteable, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.

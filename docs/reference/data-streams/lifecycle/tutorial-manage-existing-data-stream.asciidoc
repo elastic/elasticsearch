@@ -2,7 +2,7 @@
 [[tutorial-manage-existing-data-stream]]
 === Tutorial: Update existing data stream
 
-preview:[]
+preview::[]
 
 To update the lifecycle of an existing data stream you do the following actions:
 

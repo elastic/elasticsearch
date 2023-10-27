@@ -2,7 +2,7 @@
 [[tutorial-migrate-data-stream-from-ilm-to-dsl]]
 === Tutorial: Migrate ILM managed data stream to Data stream lifecycle 
 
-preview:[]
+preview::[]
 
 In this tutorial we'll look at migrating an existing data stream from {ilm-init} to 
 Data stream lifecycle. The existing {ilm-init} managed backing indices will continue 

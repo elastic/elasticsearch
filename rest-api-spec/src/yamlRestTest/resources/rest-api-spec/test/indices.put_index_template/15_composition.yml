@@ -495,6 +495,8 @@
 ---
 "Using deprecated component templates and pipelines in index template":
   - skip:
+      version: ' - 8.11.99'
+      reason: 'The deprecated flags have been introduced in 8.12.0'
       features: allowed_warnings
 
   - do:

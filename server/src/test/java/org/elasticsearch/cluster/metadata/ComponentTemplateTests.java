@@ -65,7 +65,17 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return randomInstance(false);
     }
 
+    // Deprecated component templates may lead to deprecation warnings when used in non-deprecated index templates
+    // to avoid test failures due to unexpected deprecation warnings, returns a non-deprecated instance
+    public static ComponentTemplate randomNonDeprecatedInstance() {
+        return randomInstance(false, randomFrom(Boolean.FALSE, null));
+    }
+
     public static ComponentTemplate randomInstance(boolean lifecycleAllowed) {
+        return randomInstance(lifecycleAllowed, randomOptionalBoolean());
+    }
+
+    public static ComponentTemplate randomInstance(boolean lifecycleAllowed, Boolean deprecated) {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
@@ -88,7 +98,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             meta = randomMeta();
         }
-        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, randomOptionalBoolean());
+        return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, deprecated);
     }
 
     public static Map<String, AliasMetadata> randomAliases() {

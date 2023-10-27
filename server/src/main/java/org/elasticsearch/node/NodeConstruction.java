@@ -121,6 +121,7 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.ingest.FieldInferenceBulkRequestPreprocessor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
@@ -702,6 +703,10 @@ class NodeConstruction {
             searchModule.getRequestCacheKeyDifferentiator(),
             documentParsingObserverSupplier
         );
+        final FieldInferenceBulkRequestPreprocessor fieldInferenceBulkRequestPreprocessor = new FieldInferenceBulkRequestPreprocessor(
+            documentParsingObserverSupplier,
+            client
+        );
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
         IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
@@ -1076,6 +1081,7 @@ class NodeConstruction {
             b.bind(ScriptService.class).toInstance(scriptService);
             b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
             b.bind(IngestService.class).toInstance(ingestService);
+            b.bind(FieldInferenceBulkRequestPreprocessor.class).toInstance(fieldInferenceBulkRequestPreprocessor);
             b.bind(IndexingPressure.class).toInstance(indexingLimits);
             b.bind(UsageService.class).toInstance(usageService);
             b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());

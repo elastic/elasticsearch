@@ -10,5 +10,5 @@ breaking:
     every time a new service is added. This changes the method to take a single PluginServices object
     that new services are added to. This will reduce API incompatibility issues when a new service
     is introduced in the future.
-  impact: "All plugins will need to be refactored to override the new method to work on ES 8.12+"
+  impact: "Plugins that override createComponents will need to be refactored to override the new method on ES 8.12+"
   notable: false

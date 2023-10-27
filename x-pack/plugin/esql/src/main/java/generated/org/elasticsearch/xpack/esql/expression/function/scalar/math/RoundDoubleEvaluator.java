@@ -37,14 +37,8 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock valBlock = (DoubleBlock) valRef.block();
       try (Block.Ref decimalsRef = decimals.eval(page)) {
-        if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
         DoubleVector valVector = valBlock.asVector();
         if (valVector == null) {

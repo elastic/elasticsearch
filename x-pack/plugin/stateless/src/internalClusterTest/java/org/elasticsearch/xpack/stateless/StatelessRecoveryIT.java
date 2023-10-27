@@ -1493,21 +1493,51 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         repository.setRandomControlIOExceptionRate(1.0);
         repository.setRandomDataFileIOExceptionRate(1.0);
         repository.setMaximumNumberOfFailures(1);
-        if (randomBoolean()) {
-            logger.info("--> failures will be on stateless commits");
-            repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
-        } else if (failuresOnSource == false && randomBoolean()) {
-            // source node does not do anything with the translog at this point
-            // target node lists the translog blobs, but skips them (since the translog recovery start file is greater than what it lists)
-            logger.info("--> failures will be on translog files");
-            repository.setRandomIOExceptionPattern(".*translog.*");
-        }
+
+        logger.info("--> failures will be on stateless commits");
+        repository.setRandomIOExceptionPattern(".*stateless_commit_.*");
 
         logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
 
         ensureGreen();
         assertThat(repository.getFailureCount(), greaterThan(0L));
+        assertNodeHasNoCurrentRecoveries(indexNodeB);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
+    }
+
+    public void testRelocateIndexingShardWillNotReadFromTranslog() {
+        final String indexNodeA = startIndexNode();
+        ensureStableCluster(2);
+        final String indexName = "test";
+        createIndex(
+            indexName,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.MINUTES)).build()
+        );
+
+        final String indexNodeB = startIndexNode();
+        ensureStableCluster(3);
+
+        int numDocs = scaledRandomIntBetween(1, 10);
+        indexDocs(indexName, numDocs);
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(1);
+
+        logger.info("--> accessing translog would fail relocation");
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+        repository.setRandomIOExceptionPattern(".*translog.*");
+
+        logger.info("--> move primary shard from: {} to: {}", indexNodeA, indexNodeB);
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeA, indexNodeB)).execute().actionGet();
+
+        ensureGreen();
+        assertThat(repository.getFailureCount(), equalTo(0L));
         assertNodeHasNoCurrentRecoveries(indexNodeB);
         assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs));
     }

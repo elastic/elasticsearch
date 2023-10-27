@@ -74,4 +74,22 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.fieldVal = fieldVal;
+    }
+
+    @Override
+    public AbsIntEvaluator get(DriverContext context) {
+      return new AbsIntEvaluator(fieldVal.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AbsIntEvaluator[" + "fieldVal=" + fieldVal + "]";
+    }
+  }
 }

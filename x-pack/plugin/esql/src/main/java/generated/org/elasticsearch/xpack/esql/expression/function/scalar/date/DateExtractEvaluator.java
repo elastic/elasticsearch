@@ -118,4 +118,32 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   public void close() {
     Releasables.closeExpectNoException(value, chronoField);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final EvalOperator.ExpressionEvaluator.Factory chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
+        EvalOperator.ExpressionEvaluator.Factory chronoField, ZoneId zone) {
+      this.source = source;
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractEvaluator get(DriverContext context) {
+      return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
+  }
 }

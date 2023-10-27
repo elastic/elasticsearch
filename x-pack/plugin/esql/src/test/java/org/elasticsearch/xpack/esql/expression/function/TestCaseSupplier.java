@@ -70,7 +70,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         if (types != null) {
             for (int i = 0; i < types.size(); i++) {
                 if (supplied.getData().get(i).type() != types.get(i)) {
-                    throw new IllegalStateException("supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i));
+                    throw new IllegalStateException(
+                        name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
+                    );
                 }
             }
         }

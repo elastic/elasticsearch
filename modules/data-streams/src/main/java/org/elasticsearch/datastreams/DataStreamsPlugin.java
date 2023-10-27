@@ -18,13 +18,9 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -60,20 +56,11 @@ import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettingProvider;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -158,38 +145,27 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
 
         Collection<Object> components = new ArrayList<>();
-        var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
+        var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(
+            services.environment().settings(),
+            services.threadPool(),
+            services.clusterService()
+        );
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
         errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
-                new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
-                clusterService,
+                new OriginSettingClient(services.client(), DATA_STREAM_LIFECYCLE_ORIGIN),
+                services.clusterService(),
                 getClock(),
-                threadPool,
-                threadPool::absoluteTimeInMillis,
+                services.threadPool(),
+                services.threadPool()::absoluteTimeInMillis,
                 errorStoreInitialisationService.get(),
-                allocationService
+                services.allocationService()
             )
         );
         dataLifecycleInitialisationService.get().init();

@@ -130,4 +130,27 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   public void close() {
     Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory ip;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] cidrs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory ip,
+        EvalOperator.ExpressionEvaluator.Factory[] cidrs) {
+      this.ip = ip;
+      this.cidrs = cidrs;
+    }
+
+    @Override
+    public CIDRMatchEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new CIDRMatchEvaluator(ip.get(context), cidrs, context);
+    }
+
+    @Override
+    public String toString() {
+      return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidrs=" + Arrays.toString(cidrs) + "]";
+    }
+  }
 }

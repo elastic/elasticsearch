@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -713,9 +714,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node-0", Version.V_8_10_0, IndexVersion.V_8_10_0))
-                    .add(newNode("node-1", Version.V_8_9_0, IndexVersion.V_8_9_0))
-                    .add(newNode("node-2", Version.V_8_9_0, IndexVersion.V_8_9_0))
+                    .add(newNode("node-0", Version.V_8_10_0, IndexVersions.V_8_10_0))
+                    .add(newNode("node-1", Version.V_8_9_0, IndexVersions.V_8_9_0))
+                    .add(newNode("node-2", Version.V_8_9_0, IndexVersions.V_8_9_0))
             )
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(replica)))

@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -136,35 +134,31 @@ public class Round extends ScalarFunction implements OptionalArgument, Evaluator
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         DataType fieldType = dataType();
         if (fieldType == DataTypes.DOUBLE) {
-            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator::new, RoundDoubleEvaluator::new);
+            return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return toEvaluator(toEvaluator, identity(), RoundIntEvaluator::new);
+            return toEvaluator(toEvaluator, Function.identity(), RoundIntEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.LONG) {
-            return toEvaluator(toEvaluator, identity(), RoundLongEvaluator::new);
+            return toEvaluator(toEvaluator, Function.identity(), RoundLongEvaluator.Factory::new);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return toEvaluator(toEvaluator, identity(), RoundUnsignedLongEvaluator::new);
+            return toEvaluator(toEvaluator, Function.identity(), RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
     }
 
-    private static <T, U> BiFunction<T, U, T> identity() {
-        return (t, u) -> t;
-    }
-
     private ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, ExpressionEvaluator.Factory> toEvaluator,
-        BiFunction<ExpressionEvaluator, DriverContext, ExpressionEvaluator> noDecimals,
-        TriFunction<ExpressionEvaluator, ExpressionEvaluator, DriverContext, ExpressionEvaluator> withDecimals
+        Function<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> noDecimals,
+        BiFunction<ExpressionEvaluator.Factory, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> withDecimals
     ) {
         var fieldEvaluator = toEvaluator.apply(field());
         if (decimals == null) {
-            return dvrCtx -> noDecimals.apply(fieldEvaluator.get(dvrCtx), dvrCtx);
+            return noDecimals.apply(fieldEvaluator);
         }
         var decimalsEvaluator = Cast.cast(decimals().dataType(), DataTypes.LONG, toEvaluator.apply(decimals()));
-        return dvrCtx -> withDecimals.apply(fieldEvaluator.get(dvrCtx), decimalsEvaluator.get(dvrCtx), dvrCtx);
+        return withDecimals.apply(fieldEvaluator, decimalsEvaluator);
     }
 
     @Override

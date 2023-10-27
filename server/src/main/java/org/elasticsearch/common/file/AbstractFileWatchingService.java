@@ -73,6 +73,9 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         this.watchedFileDir = watchedFile.getParent();
         this.eventListeners = new CopyOnWriteArrayList<>();
         this.active = Files.exists(watchedFileDir.getParent());
+        if (active == false) {
+            logger.warn("File watcher cannot start, grandparent directory [{}] does not exist", watchedFileDir.getParent());
+        }
     }
 
     /**

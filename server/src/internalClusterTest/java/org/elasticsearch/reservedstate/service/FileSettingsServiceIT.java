@@ -23,11 +23,14 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -98,6 +101,18 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
                  }
              }
         }""";
+
+    private Map<Integer, Path> configDirs = new HashMap<>();
+
+    @Before
+    public void clearConfigDirs() {
+        configDirs.clear();
+    }
+
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return configDirs.computeIfAbsent(nodeOrdinal, k -> createTempDir());
+    }
 
     private void assertMasterNode(Client client, String node) {
         assertThat(

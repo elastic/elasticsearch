@@ -106,7 +106,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
         }
 
         public List<MockTransportService> allMockTransportServices() {
-            return Arrays.stream(cluster.getNodeNames()).map(MockTransportService::getInstance).collect(Collectors.toList());
+            return Arrays.stream(cluster.getNodeNames()).map(MockTransportService::getInstance).toList();
         }
 
         public String coordinatorName() {

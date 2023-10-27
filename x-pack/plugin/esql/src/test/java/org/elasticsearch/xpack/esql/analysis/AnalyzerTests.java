@@ -1031,27 +1031,6 @@ public class AnalyzerTests extends ESTestCase {
             """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
     }
 
-    public void testDateExtractWithSwappedArguments() {
-        verifyUnsupported("""
-            from test
-            | eval date_extract(date, "year")
-            """, "function definition has been updated, please swap arguments in [date_extract(date, \"year\")]");
-    }
-
-    public void testDateFormatWithSwappedArguments() {
-        verifyUnsupported("""
-            from test
-            | eval date_format(date, "yyyy-MM-dd")
-            """, "function definition has been updated, please swap arguments in [date_format(date, \"yyyy-MM-dd\")]");
-    }
-
-    public void testDateTruncWithSwappedArguments() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(date, 1 month)
-            """, "function definition has been updated, please swap arguments in [date_trunc(date, 1 month)]");
-    }
-
     public void testDateTruncWithDateInterval() {
         verifyUnsupported("""
             from test

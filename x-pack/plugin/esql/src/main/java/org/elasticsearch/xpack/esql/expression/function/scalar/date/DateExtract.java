@@ -108,16 +108,9 @@ public class DateExtract extends ConfigurationFunction implements EvaluatorMappe
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        TypeResolution resolution = isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isDate(children().get(1), sourceText(), TypeResolutions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return TypeResolution.TYPE_RESOLVED;
+        return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
+            isDate(children().get(1), sourceText(), TypeResolutions.ParamOrdinal.SECOND)
+        );
     }
 
     @Override

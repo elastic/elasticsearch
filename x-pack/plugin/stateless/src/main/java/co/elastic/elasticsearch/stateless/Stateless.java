@@ -112,13 +112,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -163,11 +161,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -343,28 +338,20 @@ public class Stateless extends Plugin
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<Object> createComponents(PluginServices services) {
+        Client client = services.client();
+        ClusterService clusterService = services.clusterService();
+        ThreadPool threadPool = services.threadPool();
+        Environment environment = services.environment();
+        NodeEnvironment nodeEnvironment = services.nodeEnvironment();
+        IndicesService indicesService = services.indicesService();
+
         final Collection<Object> components = new ArrayList<>();
         // use the settings that include additional settings.
         Settings settings = environment.settings();
         var objectStoreService = setAndGet(
             this.objectStoreService,
-            createObjectStoreService(settings, repositoriesServiceSupplier, threadPool, clusterService)
+            createObjectStoreService(settings, services.repositoriesServiceSupplier(), threadPool, clusterService)
         );
         components.add(objectStoreService);
         // TODO: figure out a better/correct threadpool for this
@@ -483,7 +470,7 @@ public class Stateless extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        this.telemetryProvider = telemetryProvider;
+        this.telemetryProvider = services.telemetryProvider();
         this.telemetryProvider.getMeterRegistry()
             .registerLongCounter(
                 CACHE_MISS_COUNTER,

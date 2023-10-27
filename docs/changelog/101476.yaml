@@ -1,0 +1,5 @@
+pr: 101476
+summary: Mark legacy stack templates as deprecated
+area: Indices APIs
+type: enhancement
+issues: []

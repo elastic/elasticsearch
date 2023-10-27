@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.telemetry.TelemetryProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -271,6 +272,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
      */
     protected static void expectReduceThrowsRealMemoryBreaker(InternalAggregation agg) {
         HierarchyCircuitBreakerService breaker = new HierarchyCircuitBreakerService(
+            TelemetryProvider.NOOP,
             Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%").build(),
             List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

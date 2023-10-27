@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -103,6 +104,7 @@ public class TopNBenchmark {
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
         };
         CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+            TelemetryProvider.NOOP,
             Settings.EMPTY,
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()

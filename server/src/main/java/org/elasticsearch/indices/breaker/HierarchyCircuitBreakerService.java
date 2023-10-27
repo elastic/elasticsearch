@@ -25,6 +25,8 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
@@ -50,7 +52,7 @@ import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_
 public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private static final Logger logger = LogManager.getLogger(HierarchyCircuitBreakerService.class);
 
-    private static final String CHILD_LOGGER_PREFIX = "org.elasticsearch.indices.breaker.";
+    private static final String BREAKER_NAME_PREFIX = "org.elasticsearch.indices.breaker.";
 
     private static final MemoryMXBean MEMORY_MX_BEAN = ManagementFactory.getMemoryMXBean();
 
@@ -136,22 +138,33 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
+    public static final String metricName(final String circuitBreakerName) {
+        return BREAKER_NAME_PREFIX + circuitBreakerName + "_total";
+    }
+
     private volatile boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
+    private final LongCounter parentTripCountMetric;
 
     private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
     private volatile OverLimitStrategy overLimitStrategy;
 
     @SuppressWarnings("this-escape")
-    public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
-        this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
+    public HierarchyCircuitBreakerService(
+        TelemetryProvider telemetryProvider,
+        Settings settings,
+        List<BreakerSettings> customBreakers,
+        ClusterSettings clusterSettings
+    ) {
+        this(telemetryProvider, settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
     }
 
     @SuppressWarnings("this-escape")
     HierarchyCircuitBreakerService(
+        TelemetryProvider telemetryProvider,
         Settings settings,
         List<BreakerSettings> customBreakers,
         ClusterSettings clusterSettings,
@@ -162,6 +175,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.FIELDDATA,
             validateAndCreateBreaker(
+                telemetryProvider,
                 new BreakerSettings(
                     CircuitBreaker.FIELDDATA,
                     FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -174,6 +188,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.IN_FLIGHT_REQUESTS,
             validateAndCreateBreaker(
+                telemetryProvider,
                 new BreakerSettings(
                     CircuitBreaker.IN_FLIGHT_REQUESTS,
                     IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -186,6 +201,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         childCircuitBreakers.put(
             CircuitBreaker.REQUEST,
             validateAndCreateBreaker(
+                telemetryProvider,
                 new BreakerSettings(
                     CircuitBreaker.REQUEST,
                     REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -203,7 +219,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                         + "] exists. Circuit breaker names must be unique"
                 );
             }
-            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
+            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(telemetryProvider, breakerSettings));
         }
         this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
@@ -247,6 +263,12 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+        this.parentTripCountMetric = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                metricName(this.parentSettings.getName()),
+                "[" + metricName(this.parentSettings.getName() + "] parent circuit breaker"),
+                "count"
+            );
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -399,6 +421,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
+            this.parentTripCountMetric.increment();
             final String messageString = buildParentTripMessage(
                 newBytesReserved,
                 label,
@@ -474,14 +497,15 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
+    private CircuitBreaker validateAndCreateBreaker(TelemetryProvider telemetryProvider, BreakerSettings breakerSettings) {
         // Validate the settings
         validateSettings(new BreakerSettings[] { breakerSettings });
         return breakerSettings.getType() == CircuitBreaker.Type.NOOP
             ? new NoopCircuitBreaker(breakerSettings.getName())
             : new ChildMemoryCircuitBreaker(
+                telemetryProvider,
                 breakerSettings,
-                LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
+                LogManager.getLogger(BREAKER_NAME_PREFIX + breakerSettings.getName()),
                 this,
                 breakerSettings.getName()
             );

@@ -78,6 +78,7 @@ import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -512,6 +513,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             final Engine.Warmer warmer = createTestWarmer(indexSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+                TelemetryProvider.NOOP,
                 nodeSettings,
                 Collections.emptyList(),
                 clusterSettings

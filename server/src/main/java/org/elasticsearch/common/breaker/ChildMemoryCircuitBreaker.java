@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,6 +31,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final Logger logger;
     private final HierarchyCircuitBreakerService parent;
     private final String name;
+    private final LongCounter trippedCountMeter;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -39,7 +42,13 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param parent parent circuit breaker service to delegate tripped breakers to
      * @param name the name of the breaker
      */
-    public ChildMemoryCircuitBreaker(BreakerSettings settings, Logger logger, HierarchyCircuitBreakerService parent, String name) {
+    public ChildMemoryCircuitBreaker(
+        TelemetryProvider telemetryProvider,
+        BreakerSettings settings,
+        Logger logger,
+        HierarchyCircuitBreakerService parent,
+        String name
+    ) {
         this.name = name;
         this.limitAndOverhead = new LimitAndOverhead(settings.getLimit(), settings.getOverhead());
         this.durability = settings.getDurability();
@@ -48,6 +57,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
         this.logger = logger;
         logger.trace(() -> format("creating ChildCircuitBreaker with settings %s", settings));
         this.parent = parent;
+        this.trippedCountMeter = telemetryProvider.getMeterRegistry()
+            .registerLongCounter(
+                HierarchyCircuitBreakerService.metricName(name),
+                "[" + HierarchyCircuitBreakerService.metricName(name) + "] child circuit breaker",
+                "count"
+            );
     }
 
     /**
@@ -58,6 +73,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     public void circuitBreak(String fieldName, long bytesNeeded) {
         final long memoryBytesLimit = this.limitAndOverhead.limit;
         this.trippedCount.incrementAndGet();
+        this.trippedCountMeter.increment();
         final String message = "["
             + this.name
             + "] Data too large, data for ["

@@ -25,6 +25,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -231,6 +232,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 null,
                 globalCheckpoint::get,
                 new HierarchyCircuitBreakerService(
+                    TelemetryProvider.NOOP,
                     defaultSettings.getSettings(),
                     Collections.emptyList(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
@@ -99,6 +100,7 @@ public class CircuitBreakerTests extends ESTestCase {
     private void testMemoryCleared(boolean fail) {
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                TelemetryProvider.NOOP,
                 Settings.EMPTY,
                 Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

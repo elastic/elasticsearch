@@ -53,6 +53,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -108,7 +109,12 @@ public class AggConstructionContentionBenchmark {
     @Setup
     public void setup() {
         breakerService = switch (breaker) {
-            case "real", "preallocate" -> new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings);
+            case "real", "preallocate" -> new HierarchyCircuitBreakerService(
+                TelemetryProvider.NOOP,
+                Settings.EMPTY,
+                List.of(),
+                clusterSettings
+            );
             case "noop" -> new NoneCircuitBreakerService();
             default -> throw new UnsupportedOperationException();
         };

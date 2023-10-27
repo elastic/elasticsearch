@@ -610,6 +610,7 @@ class NodeConstruction {
             .map(plugin -> plugin.getCircuitBreaker(settings))
             .toList();
         final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
+            telemetryProvider,
             settingsModule.getSettings(),
             pluginCircuitBreakers,
             settingsModule.getClusterSettings()
@@ -1229,13 +1230,14 @@ class NodeConstruction {
      * @see Node#BREAKER_TYPE_KEY
      */
     private static CircuitBreakerService createCircuitBreakerService(
+        TelemetryProvider telemetryProvider,
         Settings settings,
         List<BreakerSettings> breakerSettings,
         ClusterSettings clusterSettings
     ) {
         String type = Node.BREAKER_TYPE_KEY.get(settings);
         return switch (type) {
-            case "hierarchy" -> new HierarchyCircuitBreakerService(settings, breakerSettings, clusterSettings);
+            case "hierarchy" -> new HierarchyCircuitBreakerService(telemetryProvider, settings, breakerSettings, clusterSettings);
             case "none" -> new NoneCircuitBreakerService();
             default -> throw new IllegalArgumentException("Unknown circuit breaker type [" + type + "]");
         };

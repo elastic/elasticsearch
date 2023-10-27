@@ -99,4 +99,26 @@ public final class LessThanKeywordsEvaluator implements EvalOperator.ExpressionE
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public LessThanKeywordsEvaluator get(DriverContext context) {
+      return new LessThanKeywordsEvaluator(lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "LessThanKeywordsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
+  }
 }

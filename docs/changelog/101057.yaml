@@ -1,0 +1,5 @@
+pr: 101057
+summary: Add error logging for *QL
+area: EQL
+type: enhancement
+issues: []

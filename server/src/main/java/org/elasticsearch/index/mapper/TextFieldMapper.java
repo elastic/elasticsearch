@@ -937,6 +937,30 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (syntheticSourceDelegate != null) {
+                return syntheticSourceDelegate.blockLoader(blContext);
+            }
+            if (isSyntheticSource) {
+                if (isStored()) {
+                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
+                }
+                /*
+                 * We *shouldn't fall to this exception. The mapping should be
+                 * rejected because we've enabled synthetic source but not configured
+                 * the index properly. But we give it a nice message anyway just in
+                 * case.
+                 */
+                throw new IllegalArgumentException(
+                    "fetching values from a text field ["
+                        + name()
+                        + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
+                );
+            }
+            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
             if (operation == FielddataOperation.SEARCH) {

@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
@@ -25,7 +26,7 @@ def javaRestTestClusterReg = testClusters.register('javaRestTest') {
   setting 'xpack.watcher.enabled', 'false'
   setting 'cluster.remote.my_remote_cluster.seeds', {
     remoteClusterReg.get().getAllTransportPortURI().collect { "\"$it\"" }.toString()
-  }
+  }, IGNORE_VALUE
   setting 'cluster.remote.connections_per_cluster', "1"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

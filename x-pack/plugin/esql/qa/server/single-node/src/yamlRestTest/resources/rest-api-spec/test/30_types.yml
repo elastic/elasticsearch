@@ -112,7 +112,7 @@ keyword no doc_values:
   - match: {columns.0.name: card}
   - match: {columns.0.type: keyword}
   - length: {values: 1}
-  - match: {values.0.0: [diamonds, jack, of]}
+  - match: {values.0.0: [jack, of, diamonds]}
 
 ---
 wildcard:

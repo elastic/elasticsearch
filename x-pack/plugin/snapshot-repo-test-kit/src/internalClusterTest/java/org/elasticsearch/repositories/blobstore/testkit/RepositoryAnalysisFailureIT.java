@@ -63,6 +63,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -304,7 +305,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             private final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
 
             @Override
-            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (registerWasCorrupted.compareAndSet(false, true)) {
                     register.updateAndGet(bytes -> bytesFromLong(longFromBytes(bytes) + 1));
                 }
@@ -321,7 +322,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         final long expectedMax = Math.max(request.getConcurrency(), internalCluster().getNodeNames().length);
         blobStore.setDisruption(new Disruption() {
             @Override
-            public BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
                 if (randomBoolean() && sawSpuriousValue.compareAndSet(false, true)) {
                     final var currentValue = longFromBytes(register.get());
                     if (currentValue == expectedMax) {
@@ -357,8 +358,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
         blobStore.setDisruption(new Disruption() {
             @Override
-            public boolean compareAndExchangeReturnsWitness() {
-                return false;
+            public boolean compareAndExchangeReturnsWitness(String key) {
+                // let uncontended accesses succeed but all contended ones fail
+                return isContendedRegisterKey(key) == false;
             }
         });
         final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
@@ -366,6 +368,22 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertThat(
             asInstanceOf(RepositoryVerificationException.class, exception.getCause()).getMessage(),
             containsString("analysis timed out")
+        );
+    }
+
+    public void testFailsIfAllRegisterOperationsInconclusive() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean compareAndExchangeReturnsWitness(String key) {
+                return false;
+            }
+        });
+        final var exception = expectThrows(RepositoryVerificationException.class, () -> analyseRepository(request));
+        assertThat(exception.getMessage(), containsString("analysis failed"));
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+            allOf(containsString("uncontended register operation failed"), containsString("did not observe any value"))
         );
     }
 
@@ -486,11 +504,11 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return false;
         }
 
-        default boolean compareAndExchangeReturnsWitness() {
+        default boolean compareAndExchangeReturnsWitness(String key) {
             return true;
         }
 
-        default BytesReference onCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+        default BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
             return register.compareAndExchange(expected, updated);
         }
     }
@@ -663,13 +681,28 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ActionListener<OptionalBytesReference> listener
         ) {
             assertPurpose(purpose);
-            if (disruption.compareAndExchangeReturnsWitness()) {
+            final boolean isContendedRegister = isContendedRegisterKey(key); // validate key
+            if (disruption.compareAndExchangeReturnsWitness(key)) {
                 final var register = registers.computeIfAbsent(key, ignored -> new BytesRegister());
-                listener.onResponse(OptionalBytesReference.of(disruption.onCompareAndExchange(register, expected, updated)));
+                if (isContendedRegister) {
+                    listener.onResponse(OptionalBytesReference.of(disruption.onContendedCompareAndExchange(register, expected, updated)));
+                } else {
+                    listener.onResponse(OptionalBytesReference.of(register.compareAndExchange(expected, updated)));
+                }
             } else {
                 listener.onResponse(OptionalBytesReference.MISSING);
             }
         }
+    }
+
+    static boolean isContendedRegisterKey(String key) {
+        if (key.startsWith(RepositoryAnalyzeAction.CONTENDED_REGISTER_NAME_PREFIX)) {
+            return true;
+        }
+        if (key.startsWith(RepositoryAnalyzeAction.UNCONTENDED_REGISTER_NAME_PREFIX)) {
+            return false;
+        }
+        return fail(null, "unknown register: %s", key);
     }
 
 }

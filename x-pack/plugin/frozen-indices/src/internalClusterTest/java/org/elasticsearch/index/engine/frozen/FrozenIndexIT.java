@@ -89,9 +89,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         assertThat(client().prepareDelete("index", indexResponse.getId()).get().status(), equalTo(RestStatus.OK));
 
-        assertAcked(
-            client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").waitForActiveShards(ActiveShardCount.ONE)).actionGet()
-        );
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").waitForActiveShards(ActiveShardCount.ONE)));
 
         assertThat(
             clusterAdmin().prepareState().get().getState().metadata().index("index").getTimestampRange(),

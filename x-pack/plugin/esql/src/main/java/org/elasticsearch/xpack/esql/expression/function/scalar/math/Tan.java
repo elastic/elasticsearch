@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -26,8 +25,8 @@ public class Tan extends AbstractTrigonometricFunction {
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new TanEvaluator(field, dvrCtx);
+    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+        return new TanEvaluator.Factory(field);
     }
 
     @Override

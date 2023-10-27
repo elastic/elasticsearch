@@ -92,4 +92,26 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
   public void close() {
     Releasables.closeExpectNoException(val, decimals);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory decimals;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory decimals) {
+      this.val = val;
+      this.decimals = decimals;
+    }
+
+    @Override
+    public RoundUnsignedLongEvaluator get(DriverContext context) {
+      return new RoundUnsignedLongEvaluator(val.get(context), decimals.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "RoundUnsignedLongEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    }
+  }
 }

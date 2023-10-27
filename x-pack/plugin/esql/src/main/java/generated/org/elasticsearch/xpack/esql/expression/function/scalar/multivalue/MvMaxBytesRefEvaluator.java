@@ -144,4 +144,22 @@ public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.Abs
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxBytesRefEvaluator get(DriverContext context) {
+      return new MvMaxBytesRefEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
+    }
+  }
 }

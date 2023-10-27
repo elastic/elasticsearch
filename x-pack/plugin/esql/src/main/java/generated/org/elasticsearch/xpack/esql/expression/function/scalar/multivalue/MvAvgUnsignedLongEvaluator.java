@@ -149,4 +149,22 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvAvgUnsignedLongEvaluator get(DriverContext context) {
+      return new MvAvgUnsignedLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvAvg[field=" + field + "]";
+    }
+  }
 }

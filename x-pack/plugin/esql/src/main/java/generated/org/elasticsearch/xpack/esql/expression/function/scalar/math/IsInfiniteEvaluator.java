@@ -76,4 +76,22 @@ public final class IsInfiniteEvaluator implements EvalOperator.ExpressionEvaluat
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public IsInfiniteEvaluator get(DriverContext context) {
+      return new IsInfiniteEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "IsInfiniteEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

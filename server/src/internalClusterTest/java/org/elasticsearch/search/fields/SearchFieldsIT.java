@@ -988,7 +988,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 "type=long",
                 "md",
                 "type=double"
-            ).get()
+            )
         );
         final int numDocs = randomIntBetween(3, 8);
         List<IndexRequestBuilder> reqs = new ArrayList<>();

@@ -100,7 +100,7 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
                 }
 
                 String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
-                Version primaryNodeVersion = getNodeVersion(primaryNodeId);
+                String primaryNodeVersion = getNodeVersion(primaryNodeId);
 
                 // Sometimes the primary shard ends on the upgraded node (i.e. after a rebalance)
                 // This causes issues when removing and adding replicas, since then we cannot allocate to any of the old nodes.
@@ -108,13 +108,13 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
                 // In that case we exclude the upgraded node from the shard allocation and cancel the shard to force moving
                 // the primary to a node in the old version, this allows adding replicas in the first mixed round.
                 logger.info("--> Primary node in first mixed round {} / {}", primaryNodeId, primaryNodeVersion);
-                if (primaryNodeVersion.after(getOldClusterVersion())) {
+                if (isOldClusterVersion(primaryNodeVersion) == false) {
                     logger.info("--> cancelling primary shard on node [{}]", primaryNodeId);
                     cancelShard(indexName, 0, primaryNodeId);
                     logger.info("--> done cancelling primary shard on node [{}]", primaryNodeId);
 
                     String currentPrimaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
-                    assertThat(getNodeVersion(currentPrimaryNodeId), is(equalTo(getOldClusterVersion())));
+                    assertTrue(isOldClusterVersion(getNodeVersion(currentPrimaryNodeId)));
                 }
             } else {
                 logger.info("--> not in first upgrade round, removing exclusions for [{}]", indexName);
@@ -148,19 +148,18 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
         Map<String, Map<String, Object>> nodes = extractValue(responseMap, "nodes");
         List<String> upgradedNodes = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> nodeInfoEntry : nodes.entrySet()) {
-            Version nodeVersion = Version.fromString(extractValue(nodeInfoEntry.getValue(), "version"));
-            if (nodeVersion.after(getOldClusterVersion())) {
+            String nodeVersion = extractValue(nodeInfoEntry.getValue(), "version");
+            if (isOldClusterVersion(nodeVersion) == false) {
                 upgradedNodes.add(nodeInfoEntry.getKey());
             }
         }
         return upgradedNodes;
     }
 
-    private Version getNodeVersion(String primaryNodeId) throws IOException {
+    private String getNodeVersion(String primaryNodeId) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "_nodes/" + primaryNodeId);
         Response response = client().performRequest(request);
-        String nodeVersion = extractValue(responseAsMap(response), "nodes." + primaryNodeId + ".version");
-        return Version.fromString(nodeVersion);
+        return extractValue(responseAsMap(response), "nodes." + primaryNodeId + ".version");
     }
 
     private String getPrimaryNodeIdOfShard(String indexName, int shard) throws Exception {

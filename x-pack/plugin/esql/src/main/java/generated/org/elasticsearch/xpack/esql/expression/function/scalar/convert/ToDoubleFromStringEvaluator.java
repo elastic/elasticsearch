@@ -100,4 +100,25 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToDouble.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToDoubleFromStringEvaluator get(DriverContext context) {
+      return new ToDoubleFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDoubleFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

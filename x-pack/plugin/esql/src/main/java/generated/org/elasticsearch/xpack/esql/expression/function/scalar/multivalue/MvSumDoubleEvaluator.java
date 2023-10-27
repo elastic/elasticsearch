@@ -85,4 +85,22 @@ public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.Abstr
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvSumDoubleEvaluator get(DriverContext context) {
+      return new MvSumDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
+    }
+  }
 }

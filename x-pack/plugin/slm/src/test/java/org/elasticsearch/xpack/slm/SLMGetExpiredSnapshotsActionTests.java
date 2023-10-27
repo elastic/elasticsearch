@@ -258,7 +258,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
     private static Repository createMockRepository(ThreadPool threadPool, List<SnapshotInfo> snapshotInfos) {
         final var repository = mock(Repository.class);
         doAnswer(invocation -> {
-            final ActionListener<RepositoryData> listener = invocation.getArgument(0);
+            final ActionListener<RepositoryData> listener = invocation.getArgument(1);
             threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                 var repositoryData = RepositoryData.EMPTY;
                 for (SnapshotInfo snapshotInfo : snapshotInfos) {
@@ -283,7 +283,7 @@ public class SLMGetExpiredSnapshotsActionTests extends ESTestCase {
                 return repositoryData;
             }));
             return null;
-        }).when(repository).getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, any());
+        }).when(repository).getRepositoryData(any(), any());
 
         doAnswer(invocation -> {
             final GetSnapshotInfoContext getSnapshotInfoContext = invocation.getArgument(0);

@@ -1031,11 +1031,15 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                             final Releasable abortReleasable = abortReleasables.transfer();
 
                             abortRunnable = mustSucceed(() -> {
-                                logger.info("--> aborting/deleting snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
+                                logger.info("--> abort/delete snapshot [{}:{}] start", trackedRepository.repositoryName, snapshotName);
                                 deleteSnapshotRequestBuilder.execute(new ActionListener<>() {
                                     @Override
                                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                        logger.info("--> aborted/deleted snapshot [{}:{}]", trackedRepository.repositoryName, snapshotName);
+                                        logger.info(
+                                            "--> abort/delete snapshot [{}:{}] success",
+                                            trackedRepository.repositoryName,
+                                            snapshotName
+                                        );
                                         Releasables.close(abortReleasable);
                                         assertTrue(acknowledgedResponse.isAcknowledged());
                                     }
@@ -1046,7 +1050,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                                         if (ExceptionsHelper.unwrapCause(e) instanceof SnapshotMissingException) {
                                             // processed before the snapshot even started
                                             logger.info(
-                                                "--> abort/delete of [{}:{}] got snapshot missing",
+                                                "--> abort/delete snapshot [{}:{}] got snapshot missing",
                                                 trackedRepository.repositoryName,
                                                 snapshotName
                                             );

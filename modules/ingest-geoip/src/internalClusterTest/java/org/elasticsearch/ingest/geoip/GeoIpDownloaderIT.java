@@ -216,6 +216,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
         testGeoIpDatabasesDownload();
@@ -227,6 +228,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         testGeoIpDatabasesDownload();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92888")
     public void testGeoIpDatabasesDownload() throws Exception {
         putGeoIpPipeline();
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
@@ -251,8 +253,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
                         .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true));
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
-                    SearchResponse res = client().prepareSearch(GeoIpDownloader.DATABASES_INDEX)
-                        .setSize(size)
+                    SearchResponse res = prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
                         .setQuery(queryBuilder)
                         .addSort("chunk", SortOrder.ASC)
                         .get();

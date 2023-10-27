@@ -76,4 +76,22 @@ public final class IsFiniteEvaluator implements EvalOperator.ExpressionEvaluator
   public void close() {
     Releasables.closeExpectNoException(val);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public IsFiniteEvaluator get(DriverContext context) {
+      return new IsFiniteEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "IsFiniteEvaluator[" + "val=" + val + "]";
+    }
+  }
 }

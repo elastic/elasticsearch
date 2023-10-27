@@ -5,11 +5,13 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
+This is work in progress.
+
 [discrete]
 [[esql-supported-types]]
 === Supported types
 
-* {esql} currently supports the following <<mapping-types,field types>>:
+{esql} currently supports the following <<mapping-types,field types>>:
 
 ** `alias`
 ** `boolean`
@@ -23,6 +25,12 @@
 ** `text`
 ** `unsigned_long`
 ** `version`
+
+[discrete]
+[[esql-tsdb]]
+=== {esql} and time series data
+
+{esql} does not support time series data (TSDS).
 
 [discrete]
 [[esql-max-rows]]

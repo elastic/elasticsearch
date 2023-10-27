@@ -28,11 +28,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ProjectOperatorTests extends OperatorTestCase {
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     public void testProjectionOnEmptyPage() {
         var page = new Page(0);
         var projection = new ProjectOperator(randomProjection(10));

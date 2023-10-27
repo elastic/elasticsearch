@@ -32,8 +32,8 @@ public class Murmur3Hasher {
 
     /**
      * Supplies some or all of the bytes to be hashed. Multiple calls to this method may
-     * be made to sequentially supply the bytes for hashing. Once all bytes have been supplied, the
-     * {@link #digest()} method should be called to complete the hash calculation.
+     * be made to sequentially supply the bytes for hashing. Once all bytes have been supplied, either the
+     * {@link #digestHash} method (preferred) or the {@link #digest()} method should be called to complete the hash calculation.
      */
     public void update(byte[] inputBytes) {
         update(inputBytes, 0, inputBytes.length);
@@ -100,6 +100,7 @@ public class Murmur3Hasher {
 
     /**
      * Completes the hash of all bytes previously passed to {@link #update}.
+     * Allows passing in a re-usable {@link org.elasticsearch.common.hash.MurmurHash3.Hash128} instance to avoid allocations.
      */
     public MurmurHash3.Hash128 digestHash(MurmurHash3.Hash128 hash) {
         length += remainderLength;

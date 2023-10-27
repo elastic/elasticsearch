@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -39,6 +41,9 @@ import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 public class TransportListTasksAction extends TransportTasksAction<Task, ListTasksRequest, ListTasksResponse, TaskInfo> {
+
+    private static final Logger logger = LogManager.getLogger(TransportListTasksAction.class);
+
     public static long waitForCompletionTimeout(TimeValue timeout) {
         if (timeout == null) {
             timeout = DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT;
@@ -124,6 +129,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
                     }
                     processedTasks.add(task);
                 }
+                logger.trace("Matched {} tasks of all running {}", processedTasks, taskManager.getTasks().values());
             } catch (Exception e) {
                 allMatchedTasksRemovedListener.onFailure(e);
                 return;

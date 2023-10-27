@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores long values.
  * This class is generated. Do not edit it.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {
 
     long getLong(int position);
 

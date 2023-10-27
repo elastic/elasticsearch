@@ -47,7 +47,7 @@ PUT /multiplexer_example
       "filter": {
         "my_multiplexer": {
           "type": "multiplexer",
-          "filters": [ "lowercase", "lowercase, porter_stem" ]
+          "filters": [ "lowercase", "porter_stem" ]
         }
       }
     }

@@ -442,7 +442,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 shardsIter,
                 timeProvider,
                 null,
-                shardToSkip.size() > shardsIter.size(),
+                shardsIter.size() > shardToSkip.size(),
                 EMPTY_CONTEXT_PROVIDER,
                 ActionTestUtils.assertNoFailureListener(iter -> {
                     result.set(iter);

@@ -108,9 +108,10 @@ load everything:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test'
+          query: 'from test [metadata _id]'
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -133,6 +134,7 @@ load a document:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'
@@ -160,6 +162,7 @@ from doc with aggregate_metric_double:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test2'
@@ -189,6 +192,7 @@ from index pattern unsupported counter:
   - do:
       allowed_warnings_regex:
         - "Field \\[.*\\] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM test*'

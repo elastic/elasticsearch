@@ -77,8 +77,9 @@ and are <<indices-forcemerge,force merged>>.
 
 [WARNING]
 ====
-Enrich indices should be used by the <<enrich-processor,enrich processor>> only.
-Avoid using enrich indices for other purposes.
+Enrich indices should only be used by the <<enrich-processor,enrich processor>>
+or the <<esql-enrich,{esql} `ENRICH` command>>. Avoid using enrich indices for
+other purposes.
 ====
 // end::execute-enrich-policy-def[]
 

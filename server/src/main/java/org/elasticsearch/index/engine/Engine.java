@@ -111,6 +111,7 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    public static final long UNKNOWN_PRIMARY_TERM = -1L;
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -2114,8 +2115,19 @@ public abstract class Engine implements Closeable {
 
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     *
+     * @deprecated use {@link #addPrimaryTermAndGenerationListener(long, long, ActionListener)} instead.
      */
+    @Deprecated
     public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        addPrimaryTermAndGenerationListener(UNKNOWN_PRIMARY_TERM, minGeneration, listener);
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a primary term >= minPrimaryTerm
+     * and a segment generation >= minGeneration.
+     */
+    public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 

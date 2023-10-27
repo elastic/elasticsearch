@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -725,14 +726,14 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                         newNode(
                             "node3-old",
                             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), null),
-                            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, null)
+                            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, null)
                         )
                     )
                     .add(
                         newNode(
                             "node4-old",
                             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), null),
-                            IndexVersionUtils.randomVersionBetween(random(), IndexVersion.MINIMUM_COMPATIBLE, null)
+                            IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, null)
                         )
                     )
             )

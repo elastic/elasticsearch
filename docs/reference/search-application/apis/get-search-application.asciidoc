@@ -120,10 +120,3 @@ A sample response:
 }
 ----
 // TESTRESPONSE[s/"updated_at_millis": 1682105622204/"updated_at_millis": $body.$_path/]
-
-[NOTE]
-====
-The indices associated with a search application are not returned with the GET response.
-To view the indices, use the <<indices-get-alias, get alias>> API.
-The alias name will match the search application name, for example `my-app` in the example above.
-====

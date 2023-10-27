@@ -97,4 +97,25 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
     int value = container.getInt(index);
     return ToBoolean.fromInt(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToBooleanFromIntEvaluator get(DriverContext context) {
+      return new ToBooleanFromIntEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToBooleanFromIntEvaluator[field=" + field + "]";
+    }
+  }
 }

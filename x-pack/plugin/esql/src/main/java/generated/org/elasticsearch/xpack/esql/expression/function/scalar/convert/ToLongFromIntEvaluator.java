@@ -97,4 +97,25 @@ public final class ToLongFromIntEvaluator extends AbstractConvertFunction.Abstra
     int value = container.getInt(index);
     return ToLong.fromInt(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToLongFromIntEvaluator get(DriverContext context) {
+      return new ToLongFromIntEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToLongFromIntEvaluator[field=" + field + "]";
+    }
+  }
 }

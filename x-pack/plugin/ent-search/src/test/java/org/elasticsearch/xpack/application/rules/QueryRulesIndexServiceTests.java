@@ -41,7 +41,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
 
-    private static final int REQUEST_TIMEOUT = 10;
+    private static final int REQUEST_TIMEOUT_SECONDS = 10;
 
     private QueryRulesIndexService queryRulesIndexService;
 
@@ -214,7 +214,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue("Timeout waiting for put request", latch.await(REQUEST_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for put request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -239,7 +239,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue("Timeout waiting for get request", latch.await(REQUEST_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for get request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -264,7 +264,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue("Timeout waiting for delete request", latch.await(REQUEST_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for delete request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }
@@ -289,7 +289,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 latch.countDown();
             }
         });
-        assertTrue("Timeout waiting for list request", latch.await(REQUEST_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Timeout waiting for list request", latch.await(REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         if (exc.get() != null) {
             throw exc.get();
         }

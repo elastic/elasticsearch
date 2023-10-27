@@ -255,7 +255,9 @@ public class EnrichLookupService {
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                intermediateOperators.add(new ValuesSourceReaderOperator(sources, 0, extractField.name()));
+                intermediateOperators.add(
+                    new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), sources, 0, extractField.name())
+                );
             }
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));

@@ -28,6 +28,7 @@ import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.license.PutLicenseRequest;
 import org.elasticsearch.license.internal.MutableLicenseService;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -143,22 +144,11 @@ public class XPackPluginTests extends ESTestCase {
         when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
         when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
         // ensure createComponents does not influence the results
-        xpackPlugin.createComponents(
-            null,
-            mock(ClusterService.class),
-            mock(ThreadPool.class),
-            null,
-            null,
-            null,
-            mockEnvironment,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.clusterService()).thenReturn(mock(ClusterService.class));
+        when(services.threadPool()).thenReturn(mock(ThreadPool.class));
+        when(services.environment()).thenReturn(mockEnvironment);
+        xpackPlugin.createComponents(services);
         assertEquals(license, XPackPlugin.getSharedLicenseService().getLicense());
         assertEquals(License.OperationMode.resolve(licenseType), XPackPlugin.getSharedLicenseState().getOperationMode());
     }
@@ -197,22 +187,11 @@ public class XPackPluginTests extends ESTestCase {
         Environment mockEnvironment = mock(Environment.class);
         when(mockEnvironment.settings()).thenReturn(Settings.builder().build());
         when(mockEnvironment.configFile()).thenReturn(PathUtils.get(""));
-        xpackPlugin.createComponents(
-            null,
-            mock(ClusterService.class),
-            mock(ThreadPool.class),
-            null,
-            null,
-            null,
-            mockEnvironment,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        Plugin.PluginServices services = mock(Plugin.PluginServices.class);
+        when(services.clusterService()).thenReturn(mock(ClusterService.class));
+        when(services.threadPool()).thenReturn(mock(ThreadPool.class));
+        when(services.environment()).thenReturn(mockEnvironment);
+        xpackPlugin.createComponents(services);
         assertThat(XPackPlugin.getSharedLicenseService(), instanceOf(ClusterStateLicenseService.class));
         assertEquals(License.OperationMode.TRIAL, XPackPlugin.getSharedLicenseState().getOperationMode());
     }

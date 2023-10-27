@@ -4,7 +4,7 @@
 <titleabbrev>Put Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview:[]
+preview::[]
 
 Configures the data stream lifecycle for the targeted data streams.
 

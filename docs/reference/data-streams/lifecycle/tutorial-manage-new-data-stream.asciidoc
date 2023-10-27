@@ -2,7 +2,7 @@
 [[tutorial-manage-new-data-stream]]
 === Tutorial: Create a data stream with a lifecycle
 
-preview:[]
+preview::[]
 
 To create a data stream with a built-in lifecycle, follow these steps:
 

@@ -91,9 +91,4 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 32));
     }
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
 }

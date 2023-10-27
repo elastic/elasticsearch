@@ -130,14 +130,4 @@ public class StringExtractOperatorTests extends OperatorTestCase {
             result.releaseBlocks();
         }
     }
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
-    @Override
-    protected DriverContext driverContext() {
-        return nonBreakingDriverContext();
-    }
 }

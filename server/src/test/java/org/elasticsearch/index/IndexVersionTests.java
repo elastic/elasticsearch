@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class IndexVersionTests extends ESTestCase {
 
     public void testVersionComparison() {
-        IndexVersion V_7_2_0 = IndexVersion.V_7_2_0;
-        IndexVersion V_8_0_0 = IndexVersion.V_8_0_0;
+        IndexVersion V_7_2_0 = IndexVersions.V_7_2_0;
+        IndexVersion V_8_0_0 = IndexVersions.V_8_0_0;
         assertThat(V_7_2_0.before(V_8_0_0), is(true));
         assertThat(V_7_2_0.before(V_7_2_0), is(false));
         assertThat(V_8_0_0.before(V_7_2_0), is(false));
@@ -70,7 +70,7 @@ public class IndexVersionTests extends ESTestCase {
 
     public void testStaticIndexVersionChecks() {
         assertThat(
-            IndexVersion.getAllVersionIds(IndexVersionTests.CorrectFakeVersion.class),
+            IndexVersions.getAllVersionIds(IndexVersionTests.CorrectFakeVersion.class),
             equalTo(
                 Map.of(
                     199,
@@ -84,7 +84,7 @@ public class IndexVersionTests extends ESTestCase {
                 )
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> IndexVersion.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(AssertionError.class, () -> IndexVersions.getAllVersionIds(DuplicatedIdFakeVersion.class));
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
@@ -94,7 +94,6 @@ public class IndexVersionTests extends ESTestCase {
 
     public void testDefinedConstants() throws IllegalAccessException {
         Pattern historicalVersion = Pattern.compile("^V_(\\d{1,2})_(\\d{1,2})_(\\d{1,2})$");
-        Pattern IndexVersion = Pattern.compile("^V_(\\d+)_(\\d{3})_(\\d{3})$");
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE");
 
         for (java.lang.reflect.Field field : IndexVersion.class.getFields()) {
@@ -116,15 +115,6 @@ public class IndexVersionTests extends ESTestCase {
                         idString,
                         field.get(null).toString()
                     );
-                } else if ((matcher = IndexVersion.matcher(field.getName())).matches()) {
-                    String idString = matcher.group(1) + matcher.group(2) + matcher.group(3);
-                    assertEquals(
-                        "Field " + field.getName() + " does not have expected id " + idString,
-                        idString,
-                        field.get(null).toString()
-                    );
-                } else {
-                    fail("Field " + field.getName() + " does not have expected format");
                 }
             }
         }
@@ -164,7 +154,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testVersionConstantPresent() {
-        Set<IndexVersion> ignore = Set.of(IndexVersion.ZERO, IndexVersion.current(), IndexVersion.MINIMUM_COMPATIBLE);
+        Set<IndexVersion> ignore = Set.of(IndexVersions.ZERO, IndexVersion.current(), IndexVersions.MINIMUM_COMPATIBLE);
         assertThat(IndexVersion.current(), sameInstance(IndexVersion.fromId(IndexVersion.current().id())));
         assertThat(IndexVersion.current().luceneVersion(), equalTo(org.apache.lucene.util.Version.LATEST));
         final int iters = scaledRandomIntBetween(20, 100);
@@ -177,7 +167,7 @@ public class IndexVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(IndexVersion.getAllVersions()), is(IndexVersion.current()));
+        assertThat(Collections.max(IndexVersions.getAllVersions()), is(IndexVersion.current()));
     }
 
     public void testToString() {

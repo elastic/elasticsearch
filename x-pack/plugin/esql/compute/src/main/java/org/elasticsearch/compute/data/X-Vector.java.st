@@ -20,15 +20,15 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, ConstantNullVector {
 $elseif(boolean)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
-    $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
+    ConstantNullVector {
 $elseif(double)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
-    $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
+    ConstantNullVector {
 $else$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector {
 $endif$
 
 $if(BytesRef)$
@@ -106,17 +106,18 @@ $endif$
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static $Type$Vector of(StreamInput in) throws IOException {
+    static $Type$Vector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new Constant$Type$Vector(in.read$Type$(), positions);
+            return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
         } else {
-            var builder = $Type$Vector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.append$Type$(in.read$Type$());
+            try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.append$Type$(in.read$Type$());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 

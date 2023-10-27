@@ -16,7 +16,7 @@ import java.io.IOException;
  * Vector that stores int values.
  * This class is generated. Do not edit it.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, FilterIntVector, IntArrayVector, IntBigArrayVector {
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {
 
     int getInt(int position);
 
@@ -72,17 +72,18 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, Filt
     }
 
     /** Deserializes a Vector from the given stream input. */
-    static IntVector of(StreamInput in) throws IOException {
+    static IntVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
         final boolean constant = in.readBoolean();
         if (constant && positions > 0) {
-            return new ConstantIntVector(in.readInt(), positions);
+            return blockFactory.newConstantIntVector(in.readInt(), positions);
         } else {
-            var builder = IntVector.newVectorBuilder(positions);
-            for (int i = 0; i < positions; i++) {
-                builder.appendInt(in.readInt());
+            try (var builder = blockFactory.newIntVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendInt(in.readInt());
+                }
+                return builder.build();
             }
-            return builder.build();
         }
     }
 

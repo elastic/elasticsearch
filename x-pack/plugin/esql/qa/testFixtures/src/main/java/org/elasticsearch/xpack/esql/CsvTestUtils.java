@@ -18,6 +18,8 @@ import org.elasticsearch.compute.data.BlockUtils.BuilderWrapper;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -61,7 +63,7 @@ public final class CsvTestUtils {
 
     public static Tuple<Page, List<String>> loadPageFromCsv(URL source) throws Exception {
 
-        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) {
+        record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
                 if (stringValue.contains(",")) {// multi-value field
                     builderWrapper().builder().beginPositionEntry();
@@ -79,6 +81,11 @@ public final class CsvTestUtils {
 
                 var converted = stringValue.length() == 0 ? null : type.convert(stringValue);
                 builderWrapper().append().accept(converted);
+            }
+
+            @Override
+            public void close() {
+                builderWrapper.close();
             }
         }
 
@@ -156,11 +163,15 @@ public final class CsvTestUtils {
             }
         }
         var columnNames = new ArrayList<String>(columns.length);
-        var blocks = Arrays.stream(columns)
-            .peek(b -> columnNames.add(b.name))
-            .map(b -> b.builderWrapper.builder().build())
-            .toArray(Block[]::new);
-        return new Tuple<>(new Page(blocks), columnNames);
+        try {
+            var blocks = Arrays.stream(columns)
+                .peek(b -> columnNames.add(b.name))
+                .map(b -> b.builderWrapper.builder().build())
+                .toArray(Block[]::new);
+            return new Tuple<>(new Page(blocks), columnNames);
+        } finally {
+            Releasables.closeExpectNoException(columns);
+        }
     }
 
     /**
@@ -342,6 +353,7 @@ public final class CsvTestUtils {
             LOOKUP.put("BYTE", INTEGER);
 
             // add also the types with short names
+            LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);
             LOOKUP.put("L", LONG);
             LOOKUP.put("UL", UNSIGNED_LONG);

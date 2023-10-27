@@ -4,7 +4,8 @@
     # Don't use ramdisk since this build generates lots of large artifacts and results in oomkiller issues
     # workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+release-tests
     display-name: "elastic / elasticsearch # %BRANCH% - release tests"
-    description: "Release version tests for the Elasticsearch %BRANCH% branch.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     node: "general-purpose && docker"
     builders:
       - inject:

@@ -119,16 +119,4 @@ public class FilterOperatorTests extends OperatorTestCase {
     protected ByteSizeValue smallEnoughToCircuitBreak() {
         return ByteSizeValue.ofBytes(between(1, 600));
     }
-
-    @Override
-    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        return breakingDriverContext();
-    }
-
-    // TODO: remove this once possible
-    // https://github.com/elastic/elasticsearch/issues/99826
-    @Override
-    protected boolean canLeak() {
-        return true;
-    }
 }

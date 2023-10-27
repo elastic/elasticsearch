@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -55,6 +57,7 @@ import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.SORT;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.WHERE;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 
@@ -89,6 +92,17 @@ public class Verifier {
             else if (p.resolved()) {
                 return;
             }
+            // handle aggregate first to disambiguate between missing fields or incorrect function declaration
+            if (p instanceof Aggregate aggregate) {
+                for (NamedExpression agg : aggregate.aggregates()) {
+                    if (agg instanceof Alias as) {
+                        var child = as.child();
+                        if (child instanceof UnresolvedAttribute u) {
+                            failures.add(fail(child, "invalid stats declaration; [{}] is not an aggregate function", child.sourceText()));
+                        }
+                    }
+                }
+            }
             p.forEachExpression(e -> {
                 // everything is fine, skip expression
                 if (e.resolved()) {
@@ -121,79 +135,19 @@ public class Verifier {
 
         // Concrete verifications
         plan.forEachDown(p -> {
-            if (p instanceof Aggregate agg) {
-                agg.aggregates().forEach(e -> {
-                    var exp = e instanceof Alias ? ((Alias) e).child() : e;
-                    if (exp instanceof AggregateFunction aggFunc) {
-                        aggFunc.arguments().forEach(a -> {
-                            // TODO: allow an expression?
-                            if ((a instanceof FieldAttribute
-                                || a instanceof MetadataAttribute
-                                || a instanceof ReferenceAttribute
-                                || a instanceof Literal) == false) {
-                                failures.add(
-                                    fail(
-                                        e,
-                                        "aggregate function's parameters must be an attribute or literal; found ["
-                                            + a.sourceText()
-                                            + "] of type ["
-                                            + a.nodeName()
-                                            + "]"
-                                    )
-                                );
-                            }
-                        });
-                    } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
-                        failures.add(
-                            fail(
-                                exp,
-                                "expected an aggregate function or group but got ["
-                                    + exp.sourceText()
-                                    + "] of type ["
-                                    + exp.nodeName()
-                                    + "]"
-                            )
-                        );
-                    }
-                });
-            } else if (p instanceof RegexExtract re) {
-                Expression expr = re.input();
-                DataType type = expr.dataType();
-                if (EsqlDataTypes.isString(type) == false) {
-                    failures.add(
-                        fail(
-                            expr,
-                            "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
-                            re.getClass().getSimpleName(),
-                            expr.sourceText(),
-                            type
-                        )
-                    );
-                }
-            } else if (p instanceof Row row) {
-                failures.addAll(validateRow(row));
-            } else if (p instanceof Eval eval) {
-                failures.addAll(validateEval(eval));
+            // if the children are unresolved, so will this node; counting it will only add noise
+            if (p.childrenResolved() == false) {
+                return;
             }
+            checkFilterConditionType(p, failures);
+            checkAggregate(p, failures);
+            checkRegexExtractOnlyOnStrings(p, failures);
 
-            p.forEachExpression(BinaryOperator.class, bo -> {
-                Failure f = validateUnsignedLongOperator(bo);
-                if (f != null) {
-                    failures.add(f);
-                }
-            });
-            p.forEachExpression(BinaryComparison.class, bc -> {
-                Failure f = validateBinaryComparison(bc);
-                if (f != null) {
-                    failures.add(f);
-                }
-            });
-            p.forEachExpression(Neg.class, neg -> {
-                Failure f = validateUnsignedLongNegation(neg);
-                if (f != null) {
-                    failures.add(f);
-                }
-            });
+            checkRow(p, failures);
+            checkEvalFields(p, failures);
+
+            checkOperationsOnUnsignedLong(p, failures);
+            checkBinaryComparison(p, failures);
         });
 
         // gather metrics
@@ -202,6 +156,107 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof Aggregate agg) {
+            agg.aggregates().forEach(e -> {
+                var exp = e instanceof Alias ? ((Alias) e).child() : e;
+                if (exp instanceof AggregateFunction aggFunc) {
+                    Expression field = aggFunc.field();
+
+                    // TODO: allow an expression?
+                    if ((field instanceof FieldAttribute
+                        || field instanceof MetadataAttribute
+                        || field instanceof ReferenceAttribute
+                        || field instanceof Literal) == false) {
+                        failures.add(
+                            fail(
+                                e,
+                                "aggregate function's field must be an attribute or literal; found ["
+                                    + field.sourceText()
+                                    + "] of type ["
+                                    + field.nodeName()
+                                    + "]"
+                            )
+                        );
+                    }
+                } else if (agg.groupings().contains(exp) == false) { // TODO: allow an expression?
+                    failures.add(
+                        fail(
+                            exp,
+                            "expected an aggregate function or group but got [" + exp.sourceText() + "] of type [" + exp.nodeName() + "]"
+                        )
+                    );
+                }
+            });
+        }
+    }
+
+    private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof RegexExtract re) {
+            Expression expr = re.input();
+            DataType type = expr.dataType();
+            if (EsqlDataTypes.isString(type) == false) {
+                failures.add(
+                    fail(
+                        expr,
+                        "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
+                        re.getClass().getSimpleName(),
+                        expr.sourceText(),
+                        type
+                    )
+                );
+            }
+        }
+    }
+
+    private static void checkRow(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof Row row) {
+            row.fields().forEach(a -> {
+                if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
+                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+                }
+            });
+        }
+    }
+
+    private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof Eval eval) {
+            eval.fields().forEach(field -> {
+                DataType dataType = field.dataType();
+                if (EsqlDataTypes.isRepresentable(dataType) == false) {
+                    failures.add(
+                        fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
+                    );
+                }
+            });
+        }
+    }
+
+    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Set<Failure> failures) {
+        p.forEachExpression(e -> {
+            Failure f = null;
+
+            if (e instanceof BinaryOperator<?, ?, ?, ?> bo) {
+                f = validateUnsignedLongOperator(bo);
+            } else if (e instanceof Neg neg) {
+                f = validateUnsignedLongNegation(neg);
+            }
+
+            if (f != null) {
+                failures.add(f);
+            }
+        });
+    }
+
+    private static void checkBinaryComparison(LogicalPlan p, Set<Failure> failures) {
+        p.forEachExpression(BinaryComparison.class, bc -> {
+            Failure f = validateBinaryComparison(bc);
+            if (f != null) {
+                failures.add(f);
+            }
+        });
     }
 
     private void gatherMetrics(LogicalPlan plan) {
@@ -226,29 +281,6 @@ public class Verifier {
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
-    }
-
-    private static Collection<Failure> validateRow(Row row) {
-        List<Failure> failures = new ArrayList<>(row.fields().size());
-        row.fields().forEach(a -> {
-            if (EsqlDataTypes.isRepresentable(a.dataType()) == false) {
-                failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
-            }
-        });
-        return failures;
-    }
-
-    private static Collection<Failure> validateEval(Eval eval) {
-        List<Failure> failures = new ArrayList<>(eval.fields().size());
-        eval.fields().forEach(field -> {
-            DataType dataType = field.dataType();
-            if (EsqlDataTypes.isRepresentable(dataType) == false) {
-                failures.add(
-                    fail(field, "EVAL does not support type [{}] in expression [{}]", dataType.typeName(), field.child().sourceText())
-                );
-            }
-        });
-        return failures;
     }
 
     /**

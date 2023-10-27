@@ -193,7 +193,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             );
         }
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0).get(), numWatches);
+        assertHitCount(prepareSearch(Watch.INDEX).setSize(0), numWatches);
 
         startWatcher();
 
@@ -318,12 +318,12 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             assertThat(maxSize, equalTo(0L));
 
             refresh();
-            SearchResponse searchResponse = client().prepareSearch("output").get();
+            SearchResponse searchResponse = prepareSearch("output").get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
             long successfulWatchExecutions = searchResponse.getHits().getTotalHits().value;
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
-            SearchResponse historySearchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setSize(10000).get();
+            SearchResponse historySearchResponse = prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setSize(10000).get();
             assertHitCount(historySearchResponse, expectedWatchHistoryCount);
             long notExecutedCount = Arrays.stream(historySearchResponse.getHits().getHits())
                 .filter(hit -> hit.getSourceAsMap().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
@@ -402,7 +402,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // but even then since the execution of the watch record is async it may take a little bit before
             // the actual documents are in the output index
             refresh();
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM).setSize(numRecords).get();
+            SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM).setSize(numRecords).get();
             assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
             for (int i = 0; i < numRecords; i++) {
                 assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"), is(ExecutionState.EXECUTED.id()));

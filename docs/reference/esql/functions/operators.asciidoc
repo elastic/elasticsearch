@@ -1,0 +1,36 @@
+[[esql-operators]]
+==== {esql} operators
+
+++++
+<titleabbrev>Operators</titleabbrev>
+++++
+
+Boolean operators for comparing against one or multiple expressions.
+
+// tag::op_list[]
+* <<esql-binary-operators>>
+* <<esql-logical-operators>>
+* <<esql-predicates>>
+* <<esql-cidr_match>>
+* <<esql-ends_with>>
+* <<esql-in-operator>>
+* <<esql-is_finite>>
+* <<esql-is_infinite>>
+* <<esql-is_nan>>
+* <<esql-like-operator>>
+* <<esql-rlike-operator>>
+* <<esql-starts_with>>
+// end::op_list[]
+
+include::binary.asciidoc[]
+include::logical.asciidoc[]
+include::predicates.asciidoc[]
+include::cidr_match.asciidoc[]
+include::ends_with.asciidoc[]
+include::in.asciidoc[]
+include::is_finite.asciidoc[]
+include::is_infinite.asciidoc[]
+include::is_nan.asciidoc[]
+include::like.asciidoc[]
+include::rlike.asciidoc[]
+include::starts_with.asciidoc[]

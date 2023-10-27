@@ -143,7 +143,7 @@
       <a href="search-your-data.html">Search your data</a>
     </li>
     <li>
-      Query data with <a href="query-dsl.html">the Query DSL</a>, <a href="eql.html">EQL</a>, or <a href="xpack-sql.html">SQL</a>
+      Query data with <a href="query-dsl.html">the Query DSL</a>, <a href="esql.html">ES|QL</a>, <a href="eql.html">EQL</a>, or <a href="xpack-sql.html">SQL</a>
     </li>
     <li>
       <a href="search-aggregations.html">Aggregations</a>
@@ -172,7 +172,7 @@
       <a href="data-management.html">Data management</a>
     </li>
     <li>
-      <a href="data-rollup-transform.html">Roll up or transform your data</a>
+      <a href="downsampling.html">Downsampling</a>
     </li>
     <li>
       <a href="snapshot-restore.html">Snapshot and restore</a>

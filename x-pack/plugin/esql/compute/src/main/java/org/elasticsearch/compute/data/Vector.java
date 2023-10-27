@@ -60,4 +60,9 @@ public interface Vector extends Accountable, Releasable {
          */
         Vector build();
     }
+
+    /**
+     * Whether this vector was released
+     */
+    boolean isReleased();
 }

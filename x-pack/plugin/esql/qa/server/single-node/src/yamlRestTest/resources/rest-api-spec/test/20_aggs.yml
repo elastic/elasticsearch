@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      features: warnings
   - do:
       indices.create:
         index:  test
@@ -109,6 +111,8 @@ setup:
 ---
 "Test From":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test'
@@ -130,6 +134,8 @@ setup:
 ---
 "Test simple grouping avg":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | where color == "red" | stats avg(data) by color'
@@ -144,6 +150,8 @@ setup:
 ---
 "Test From Stats Avg":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats avg(count)'
@@ -156,6 +164,8 @@ setup:
 ---
 "Test From Stats Avg With Alias":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats f1 = avg(count)'
@@ -168,6 +178,8 @@ setup:
 ---
 "Test From Stats Count":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats count(data)'
@@ -180,6 +192,8 @@ setup:
 ---
 "Test From Stats Count With Alias":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats dataCount = count(data)'
@@ -192,6 +206,8 @@ setup:
 ---
 "Test From Stats Min":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats min(count)'
@@ -204,6 +220,8 @@ setup:
 ---
 "Test From Stats Min With Alias":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats minCount=min(count)'
@@ -216,6 +234,8 @@ setup:
 ---
 "Test From Stats Max":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats max(count)'
@@ -228,6 +248,8 @@ setup:
 ---
 "Test From Stats Max With Alias":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats maxCount=max(count)'
@@ -255,6 +277,8 @@ setup:
 ---
 "Test Median On Long":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median(count)'
@@ -267,6 +291,8 @@ setup:
 ---
 "Test Median On Double":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median(count_d)'
@@ -279,6 +305,8 @@ setup:
 ---
 "Test Grouping Median On Long":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median(count) by color | sort med'
@@ -294,6 +322,8 @@ setup:
 ---
 "Test Grouping Median On Double":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median(count_d) by color | sort med'
@@ -309,6 +339,8 @@ setup:
 ---
 "Test Median Absolute Deviation On Long":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count)'
@@ -321,6 +353,8 @@ setup:
 ---
 "Test Median Absolute Deviation On Double":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count_d)'
@@ -333,6 +367,8 @@ setup:
 ---
 "Test Grouping Median Absolute Deviation On Long":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count) by color | sort color'
@@ -348,6 +384,8 @@ setup:
 ---
 "Test Grouping Median Absolute Deviation On Double":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count_d) by color | sort color'
@@ -363,6 +401,8 @@ setup:
 ---
 "Test From Stats Eval":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats avg_count = avg(count) | eval x = avg_count + 7'
@@ -374,6 +414,8 @@ setup:
 ---
 "Test Stats Where":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | stats x = avg(count) | where x > 100'
@@ -396,6 +438,8 @@ setup:
 ---
 "Test Eval Row With Null":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'row a = 1, b = 2, c = null | eval z = c + b + a'
@@ -418,11 +462,9 @@ setup:
 
 ---
 "Test Eval With Null And Count":
-  - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/99826"
-
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'from test | eval nullsum = count_d + null | stats count(nullsum)'
@@ -437,6 +479,8 @@ setup:
 ---
 "Test Eval With Multiple Expressions":
   - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
           query: 'row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn)'

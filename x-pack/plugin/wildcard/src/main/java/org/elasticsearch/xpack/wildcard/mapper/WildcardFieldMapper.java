@@ -52,6 +52,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -59,6 +60,8 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -266,7 +269,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         private WildcardFieldType(String name, String nullValue, int ignoreAbove, IndexVersion version, Map<String, String> meta) {
             super(name, true, false, true, Defaults.TEXT_SEARCH_INFO, meta);
-            if (version.onOrAfter(IndexVersion.V_7_10_0)) {
+            if (version.onOrAfter(IndexVersions.V_7_10_0)) {
                 this.analyzer = WILDCARD_ANALYZER_7_10;
             } else {
                 this.analyzer = WILDCARD_ANALYZER_7_9;
@@ -810,7 +813,7 @@ public class WildcardFieldMapper extends FieldMapper {
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
 
-        private String escapeWildcardSyntax(String term) {
+        private static String escapeWildcardSyntax(String term) {
             StringBuilder result = new StringBuilder();
             for (int i = 0; i < term.length();) {
                 final int c = term.codePointAt(i);
@@ -848,6 +851,16 @@ public class WildcardFieldMapper extends FieldMapper {
                 bq.add(termQuery(value, context), Occur.SHOULD);
             }
             return new ConstantScoreQuery(bq.build());
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                // TODO it'd almost certainly be faster to drop directly to doc values like we do with keyword but this'll do for now
+                IndexFieldData<?> fd = new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD, null);
+                return BlockDocValuesReader.bytesRefsFromDocValues(context -> fd.load(context).getBytesValues());
+            }
+            return null;
         }
 
         @Override

@@ -1,0 +1,5 @@
+---
+jjbb-template: pull-request-gradle-unix.yml
+vars:
+  - pr-job: "validate-changelogs"
+  - gradle-args: "-Dignore.tests.seed validateChangelogs"

@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -39,26 +37,21 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -305,25 +298,17 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<Object> createComponents(PluginServices services) {
         if (enabled == false) {
             return Collections.emptyList();
         }
+
+        Client client = services.client();
+        ClusterService clusterService = services.clusterService();
+        ThreadPool threadPool = services.threadPool();
+        Environment environment = services.environment();
+        ScriptService scriptService = services.scriptService();
+        NamedXContentRegistry xContentRegistry = services.xContentRegistry();
 
         // only initialize these classes if Watcher is enabled, and only after the plugin security policy for Watcher is in place
         BodyPartSource.init();
@@ -857,7 +842,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         return "Manages Watch definitions and state";
     }
 
-    private Settings getWatchesIndexSettings() {
+    private static Settings getWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -867,7 +852,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getWatchesIndexMappings() {
+    private static XContentBuilder getWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -949,7 +934,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         }
     }
 
-    private Settings getTriggeredWatchesIndexSettings() {
+    private static Settings getTriggeredWatchesIndexSettings() {
         return Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.auto_expand_replicas", "0-1")
@@ -959,7 +944,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .build();
     }
 
-    private XContentBuilder getTriggeredWatchesIndexMappings() {
+    private static XContentBuilder getTriggeredWatchesIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 

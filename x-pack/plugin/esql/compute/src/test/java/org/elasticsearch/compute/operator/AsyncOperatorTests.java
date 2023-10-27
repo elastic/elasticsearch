@@ -121,7 +121,7 @@ public class AsyncOperatorTests extends ESTestCase {
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> assertFalse(it.hasNext()));
-        Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
+        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
         future.actionGet();
     }
 

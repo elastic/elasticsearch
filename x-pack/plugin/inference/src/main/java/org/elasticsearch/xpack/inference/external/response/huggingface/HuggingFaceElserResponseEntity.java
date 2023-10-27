@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class HuggingFaceElserResponseEntity {
@@ -94,20 +93,10 @@ public class HuggingFaceElserResponseEntity {
             var floatToken = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, floatToken, parser);
 
-            switch (parser.numberType()) {
-                case DOUBLE -> weightedTokens.add(
-                    new TextExpansionResults.WeightedToken(parser.currentName(), (float) parser.doubleValue())
-                );
-                case FLOAT -> weightedTokens.add(new TextExpansionResults.WeightedToken(parser.currentName(), parser.floatValue()));
-                default -> {
-                    logger.warn(format("Received an invalid number type in response [%s]", parser.numberType()));
-                    throw new IllegalArgumentException(
-                        format("Failed to parse object: expecting number token of type float or double but found [%s]", parser.numberType())
-                    );
-                }
-            }
+            weightedTokens.add(new TextExpansionResults.WeightedToken(parser.currentName(), parser.floatValue()));
         }
-        // TODO how do we know if it was truncated?
+        // TODO how do we know if the tokens were truncated so we can set this appropriately?
+        // This will depend on whether we handle the tokenization or hugging face
         return new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
     }
 

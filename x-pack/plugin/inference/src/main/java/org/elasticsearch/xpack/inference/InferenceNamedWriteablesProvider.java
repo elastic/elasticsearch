@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
@@ -25,6 +26,9 @@ public class InferenceNamedWriteablesProvider {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+
+        // Empty default settings
+        namedWriteables.add(new NamedWriteableRegistry.Entry(EmptyTaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
 
         // ELSER config
         namedWriteables.add(

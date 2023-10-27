@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.inference.services.huggingface.elser;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.inference.InferenceResults;
@@ -35,6 +38,9 @@ public class HuggingFaceElserService implements InferenceService {
 
     private final SetOnce<HttpRequestSenderFactory> factory;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
+    // This is initialized once which assumes that the settings will not change. To change the service it
+    // should be deleted and then added again
+    private final AtomicReference<HuggingFaceElserAction> action = new AtomicReference<>();
 
     public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory) {
         this.factory = factory;
@@ -91,29 +97,25 @@ public class HuggingFaceElserService implements InferenceService {
             return;
         }
 
-        if (model instanceof HuggingFaceElserModel == false) {
-            listener.onFailure(new ElasticsearchStatusException("The internal model was invalid", RestStatus.INTERNAL_SERVER_ERROR));
+        try {
+            init(model);
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchException("Failed to initialize service", e));
             return;
         }
 
-        createSender();
-
-        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
-        HuggingFaceElserAction action = new HuggingFaceElserAction(
-            input,
-            sender.get(),
-            huggingFaceElserModel.getServiceSettings(),
-            huggingFaceElserModel.getSecretSettings()
-        );
-
-        action.execute(listener);
+        action.get().execute(input, listener);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        createSender();
-        sender.get().start();
-        listener.onResponse(true);
+        try {
+            init(model);
+            sender.get().start();
+            listener.onResponse(true);
+        } catch (Exception e) {
+            listener.onFailure(new ElasticsearchException("Failed to start service", e));
+        }
     }
 
     @Override
@@ -121,9 +123,19 @@ public class HuggingFaceElserService implements InferenceService {
         IOUtils.closeWhileHandlingException(sender.get());
     }
 
-    private synchronized void createSender() {
-        if (sender.get() == null) {
-            sender.set(factory.get().createSender(name()));
+    private void init(Model model) {
+        if (model instanceof HuggingFaceElserModel == false) {
+            throw new IllegalArgumentException("The internal model was invalid");
         }
+
+        sender.compareAndSet(null, factory.get().createSender(name()));
+
+        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
+        action.compareAndSet(null, new HuggingFaceElserAction(sender.get(), huggingFaceElserModel));
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
     }
 }

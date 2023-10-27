@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.huggingface;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentEOFException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
@@ -18,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -114,7 +117,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         );
     }
 
-    public void testFails_ValueInt() {
+    public void testFails_ValueInt() throws IOException {
         String responseJson = """
             [
               {
@@ -123,20 +126,19 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             ]
             """;
 
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> HuggingFaceElserResponseEntity.fromResponse(
-                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-            )
+        TextExpansionResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
+        Map<String, Float> tokenWeightMap = parsedResults.getWeightedTokens()
+            .stream()
+            .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting number token of type float or double but found [INT]")
-        );
+        assertThat(tokenWeightMap.size(), is(1));
+        assertThat(tokenWeightMap.get("field"), is(1.0f));
+        assertFalse(parsedResults.isTruncated());
     }
 
-    public void testFails_ValueLong() {
+    public void testFails_ValueLong() throws IOException {
         String responseJson = """
             [
               {
@@ -145,17 +147,16 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             ]
             """;
 
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> HuggingFaceElserResponseEntity.fromResponse(
-                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
-            )
+        TextExpansionResults parsedResults = HuggingFaceElserResponseEntity.fromResponse(
+            new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
+        Map<String, Float> tokenWeightMap = parsedResults.getWeightedTokens()
+            .stream()
+            .collect(Collectors.toMap(TextExpansionResults.WeightedToken::token, TextExpansionResults.WeightedToken::weight));
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting number token of type float or double but found [LONG]")
-        );
+        assertThat(tokenWeightMap.size(), is(1));
+        assertThat(tokenWeightMap.get("field"), is(4.0294965E10F));
+        assertFalse(parsedResults.isTruncated());
     }
 
     public void testFails_ValueObject() {
@@ -178,5 +179,42 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
             thrownException.getMessage(),
             is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
         );
+    }
+
+    public void testFails_ResponseIsInvalidJson_MissingSquareBracket() {
+        String responseJson = """
+            [
+              {
+                "field": 0.1
+              }
+            """;
+
+        var thrownException = expectThrows(
+            XContentEOFException.class,
+            () -> HuggingFaceElserResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrownException.getMessage(), containsString("expected close marker for Array (start marker at [Source: (byte[])"));
+    }
+
+    public void testFails_ResponseIsInvalidJson_MissingField() {
+        String responseJson = """
+            [
+              {
+                : 0.1
+              }
+            ]
+            """;
+
+        var thrownException = expectThrows(
+            XContentParseException.class,
+            () -> HuggingFaceElserResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(thrownException.getMessage(), containsString("Unexpected character"));
     }
 }

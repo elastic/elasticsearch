@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -22,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
 import org.junit.After;
@@ -78,15 +80,10 @@ public class HuggingFaceElserActionTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var action = new HuggingFaceElserAction(
-                "abc",
-                sender,
-                new HuggingFaceElserServiceSettings(getUrl(webServer)),
-                new HuggingFaceElserSecretSettings(new SecureString("secret".toCharArray()))
-            );
+            var action = createAction(getUrl(webServer), sender);
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-            action.execute(listener);
+            action.execute("abc", listener);
 
             InferenceResults result = listener.actionGet(TIMEOUT);
 
@@ -105,36 +102,21 @@ public class HuggingFaceElserActionTests extends ESTestCase {
         }
     }
 
-    public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() {
-        var sender = mock(Sender.class);
-        var action = new HuggingFaceElserAction(
-            "abc",
-            sender,
-            new HuggingFaceElserServiceSettings("^^"),
-            new HuggingFaceElserSecretSettings(new SecureString("secret".toCharArray()))
-        );
-
-        PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute(listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-
-        assertThat(thrownException.getMessage(), is("Failed to parse url [^^] from service settings"));
+    public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
+        try (var sender = mock(Sender.class)) {
+            var thrownException = expectThrows(IllegalArgumentException.class, () -> createAction("^^", sender));
+            assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+        }
     }
 
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
-        var action = new HuggingFaceElserAction(
-            "abc",
-            sender,
-            new HuggingFaceElserServiceSettings(getUrl(webServer)),
-            new HuggingFaceElserSecretSettings(new SecureString("secret".toCharArray()))
-        );
+        var action = createAction(getUrl(webServer), sender);
 
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute(listener);
+        action.execute("abc", listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -145,18 +127,25 @@ public class HuggingFaceElserActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
 
-        var action = new HuggingFaceElserAction(
-            "abc",
-            sender,
-            new HuggingFaceElserServiceSettings(getUrl(webServer)),
-            new HuggingFaceElserSecretSettings(new SecureString("secret".toCharArray()))
-        );
+        var action = createAction(getUrl(webServer), sender);
 
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
-        action.execute(listener);
+        action.execute("abc", listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
         assertThat(thrownException.getMessage(), is("Failed to send request ELSER Hugging Face request"));
+    }
+
+    private HuggingFaceElserAction createAction(String url, Sender sender) {
+        var model = new HuggingFaceElserModel(
+            "id",
+            TaskType.SPARSE_EMBEDDING,
+            "service",
+            new HuggingFaceElserServiceSettings(url),
+            new HuggingFaceElserSecretSettings(new SecureString("secret".toCharArray()))
+        );
+
+        return new HuggingFaceElserAction(sender, model);
     }
 }

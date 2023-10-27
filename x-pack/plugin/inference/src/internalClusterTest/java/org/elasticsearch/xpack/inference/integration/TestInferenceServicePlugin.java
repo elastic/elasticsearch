@@ -65,6 +65,11 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         public String name() {
             return NAME;
         }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
     }
 
     public static class TestInferenceServiceClusterService extends TestInferenceServiceBase {
@@ -82,6 +87,11 @@ public class TestInferenceServicePlugin extends Plugin implements InferenceServi
         @Override
         public String name() {
             return NAME;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
     }
 

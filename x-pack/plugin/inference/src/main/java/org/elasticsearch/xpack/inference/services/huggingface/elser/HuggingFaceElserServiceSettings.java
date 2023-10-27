@@ -27,7 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
-public record HuggingFaceElserServiceSettings(String url) implements ServiceSettings {
+public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSettings {
     public static final String NAME = "hugging_face_elser_service_settings";
 
     private static final Logger logger = LogManager.getLogger(HuggingFaceElserServiceSettings.class);
@@ -41,8 +41,9 @@ public record HuggingFaceElserServiceSettings(String url) implements ServiceSett
             validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(URL, ModelConfigurations.SERVICE_SETTINGS));
         }
 
+        URI uri = null;
         try {
-            validateUrl(parsedUrl);
+            uri = getUri(parsedUrl);
         } catch (IllegalArgumentException ignored) {
             validationException.addValidationError(MapParsingUtils.invalidUrlErrorMsg(parsedUrl, ModelConfigurations.SERVICE_SETTINGS));
         }
@@ -51,17 +52,17 @@ public record HuggingFaceElserServiceSettings(String url) implements ServiceSett
             throw validationException;
         }
 
-        return new HuggingFaceElserServiceSettings(parsedUrl);
+        return new HuggingFaceElserServiceSettings(uri);
     }
 
     // TODO move this to a common location and potentially improve parsing errors
-    private static void validateUrl(String url) throws IllegalArgumentException {
+    private static URI getUri(String url) throws IllegalArgumentException {
         if (url == null) {
-            return;
+            return null;
         }
 
         try {
-            new URI(url);
+            return new URI(url);
         } catch (URISyntaxException e) {
             logger.info(format("Invalid URL received [%s]", url), e);
             throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
@@ -69,7 +70,11 @@ public record HuggingFaceElserServiceSettings(String url) implements ServiceSett
     }
 
     public HuggingFaceElserServiceSettings {
-        Objects.requireNonNull(url);
+        Objects.requireNonNull(uri);
+    }
+
+    public HuggingFaceElserServiceSettings(String url) {
+        this(getUri(url));
     }
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {
@@ -79,7 +84,7 @@ public record HuggingFaceElserServiceSettings(String url) implements ServiceSett
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(URL, url);
+        builder.field(URL, uri.toString());
         builder.endObject();
 
         return builder;
@@ -97,6 +102,6 @@ public record HuggingFaceElserServiceSettings(String url) implements ServiceSett
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(url);
+        out.writeString(uri.toString());
     }
 }

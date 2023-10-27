@@ -17,8 +17,10 @@ import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.logging.ThrottledLogger;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,6 +32,9 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 public class HttpClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
+    private static final int THROTTLED_LOGS_THRESHOLD = 20;
+    private static final TimeValue THROTTLED_LOGS_WAIT_TIME = TimeValue.timeValueHours(1);
+    private static final ThrottledLogger throttledLogger = new ThrottledLogger(logger, THROTTLED_LOGS_THRESHOLD, THROTTLED_LOGS_WAIT_TIME);
 
     enum Status {
         CREATED,
@@ -83,7 +88,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                logger.warn(format("Request [%s] failed", request.getRequestLine()), ex);
+                throttledLogger.warn(format("Request [%s] failed", request.getRequestLine()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
@@ -99,7 +104,7 @@ public class HttpClient implements Closeable {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                logger.warn(format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                throttledLogger.warn(format("Failed to create http result for [%s]", request.getRequestLine()), e);
                 listener.onFailure(e);
             }
         });

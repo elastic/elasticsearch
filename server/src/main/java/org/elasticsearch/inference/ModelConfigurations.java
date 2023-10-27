@@ -20,8 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
-
 public class ModelConfigurations implements ToXContentObject, VersionedNamedWriteable {
 
     public static final String MODEL_ID = "model_id";
@@ -36,8 +34,11 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
     private final ServiceSettings serviceSettings;
     private final TaskSettings taskSettings;
 
+    /**
+     * Allows no task settings to be defined. This will default to the {@link EmptyTaskSettings} object.
+     */
     public ModelConfigurations(String modelId, TaskType taskType, String service, ServiceSettings serviceSettings) {
-        this(modelId, taskType, service, serviceSettings, null);
+        this(modelId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE);
     }
 
     public ModelConfigurations(
@@ -59,12 +60,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         this.taskType = in.readEnum(TaskType.class);
         this.service = in.readString();
         this.serviceSettings = in.readNamedWriteable(ServiceSettings.class);
-
-        if (in.getTransportVersion().onOrAfter(ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED)) {
-            this.taskSettings = in.readOptionalNamedWriteable(TaskSettings.class);
-        } else {
-            this.taskSettings = in.readNamedWriteable(TaskSettings.class);
-        }
+        this.taskSettings = in.readNamedWriteable(TaskSettings.class);
     }
 
     @Override
@@ -73,12 +69,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         out.writeEnum(taskType);
         out.writeString(service);
         out.writeNamedWriteable(serviceSettings);
-
-        if (out.getTransportVersion().onOrAfter(ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED)) {
-            out.writeOptionalNamedWriteable(taskSettings);
-        } else {
-            out.writeNamedWriteable(taskSettings);
-        }
+        out.writeNamedWriteable(taskSettings);
     }
 
     public String getModelId() {
@@ -108,9 +99,7 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         builder.field(TaskType.NAME, taskType.toString());
         builder.field(SERVICE, service);
         builder.field(SERVICE_SETTINGS, serviceSettings);
-        if (taskSettings != null) {
-            builder.field(TASK_SETTINGS, taskSettings);
-        }
+        builder.field(TASK_SETTINGS, taskSettings);
         builder.endObject();
         return builder;
     }

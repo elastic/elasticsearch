@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -50,12 +51,14 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
@@ -290,7 +294,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             );
         };
 
-        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData repositoryData = PlainActionFuture.get(
+            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)
+        );
         final RepositoryData.SnapshotDetails snapshotDetails = repositoryData.getSnapshotDetails(snapshotId);
         snapshotDetailsAsserter.accept(snapshotDetails);
 
@@ -308,7 +314,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.getGenId()
         );
 
-        snapshotDetailsAsserter.accept(PlainActionFuture.get(repository::getRepositoryData).getSnapshotDetails(snapshotId));
+        final RepositoryData newRepositoryData = PlainActionFuture.get(
+            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)
+        );
+        snapshotDetailsAsserter.accept(newRepositoryData.getSnapshotDetails(snapshotId));
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
@@ -434,13 +443,44 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     threadContext.putHeader(headerName, headerValue);
                     threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
                         safeAwait(barrier);
-                        repo.getRepositoryData(l.map(repositoryData -> {
+                        repo.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l.map(repositoryData -> {
                             assertEquals(headerValue, threadContext.getHeader(headerName));
                             return null;
                         }));
                     }));
                 }
             }
+        }
+        future.actionGet(10, TimeUnit.SECONDS);
+    }
+
+    public void testGetRepositoryDataForking() {
+        final var forkedListeners = new ArrayList<Runnable>();
+        final var future = new PlainActionFuture<Void>();
+        try (var listeners = new RefCountingListener(future)) {
+            final var repo = setupRepo();
+            final int threads = between(1, 5);
+            final var barrier = new CyclicBarrier(threads);
+            final var threadPool = client().threadPool();
+            final var testThread = Thread.currentThread();
+            final var resultsCountDown = new CountDownLatch(threads);
+            for (int i = 0; i < threads; i++) {
+                threadPool.generic().execute(ActionRunnable.wrap(listeners.acquire(), l -> {
+                    final var callingThread = Thread.currentThread();
+                    safeAwait(barrier);
+                    repo.getRepositoryData(runnable -> {
+                        forkedListeners.add(runnable);
+                        resultsCountDown.countDown();
+                    }, l.map(repositoryData -> {
+                        assertThat(Thread.currentThread(), oneOf(callingThread, testThread));
+                        resultsCountDown.countDown();
+                        return null;
+                    }));
+                }));
+            }
+            safeAwait(resultsCountDown);
+            forkedListeners.forEach(Runnable::run);
+            repo.getRepositoryData(runnable -> fail("should use cached value and not fork"), listeners.acquire(ignored -> {}));
         }
         future.actionGet(10, TimeUnit.SECONDS);
     }

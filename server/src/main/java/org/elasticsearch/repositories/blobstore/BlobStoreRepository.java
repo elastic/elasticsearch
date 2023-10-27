@@ -1576,7 +1576,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SubscribableListener
 
             // Get the current RepositoryData
-            .<RepositoryData>newForked(this::getRepositoryData)
+            .<RepositoryData>newForked(
+                listener -> getRepositoryData(
+                    // TODO we might already be on a SNAPSHOT thread, make it so that we're always on a SNAPSHOT thread here and then we
+                    // can avoid a little more forking below
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    listener
+                )
+            )
 
             // Identify and write the missing metadata
             .<MetadataWriteResult>andThen((l, existingRepositoryData) -> {
@@ -2017,7 +2024,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final AtomicReference<RepositoryData> latestKnownRepositoryData = new AtomicReference<>(RepositoryData.EMPTY);
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         // RepositoryData is the responsibility of the elected master: we shouldn't be loading it on other nodes as we don't have good
         // consistency guarantees there, but electedness is too ephemeral to assert. We can say for sure that this node should be
         // master-eligible, which is almost as strong since all other snapshot-related activity happens on data nodes whether they be
@@ -2047,7 +2054,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.debug("""
                     [{}] loading repository metadata for the first time, trying to determine correct generation and to store it in the \
                     cluster state""", metadata.name());
-                if (initializeRepoGenerationTracking(listener)) {
+                if (initializeRepoGenerationTracking(responseExecutor, listener)) {
                     return;
                 } // else there was a concurrent modification, retry from the start
             } else {
@@ -2056,7 +2063,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     metadata.name(),
                     latestKnownRepoGen
                 );
-                repoDataLoadDeduplicator.execute(listener);
+                repoDataLoadDeduplicator.execute(new ThreadedActionListener<>(responseExecutor, listener));
                 return;
             }
         }
@@ -2076,13 +2083,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * This ensures that operations using {@code SnapshotsService#executeConsistentStateUpdate} right after mounting a fresh repository will
      * have a consistent view of the {@link RepositoryData} before any data has been written to the repository.
      *
-     * @param listener listener to resolve with new repository data
+     * @param responseExecutor
+     * @param listener         listener to resolve with new repository data
      * @return {@code true} if this method at least started the initialization process successfully and will eventually complete the
      * listener, {@code false} if there was some concurrent state change which prevents us from starting repo generation tracking (typically
      * that some other node got there first) and the caller should check again and possibly retry or complete the listener in some other
      * way.
      */
-    private boolean initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
+    private boolean initializeRepoGenerationTracking(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         final SubscribableListener<RepositoryData> listenerToSubscribe;
         final ActionListener<RepositoryData> listenerToComplete;
 
@@ -2170,7 +2178,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 .addListener(listenerToComplete);
         }
 
-        listenerToSubscribe.addListener(listener, EsExecutors.DIRECT_EXECUTOR_SERVICE, threadPool.getThreadContext());
+        listenerToSubscribe.addListener(listener, responseExecutor, threadPool.getThreadContext());
         return true;
     }
 

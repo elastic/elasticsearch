@@ -203,8 +203,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                             ActionRunnable.supply(l, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId)).run();
                         } else {
                             assert r.segmentGeneration() > -1L;
-                            indexShard.waitForSegmentGeneration(
-                                r.shardPrimaryTerm(),
+                            indexShard.waitForPrimaryTermAndGeneration(
+                                r.primaryTerm(),
                                 r.segmentGeneration(),
                                 listener.delegateFailureAndWrap(
                                     (ll, aLong) -> getExecutor(request, shardId).execute(

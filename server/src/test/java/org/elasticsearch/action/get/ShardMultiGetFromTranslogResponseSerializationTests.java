@@ -36,17 +36,17 @@ public class ShardMultiGetFromTranslogResponseSerializationTests extends Abstrac
         return switch (randomInt(2)) {
             case 0 -> new Response(
                 instance.multiGetShardResponse(),
-                instance.shardPrimaryTerm(),
+                instance.primaryTerm(),
                 randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
             );
             case 1 -> new Response(
                 randomValueOtherThan(instance.multiGetShardResponse(), this::randomMultiGetShardResponse),
-                instance.shardPrimaryTerm(),
+                instance.primaryTerm(),
                 instance.segmentGeneration()
             );
             case 2 -> new Response(
                 instance.multiGetShardResponse(),
-                randomValueOtherThan(instance.shardPrimaryTerm(), this::randomPrimaryTerm),
+                randomValueOtherThan(instance.primaryTerm(), this::randomPrimaryTerm),
                 instance.segmentGeneration()
             );
             default -> randomValueOtherThan(instance, this::createTestInstance);

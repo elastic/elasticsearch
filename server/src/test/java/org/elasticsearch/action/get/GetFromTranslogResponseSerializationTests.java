@@ -32,17 +32,17 @@ public class GetFromTranslogResponseSerializationTests extends AbstractWireSeria
         return switch (randomInt(2)) {
             case 0 -> new TransportGetFromTranslogAction.Response(
                 instance.getResult(),
-                instance.getShardPrimaryTerm(),
+                instance.getPrimaryTerm(),
                 randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
             );
             case 1 -> new TransportGetFromTranslogAction.Response(
                 randomValueOtherThan(instance.getResult(), this::randomGetResult),
-                instance.getShardPrimaryTerm(),
+                instance.getPrimaryTerm(),
                 instance.segmentGeneration()
             );
             case 2 -> new TransportGetFromTranslogAction.Response(
                 instance.getResult(),
-                randomValueOtherThan(instance.getShardPrimaryTerm(), this::randomPrimaryTerm),
+                randomValueOtherThan(instance.getPrimaryTerm(), this::randomPrimaryTerm),
                 instance.segmentGeneration()
             );
             default -> randomValueOtherThan(instance, this::createTestInstance);

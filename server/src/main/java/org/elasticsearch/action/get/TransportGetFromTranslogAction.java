@@ -142,20 +142,20 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
     public static class Response extends ActionResponse {
         @Nullable
         private final GetResult getResult;
-        private final long shardPrimaryTerm;
+        private final long primaryTerm;
         private final long segmentGeneration;
 
-        public Response(GetResult getResult, long shardPrimaryTerm, long segmentGeneration) {
+        public Response(GetResult getResult, long primaryTerm, long segmentGeneration) {
             this.getResult = getResult;
             this.segmentGeneration = segmentGeneration;
-            this.shardPrimaryTerm = shardPrimaryTerm;
+            this.primaryTerm = primaryTerm;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
-            shardPrimaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED) ? in.readVLong() : 0L;
+            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED) ? in.readVLong() : 0L;
         }
 
         @Override
@@ -163,7 +163,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             out.writeZLong(segmentGeneration);
             out.writeOptionalWriteable(getResult);
             if (out.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)) {
-                out.writeVLong(shardPrimaryTerm);
+                out.writeVLong(primaryTerm);
             }
         }
 
@@ -181,8 +181,8 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             return segmentGeneration;
         }
 
-        public long getShardPrimaryTerm() {
-            return shardPrimaryTerm;
+        public long getPrimaryTerm() {
+            return primaryTerm;
         }
 
         @Override
@@ -192,20 +192,20 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             Response response = (Response) o;
             return segmentGeneration == response.segmentGeneration
                 && Objects.equals(getResult, response.getResult)
-                && shardPrimaryTerm == response.shardPrimaryTerm;
+                && primaryTerm == response.primaryTerm;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(segmentGeneration, getResult, shardPrimaryTerm);
+            return Objects.hash(segmentGeneration, getResult, primaryTerm);
         }
 
         @Override
         public String toString() {
             return Strings.format(
-                "Response{getResult=%s, shardPrimaryTerm=%d, segmentGeneration=%d}",
+                "Response{getResult=%s, primaryTerm=%d, segmentGeneration=%d}",
                 getResult,
-                shardPrimaryTerm,
+                primaryTerm,
                 segmentGeneration
             );
         }

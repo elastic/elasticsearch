@@ -23,24 +23,24 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableRequest {
 
-    private final long shardPrimaryTerm;
+    private final long primaryTerm;
     private final long segmentGeneration;
 
     public UnpromotableShardRefreshRequest(
         IndexShardRoutingTable indexShardRoutingTable,
-        long shardPrimaryTerm,
+        long primaryTerm,
         long segmentGeneration,
         boolean failShardOnError
     ) {
         super(indexShardRoutingTable, failShardOnError);
-        this.shardPrimaryTerm = shardPrimaryTerm;
+        this.primaryTerm = primaryTerm;
         this.segmentGeneration = segmentGeneration;
     }
 
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
-        shardPrimaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)
+        primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)
             ? in.readVLong()
             : Engine.UNKNOWN_PRIMARY_TERM;
     }
@@ -59,7 +59,7 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
         super.writeTo(out);
         out.writeVLong(segmentGeneration);
         if (out.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)) {
-            out.writeVLong(shardPrimaryTerm);
+            out.writeVLong(primaryTerm);
         }
     }
 
@@ -67,16 +67,16 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
         return segmentGeneration;
     }
 
-    public long getShardPrimaryTerm() {
-        return shardPrimaryTerm;
+    public long getPrimaryTerm() {
+        return primaryTerm;
     }
 
     @Override
     public String toString() {
         return Strings.format(
-            "UnpromotableShardRefreshRequest{shardId=%s, shardPrimaryTerm=%d, segmentGeneration=%d}",
+            "UnpromotableShardRefreshRequest{shardId=%s, primaryTerm=%d, segmentGeneration=%d}",
             shardId(),
-            shardPrimaryTerm,
+            primaryTerm,
             segmentGeneration
         );
     }

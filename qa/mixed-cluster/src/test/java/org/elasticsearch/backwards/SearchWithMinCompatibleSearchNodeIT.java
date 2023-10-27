@@ -8,8 +8,6 @@
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
-import org.elasticsearch.backwards.IndexingIT.Node;
-import org.elasticsearch.backwards.IndexingIT.Nodes;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -32,19 +30,19 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
 
-    protected static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
-    protected static final String NEW_NODES_VERSION = System.getProperty("tests.new_nodes_version");
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+    private static final String NEW_NODES_VERSION = System.getProperty("tests.new_nodes_version");
 
     private static String index = "test_min_version";
     private static int numShards;
     private static int numReplicas = 1;
     private static int numDocs;
-    private static Nodes nodes;
-    private static List<Node> allNodes;
+    private static MixedClusterTestNodes nodes;
+    private static List<MixedClusterTestNode> allNodes;
 
     @Before
     public void prepareTestData() throws IOException {
-        nodes = IndexingIT.buildNodeAndVersions(client());
+        nodes = MixedClusterTestNodes.buildNodes(client(), BWC_NODES_VERSION);
         numShards = nodes.size();
         numDocs = randomIntBetween(numShards, 16);
         allNodes = new ArrayList<>();
@@ -69,7 +67,12 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testMinVersionAsNewVersion() throws Exception {
-        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
+        try (
+            RestClient client = buildClient(
+                restClientSettings(),
+                allNodes.stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
+            )
+        ) {
             Request newVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + NEW_NODES_VERSION + "&ccs_minimize_roundtrips=false"
@@ -90,7 +93,12 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testMinVersionAsOldVersion() throws Exception {
-        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
+        try (
+            RestClient client = buildClient(
+                restClientSettings(),
+                allNodes.stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
+            )
+        ) {
             Request oldVersionRequest = new Request(
                 "POST",
                 index + "/_search?min_compatible_shard_node=" + BWC_NODES_VERSION + "&ccs_minimize_roundtrips=false"
@@ -112,7 +120,12 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     public void testCcsMinimizeRoundtripsIsFalse() throws Exception {
-        try (RestClient client = buildClient(restClientSettings(), allNodes.stream().map(Node::publishAddress).toArray(HttpHost[]::new))) {
+        try (
+            RestClient client = buildClient(
+                restClientSettings(),
+                allNodes.stream().map(MixedClusterTestNode::publishAddress).toArray(HttpHost[]::new)
+            )
+        ) {
             String version = randomBoolean() ? NEW_NODES_VERSION : BWC_NODES_VERSION;
 
             Request request = new Request(

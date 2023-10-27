@@ -109,6 +109,7 @@ class AuthenticatorChain {
                 if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                     maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
+                    assert result.getStatus() == AuthenticationResult.Status.CONTINUE;
                     if (context.handleNullToken()) {
                         handleNullToken(context, l);
                     } else {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -95,6 +96,10 @@ public interface Authenticator {
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
 
+        /**
+         * Provide a token directly into the context.
+         * Don't extract any other tokens and don't fall back to null token handling (i.e. no fallback or anonymous user).
+         */
         public Context(
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,
@@ -103,12 +108,13 @@ public interface Authenticator {
         ) {
             this.threadContext = threadContext;
             this.request = request;
-            this.fallbackUser = null;
-            this.allowAnonymous = false;
             this.realms = realms;
-            this.authenticationTokens = token != null ? List.of(token) : List.of();
+            // when a token is provided for authn, don't extract other tokens, and don't handle the null token case
+            this.authenticationTokens = Collections.singletonList(token);
             this.handleNullToken = false;
             this.extractCredentials = false;
+            this.fallbackUser = null;
+            this.allowAnonymous = false;
         }
 
         public Context(

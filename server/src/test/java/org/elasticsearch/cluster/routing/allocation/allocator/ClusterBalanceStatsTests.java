@@ -25,6 +25,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,13 +59,18 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
         );
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, null, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(
+            clusterState,
+            createDesiredBalance(clusterState),
+            clusterInfo,
+            TEST_WRITE_LOAD_FORECASTER
+        );
 
         assertThat(
             stats,
             equalTo(
                 new ClusterBalanceStats(
-                    0,
+                    6,
                     0,
                     Map.of(
                         DATA_CONTENT_NODE_ROLE.roleName(),
@@ -104,13 +110,18 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             List.of(indexSizes("index-1", 1L, 1L), indexSizes("index-2", 2L, 2L), indexSizes("index-3", 3L, 3L))
         );
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, null, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(
+            clusterState,
+            createDesiredBalance(clusterState),
+            clusterInfo,
+            TEST_WRITE_LOAD_FORECASTER
+        );
 
         assertThat(
             stats,
             equalTo(
                 new ClusterBalanceStats(
-                    0,
+                    6,
                     0,
                     Map.of(
                         DATA_CONTENT_NODE_ROLE.roleName(),
@@ -161,7 +172,12 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             )
         );
 
-        var stats = ClusterBalanceStats.createFrom(clusterState, null, clusterInfo, TEST_WRITE_LOAD_FORECASTER);
+        var stats = ClusterBalanceStats.createFrom(
+            clusterState,
+            createDesiredBalance(clusterState),
+            clusterInfo,
+            TEST_WRITE_LOAD_FORECASTER
+        );
 
         var hotRoleNames = List.of(DATA_CONTENT_NODE_ROLE.roleName(), DATA_HOT_NODE_ROLE.roleName());
         var warmRoleNames = List.of(DATA_WARM_NODE_ROLE.roleName());
@@ -169,7 +185,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             stats,
             equalTo(
                 new ClusterBalanceStats(
-                    0,
+                    10,
                     0,
                     Map.of(
                         DATA_CONTENT_NODE_ROLE.roleName(),
@@ -275,6 +291,20 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             .metadata(metadataBuilder)
             .routingTable(routingTableBuilder)
             .build();
+    }
+
+    private static DesiredBalance createDesiredBalance(ClusterState state) {
+        var assignments = new HashMap<ShardId, ShardAssignment>();
+        for (var indexRoutingTable : state.getRoutingTable()) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                var indexShardRoutingTable = indexRoutingTable.shard(i);
+                assignments.put(
+                    indexShardRoutingTable.shardId(),
+                    new ShardAssignment(Set.of(indexShardRoutingTable.primaryShard().currentNodeId()), 1, 0, 0)
+                );
+            }
+        }
+        return new DesiredBalance(1, assignments);
     }
 
     private static Tuple<IndexMetadata.Builder, String[]> startedIndex(

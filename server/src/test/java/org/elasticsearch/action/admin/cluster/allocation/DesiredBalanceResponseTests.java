@@ -206,7 +206,10 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
         // cluster balance stats
         Map<String, Object> clusterBalanceStats = (Map<String, Object>) json.get("cluster_balance_stats");
-        assertThat(clusterBalanceStats.keySet(), containsInAnyOrder("tiers", "nodes"));
+        assertThat(clusterBalanceStats.keySet(), containsInAnyOrder("shard_count", "undesired_shard_count", "tiers", "nodes"));
+
+        assertEquals(clusterBalanceStats.get("shard_count"), response.getClusterBalanceStats().totalShards());
+        assertEquals(clusterBalanceStats.get("undesired_shard_count"), response.getClusterBalanceStats().totalUndesiredShards());
 
         // tier balance stats
         Map<String, Object> tiers = (Map<String, Object>) clusterBalanceStats.get("tiers");
@@ -261,6 +264,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
                     "node_id",
                     "roles",
                     "shard_count",
+                    "undesired_shard_count",
                     "forecast_write_load",
                     "forecast_disk_usage_bytes",
                     "actual_disk_usage_bytes"
@@ -269,6 +273,7 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(nodesStats.get("node_id"), entry.getValue().nodeId());
             assertEquals(nodesStats.get("roles"), entry.getValue().roles());
             assertEquals(nodesStats.get("shard_count"), entry.getValue().shards());
+            assertEquals(nodesStats.get("undesired_shard_count"), entry.getValue().undesiredShards());
             assertEquals(nodesStats.get("forecast_write_load"), entry.getValue().forecastWriteLoad());
             assertEquals(nodesStats.get("forecast_disk_usage_bytes"), entry.getValue().forecastShardSize());
             assertEquals(nodesStats.get("actual_disk_usage_bytes"), entry.getValue().actualShardSize());

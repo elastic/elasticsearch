@@ -260,8 +260,8 @@ public record ClusterBalanceStats(
             return new NodeBalanceStats(
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readString() : UNKNOWN_NODE_ID,
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readStringCollectionAsList() : List.of(),
-                in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED) ? in.readVInt() : -1,
                 in.readInt(),
+                in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED) ? in.readInt() : -1,
                 in.readDouble(),
                 in.readLong(),
                 in.readLong()
@@ -276,10 +276,10 @@ public record ClusterBalanceStats(
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeStringCollection(roles);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED)) {
-                out.writeVInt(undesiredShards);
-            }
             out.writeInt(shards);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED)) {
+                out.writeInt(undesiredShards);
+            }
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);

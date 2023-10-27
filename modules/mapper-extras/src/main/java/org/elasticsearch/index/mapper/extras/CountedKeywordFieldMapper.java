@@ -9,44 +9,52 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -75,8 +83,23 @@ import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
+    public static final String COUNT_FIELD_NAME_SUFFIX = "_count";
+
+    public static final FieldType FIELD_TYPE;
+
+    static {
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.SORTED_SET);
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        ft.setIndexOptions(IndexOptions.DOCS);
+        ft.freeze();
+        FIELD_TYPE = freezeAndDeduplicateFieldType(ft);
+    }
 
     private static class CountedKeywordFieldType extends StringFieldType {
+
+        private final MappedFieldType countFieldType;
 
         CountedKeywordFieldType(
             String name,
@@ -84,9 +107,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             TextSearchInfo textSearchInfo,
-            Map<String, String> meta
+            Map<String, String> meta,
+            MappedFieldType countFieldType
         ) {
             super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
+            this.countFieldType = countFieldType;
         }
 
         @Override
@@ -98,112 +123,71 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            // TODO: Return custom field data including the count - see HistogramFieldType
-            // new field data - extend AbstractIndexOrdinalsFieldData
-            // next value ->
-            return (cache, breakerService) -> new IndexFieldData<>() {
-                @Override
-                public String getFieldName() {
-                    return getFieldName();
-                }
 
-                @Override
-                public ValuesSourceType getValuesSourceType() {
-                    return ExtendedSourceType.COUNTED_KEYWORD;
-                }
+            return (cache, breakerService) -> new AbstractIndexOrdinalsFieldData(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                cache,
+                breakerService,
+                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+            ) {
 
-                @Override
-                public LeafFieldData load(LeafReaderContext context) {
-                    BinaryDocValues values;
-                    try {
-                        values = DocValues.getBinary(context.reader(), getFieldName());
-                        InternalValue value = new InternalValue();
-                        value.reset(values.binaryValue());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Unable to load " + CONTENT_TYPE + " doc values", e);
-                    }
-
-
-                    return new LeafFieldData() {
-                        @Override
-                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            // TODO
-                            return null;
-                        }
-
-                        @Override
-                        public SortedBinaryDocValues getBytesValues() {
-                            return new CountedKeywordSortedBinaryDocValues(values);
-                        }
-
-                        @Override
-                        public long ramBytesUsed() {
-                            return 0; // unknown
-                        }
-
-                        @Override
-                        public void close() {
-
-                        }
-                    };
-                }
-
-                @Override
-                public LeafFieldData loadDirect(LeafReaderContext context) {
-                    return load(context);
-                }
-                /*
-                @Override
-                public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
-                    return load(context);
-                } */
-
-
-                /*
                 @Override
                 public LeafOrdinalsFieldData load(LeafReaderContext context) {
+                    final SortedSetDocValues dvValues;
+                    final BinaryDocValues dvCounts;
                     try {
-                        final BinaryDocValues values = DocValues.getBinary(context.reader(), getFieldName());
+                        dvValues = DocValues.getSortedSet(context.reader(), getFieldName());
+                        dvCounts = DocValues.getBinary(context.reader(), countFieldType.name());
                     } catch (IOException e) {
                         throw new UncheckedIOException("Unable to load " + CONTENT_TYPE + " doc values", e);
                     }
-                    return new LeafOrdinalsFieldData() {
+
+                    return new AbstractLeafOrdinalsFieldData(toScriptFieldFactory) {
+
                         @Override
                         public SortedSetDocValues getOrdinalsValues() {
-                            return null;
-                        }
-
-                        @Override
-                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-                            return null;
-                        }
-
-                        @Override
-                        public SortedBinaryDocValues getBytesValues() {
-                            return null;
+                            return new CountedKeywordSortedBinaryDocValues(dvValues, dvCounts);
                         }
 
                         @Override
                         public long ramBytesUsed() {
-                            // unknown
-                            return 0;
+                            return 0; // Unknown
                         }
 
                         @Override
                         public void close() {
-                            //No op?
+                            // nothing to close
                         }
                     };
                 }
-                 */
 
                 @Override
-                public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
+                public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) {
+                    return loadDirect(context);
+                }
+
+                @Override
+                public SortField sortField(
+                    Object missingValue,
+                    MultiValueMode sortMode,
+                    XFieldComparatorSource.Nested nested,
+                    boolean reverse
+                ) {
                     throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
 
                 @Override
-                public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+                public BucketedSort newBucketedSort(
+                    BigArrays bigArrays,
+                    Object missingValue,
+                    MultiValueMode sortMode,
+                    XFieldComparatorSource.Nested nested,
+                    SortOrder sortOrder,
+                    DocValueFormat format,
+                    int bucketSize,
+                    BucketedSort.ExtraData extra
+                ) {
                     throw new IllegalArgumentException("can't sort on the [" + CONTENT_TYPE + "] field");
                 }
             };
@@ -215,91 +199,73 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    private static class CountedKeywordSortedBinaryDocValues extends SortedBinaryDocValues {
-        private final BinaryDocValues values;
-        private final InternalValue value;
+    private static class CountedKeywordSortedBinaryDocValues extends AbstractSortedSetDocValues {
+        private final SortedSetDocValues dvValues;
+        private final BinaryDocValues dvCounts;
+        private int sumCount;
+        private Iterator<Long> ordsForThisDoc;
+        private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
 
-        private BytesRef current;
-        private int count;
-
-        CountedKeywordSortedBinaryDocValues(BinaryDocValues values) {
-            this.values = values;
-            this.value = new InternalValue();
-            try {
-                this.value.reset(values.binaryValue());
-            } catch (IOException e) {
-                throw new UncheckedIOException("Unable to load " + CONTENT_TYPE + " doc values", e);
-            }
+        CountedKeywordSortedBinaryDocValues(SortedSetDocValues dvValues, BinaryDocValues dvCounts) {
+            this.dvValues = dvValues;
+            this.dvCounts = dvCounts;
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
-            // TODO: Not sure what to do here
-            return values.advanceExact(doc);
+            sumCount = 0;
+            if (dvValues.advanceExact(doc)) {
+                boolean exactMatch = dvCounts.advanceExact(doc);
+                assert exactMatch;
+
+                BytesRef encodedValue = dvCounts.binaryValue();
+                scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
+                int[] counts = scratch.readVIntArray();
+                assert counts.length == dvValues.docValueCount();
+
+                List<Long> values = new ArrayList<>();
+                for (int count : counts) {
+                    this.sumCount += count;
+                    long ord = dvValues.nextOrd();
+                    for (int j = 0; j < count; j++) {
+                        values.add(ord);
+                    }
+                }
+                this.ordsForThisDoc = values.iterator();
+                return true;
+            } else {
+                ordsForThisDoc = null;
+                return false;
+            }
         }
 
         @Override
         public int docValueCount() {
-            // TODO: Should we store the sum at the beginning of binary doc values?
-            // sum of all counts
-            return 0;
+            return sumCount;
         }
 
         @Override
-        public BytesRef nextValue() throws IOException {
-            if (count == 0) {
-                if (value.next() == false) {
-                    throw new NoSuchElementException();
-                }
-                count = value.count;
-                current = BytesRefs.toBytesRef(value.value);
+        public long nextOrd() throws IOException {
+            if (ordsForThisDoc.hasNext()) {
+                return ordsForThisDoc.next();
+            } else {
+                return NO_MORE_ORDS;
             }
-            count--;
-            return current;
-        }
-    }
-
-    // taken from InternalHistogramValue
-    private static class InternalValue {
-        String value;
-        int count;
-        boolean isExhausted;
-        final ByteArrayStreamInput streamInput;
-
-        InternalValue() {
-            streamInput = new ByteArrayStreamInput();
         }
 
-        void reset(BytesRef bytesRef) {
-            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-            isExhausted = false;
-            value = null;
-            count = 0;
+        @Override
+        public BytesRef lookupOrd(long ord) throws IOException {
+            return dvValues.lookupOrd(ord);
         }
 
-        public boolean next() throws IOException {
-            if (streamInput.available() > 0) {
-                // TODO: We should store / read this as bytesref
-                value = streamInput.readString();
-                count = streamInput.readVInt();
-                return true;
-            }
-            isExhausted = true;
-            return false;
+        @Override
+        public long getValueCount() {
+            return dvValues.getValueCount();
         }
 
-        public String value() {
-            if (isExhausted) {
-                throw new IllegalArgumentException("value already exhausted");
-            }
-            return value;
-        }
-
-        public int count() {
-            if (isExhausted) {
-                throw new IllegalArgumentException("value already exhausted");
-            }
-            return count;
+        @Override
+        public TermsEnum termsEnum() throws IOException {
+            return dvValues.termsEnum();
         }
     }
 
@@ -317,39 +283,49 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] {meta};
+            return new Parameter<?>[] { meta };
         }
 
         @Override
         public FieldMapper build(MapperBuilderContext context) {
-            // TODO: We can reuse a single instance
-            FieldType ft = new FieldType();
-            ft.setDocValuesType(DocValuesType.BINARY);
-            ft.setTokenized(false);
-            ft.setOmitNorms(true);
-            ft.setIndexOptions(IndexOptions.DOCS);
-            ft.freeze();
+
+            BinaryFieldMapper countFieldMapper = new BinaryFieldMapper.Builder(name + COUNT_FIELD_NAME_SUFFIX, true).build(context);
             return new CountedKeywordFieldMapper(
                 name,
+                FIELD_TYPE,
                 new CountedKeywordFieldType(
                     name,
                     true,
                     false,
                     true,
-                    new TextSearchInfo(ft, null, KEYWORD_ANALYZER, KEYWORD_ANALYZER),
-                    //TODO: Is this correct?
-                    meta.getValue()
+                    new TextSearchInfo(FIELD_TYPE, null, KEYWORD_ANALYZER, KEYWORD_ANALYZER),
+                    // TODO: Is this correct?
+                    meta.getValue(),
+                    countFieldMapper.fieldType()
                 ),
                 multiFieldsBuilder.build(this, context),
-                copyTo
+                copyTo,
+                countFieldMapper
             );
         }
     }
 
     public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));
 
-    protected CountedKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
+    private FieldType fieldType;
+    private final BinaryFieldMapper countFieldMapper;
+
+    protected CountedKeywordFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        BinaryFieldMapper countFieldMapper
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
+        this.fieldType = fieldType;
+        this.countFieldMapper = countFieldMapper;
     }
 
     @Override
@@ -360,7 +336,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
-        //TODO: Can we use a more efficient data structure?
+        // TODO: Can we use a more efficient data structure?
         SortedMap<String, Integer> values = new TreeMap<>();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
@@ -370,14 +346,15 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         } else {
             throw new IllegalArgumentException("Encountered unexpected token [" + parser.currentToken() + "].");
         }
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        int i = 0;
+        int[] counts = new int[values.size()];
         for (Map.Entry<String, Integer> value : values.entrySet()) {
-            streamOutput.writeString(value.getKey());
-            streamOutput.writeVInt(value.getValue());
+            context.doc().add(new KeywordFieldMapper.KeywordField(name(), new BytesRef(value.getKey()), fieldType));
+            counts[i++] = value.getValue();
         }
-        BytesRef docValue = streamOutput.bytes().toBytesRef();
-        Field field = new BinaryDocValuesField(name(), docValue);
-        context.doc().add(field);
+        BytesStreamOutput streamOutput = new BytesStreamOutput();
+        streamOutput.writeVIntArray(counts);
+        context.doc().add(new BinaryDocValuesField(countFieldMapper.name(), streamOutput.bytes().toBytesRef()));
     }
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {
@@ -401,11 +378,20 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
+    public Iterator<Mapper> iterator() {
+        List<Mapper> mappers = new ArrayList<>();
+        Iterator<Mapper> m = super.iterator();
+        while (m.hasNext()) {
+            mappers.add(m.next());
+        }
+        mappers.add(countFieldMapper);
+        return mappers.iterator();
+    }
+
+    @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
-
-
 
     @Override
     protected String contentType() {

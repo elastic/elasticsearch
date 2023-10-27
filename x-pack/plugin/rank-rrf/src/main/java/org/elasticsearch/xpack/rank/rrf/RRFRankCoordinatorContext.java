@@ -141,9 +141,9 @@ public class RRFRankCoordinatorContext extends RankCoordinatorContext {
                         return rrf1.scores[qi] < rrf2.scores[qi] ? 1 : -1;
                     }
                 } else if (rrf1.positions[qi] != NO_RANK) {
-                    return 1;
-                } else if (rrf2.positions[qi] != NO_RANK) {
                     return -1;
+                } else if (rrf2.positions[qi] != NO_RANK) {
+                    return 1;
                 }
             }
             if (rrf1.shardIndex != rrf2.shardIndex) {

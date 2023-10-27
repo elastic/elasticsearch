@@ -11,6 +11,18 @@ with substitute pipeline definitions.
 ////
 [source,console]
 ----
+PUT /_ingest/pipeline/my-pipeline-id
+{
+  "description" : "example pipeline to simulate",
+      "processors": [
+      {
+        "set" : {
+          "field" : "field2",
+          "value" : "_value"
+        }
+      }
+    ]
+}
 ----
 // TESTSETUP
 ////
@@ -56,7 +68,7 @@ POST /_ingest/_simulate
 
 `POST /_ingest/_simulate`
 
-`GET /_ingest//_simulate`
+`GET /_ingest/_simulate`
 
 [[simulate-ingest-api-prereqs]]
 ==== {api-prereq-title}
@@ -114,23 +126,18 @@ Sample documents to test in the pipeline.
 ====
 `_id`::
 (Optional, string)
-Unique identifier for the document. This ID must be unique within the `_index`.
+Unique identifier for the document.
 
 `_index`::
 (Optional, string)
-Name of the index containing the document.
-
-`_routing`::
-(Optional, string)
-Value used to send the document to a specific primary shard. See the
-<<mapping-routing-field,`_routing`>> field.
+Name of the index that the document will be ingested into.
 
 `_source`::
 (Required, object)
 JSON body for the document.
 ====
 
-`pipeline_substututions`::
+`pipeline_substitutions`::
 (Optional, map of strings to objects)
 Map of pipeline IDs to substitute pipeline definition objects.
 +
@@ -185,8 +192,8 @@ The API returns the following response:
                "field2": "_value",
                "foo": "bar"
             },
-            "_ingest": {
-               "timestamp": "2017-05-04T22:30:03.187Z"
+            "executed_pipelines": {
+               "TODO"
             }
          }
       },
@@ -199,8 +206,8 @@ The API returns the following response:
                "field2": "_value",
                "foo": "rab"
             },
-            "_ingest": {
-               "timestamp": "2017-05-04T22:30:03.188Z"
+            "executed_pipelines": {
+               "TODO"
             }
          }
       }

@@ -140,12 +140,19 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
 
     /**
      * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newConstantNullBlock}
      */
     // Eventually, this should use the GLOBAL breaking instance
+    @Deprecated
     static Block constantNullBlock(int positions) {
         return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * {@return a constant null block with the given number of positions}.
+     * @deprecated use {@link BlockFactory#newConstantNullBlock}
+     */
+    @Deprecated
     static Block constantNullBlock(int positions, BlockFactory blockFactory) {
         return blockFactory.newConstantNullBlock(positions);
     }

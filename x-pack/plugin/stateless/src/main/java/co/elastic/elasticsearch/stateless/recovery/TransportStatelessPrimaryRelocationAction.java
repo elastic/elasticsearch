@@ -308,7 +308,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             ActionListener.releaseAfter(listener, Releasables.wrap(recoveryRef.target().disableRecoveryMonitor(), recoveryRef)),
             l -> indexShard.preRecovery(l.map(ignored -> {
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());
-                indexShard.openEngineAndRecoverFromTranslog();
+                indexShard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
+                indexShard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
+                indexShard.openEngineAndSkipTranslogRecovery();
 
                 // Should not actually have recovered anything from the translog, so the MSN and LCP should remain equal and unchanged
                 // from the ones we received in the primary context handoff.

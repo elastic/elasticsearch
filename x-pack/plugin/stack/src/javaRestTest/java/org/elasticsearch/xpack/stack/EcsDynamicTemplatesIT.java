@@ -53,7 +53,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-extras").module("wildcard").build();
 
     // The dynamic templates we test against
-    public static final String ECS_DYNAMIC_TEMPLATES_FILE = "ecs-dynamic-mappings.json";
+    public static final String ECS_DYNAMIC_TEMPLATES_FILE = "ecs@mappings.json";
 
     // The current ECS state (branch main) containing all fields in flattened form
     private static final String ECS_FLAT_FILE_URL = "https://raw.githubusercontent.com/elastic/ecs/main/generated/ecs/ecs_flat.yml";

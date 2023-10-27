@@ -271,18 +271,15 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         );
 
         // Unblock the other new node, but maybe inject a few errors
-        final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            newNodes.get(0)
-        );
         final Semaphore failurePermits = new Semaphore(between(0, 2));
-        transportService.addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
-            if (failurePermits.tryAcquire()) {
-                channel.sendResponse(new ElasticsearchException("simulated"));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(newNodes.get(0))
+            .addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
+                if (failurePermits.tryAcquire()) {
+                    channel.sendResponse(new ElasticsearchException("simulated"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
         cacheInfoBlockGetter.apply(newNodes.get(0)).onResponse(null);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = responseFuture.actionGet(10, TimeUnit.SECONDS);

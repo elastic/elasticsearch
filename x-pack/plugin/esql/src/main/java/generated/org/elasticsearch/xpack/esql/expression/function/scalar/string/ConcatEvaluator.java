@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.Override;
 import java.lang.String;
 import java.util.Arrays;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -111,5 +112,28 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(scratch, () -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(Function<DriverContext, BreakingBytesRefBuilder> scratch,
+        EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.scratch = scratch;
+      this.values = values;
+    }
+
+    @Override
+    public ConcatEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new ConcatEvaluator(scratch.apply(context), values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ConcatEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

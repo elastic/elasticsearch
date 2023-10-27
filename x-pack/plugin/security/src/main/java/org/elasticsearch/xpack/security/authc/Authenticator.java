@@ -86,11 +86,11 @@ public interface Authenticator {
         private final AuthenticationService.AuditableRequest request;
         private final User fallbackUser;
         private final boolean allowAnonymous;
+        private final boolean extractCredentials;
         private final Realms realms;
         private List<AuthenticationToken> authenticationTokens = new ArrayList<>();
         private final List<String> unsuccessfulMessages = new ArrayList<>();
         private boolean handleNullToken = true;
-        private boolean extractCredentials = true;
         private SecureString bearerString = null;
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
@@ -118,11 +118,24 @@ public interface Authenticator {
             boolean allowAnonymous,
             Realms realms
         ) {
+            this(threadContext, request, fallbackUser, allowAnonymous, realms, true);
+        }
+
+        // to be used in tests only
+        Context(
+            ThreadContext threadContext,
+            AuthenticationService.AuditableRequest request,
+            User fallbackUser,
+            boolean allowAnonymous,
+            Realms realms,
+            boolean extractCredentials
+        ) {
             this.threadContext = threadContext;
             this.request = request;
             this.fallbackUser = fallbackUser;
             this.allowAnonymous = allowAnonymous;
             this.realms = realms;
+            this.extractCredentials = extractCredentials;
         }
 
         public ThreadContext getThreadContext() {

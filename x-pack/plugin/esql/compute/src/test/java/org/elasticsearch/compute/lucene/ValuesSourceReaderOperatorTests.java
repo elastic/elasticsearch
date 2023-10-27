@@ -223,7 +223,6 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input) {
-        List<Page> results = new ArrayList<>();
         List<Operator> operators = List.of(
             factory(reader, new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
@@ -236,17 +235,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             factory(reader, new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext)
         );
-        try (
-            Driver d = new Driver(
-                driverContext,
-                new CannedSourceOperator(input.iterator()),
-                operators,
-                new PageConsumerOperator(page -> results.add(page)),
-                () -> {}
-            )
-        ) {
-            runDriver(d);
-        }
+        List<Page> results = drive(operators, input.iterator(), driverContext);
         assertThat(results, hasSize(input.size()));
         for (Page p : results) {
             assertThat(p.getBlockCount(), equalTo(11));
@@ -368,20 +357,24 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     factory(reader, kwFt).get(driverContext)
                 ),
                 new PageConsumerOperator(page -> {
-                    logger.debug("New page: {}", page);
-                    IntBlock intValuesBlock = page.getBlock(1);
-                    LongBlock longValuesBlock = page.getBlock(2);
-                    DoubleBlock doubleValuesBlock = page.getBlock(3);
-                    BytesRefBlock keywordValuesBlock = page.getBlock(4);
+                    try {
+                        logger.debug("New page: {}", page);
+                        IntBlock intValuesBlock = page.getBlock(1);
+                        LongBlock longValuesBlock = page.getBlock(2);
+                        DoubleBlock doubleValuesBlock = page.getBlock(3);
+                        BytesRefBlock keywordValuesBlock = page.getBlock(4);
 
-                    for (int i = 0; i < page.getPositionCount(); i++) {
-                        assertFalse(intValuesBlock.isNull(i));
-                        long j = intValuesBlock.getInt(i);
-                        // Every 100 documents we set fields to null
-                        boolean fieldIsEmpty = j % 100 == 0;
-                        assertEquals(fieldIsEmpty, longValuesBlock.isNull(i));
-                        assertEquals(fieldIsEmpty, doubleValuesBlock.isNull(i));
-                        assertEquals(fieldIsEmpty, keywordValuesBlock.isNull(i));
+                        for (int i = 0; i < page.getPositionCount(); i++) {
+                            assertFalse(intValuesBlock.isNull(i));
+                            long j = intValuesBlock.getInt(i);
+                            // Every 100 documents we set fields to null
+                            boolean fieldIsEmpty = j % 100 == 0;
+                            assertEquals(fieldIsEmpty, longValuesBlock.isNull(i));
+                            assertEquals(fieldIsEmpty, doubleValuesBlock.isNull(i));
+                            assertEquals(fieldIsEmpty, keywordValuesBlock.isNull(i));
+                        }
+                    } finally {
+                        page.releaseBlocks();
                     }
                 }),
                 () -> {}

@@ -141,9 +141,9 @@ public final class MlAutoscalingResourceTracker {
             Long jobMemory = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
 
             if (jobMemory == null) {
-                // TODO: this indicates a bug, should we indicate that the result is incomplete?
-                logger.debug("could not find memory requirement for job [{}], skipping", jobId);
-                continue;
+                logger.debug("could not find memory requirement for job [{}], returning no-scale", jobId);
+                listener.onResponse(noScaleStats(numberMlNodes));
+                return;
             }
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
@@ -169,9 +169,9 @@ public final class MlAutoscalingResourceTracker {
             Long jobMemory = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(jobId);
 
             if (jobMemory == null) {
-                // TODO: this indicates a bug, should we indicate that the result is incomplete?
-                logger.debug("could not find memory requirement for job [{}], skipping", jobId);
-                continue;
+                logger.debug("could not find memory requirement for job [{}], returning no-scale", jobId);
+                listener.onResponse(noScaleStats(numberMlNodes));
+                return;
             }
 
             if (AWAITING_LAZY_ASSIGNMENT.equals(task.getAssignment())) {
@@ -291,6 +291,10 @@ public final class MlAutoscalingResourceTracker {
      */
     public static MlAutoscalingStats noScaleStats(ClusterState clusterState) {
         int numberMlNodes = (int) clusterState.nodes().stream().filter(node -> node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)).count();
+        return noScaleStats(numberMlNodes);
+    }
+
+    private static MlAutoscalingStats noScaleStats(int numberMlNodes) {
         return new MlAutoscalingStats(
             numberMlNodes,
             0,

@@ -54,7 +54,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -151,72 +150,33 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         Set<String> policyNames = new HashSet<>(preAnalysis.policyNames);
         EnrichResolution resolution = new EnrichResolution(ConcurrentCollections.newConcurrentSet(), enrichPolicyResolver.allPolicyNames());
-        var fieldNames = fieldNames(parsed);
 
-        if (fieldNames == IndexResolver.ALL_FIELDS) {
-            // we don't need the enrich policies match_fields names BEFORE resolving the indices, because all fields are requested anyway
-            preAnalyzeConcurrently(parsed, action, policyNames, resolution, fieldNames, listener);
-        } else {
-            // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-            preAnalyzeSequentially(parsed, action, policyNames, resolution, fieldNames, listener);
-        }
-    }
-
-    private <T> void preAnalyzeConcurrently(
-        LogicalPlan parsed,
-        BiFunction<IndexResolution, EnrichResolution, T> action,
-        Set<String> policyNames,
-        EnrichResolution resolution,
-        Set<String> fieldNames,
-        ActionListener<T> listener
-    ) {
-        AtomicReference<IndexResolution> resolvedIndex = new AtomicReference<>();
         ActionListener<Void> groupedListener = listener.delegateFailureAndWrap((l, unused) -> {
             assert resolution.resolvedPolicies().size() == policyNames.size()
                 : resolution.resolvedPolicies().size() + " != " + policyNames.size();
-            assert resolvedIndex.get() != null : "index wasn't resolved";
-            l.onResponse(action.apply(resolvedIndex.get(), resolution));
+
+            // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
+            var matchFields = resolution.resolvedPolicies()
+                .stream()
+                .filter(p -> p.index().isValid()) // only if the policy by the specified name was found; later the Verifier will be
+                                                  // triggered
+                .map(p -> p.policy().getMatchField())
+                .collect(Collectors.toSet());
+
+            preAnalyzeIndices(
+                parsed,
+                ActionListener.wrap(indexResolution -> l.onResponse(action.apply(indexResolution, resolution)), listener::onFailure),
+                matchFields
+            );
         });
         try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
-            preAnalyzeIndices(parsed, refs.acquire(resolvedIndex::set), fieldNames);
             for (String policyName : policyNames) {
                 enrichPolicyResolver.resolvePolicy(policyName, refs.acquire(resolution.resolvedPolicies()::add));
             }
         }
     }
 
-    private <T> void preAnalyzeSequentially(
-        LogicalPlan parsed,
-        BiFunction<IndexResolution, EnrichResolution, T> action,
-        Set<String> policyNames,
-        EnrichResolution enrichResolution,
-        Set<String> fieldNames,
-        ActionListener<T> listener
-    ) {
-        ActionListener<Void> groupedListener = listener.delegateFailureAndWrap((l, unused) -> {
-            assert enrichResolution.resolvedPolicies().size() == policyNames.size()
-                : enrichResolution.resolvedPolicies().size() + " != " + policyNames.size();
-            var matchFields = enrichResolution.resolvedPolicies()
-                .stream()
-                .filter(p -> p.index().isValid())
-                .map(p -> p.policy().getMatchField())
-                .collect(Collectors.toSet());
-            fieldNames.addAll(matchFields);
-            fieldNames.addAll(subfields(matchFields));
-            preAnalyzeIndices(
-                parsed,
-                ActionListener.wrap(indexResolution -> l.onResponse(action.apply(indexResolution, enrichResolution)), listener::onFailure),
-                fieldNames
-            );
-        });
-        try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
-            for (String policyName : policyNames) {
-                enrichPolicyResolver.resolvePolicy(policyName, refs.acquire(enrichResolution.resolvedPolicies()::add));
-            }
-        }
-    }
-
-    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> fieldNames) {
+    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -225,6 +185,12 @@ public class EsqlSession {
         } else if (preAnalysis.indices.size() == 1) {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
+            var fieldNames = fieldNames(parsed);
+
+            if (enrichPolicyMatchFields.isEmpty() == false && fieldNames != IndexResolver.ALL_FIELDS) {
+                fieldNames.addAll(enrichPolicyMatchFields);
+                fieldNames.addAll(subfields(enrichPolicyMatchFields));
+            }
             indexResolver.resolveAsMergedMapping(
                 table.index(),
                 fieldNames,

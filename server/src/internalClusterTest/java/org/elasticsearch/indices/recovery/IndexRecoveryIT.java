@@ -108,6 +108,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -867,8 +868,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = indicesAdmin().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        final Repository repo = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
-        final RepositoryData repositoryData = PlainActionFuture.get(l -> repo.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, l));
+        Repository repository = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
             assertThat(indexRecoveryStates.getKey(), equalTo(INDEX_NAME));

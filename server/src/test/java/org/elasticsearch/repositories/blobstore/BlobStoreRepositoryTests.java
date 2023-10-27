@@ -42,6 +42,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -294,9 +295,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             );
         };
 
-        final RepositoryData repositoryData = PlainActionFuture.get(
-            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)
-        );
+        final RepositoryData repositoryData = AbstractSnapshotIntegTestCase.getRepositoryData(repository);
         final RepositoryData.SnapshotDetails snapshotDetails = repositoryData.getSnapshotDetails(snapshotId);
         snapshotDetailsAsserter.accept(snapshotDetails);
 
@@ -314,10 +313,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repositoryData.getGenId()
         );
 
-        final RepositoryData newRepositoryData = PlainActionFuture.get(
-            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)
-        );
-        snapshotDetailsAsserter.accept(newRepositoryData.getSnapshotDetails(snapshotId));
+        snapshotDetailsAsserter.accept(AbstractSnapshotIntegTestCase.getRepositoryData(repository).getSnapshotDetails(snapshotId));
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {

@@ -178,8 +178,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
 
-    protected RepositoryData getRepositoryData(Repository repository) {
-        return PlainActionFuture.get(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener));
+    public static RepositoryData getRepositoryData(Repository repository) {
+        return PlainActionFuture.get(
+            listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener),
+            10,
+            TimeUnit.SECONDS
+        );
     }
 
     public static long getFailureCount(String repository) {

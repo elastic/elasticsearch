@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -68,7 +69,7 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
 
     public static RepositoryData getRepositoryData(Repository repository) {
-        return PlainActionFuture.get(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener));
+        return AbstractSnapshotIntegTestCase.getRepositoryData(repository);
     }
 
     protected abstract String repositoryType();

@@ -111,7 +111,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     assertThat(indexExists(".monitoring-*"), is(true));
                     ensureYellowAndNoInitializingShards(".monitoring-*");
 
-                    SearchResponse response = client().prepareSearch(".monitoring-*").get();
+                    SearchResponse response = prepareSearch(".monitoring-*").get();
                     assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value));
                 });
 
@@ -125,8 +125,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 ensureYellowAndNoInitializingShards(".monitoring-*");
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
+                    prepareSearch(".monitoring-es-*").setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
                         .get()
                         .getHits()
@@ -135,8 +134,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
+                    prepareSearch(".monitoring-es-*").setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "index_recovery"))
                         .get()
                         .getHits()
@@ -145,8 +143,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
+                    prepareSearch(".monitoring-es-*").setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "index_stats"))
                         .get()
                         .getHits()
@@ -155,8 +152,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
+                    prepareSearch(".monitoring-es-*").setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "indices_stats"))
                         .get()
                         .getHits()
@@ -165,8 +161,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
+                    prepareSearch(".monitoring-es-*").setSize(0)
                         .setQuery(QueryBuilders.termQuery("type", "shards"))
                         .get()
                         .getHits()
@@ -174,8 +169,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     greaterThan(0L)
                 );
 
-                SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                    .setSize(0)
+                SearchResponse response = prepareSearch(".monitoring-es-*").setSize(0)
                     .setQuery(QueryBuilders.termQuery("type", "node_stats"))
                     .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id"))
                     .get();
@@ -212,8 +206,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 ensureYellowAndNoInitializingShards(".monitoring-*");
                 refresh(".monitoring-es-*");
 
-                SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                    .setSize(0)
+                SearchResponse response = prepareSearch(".monitoring-es-*").setSize(0)
                     .setQuery(QueryBuilders.termQuery("type", "node_stats"))
                     .addAggregation(
                         terms("agg_nodes_ids").field("node_stats.node_id").subAggregation(max("agg_last_time_collected").field("timestamp"))
@@ -271,7 +264,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         DateFormatter dateParser = DateFormatter.forPattern("strict_date_time");
         DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 
-        SearchResponse searchResponse = client().prepareSearch(".monitoring-*").setSize(100).get();
+        SearchResponse searchResponse = prepareSearch(".monitoring-*").setSize(100).get();
         assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {

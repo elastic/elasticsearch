@@ -96,4 +96,29 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public void close() {
     Releasables.closeExpectNoException(datetime);
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+
+    private final TemporalAmount temporalAmount;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
+        TemporalAmount temporalAmount) {
+      this.source = source;
+      this.datetime = datetime;
+      this.temporalAmount = temporalAmount;
+    }
+
+    @Override
+    public AddDatetimesEvaluator get(DriverContext context) {
+      return new AddDatetimesEvaluator(source, datetime.get(context), temporalAmount, context);
+    }
+
+    @Override
+    public String toString() {
+      return "AddDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+    }
+  }
 }

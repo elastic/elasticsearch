@@ -9,34 +9,58 @@ setup:
   - do:
       ilm.get_lifecycle:
         policy: "logs"
+  - do:
+      ilm.get_lifecycle:
+        policy: "logs@lifecycle"
 
   - do:
       ilm.get_lifecycle:
         policy: "metrics"
+  - do:
+      ilm.get_lifecycle:
+        policy: "metrics@lifecycle"
 
   - do:
       cluster.get_component_template:
         name: data-streams-mappings
+  - do:
+      cluster.get_component_template:
+        name: data-streams@mappings
 
   - do:
       cluster.get_component_template:
         name: logs-mappings
+  - do:
+      cluster.get_component_template:
+        name: logs@mappings
 
   - do:
       cluster.get_component_template:
         name: logs-settings
+  - do:
+      cluster.get_component_template:
+        name: logs@settings
 
   - do:
       cluster.get_component_template:
         name: metrics-mappings
+  - do:
+      cluster.get_component_template:
+        name: metrics@mappings
 
   - do:
       cluster.get_component_template:
         name: metrics-settings
+  - do:
+      cluster.get_component_template:
+        name: metrics@settings
 
   - do:
       cluster.get_component_template:
         name: metrics-tsdb-settings
+  - do:
+      cluster.get_component_template:
+        name: metrics@tsdb-settings
 
   - do:
       indices.get_index_template:

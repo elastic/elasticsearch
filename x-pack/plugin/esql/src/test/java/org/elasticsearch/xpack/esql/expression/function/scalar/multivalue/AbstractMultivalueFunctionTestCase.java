@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -32,7 +33,7 @@ import java.util.stream.Stream;
 
 public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarFunctionTestCase {
     /**
-     * Build a test case with {@code boolean} values.
+     * Build many test cases with {@code boolean} values.
      */
     protected static void booleans(
         List<TestCaseSupplier> cases,
@@ -44,7 +45,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@code boolean} values.
+     * Build many test cases with {@code boolean} values.
      */
     protected static void booleans(
         List<TestCaseSupplier> cases,
@@ -56,6 +57,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         cases.add(
             new TestCaseSupplier(
                 name + "(false)",
+                List.of(DataTypes.BOOLEAN),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(false), DataTypes.BOOLEAN, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
@@ -67,6 +69,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         cases.add(
             new TestCaseSupplier(
                 name + "(true)",
+                List.of(DataTypes.BOOLEAN),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(true), DataTypes.BOOLEAN, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
@@ -76,7 +79,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             )
         );
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<booleans>) " + ordering, () -> {
+            cases.add(new TestCaseSupplier(name + "(<booleans>) " + ordering, List.of(DataTypes.BOOLEAN), () -> {
                 List<Boolean> mvData = randomList(2, 100, ESTestCase::randomBoolean);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
@@ -90,7 +93,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@link BytesRef} values.
+     * Build many test cases with {@link BytesRef} values.
      */
     protected static void bytesRefs(
         List<TestCaseSupplier> cases,
@@ -98,55 +101,60 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         String evaluatorName,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        bytesRefs(cases, name, evaluatorName, DataTypes.KEYWORD, matcher);
+        bytesRefs(cases, name, evaluatorName, t -> t, matcher);
     }
 
     /**
-     * Build a test case with {@link BytesRef} values.
+     * Build many test cases with {@link BytesRef} values.
      */
     protected static void bytesRefs(
         List<TestCaseSupplier> cases,
         String name,
         String evaluatorName,
-        DataType expectedDataType,
+        Function<DataType, DataType> expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        cases.add(
-            new TestCaseSupplier(
-                name + "(empty string)",
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(List.of(new BytesRef("")), DataTypes.KEYWORD, "field")),
-                    evaluatorName + "[field=Attribute[channel=0]]",
-                    expectedDataType,
-                    matcher.apply(1, Stream.of(new BytesRef("")))
-                )
-            )
-        );
-        cases.add(new TestCaseSupplier(name + "(BytesRef)", () -> {
-            BytesRef data = new BytesRef(randomAlphaOfLength(10));
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.KEYWORD, "field")),
-                evaluatorName + "[field=Attribute[channel=0]]",
-                expectedDataType,
-                matcher.apply(1, Stream.of(data))
-            );
-        }));
-        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<BytesRefs>) " + ordering, () -> {
-                List<BytesRef> mvData = randomList(1, 100, () -> new BytesRef(randomAlphaOfLength(10)));
-                putInOrder(mvData, ordering);
+        for (DataType type : new DataType[] { DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.IP, DataTypes.VERSION }) {
+            if (type != DataTypes.IP) {
+                cases.add(
+                    new TestCaseSupplier(
+                        name + "(empty " + type.typeName() + ")",
+                        List.of(type),
+                        () -> new TestCaseSupplier.TestCase(
+                            List.of(new TestCaseSupplier.TypedData(List.of(new BytesRef("")), type, "field")),
+                            evaluatorName + "[field=Attribute[channel=0]]",
+                            expectedDataType.apply(type),
+                            matcher.apply(1, Stream.of(new BytesRef("")))
+                        )
+                    )
+                );
+            }
+            cases.add(new TestCaseSupplier(name + "(" + type.typeName() + ")", List.of(type), () -> {
+                BytesRef data = (BytesRef) randomLiteral(type).value();
                 return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.KEYWORD, "field")),
+                    List.of(new TestCaseSupplier.TypedData(List.of(data), type, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
-                    expectedDataType,
-                    matcher.apply(mvData.size(), mvData.stream())
+                    expectedDataType.apply(type),
+                    matcher.apply(1, Stream.of(data))
                 );
             }));
+            for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+                cases.add(new TestCaseSupplier(name + "(<" + type.typeName() + "s>) " + ordering, List.of(type), () -> {
+                    List<BytesRef> mvData = randomList(1, 100, () -> (BytesRef) randomLiteral(type).value());
+                    putInOrder(mvData, ordering);
+                    return new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(mvData, type, "field")),
+                        evaluatorName + "[field=Attribute[channel=0]]",
+                        expectedDataType.apply(type),
+                        matcher.apply(mvData.size(), mvData.stream())
+                    );
+                }));
+            }
         }
     }
 
     /**
-     * Build a test case with {@code double} values.
+     * Build many test cases with {@code double} values.
      */
     protected static void doubles(
         List<TestCaseSupplier> cases,
@@ -158,7 +166,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@code double} values.
+     * Build many test cases with {@code double} values.
      */
     protected static void doubles(
         List<TestCaseSupplier> cases,
@@ -170,6 +178,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         cases.add(
             new TestCaseSupplier(
                 name + "(0.0)",
+                List.of(DataTypes.DOUBLE),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(0.0), DataTypes.DOUBLE, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
@@ -178,7 +187,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(double)", () -> {
+        cases.add(new TestCaseSupplier(name + "(double)", List.of(DataTypes.DOUBLE), () -> {
             double mvData = randomDouble();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(mvData), DataTypes.DOUBLE, "field")),
@@ -188,7 +197,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<double>) " + ordering, () -> {
+            cases.add(new TestCaseSupplier(name + "(<double>) " + ordering, List.of(DataTypes.DOUBLE), () -> {
                 List<Double> mvData = randomList(1, 100, ESTestCase::randomDouble);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
@@ -202,7 +211,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@code int} values.
+     * Build many test cases with {@code int} values.
      */
     protected static void ints(
         List<TestCaseSupplier> cases,
@@ -214,7 +223,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@code int} values.
+     * Build many test cases with {@code int} values.
      */
     protected static void ints(
         List<TestCaseSupplier> cases,
@@ -226,6 +235,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         cases.add(
             new TestCaseSupplier(
                 name + "(0)",
+                List.of(DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(0), DataTypes.INTEGER, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
@@ -234,7 +244,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(int)", () -> {
+        cases.add(new TestCaseSupplier(name + "(int)", List.of(DataTypes.INTEGER), () -> {
             int data = randomInt();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.INTEGER, "field")),
@@ -244,7 +254,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<ints>) " + ordering, () -> {
+            cases.add(new TestCaseSupplier(name + "(<ints>) " + ordering, List.of(DataTypes.INTEGER), () -> {
                 List<Integer> mvData = randomList(1, 100, ESTestCase::randomInt);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
@@ -258,7 +268,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@code long} values.
+     * Build many test cases with {@code long} values.
      */
     protected static void longs(
         List<TestCaseSupplier> cases,
@@ -270,7 +280,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with {@code long} values.
+     * Build many test cases with {@code long} values.
      */
     protected static void longs(
         List<TestCaseSupplier> cases,
@@ -282,6 +292,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         cases.add(
             new TestCaseSupplier(
                 name + "(0L)",
+                List.of(DataTypes.LONG),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(List.of(0L), DataTypes.LONG, "field")),
                     evaluatorName + "[field=Attribute[channel=0]]",
@@ -290,7 +301,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(long)", () -> {
+        cases.add(new TestCaseSupplier(name + "(long)", List.of(DataTypes.LONG), () -> {
             long data = randomLong();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.LONG, "field")),
@@ -300,7 +311,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<longs>) " + ordering, () -> {
+            cases.add(new TestCaseSupplier(name + "(<longs>) " + ordering, List.of(DataTypes.LONG), () -> {
                 List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
@@ -314,7 +325,64 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with unsigned {@code long} values.
+     * Build many test cases with {@code date} values.
+     */
+    protected static void dateTimes(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        dateTimes(cases, name, evaluatorName, DataTypes.DATETIME, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code date} values.
+     */
+    protected static void dateTimes(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, LongStream, Matcher<Object>> matcher
+    ) {
+        cases.add(
+            new TestCaseSupplier(
+                name + "(epoch)",
+                List.of(DataTypes.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(List.of(0L), DataTypes.DATETIME, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(1, LongStream.of(0L))
+                )
+            )
+        );
+        cases.add(new TestCaseSupplier(name + "(date)", List.of(DataTypes.DATETIME), () -> {
+            long data = randomLong();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.DATETIME, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, LongStream.of(data))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<dates>) " + ordering, List.of(DataTypes.DATETIME), () -> {
+                List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataTypes.DATETIME, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream().mapToLong(Long::longValue))
+                );
+            }));
+        }
+    }
+
+    /**
+     * Build many test cases with unsigned {@code long} values.
      */
     protected static void unsignedLongs(
         List<TestCaseSupplier> cases,
@@ -326,7 +394,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
     }
 
     /**
-     * Build a test case with unsigned {@code long} values.
+     * Build many test cases with unsigned {@code long} values.
      */
     protected static void unsignedLongs(
         List<TestCaseSupplier> cases,
@@ -338,6 +406,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         cases.add(
             new TestCaseSupplier(
                 name + "(0UL)",
+                List.of(DataTypes.UNSIGNED_LONG),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
@@ -352,7 +421,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                 )
             )
         );
-        cases.add(new TestCaseSupplier(name + "(unsigned long)", () -> {
+        cases.add(new TestCaseSupplier(name + "(unsigned long)", List.of(DataTypes.UNSIGNED_LONG), () -> {
             long data = randomLong();
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(List.of(data), DataTypes.UNSIGNED_LONG, "field")),
@@ -362,7 +431,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
             );
         }));
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
-            cases.add(new TestCaseSupplier(name + "(<unsigned longs>) " + ordering, () -> {
+            cases.add(new TestCaseSupplier(name + "(<unsigned longs>) " + ordering, List.of(DataTypes.UNSIGNED_LONG), () -> {
                 List<Long> mvData = randomList(1, 100, ESTestCase::randomLong);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(

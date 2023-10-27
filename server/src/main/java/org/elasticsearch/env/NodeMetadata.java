@@ -12,6 +12,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -174,7 +175,7 @@ public final class NodeMetadata {
                 previousNodeVersion = nodeVersion;
             }
             if (this.oldestIndexVersion == null) {
-                oldestIndexVersion = IndexVersion.ZERO;
+                oldestIndexVersion = IndexVersions.ZERO;
             } else {
                 oldestIndexVersion = this.oldestIndexVersion;
             }

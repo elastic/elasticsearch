@@ -13,6 +13,10 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
@@ -25,6 +29,7 @@ import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -78,6 +83,7 @@ public class ConvertEvaluatorImplementer {
         builder.addMethod(evalValue(true));
         builder.addMethod(evalBlock());
         builder.addMethod(evalValue(false));
+        builder.addType(factory());
         return builder.build();
     }
 
@@ -257,6 +263,51 @@ public class ConvertEvaluatorImplementer {
 
         builder.addStatement("return $T.$N(value)", declarationType, processFunction.getSimpleName());
 
+        return builder.build();
+    }
+
+    private TypeSpec factory() {
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
+        builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
+        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+        builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(EXPRESSION_EVALUATOR_FACTORY, "field", Modifier.PRIVATE, Modifier.FINAL);
+
+        builder.addMethod(factoryCtor());
+        builder.addMethod(factoryGet());
+        builder.addMethod(factoryToString());
+        return builder.build();
+    }
+
+    private MethodSpec factoryCtor() {
+        MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        builder.addParameter(EXPRESSION_EVALUATOR_FACTORY, "field");
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.field = field");
+        builder.addStatement("this.source = source");
+        return builder.build();
+    }
+
+    private MethodSpec factoryGet() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("get").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "context");
+        builder.returns(implementation);
+
+        List<String> args = new ArrayList<>();
+        args.add("field.get(context)");
+        args.add("source");
+        args.add("context");
+        builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
+        return builder.build();
+    }
+
+    private MethodSpec factoryToString() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("toString").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.returns(String.class);
+        builder.addStatement("return $S + field + $S", declarationType.getSimpleName() + extraName + "Evaluator[field=", "]");
         return builder.build();
     }
 }

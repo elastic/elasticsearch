@@ -98,4 +98,23 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastIntEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastIntEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastIntEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
+  }
 }

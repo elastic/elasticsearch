@@ -100,4 +100,25 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToBoolean.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToBooleanFromStringEvaluator get(DriverContext context) {
+      return new ToBooleanFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToBooleanFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

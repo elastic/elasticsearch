@@ -98,4 +98,25 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     double value = container.getDouble(index);
     return ToString.fromDouble(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromDoubleEvaluator get(DriverContext context) {
+      return new ToStringFromDoubleEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromDoubleEvaluator[field=" + field + "]";
+    }
+  }
 }

@@ -32,6 +32,7 @@ public final class SearchableSnapshotsSettings {
     public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY = "index.store.snapshot.snapshot_name";
     public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY = "index.store.snapshot.snapshot_uuid";
     public static final String SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION = "index.store.snapshot.delete_searchable_snapshot";
+    public static final String SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY = "index.store.snapshot.index_name";
 
     private SearchableSnapshotsSettings() {}
 

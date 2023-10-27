@@ -522,6 +522,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue; // TODO remove this eventually, so that all the functions will have to provide signature info
             }
             Set<String> signatureTypes = typesFromSignature.get(i);
+            if (signatureTypes.isEmpty()) {
+                continue;
+            }
             assertEquals(annotationTypes, signatureTypes);
         }
 

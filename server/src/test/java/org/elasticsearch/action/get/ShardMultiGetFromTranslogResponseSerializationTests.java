@@ -35,19 +35,19 @@ public class ShardMultiGetFromTranslogResponseSerializationTests extends Abstrac
     protected Response mutateInstance(Response instance) throws IOException {
         return switch (randomInt(2)) {
             case 0 -> new Response(
-                instance.multiGetShardResponse(),
-                instance.primaryTerm(),
-                randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
-            );
-            case 1 -> new Response(
                 randomValueOtherThan(instance.multiGetShardResponse(), this::randomMultiGetShardResponse),
                 instance.primaryTerm(),
                 instance.segmentGeneration()
             );
-            case 2 -> new Response(
+            case 1 -> new Response(
                 instance.multiGetShardResponse(),
                 randomValueOtherThan(instance.primaryTerm(), this::randomPrimaryTerm),
                 instance.segmentGeneration()
+            );
+            case 2 -> new Response(
+                instance.multiGetShardResponse(),
+                instance.primaryTerm(),
+                randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
             );
             default -> randomValueOtherThan(instance, this::createTestInstance);
         };

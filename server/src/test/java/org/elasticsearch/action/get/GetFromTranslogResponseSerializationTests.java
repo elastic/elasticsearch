@@ -31,19 +31,19 @@ public class GetFromTranslogResponseSerializationTests extends AbstractWireSeria
     protected TransportGetFromTranslogAction.Response mutateInstance(TransportGetFromTranslogAction.Response instance) throws IOException {
         return switch (randomInt(2)) {
             case 0 -> new TransportGetFromTranslogAction.Response(
-                instance.getResult(),
-                instance.primaryTerm(),
-                randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
-            );
-            case 1 -> new TransportGetFromTranslogAction.Response(
                 randomValueOtherThan(instance.getResult(), this::randomGetResult),
                 instance.primaryTerm(),
                 instance.segmentGeneration()
             );
-            case 2 -> new TransportGetFromTranslogAction.Response(
+            case 1 -> new TransportGetFromTranslogAction.Response(
                 instance.getResult(),
                 randomValueOtherThan(instance.primaryTerm(), this::randomPrimaryTerm),
                 instance.segmentGeneration()
+            );
+            case 2 -> new TransportGetFromTranslogAction.Response(
+                instance.getResult(),
+                instance.primaryTerm(),
+                randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
             );
             default -> randomValueOtherThan(instance, this::createTestInstance);
         };

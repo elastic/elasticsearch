@@ -1,0 +1,6 @@
+pr: 101474
+summary: "[Search Applications] Return 400 response when template does not render\
+  \ correctly"
+area: Application
+type: bug
+issues: []

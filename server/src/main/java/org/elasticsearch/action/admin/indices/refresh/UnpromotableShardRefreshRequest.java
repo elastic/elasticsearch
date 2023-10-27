@@ -40,7 +40,9 @@ public class UnpromotableShardRefreshRequest extends BroadcastUnpromotableReques
     public UnpromotableShardRefreshRequest(StreamInput in) throws IOException {
         super(in);
         segmentGeneration = in.readVLong();
-        shardPrimaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED) ? in.readVLong() : 0L;
+        shardPrimaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)
+            ? in.readVLong()
+            : Engine.UNKNOWN_PRIMARY_TERM;
     }
 
     @Override

@@ -106,7 +106,7 @@ public interface Authenticator {
             this.fallbackUser = null;
             this.allowAnonymous = false;
             this.realms = realms;
-            this.authenticationTokens = List.of(token);
+            this.authenticationTokens = token != null ? List.of(token) : List.of();
             this.handleNullToken = false;
             this.extractCredentials = false;
         }

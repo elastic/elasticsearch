@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -105,6 +107,8 @@ import java.util.function.Function;
 
 import javax.net.ssl.SNIHostName;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
@@ -146,6 +150,12 @@ public class Node implements Closeable {
         "discovery.initial_state_timeout",
         TimeValue.timeValueSeconds(30),
         Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> SHUTDOWN_SEARCH_TIMEOUT_SETTING = Setting.positiveTimeSetting(
+        "node.async_search_grace_period",
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
     );
 
     private final Lifecycle lifecycle = new Lifecycle();
@@ -592,6 +602,32 @@ public class Node implements Closeable {
             stopper.get();
         } catch (Exception e) {
             logger.warn("unexpected exception while waiting for http server to close", e);
+        }
+
+        // Wait for async search tasks to finish. Since the HTTP server is closed, none of these tasks should be for synchronous searches
+        // even though the action name is the same.
+        var taskManager = injector.getInstance(TransportService.class).getTaskManager();
+        FutureTask<Void> searchAwaiter = new FutureTask<>(() -> {
+            boolean searchTasksFinished = true;
+            while (searchTasksFinished) {
+                searchTasksFinished = taskManager.getTasks()
+                    .values()
+                    .stream()
+                    .anyMatch(task -> SearchAction.INSTANCE.name().equals(task.getAction())) == false;
+            }
+            return null;
+        });
+        TimeValue asyncSearchTimeout = SHUTDOWN_SEARCH_TIMEOUT_SETTING.get(this.settings());
+        try {
+            FutureUtils.get(searchAwaiter, asyncSearchTimeout.millis(), TimeUnit.MILLISECONDS);
+        } catch (ElasticsearchTimeoutException t) {
+            logger.warn(
+                format(
+                    "timed out while waiting [%s] for search tasks to finish with [%d] tasks remaining",
+                    asyncSearchTimeout.toString(),
+                    taskManager.getTasks().values().stream().filter(task -> SearchAction.INSTANCE.name().equals(task.getAction())).count()
+                )
+            );
         }
     }
 

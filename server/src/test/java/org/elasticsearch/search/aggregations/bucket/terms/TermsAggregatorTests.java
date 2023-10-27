@@ -80,6 +80,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -1729,8 +1730,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
-                    IllegalArgumentException e = expectThrows(
-                        IllegalArgumentException.class,
+                    AggregationExecutionException.InvalidPath e = expectThrows(
+                        AggregationExecutionException.InvalidPath.class,
                         () -> searchAndReduce(indexReader, new AggTestConfig(termsAgg, fieldType))
                     );
                     assertEquals(

@@ -156,7 +156,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         );
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
-        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(threadPool::absoluteTimeInMillis));
+        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,

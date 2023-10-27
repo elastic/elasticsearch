@@ -65,6 +65,8 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     private ClusterBalanceStats randomClusterBalanceStats() {
         return new ClusterBalanceStats(
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
             randomBoolean()
                 ? Map.of(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName(), randomTierBalanceStats())
                 : randomSubsetOf(
@@ -92,10 +94,11 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
         return new ClusterBalanceStats.NodeBalanceStats(
             randomAlphaOfLength(10),
             List.of(randomFrom("data_content", "data_hot", "data_warm", "data_cold")),
-            randomIntBetween(0, Integer.MAX_VALUE),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
             randomDouble(),
-            randomLongBetween(0, Long.MAX_VALUE),
-            randomLongBetween(0, Long.MAX_VALUE)
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
     }
 

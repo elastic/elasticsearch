@@ -31,15 +31,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.ToDoubleFunction;
 
-public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<String, NodeBalanceStats> nodes)
-    implements
-        Writeable,
-        ToXContentObject {
+public record ClusterBalanceStats(
+    int totalShards,
+    int totalUndesiredShards,
+    Map<String, TierBalanceStats> tiers,
+    Map<String, NodeBalanceStats> nodes
+) implements Writeable, ToXContentObject {
 
-    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(Map.of(), Map.of());
+    public static ClusterBalanceStats EMPTY = new ClusterBalanceStats(0, 0, Map.of(), Map.of());
 
     public static ClusterBalanceStats createFrom(
         ClusterState clusterState,
+        DesiredBalance desiredBalance,
         ClusterInfo clusterInfo,
         WriteLoadForecaster writeLoadForecaster
     ) {
@@ -50,28 +53,57 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             if (dataRoles.isEmpty()) {
                 continue;
             }
-            var nodeStats = NodeBalanceStats.createFrom(routingNode, clusterState.metadata(), clusterInfo, writeLoadForecaster);
+            var nodeStats = NodeBalanceStats.createFrom(
+                routingNode,
+                clusterState.metadata(),
+                desiredBalance,
+                clusterInfo,
+                writeLoadForecaster
+            );
             nodes.put(routingNode.node().getName(), nodeStats);
             for (DiscoveryNodeRole role : dataRoles) {
                 tierToNodeStats.computeIfAbsent(role.roleName(), ignored -> new ArrayList<>()).add(nodeStats);
             }
         }
-        return new ClusterBalanceStats(Maps.transformValues(tierToNodeStats, TierBalanceStats::createFrom), nodes);
+        int totalShards = nodes.values().stream().mapToInt(NodeBalanceStats::shards).sum();
+        int totalUndesiredShards = nodes.values().stream().mapToInt(NodeBalanceStats::undesiredShards).sum();
+        return new ClusterBalanceStats(
+            totalShards,
+            totalUndesiredShards,
+            Maps.transformValues(tierToNodeStats, TierBalanceStats::createFrom),
+            nodes
+        );
     }
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
-        return new ClusterBalanceStats(in.readImmutableMap(TierBalanceStats::readFrom), in.readImmutableMap(NodeBalanceStats::readFrom));
+        return new ClusterBalanceStats(
+            in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED) ? in.readVInt() : -1,
+            in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED) ? in.readVInt() : -1,
+            in.readImmutableMap(TierBalanceStats::readFrom),
+            in.readImmutableMap(NodeBalanceStats::readFrom)
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED)) {
+            out.writeVInt(totalShards);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED)) {
+            out.writeVInt(totalUndesiredShards);
+        }
         out.writeMap(tiers, StreamOutput::writeWriteable);
         out.writeMap(nodes, StreamOutput::writeWriteable);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field("tiers").map(tiers).field("nodes").map(nodes).endObject();
+        return builder.startObject()
+            .field("shard_count", totalShards)
+            .field("undesired_shard_count", totalUndesiredShards)
+            .field("tiers", tiers)
+            .field("nodes", nodes)
+            .endObject();
     }
 
     public record TierBalanceStats(
@@ -172,6 +204,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         String nodeId,
         List<String> roles,
         int shards,
+        int undesiredShards,
         double forecastWriteLoad,
         long forecastShardSize,
         long actualShardSize
@@ -182,9 +215,11 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
         private static NodeBalanceStats createFrom(
             RoutingNode routingNode,
             Metadata metadata,
+            DesiredBalance desiredBalance,
             ClusterInfo clusterInfo,
             WriteLoadForecaster writeLoadForecaster
         ) {
+            int undesired = 0;
             double forecastWriteLoad = 0.0;
             long forecastShardSize = 0L;
             long actualShardSize = 0L;
@@ -196,22 +231,36 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
                 forecastWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
                 forecastShardSize += indexMetadata.getForecastedShardSizeInBytes().orElse(shardSize);
                 actualShardSize += shardSize;
+                if (isDesiredShardAllocation(shardRouting, desiredBalance) == false) {
+                    undesired++;
+                }
             }
 
             return new NodeBalanceStats(
                 routingNode.nodeId(),
                 routingNode.node().getRoles().stream().map(DiscoveryNodeRole::roleName).toList(),
                 routingNode.size(),
+                undesired,
                 forecastWriteLoad,
                 forecastShardSize,
                 actualShardSize
             );
         }
 
+        private static boolean isDesiredShardAllocation(ShardRouting shardRouting, DesiredBalance desiredBalance) {
+            if (shardRouting.relocating()) {
+                // relocating out shards are temporarily accepted
+                return true;
+            }
+            var assignment = desiredBalance.getAssignment(shardRouting.shardId());
+            return assignment != null && assignment.nodeIds().contains(shardRouting.currentNodeId());
+        }
+
         public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
             return new NodeBalanceStats(
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readString() : UNKNOWN_NODE_ID,
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readStringCollectionAsList() : List.of(),
+                in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED) ? in.readVInt() : -1,
                 in.readInt(),
                 in.readDouble(),
                 in.readLong(),
@@ -227,6 +276,9 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeStringCollection(roles);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARDS_COUNT_ADDED)) {
+                out.writeVInt(undesiredShards);
+            }
             out.writeInt(shards);
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
@@ -241,6 +293,7 @@ public record ClusterBalanceStats(Map<String, TierBalanceStats> tiers, Map<Strin
             }
             return builder.field("roles", roles)
                 .field("shard_count", shards)
+                .field("undesired_shard_count", undesiredShards)
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
                 .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))

@@ -290,6 +290,7 @@ public class AggregatorFactories {
         /**
          * Read from a stream.
          */
+        @SuppressWarnings("this-escape")
         public Builder(StreamInput in) throws IOException {
             int factoriesSize = in.readVInt();
             for (int i = 0; i < factoriesSize; i++) {
@@ -303,8 +304,8 @@ public class AggregatorFactories {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.aggregationBuilders, StreamOutput::writeNamedWriteable);
-            out.writeCollection(this.pipelineAggregatorBuilders, StreamOutput::writeNamedWriteable);
+            out.writeNamedWriteableCollection(this.aggregationBuilders);
+            out.writeNamedWriteableCollection(this.pipelineAggregatorBuilders);
         }
 
         public boolean mustVisitAllDocs() {

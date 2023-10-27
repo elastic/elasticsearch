@@ -132,7 +132,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
 
         assertAcked(indicesAdmin().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), nbDocs);
     }
 
     public void testCloseAlreadyClosedIndex() throws Exception {
@@ -211,11 +211,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
-                try {
-                    startClosing.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startClosing);
                 try {
                     indicesAdmin().prepareClose(indexName).get();
                 } catch (final Exception e) {
@@ -248,7 +244,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         assertIndexIsClosed(indexName);
         assertAcked(indicesAdmin().prepareOpen(indexName));
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(), nbDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), nbDocs);
     }
 
     public void testCloseWhileDeletingIndices() throws Exception {
@@ -275,11 +271,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         for (final String indexToDelete : indices) {
             threads.add(new Thread(() -> {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 try {
                     assertAcked(indicesAdmin().prepareDelete(indexToDelete));
                 } catch (final Exception e) {
@@ -289,11 +281,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         for (final String indexToClose : indices) {
             threads.add(new Thread(() -> {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 try {
                     indicesAdmin().prepareClose(indexToClose).get();
                 } catch (final Exception e) {
@@ -320,19 +308,12 @@ public class CloseIndexIT extends ESIntegTestCase {
         waitForDocs(1, indexer);
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Runnable waitForLatch = () -> {
-            try {
-                latch.await();
-            } catch (final InterruptedException e) {
-                throw new AssertionError(e);
-            }
-        };
 
         final List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             threads.add(new Thread(() -> {
                 try {
-                    waitForLatch.run();
+                    safeAwait(latch);
                     indicesAdmin().prepareClose(indexName).get();
                 } catch (final Exception e) {
                     throw new AssertionError(e);
@@ -342,7 +323,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             threads.add(new Thread(() -> {
                 try {
-                    waitForLatch.run();
+                    safeAwait(latch);
                     assertAcked(indicesAdmin().prepareOpen(indexName).get());
                 } catch (final Exception e) {
                     throw new AssertionError(e);
@@ -367,10 +348,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
         refresh(indexName);
         assertIndexIsOpened(indexName);
-        assertHitCount(
-            client().prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE).get(),
-            indexer.totalIndexedDocs()
-        );
+        assertHitCount(prepareSearch(indexName).setSize(0).setTrackTotalHitsUpTo(TRACK_TOTAL_HITS_ACCURATE), indexer.totalIndexedDocs());
     }
 
     public void testCloseIndexWaitForActiveShards() throws Exception {

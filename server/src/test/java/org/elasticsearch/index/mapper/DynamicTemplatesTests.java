@@ -20,6 +20,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -194,8 +195,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             // in 7.x versions this will issue a deprecation warning
             IndexVersion version = IndexVersionUtils.randomVersionBetween(
                 random(),
-                IndexVersion.V_7_0_0,
-                IndexVersionUtils.getPreviousVersion(IndexVersion.V_8_0_0)
+                IndexVersions.V_7_0_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
             );
             DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
                 b.startArray("dynamic_templates");
@@ -310,7 +311,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testDynamicTemplatesForIndexTemplate() throws IOException {
-        String mapping = Strings.toString(
+        String mapping1 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("dynamic_templates")
@@ -333,11 +334,9 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 .endArray()
                 .endObject()
         );
-        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
 
         // There should be no update if templates are not set.
-        mapping = Strings.toString(
+        String mapping2 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("properties")
@@ -347,9 +346,11 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                 .endObject()
                 .endObject()
         );
+
+        MapperService mapperService = createMapperService(IndexVersion.current(), Settings.EMPTY, () -> true);
         DocumentMapper mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(mapping),
+            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2)),
             MapperService.MergeReason.INDEX_TEMPLATE
         );
 
@@ -361,7 +362,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertEquals("second", templates[1].pathMatch().get(0));
 
         // Dynamic templates should be appended and deduplicated.
-        mapping = Strings.toString(
+        String mapping3 = Strings.toString(
             XContentFactory.jsonBuilder()
                 .startObject()
                 .startArray("dynamic_templates")
@@ -386,7 +387,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         );
         mapper = mapperService.merge(
             MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(mapping),
+            new CompressedXContent(mapping3),
             MapperService.MergeReason.INDEX_TEMPLATE
         );
 
@@ -667,7 +668,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             mapping.endObject();
         }
         mapping.endObject();
-        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersion.V_7_0_0, IndexVersion.V_7_7_0);
+        IndexVersion createdVersion = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_7_0);
         MapperService mapperService = createMapperService(createdVersion, mapping);
         assertThat(mapperService.documentMapper().mappingSource().toString(), containsString("\"type\":\"string\""));
         assertWarnings("""

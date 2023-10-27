@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,13 +20,13 @@ import java.util.List;
  * Sine hyperbolic function.
  */
 public class Sinh extends AbstractTrigonometricFunction {
-    public Sinh(Source source, Expression field) {
-        super(source, field);
+    public Sinh(Source source, @Param(name = "n", type = { "integer", "long", "double", "unsigned_long" }) Expression n) {
+        super(source, n);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field) {
-        return new SinhEvaluator(field);
+    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+        return new SinhEvaluator.Factory(source(), field);
     }
 
     @Override
@@ -38,8 +39,12 @@ public class Sinh extends AbstractTrigonometricFunction {
         return NodeInfo.create(this, Sinh::new, field());
     }
 
-    @Evaluator
+    @Evaluator(warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        return Math.sinh(val);
+        double res = Math.sinh(val);
+        if (Double.isNaN(res) || Double.isInfinite(res)) {
+            throw new ArithmeticException("sinh overflow");
+        }
+        return res;
     }
 }

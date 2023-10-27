@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -18,13 +19,23 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class Atan2Tests extends AbstractFunctionTestCase {
-    public Atan2Tests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public Atan2Tests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forBinaryCastingToDouble("Atan2Evaluator", "y", "x", Math::atan2);
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forBinaryCastingToDouble(
+            "Atan2Evaluator",
+            "y",
+            "x",
+            Math::atan2,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            List.of()
+        );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 

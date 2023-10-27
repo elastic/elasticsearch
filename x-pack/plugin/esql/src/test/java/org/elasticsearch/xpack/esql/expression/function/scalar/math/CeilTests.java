@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -22,7 +23,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CeilTests extends AbstractScalarFunctionTestCase {
-    public CeilTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public CeilTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -30,27 +31,32 @@ public class CeilTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("large double value", () -> {
             double arg = 1 / randomDouble();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.DOUBLE, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.DOUBLE, "arg")),
                 "CeilDoubleEvaluator[val=Attribute[channel=0]]",
                 DataTypes.DOUBLE,
                 equalTo(Math.ceil(arg))
             );
         }), new TestCaseSupplier("integer value", () -> {
             int arg = randomInt();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.INTEGER, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.INTEGER, "arg")),
                 "Attribute[channel=0]",
                 DataTypes.INTEGER,
                 equalTo(arg)
             );
         }), new TestCaseSupplier("long value", () -> {
             long arg = randomLong();
-            return new TestCase(List.of(new TypedData(arg, DataTypes.LONG, "arg")), "Attribute[channel=0]", DataTypes.LONG, equalTo(arg));
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.LONG, "arg")),
+                "Attribute[channel=0]",
+                DataTypes.LONG,
+                equalTo(arg)
+            );
         }), new TestCaseSupplier("unsigned long value", () -> {
             long arg = randomLong();
-            return new TestCase(
-                List.of(new TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
                 "Attribute[channel=0]",
                 DataTypes.UNSIGNED_LONG,
                 equalTo(arg)

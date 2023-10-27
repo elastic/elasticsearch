@@ -12,8 +12,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
 final class StackFrame implements ToXContentObject {
@@ -49,6 +51,15 @@ final class StackFrame implements ToXContentObject {
         );
     }
 
+    public boolean isEmpty() {
+        return fileName.isEmpty() && functionName.isEmpty() && functionOffset.isEmpty() && lineNumber.isEmpty();
+    }
+
+    public Iterable<Frame> frames() {
+        return new Frames();
+
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -78,5 +89,43 @@ final class StackFrame implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(fileName, functionName, functionOffset, lineNumber);
+    }
+
+    private class Frames implements Iterable<Frame> {
+        @Override
+        public Iterator<Frame> iterator() {
+            return new Iterator<>() {
+                private int currentElement = 0;
+
+                @Override
+                public boolean hasNext() {
+                    // array lengths might not be consistent - allow to move until all underlying lists have been exhausted
+                    return currentElement < fileName.size()
+                        || currentElement < functionName.size()
+                        || currentElement < functionOffset.size()
+                        || currentElement < lineNumber.size();
+                }
+
+                @Override
+                public Frame next() {
+                    if (hasNext() == false) {
+                        throw new NoSuchElementException();
+                    }
+                    Frame f = new Frame(
+                        get(fileName, currentElement, ""),
+                        get(functionName, currentElement, ""),
+                        get(functionOffset, currentElement, 0),
+                        get(lineNumber, currentElement, 0),
+                        currentElement > 0
+                    );
+                    currentElement++;
+                    return f;
+                }
+            };
+        }
+
+        private static <T> T get(List<T> l, int index, T defaultValue) {
+            return index < l.size() ? l.get(index) : defaultValue;
+        }
     }
 }

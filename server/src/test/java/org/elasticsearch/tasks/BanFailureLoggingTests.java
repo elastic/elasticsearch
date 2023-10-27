@@ -132,7 +132,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             childTransportService.getTaskManager().setTaskCancellationService(new TaskCancellationService(childTransportService));
             childTransportService.registerRequestHandler(
                 "internal:testAction[c]",
-                ThreadPool.Names.MANAGEMENT, // busy-wait for cancellation but not on a transport thread
+                threadPool.executor(ThreadPool.Names.MANAGEMENT), // busy-wait for cancellation but not on a transport thread
                 (StreamInput in) -> new TransportRequest.Empty(in) {
                     @Override
                     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {

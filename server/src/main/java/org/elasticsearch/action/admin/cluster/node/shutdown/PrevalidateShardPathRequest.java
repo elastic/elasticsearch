@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -27,15 +27,10 @@ public class PrevalidateShardPathRequest extends BaseNodesRequest<PrevalidateSha
         this.shardIds = Set.copyOf(Objects.requireNonNull(shardIds));
     }
 
-    public PrevalidateShardPathRequest(StreamInput in) throws IOException {
-        super(in);
-        this.shardIds = in.readImmutableSet(ShardId::new);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeCollection(shardIds);
+        TransportAction.localOnly();
     }
 
     public Set<ShardId> getShardIds() {

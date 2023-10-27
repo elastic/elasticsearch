@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 
@@ -23,48 +21,44 @@ public class Cast {
     /**
      * Build the evaluator supplier to cast {@code in} from {@code current} to {@code required}.
      */
-    public static Supplier<EvalOperator.ExpressionEvaluator> cast(
-        DataType current,
-        DataType required,
-        Supplier<EvalOperator.ExpressionEvaluator> in
-    ) {
+    public static ExpressionEvaluator.Factory cast(DataType current, DataType required, ExpressionEvaluator.Factory in) {
         if (current == required) {
             return in;
         }
         if (current == DataTypes.NULL || required == DataTypes.NULL) {
-            return () -> page -> Block.constantNullBlock(page.getPositionCount());
+            return EvalOperator.CONSTANT_NULL_FACTORY;
         }
         if (required == DataTypes.DOUBLE) {
             if (current == DataTypes.LONG) {
-                return () -> new CastLongToDoubleEvaluator(in.get());
+                return new CastLongToDoubleEvaluator.Factory(in);
             }
             if (current == DataTypes.INTEGER) {
-                return () -> new CastIntToDoubleEvaluator(in.get());
+                return new CastIntToDoubleEvaluator.Factory(in);
             }
             if (current == DataTypes.UNSIGNED_LONG) {
-                return () -> new CastUnsignedLongToDoubleEvaluator(in.get());
+                return new CastUnsignedLongToDoubleEvaluator.Factory(in);
             }
             throw cantCast(current, required);
         }
         if (required == DataTypes.UNSIGNED_LONG) {
             if (current == DataTypes.LONG) {
-                return () -> new CastLongToUnsignedLongEvaluator(in.get());
+                return new CastLongToUnsignedLongEvaluator.Factory(in);
             }
             if (current == DataTypes.INTEGER) {
-                return () -> new CastIntToUnsignedLongEvaluator(in.get());
+                return new CastIntToUnsignedLongEvaluator.Factory(in);
             }
         }
         if (required == DataTypes.LONG) {
             if (current == DataTypes.INTEGER) {
-                return () -> new CastIntToLongEvaluator(in.get());
+                return new CastIntToLongEvaluator.Factory(in);
             }
             throw cantCast(current, required);
         }
         throw cantCast(current, required);
     }
 
-    private static EsqlUnsupportedOperationException cantCast(DataType current, DataType required) {
-        return new EsqlUnsupportedOperationException("can't process [" + current.typeName() + " -> " + required.typeName() + "]");
+    private static EsqlIllegalArgumentException cantCast(DataType current, DataType required) {
+        return new EsqlIllegalArgumentException("can't process [" + current.typeName() + " -> " + required.typeName() + "]");
     }
 
     @Evaluator(extraName = "IntToLong")

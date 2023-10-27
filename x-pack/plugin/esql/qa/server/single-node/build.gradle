@@ -2,11 +2,12 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'indices', 'esql', 'xpack', 'enrich'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster'
   }
 }
 

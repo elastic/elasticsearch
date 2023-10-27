@@ -1,3 +1,4 @@
+[discrete]
 [[esql-pow]]
 === `POW`
 [.text-center]
@@ -15,6 +16,7 @@ include::{esql-specs}/math.csv-spec[tag=powDI]
 include::{esql-specs}/math.csv-spec[tag=powDI-result]
 |===
 
+[discrete]
 ==== Type rules
 
 The type of the returned value is determined by the types of the base and exponent.
@@ -40,6 +42,7 @@ This means that for very large non-floating point values there is a small chance
 operation can lead to slightly different answers than expected.
 However, a more likely outcome of very large non-floating point values is numerical overflow.
 
+[discrete]
 ==== Arithmetic errors
 
 Arithmetic errors and numeric overflow do not result in an error. Instead, the result will be `null`
@@ -59,7 +62,7 @@ include::{esql-specs}/math.csv-spec[tag=powULOverrun-warning]
 include::{esql-specs}/math.csv-spec[tag=powULOverrun-result]
 |===
 
-If it is desired to protect against numerical overruns, use `to_double` on either of the arguments:
+If it is desired to protect against numerical overruns, use `TO_DOUBLE` on either of the arguments:
 
 [source.merge.styled,esql]
 ----
@@ -70,6 +73,7 @@ include::{esql-specs}/math.csv-spec[tag=pow2d]
 include::{esql-specs}/math.csv-spec[tag=pow2d-result]
 |===
 
+[discrete]
 ==== Fractional exponents
 
 The exponent can be a fraction, which is similar to performing a root.
@@ -84,6 +88,7 @@ include::{esql-specs}/math.csv-spec[tag=powID-sqrt]
 include::{esql-specs}/math.csv-spec[tag=powID-sqrt-result]
 |===
 
+[discrete]
 ==== Table of supported input and output types
 
 For clarity, the following table describes the output result type for all combinations of numeric input types:

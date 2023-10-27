@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,12 +63,13 @@ public class TransformInternalIndexTests extends ESTestCase {
     }
 
     public static ClusterState randomTransformClusterState(boolean shardsReady) {
+        String uuid = UUIDs.randomBase64UUID();
         Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
         try {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
                 Settings.builder()
-                    .put(TransformInternalIndex.settings(Settings.EMPTY))
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .put(TransformInternalIndex.settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, uuid).build()))
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
             indexMapBuilder.put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, builder.build());
@@ -80,7 +81,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
 
-        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID());
+        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, uuid);
         csBuilder.routingTable(
             RoutingTable.builder()
                 .add(

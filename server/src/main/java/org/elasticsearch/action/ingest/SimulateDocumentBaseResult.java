@@ -50,12 +50,17 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
     }
 
     public SimulateDocumentBaseResult(IngestDocument ingestDocument) {
+        Exception failure = null;
+        WriteableIngestDocument wid = null;
         if (ingestDocument != null) {
-            this.ingestDocument = new WriteableIngestDocument(ingestDocument);
-        } else {
-            this.ingestDocument = null;
+            try {
+                wid = new WriteableIngestDocument(ingestDocument);
+            } catch (Exception ex) {
+                failure = ex;
+            }
         }
-        this.failure = null;
+        this.ingestDocument = wid;
+        this.failure = failure;
     }
 
     public SimulateDocumentBaseResult(Exception failure) {

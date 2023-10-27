@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.Releasable;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Objects;
@@ -143,6 +145,35 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         this.footerBlobCacheByteRange = Objects.requireNonNull(footerBlobCacheByteRange);
         assert offset >= compoundFileOffset;
         assert getBufferSize() <= BlobStoreCacheService.DEFAULT_CACHED_BLOB_SIZE; // must be able to cache at least one buffer's worth
+    }
+
+    /**
+     * Clone constructor, will mark this as cloned.
+     */
+    protected MetadataCachingIndexInput(MetadataCachingIndexInput input) {
+        this(
+            input.logger,
+            "(clone of) " + input,
+            input.directory,
+            input.fileInfo,
+            input.context,
+            input.stats,
+            input.offset,
+            input.compoundFileOffset,
+            input.length,
+            input.cacheFileReference,
+            input.defaultRangeSize,
+            input.recoveryRangeSize,
+            input.headerBlobCacheByteRange,
+            input.footerBlobCacheByteRange
+        );
+        this.isClone = true;
+        try {
+            seek(input.getFilePointer());
+        } catch (IOException e) {
+            assert false : e;
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -497,7 +528,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return directory.blobContainer().readBlob(fileInfo.name(), position, readLength);
+            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT, fileInfo.name(), position, readLength);
         }
         return openInputStreamMultipleParts(position, readLength);
     }
@@ -526,7 +557,8 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                 endInPart = currentPart == endPart
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
-                return directory.blobContainer().readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                return directory.blobContainer()
+                    .readBlob(OperationPurpose.SNAPSHOT, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
             }
         };
     }

@@ -36,7 +36,7 @@ public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
 
     public BaseUpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+        this.roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
         this.metadata = in.readMap();
     }
 

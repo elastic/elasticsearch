@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -72,9 +72,11 @@ public class NodeLeftExecutorTests extends ESTestCase {
             protected ClusterState remainingNodesClusterState(
                 ClusterState currentState,
                 DiscoveryNodes.Builder remainingNodesBuilder,
-                Map<String, TransportVersion> transportVersions
+                Map<String, CompatibilityVersions> compatibilityVersions
             ) {
-                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder, transportVersions));
+                remainingNodesClusterState.set(
+                    super.remainingNodesClusterState(currentState, remainingNodesBuilder, compatibilityVersions)
+                );
                 return remainingNodesClusterState.get();
             }
         };

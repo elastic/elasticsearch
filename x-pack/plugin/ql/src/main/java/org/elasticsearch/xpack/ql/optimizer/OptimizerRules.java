@@ -144,7 +144,7 @@ public final class OptimizerRules {
             return e;
         }
 
-        private Expression simplifyAndOr(BinaryPredicate<?, ?, ?, ?> bc) {
+        private static Expression simplifyAndOr(BinaryPredicate<?, ?, ?, ?> bc) {
             Expression l = bc.left();
             Expression r = bc.right();
 
@@ -339,7 +339,7 @@ public final class OptimizerRules {
         }
 
         // combine conjunction
-        private Expression propagate(And and) {
+        private static Expression propagate(And and) {
             List<Range> ranges = new ArrayList<>();
             // Only equalities, not-equalities and inequalities with a foldable .right are extracted separately;
             // the others go into the general 'exps'.
@@ -479,7 +479,7 @@ public final class OptimizerRules {
         // a = 2 OR a < 3 -> a < 3; a = 2 OR a < 1 -> nop
         // a = 2 OR 3 < a < 5 -> nop; a = 2 OR 1 < a < 3 -> 1 < a < 3; a = 2 OR 0 < a < 1 -> nop
         // a = 2 OR a != 2 -> TRUE; a = 2 OR a = 5 -> nop; a = 2 OR a != 5 -> a != 5
-        private Expression propagate(Or or) {
+        private static Expression propagate(Or or) {
             List<Expression> exps = new ArrayList<>();
             List<Equals> equals = new ArrayList<>(); // foldable right term Equals
             List<NotEquals> notEquals = new ArrayList<>(); // foldable right term NotEquals
@@ -652,7 +652,7 @@ public final class OptimizerRules {
         }
 
         // combine conjunction
-        private Expression combine(And and) {
+        private static Expression combine(And and) {
             List<Range> ranges = new ArrayList<>();
             List<BinaryComparison> bcs = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
@@ -764,7 +764,7 @@ public final class OptimizerRules {
         }
 
         // combine disjunction
-        private Expression combine(Or or) {
+        private static Expression combine(Or or) {
             List<BinaryComparison> bcs = new ArrayList<>();
             List<Range> ranges = new ArrayList<>();
             List<Expression> exps = new ArrayList<>();
@@ -912,7 +912,7 @@ public final class OptimizerRules {
             return false;
         }
 
-        private boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
+        private static boolean findConjunctiveComparisonInRange(BinaryComparison main, List<Range> ranges) {
             Object value = main.right().fold();
 
             // NB: the loop modifies the list (hence why the int is used)
@@ -1242,13 +1242,9 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine equals alongside the existing ors
                 final ZoneId finalZoneId = zoneId;
-                found.forEach((k, v) -> {
-                    ors.add(
-                        v.size() == 1
-                            ? new Equals(k.source(), k, v.iterator().next(), finalZoneId)
-                            : createIn(k, new ArrayList<>(v), finalZoneId)
-                    );
-                });
+                found.forEach(
+                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
+                );
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order
@@ -1260,6 +1256,10 @@ public final class OptimizerRules {
             }
 
             return e;
+        }
+
+        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
+            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
         }
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
@@ -1789,11 +1789,11 @@ public final class OptimizerRules {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            plan.forEachUp(this::rule);
+            plan.forEachUp(SetAsOptimized::rule);
             return plan;
         }
 
-        private void rule(LogicalPlan plan) {
+        private static void rule(LogicalPlan plan) {
             if (plan.optimized() == false) {
                 plan.setOptimized();
             }

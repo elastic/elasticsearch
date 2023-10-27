@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -25,7 +26,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LeastTests extends AbstractFunctionTestCase {
-    public LeastTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public LeastTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -42,14 +43,59 @@ public class LeastTests extends AbstractFunctionTestCase {
             new TestCaseSupplier(
                 "(a, b)",
                 List.of(DataTypes.KEYWORD, DataTypes.KEYWORD),
-                () -> new TestCase(
+                () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
-                        new TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
+                        new TestCaseSupplier.TypedData(new BytesRef("a"), DataTypes.KEYWORD, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("b"), DataTypes.KEYWORD, "b")
                     ),
                     "LeastBytesRefEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
                     DataTypes.KEYWORD,
                     equalTo(new BytesRef("a"))
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataTypes.VERSION, DataTypes.VERSION),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("1"), DataTypes.VERSION, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("2"), DataTypes.VERSION, "b")
+                    ),
+                    "LeastBytesRefEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
+                    DataTypes.VERSION,
+                    equalTo(new BytesRef("1"))
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataTypes.IP, DataTypes.IP),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.1"), DataTypes.IP, "a"),
+                        new TestCaseSupplier.TypedData(new BytesRef("127.0.0.2"), DataTypes.IP, "b")
+                    ),
+                    "LeastBytesRefEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
+                    DataTypes.IP,
+                    equalTo(new BytesRef("127.0.0.1"))
+                )
+            )
+        );
+        suppliers.add(
+            new TestCaseSupplier(
+                "(a, b)",
+                List.of(DataTypes.DOUBLE, DataTypes.DOUBLE),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(1d, DataTypes.DOUBLE, "a"),
+                        new TestCaseSupplier.TypedData(2d, DataTypes.DOUBLE, "b")
+                    ),
+                    "LeastDoubleEvaluator[values=[MvMin[field=Attribute[channel=0]], MvMin[field=Attribute[channel=1]]]]",
+                    DataTypes.DOUBLE,
+                    equalTo(1d)
                 )
             )
         );

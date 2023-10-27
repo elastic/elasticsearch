@@ -9,15 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBooleanEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxBytesRefEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxDoubleEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxIntEvaluator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMaxLongEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
@@ -31,7 +27,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
@@ -42,7 +37,11 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 public class Greatest extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
     private DataType dataType;
 
-    public Greatest(Source source, @Named("first") Expression first, @Named("rest") List<Expression> rest) {
+    public Greatest(
+        Source source,
+        @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
+        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) List<Expression> rest
+    ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }
 
@@ -106,30 +105,21 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
     }
 
     @Override
-    public Supplier<EvalOperator.ExpressionEvaluator> toEvaluator(
-        Function<Expression, Supplier<EvalOperator.ExpressionEvaluator>> toEvaluator
-    ) {
-        List<Supplier<EvalOperator.ExpressionEvaluator>> evaluatorSuppliers = children().stream().map(toEvaluator).toList();
-        Supplier<Stream<EvalOperator.ExpressionEvaluator>> suppliers = () -> evaluatorSuppliers.stream().map(Supplier::get);
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+        ExpressionEvaluator.Factory[] factories = children().stream()
+            .map(e -> toEvaluator.apply(new MvMax(e.source(), e)))
+            .toArray(ExpressionEvaluator.Factory[]::new);
         if (dataType == DataTypes.BOOLEAN) {
-            return () -> new GreatestBooleanEvaluator(
-                suppliers.get().map(MvMaxBooleanEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
-            );
+            return new GreatestBooleanEvaluator.Factory(factories);
         }
         if (dataType == DataTypes.DOUBLE) {
-            return () -> new GreatestDoubleEvaluator(
-                suppliers.get().map(MvMaxDoubleEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
-            );
+            return new GreatestDoubleEvaluator.Factory(factories);
         }
         if (dataType == DataTypes.INTEGER) {
-            return () -> new GreatestIntEvaluator(
-                suppliers.get().map(MvMaxIntEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
-            );
+            return new GreatestIntEvaluator.Factory(factories);
         }
         if (dataType == DataTypes.LONG) {
-            return () -> new GreatestLongEvaluator(
-                suppliers.get().map(MvMaxLongEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
-            );
+            return new GreatestLongEvaluator.Factory(factories);
         }
         if (dataType == DataTypes.KEYWORD
             || dataType == DataTypes.TEXT
@@ -137,9 +127,7 @@ public class Greatest extends ScalarFunction implements EvaluatorMapper, Optiona
             || dataType == DataTypes.VERSION
             || dataType == DataTypes.UNSUPPORTED) {
 
-            return () -> new GreatestBytesRefEvaluator(
-                suppliers.get().map(MvMaxBytesRefEvaluator::new).toArray(EvalOperator.ExpressionEvaluator[]::new)
-            );
+            return new GreatestBytesRefEvaluator.Factory(factories);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType);
     }

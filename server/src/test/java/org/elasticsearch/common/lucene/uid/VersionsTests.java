@@ -18,7 +18,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -31,7 +30,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -197,27 +195,6 @@ public class VersionsTests extends ESTestCase {
         // core should be evicted from the map
         assertEquals(size, VersionsAndSeqNoResolver.lookupStates.size());
         dir.close();
-    }
-
-    public void testLuceneVersionOnUnknownVersions() {
-        // between two known versions, should use the lucene version of the previous version
-        Version version = VersionUtils.getPreviousVersion(Version.CURRENT);
-        final Version nextVersion = Version.fromId(version.id + 100);
-        if (Version.getDeclaredVersions(Version.class).contains(nextVersion) == false) {
-            // the version is not known, we make an assumption the Lucene version stays the same
-            assertEquals(nextVersion.luceneVersion(), version.luceneVersion());
-        } else {
-            // the version is known, the most we can assert is that the Lucene version is not earlier
-            assertTrue(nextVersion.luceneVersion().onOrAfter(version.luceneVersion()));
-        }
-
-        // too old version, major should be the oldest supported lucene version minus 1
-        version = Version.fromString("5.2.1");
-        assertEquals(VersionUtils.getFirstVersion().luceneVersion().major - 1, version.luceneVersion().major);
-
-        // future version, should be the same version as today
-        version = Version.fromId(Version.CURRENT.id + 100);
-        assertEquals(Version.CURRENT.luceneVersion(), version.luceneVersion());
     }
 
     public void testTimeSeriesLoadDocIdAndVersion() throws Exception {

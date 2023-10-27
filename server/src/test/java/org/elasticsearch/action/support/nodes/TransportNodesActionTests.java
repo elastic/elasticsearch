@@ -53,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -273,7 +274,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.GENERIC
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
@@ -285,7 +286,7 @@ public class TransportNodesActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.GENERIC
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
@@ -307,9 +308,9 @@ public class TransportNodesActionTests extends ESTestCase {
             ActionFilters actionFilters,
             Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
-            String nodeExecutor
+            Executor nodeExecutor
         ) {
-            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+            super("indices:admin/test", clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
@@ -347,7 +348,7 @@ public class TransportNodesActionTests extends ESTestCase {
             ActionFilters actionFilters,
             Writeable.Reader<TestNodesRequest> request,
             Writeable.Reader<TestNodeRequest> nodeRequest,
-            String nodeExecutor
+            Executor nodeExecutor
         ) {
             super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
         }
@@ -384,12 +385,12 @@ public class TransportNodesActionTests extends ESTestCase {
 
         @Override
         protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(TestNodeResponse::new);
+            return in.readCollectionAsList(TestNodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
     }
 

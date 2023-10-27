@@ -72,7 +72,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(response, 19);
         assertEquals(10, response.getHits().getHits().length);
         // Make sure we still have 20 docs
-        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true).get(), 20);
+        assertHitCount(client().prepareSearch("index").setSize(0).setTrackTotalHits(true), 20);
     }
 
     public void testKnnWithQuery() throws IOException {
@@ -409,7 +409,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(2, response.getHits().getHits().length);
     }
 
-    public void testKnnVectorsWith2048Dims() throws IOException {
+    public void testKnnVectorsWith4096Dims() throws IOException {
         int numShards = 1 + randomInt(3);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
 
@@ -418,7 +418,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("vector")
             .field("type", "dense_vector")
-            .field("dims", 2048)
+            .field("dims", 4096)
             .field("index", true)
             .field("similarity", "l2_norm")
             .endObject()
@@ -427,18 +427,18 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("index", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index").setSource("vector", randomVector(2048)).get();
+            client().prepareIndex("index").setSource("vector", randomVector(4096)).get();
         }
 
         indicesAdmin().prepareRefresh("index").get();
 
-        float[] queryVector = randomVector(2048);
+        float[] queryVector = randomVector(4096);
         KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 3, 50, null).boost(5.0f);
         SearchResponse response = client().prepareSearch("index").setKnnSearch(List.of(knnSearch)).addFetchField("*").setSize(10).get();
 
         assertHitCount(response, 3);
         assertEquals(3, response.getHits().getHits().length);
-        assertEquals(2048, response.getHits().getAt(0).field("vector").getValues().size());
+        assertEquals(4096, response.getHits().getAt(0).field("vector").getValues().size());
     }
 
     private float[] randomVector() {

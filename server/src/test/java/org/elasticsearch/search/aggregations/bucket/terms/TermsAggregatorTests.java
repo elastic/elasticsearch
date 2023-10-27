@@ -1891,7 +1891,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             terms1 = dh.getBuckets().get(1).getAggregations().get("k");
             assertThat(terms1.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("a")));
         }, new AggTestConfig(builder, dft, kft));
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (reader, aggregator) -> {
             TermsAggregator terms = (TermsAggregator) aggregator.subAggregator("k");
             Map<String, Object> info = new HashMap<>();
             terms.collectDebugInfo(info::put);

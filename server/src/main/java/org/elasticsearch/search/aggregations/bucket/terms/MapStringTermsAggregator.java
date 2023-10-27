@@ -53,6 +53,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
 
+    @SuppressWarnings("this-escape")
     public MapStringTermsAggregator(
         String name,
         AggregatorFactories factories,

@@ -20,6 +20,8 @@ import java.nio.ByteOrder;
 /**
  * Copy of {@link org.apache.lucene.store.BufferedIndexInput} that contains optimizations that haven't made it to the Lucene version used
  * by Elasticsearch yet or that are only applicable to Elasticsearch.
+ * <p>
+ * Deviates from Lucene's implementation slightly to fix a bug - see [NOTE: Missing Seek] below, and #98970 for more details.
  */
 public abstract class BlobCacheBufferedIndexInput extends IndexInput implements RandomAccessInput {
 
@@ -106,13 +108,14 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
                     buffer.get(b, offset, len);
                 }
             } else {
-                // The amount left to read is larger than the buffer
-                // or we've been asked to not use our buffer -
-                // there's no performance reason not to read it all
-                // at once. Note that unlike the previous code of
-                // this function, there is no need to do a seek
-                // here, because there's no need to reread what we
-                // had in the buffer.
+                // The amount left to read is larger than the buffer or we've been asked to not use our buffer - there's no performance
+                // reason not to read it all at once.
+                if (buffer == EMPTY_BYTEBUFFER) {
+                    // fresh clone, must seek
+                    // [NOTE: Missing Seek] This deviates from Lucene's BufferedIndexInput implementation - see #98970
+                    seekInternal(bufferStart);
+                } // else there's no need to do a seek here because we are already positioned correctly
+
                 long after = bufferStart + buffer.position() + len;
                 if (after > length()) throw new EOFException("read past EOF: " + this);
                 readInternal(ByteBuffer.wrap(b, offset, len));

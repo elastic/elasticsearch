@@ -61,6 +61,8 @@ public final class CsvSpecReader {
                 // read data
                 if (line.toLowerCase(Locale.ROOT).startsWith("warning:")) {
                     testCase.expectedWarnings.add(line.substring("warning:".length()).trim());
+                } else if (line.toLowerCase(Locale.ROOT).startsWith("ignoreorder:")) {
+                    testCase.ignoreOrder = Boolean.parseBoolean(line.substring("ignoreOrder:".length()).trim());
                 } else if (line.startsWith(";")) {
                     testCase.expectedResults = data.toString();
                     // clean-up and emit
@@ -83,6 +85,7 @@ public final class CsvSpecReader {
         public String earlySchema;
         public String expectedResults;
         public List<String> expectedWarnings = new ArrayList<>();
+        public boolean ignoreOrder;
     }
 
 }

@@ -22,11 +22,12 @@ import java.io.Reader;
 // used for binary, geo and range fields
 public abstract class CustomDocValuesField implements IndexableField {
 
-    public static final FieldType TYPE = new FieldType();
+    public static final FieldType TYPE;
     static {
-        TYPE.setDocValuesType(DocValuesType.BINARY);
-        TYPE.setOmitNorms(true);
-        TYPE.freeze();
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.BINARY);
+        ft.setOmitNorms(true);
+        TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     private final String name;

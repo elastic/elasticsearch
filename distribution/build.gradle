@@ -411,7 +411,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         if (testDistro) {
           from buildServerNoticeTaskProvider
         } else {
-          from buildDefaultNoticeTaskProvider
+          from (buildDefaultNoticeTaskProvider) {
+            fileMode = 0644
+          }
         }
       }
     }

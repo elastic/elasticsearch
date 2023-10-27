@@ -195,18 +195,13 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         // Block the write thread pool
         writeThreadPool.submit(() -> {
-            try {
-                barrier.await();
-                latch.await();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(barrier);
+            safeAwait(latch);
         });
         // Ensure that the write thread blocking task is currently executing
         barrier.await();
 
-        final SearchResponse searchResponse = client().prepareSearch(sourceIndex)
-            .setSize(numDocs) // Get all indexed docs
+        final SearchResponse searchResponse = prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
             .addSort(SORTING_FIELD, SortOrder.DESC)
             .execute()
             .actionGet();

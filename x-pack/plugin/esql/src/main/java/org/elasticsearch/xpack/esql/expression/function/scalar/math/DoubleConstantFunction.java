@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -17,7 +16,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 /**
- * Function that emits Euler's number.
+ * Function that emits constants, like Euler's number.
  */
 public abstract class DoubleConstantFunction extends ScalarFunction {
     protected DoubleConstantFunction(Source source) {
@@ -36,7 +35,7 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
 
     @Override
     public final ScriptTemplate asScript() {
-        throw new EsqlUnsupportedOperationException("functions do not support scripting");
+        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

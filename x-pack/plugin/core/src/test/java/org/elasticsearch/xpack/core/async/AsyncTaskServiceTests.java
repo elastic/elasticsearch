@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
 // TODO: test CRUD operations
@@ -217,15 +217,14 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
         {
-            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
         }
 
         // Delete the index, so we can test subsequent auto-create behaviour
-        AcknowledgedResponse ack = client().admin().indices().prepareDelete(index).get();
-        assertTrue(ack.isAcknowledged());
+        assertAcked(client().admin().indices().prepareDelete(index));
 
         // Subsequent response deletes throw a (wrapped) index not found exception
         {
@@ -252,7 +251,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // But the index is still auto-created
         {
-            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = PlainActionFuture.newFuture();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();

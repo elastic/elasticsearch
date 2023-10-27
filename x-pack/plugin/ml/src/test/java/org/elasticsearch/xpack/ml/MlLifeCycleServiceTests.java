@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -21,8 +22,12 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentTaskParamsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -30,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlController;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -173,6 +179,88 @@ public class MlLifeCycleServiceTests extends ESTestCase {
         assertThat(isNodeSafeToShutdown("node-2", clusterState, shutdownStartTime, clock), is(true)); // has failed DFA job
         assertThat(isNodeSafeToShutdown("node-3", clusterState, shutdownStartTime, clock), is(true)); // has failed snapshot upgrade
         assertThat(isNodeSafeToShutdown("node-4", clusterState, shutdownStartTime, clock), is(true)); // has no ML tasks
+    }
+
+    public void testIsNodeSafeToShutdownReturnsFalseWhenStartingDeploymentExists() {
+        String nodeId = "node-1";
+        ClusterState currentState = ClusterState.builder(new ClusterName("test"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                "1",
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+
+        assertFalse(isNodeSafeToShutdown("node-1", currentState, null, clock));
+    }
+
+    public void testIsNodeSafeToShutdownReturnsFalseWhenStoppingAndStoppedDeploymentsExist() {
+        String nodeId = "node-1";
+        ClusterState currentState = ClusterState.builder(new ClusterName("test"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                "1",
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
+                            )
+                            .addNewAssignment(
+                                "2",
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+
+        assertFalse(isNodeSafeToShutdown("node-1", currentState, null, clock));
+    }
+
+    public void testIsNodeSafeToShutdownReturnsTrueWhenStoppedDeploymentsExist() {
+        String nodeId = "node-1";
+        ClusterState currentState = ClusterState.builder(new ClusterName("test"))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        TrainedModelAssignmentMetadata.NAME,
+                        TrainedModelAssignmentMetadata.Builder.empty()
+                            .addNewAssignment(
+                                "1",
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
+                            )
+                            .addNewAssignment(
+                                "2",
+                                TrainedModelAssignment.Builder.empty(StartTrainedModelDeploymentTaskParamsTests.createRandom())
+                                    .addRoutingEntry(nodeId, new RoutingInfo(1, 1, RoutingState.STOPPED, ""))
+                            )
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        Clock clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
+
+        assertThat(isNodeSafeToShutdown("node-1", currentState, null, clock), is(true));
     }
 
     public void testSignalGracefulShutdownIncludingLocalNode() {

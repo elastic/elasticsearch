@@ -13,8 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
@@ -113,7 +113,7 @@ public class TransportDeleteTrainedModelActionTests extends ESTestCase {
             actionListener.onFailure(new Exception("error"));
 
             return Void.TYPE;
-        }).when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportListTasksAction.TYPE), any(), any());
 
         var listener = new PlainActionFuture<CancelTasksResponse>();
 

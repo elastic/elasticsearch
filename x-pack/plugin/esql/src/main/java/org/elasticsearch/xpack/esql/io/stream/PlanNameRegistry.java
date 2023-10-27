@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.io.stream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -74,13 +73,15 @@ public class PlanNameRegistry {
         V read(PlanStreamInput in, String name) throws IOException;
 
         default V read(PlanStreamInput in) throws IOException {
-            throw new EsqlUnsupportedOperationException("should not reach here");
+            throw new UnsupportedOperationException("should not reach here");
         }
     }
 
     record Entry(
         /** The superclass of a writeable category will be read by a reader. */
         Class<?> categoryClass,
+        /** The concrete class. */
+        Class<?> concreteClass,
         /** A name for the writeable which is unique to the categoryClass. */
         String name,
         /** A writer for non-NamedWriteable class */
@@ -103,7 +104,7 @@ public class PlanNameRegistry {
             PlanWriter<S> writer,
             PlanReader<S> reader
         ) {
-            return new Entry(categoryClass, PlanNamedTypes.name(concreteClass), writer, reader);
+            return new Entry(categoryClass, concreteClass, PlanNamedTypes.name(concreteClass), writer, reader);
         }
 
         static <T, C extends T, S extends T> Entry of(
@@ -112,7 +113,7 @@ public class PlanNameRegistry {
             PlanWriter<S> writer,
             PlanNamedReader<S> reader
         ) {
-            return new Entry(categoryClass, PlanNamedTypes.name(concreteClass), writer, reader);
+            return new Entry(categoryClass, concreteClass, PlanNamedTypes.name(concreteClass), writer, reader);
         }
     }
 

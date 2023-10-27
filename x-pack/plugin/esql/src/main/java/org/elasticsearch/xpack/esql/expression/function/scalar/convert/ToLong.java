@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToLong;
@@ -32,30 +30,22 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToLong extends AbstractConvertFunction {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            LONG,
-            (fieldEval, source) -> fieldEval,
-            DATETIME,
-            (fieldEval, source) -> fieldEval,
-            BOOLEAN,
-            ToLongFromBooleanEvaluator::new,
-            KEYWORD,
-            ToLongFromStringEvaluator::new,
-            DOUBLE,
-            ToLongFromDoubleEvaluator::new,
-            UNSIGNED_LONG,
-            ToLongFromUnsignedLongEvaluator::new,
-            INTEGER,
-            ToLongFromIntEvaluator::new // CastIntToLongEvaluator would be a candidate, but not MV'd
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(DATETIME, (fieldEval, source) -> fieldEval),
+        Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
+        Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
+    );
 
     public ToLong(Source source, Expression field) {
         super(source, field);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

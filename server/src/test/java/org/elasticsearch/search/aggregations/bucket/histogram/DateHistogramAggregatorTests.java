@@ -1118,7 +1118,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).offset(10),
             new MatchAllDocsQuery(),
             iw -> {},
-            (searcher, aggregator) -> {
+            (reader, aggregator) -> {
                 InternalDateHistogram histo = (InternalDateHistogram) aggregator.buildEmptyAggregation();
                 /*
                  * There was a time where we including the offset in the

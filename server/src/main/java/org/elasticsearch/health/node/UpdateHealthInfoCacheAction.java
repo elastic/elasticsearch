@@ -114,7 +114,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 actionFilters,
                 UpdateHealthInfoCacheAction.Request::new,
                 AcknowledgedResponse::readFrom,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.nodeHealthOverview = nodeHealthOverview;
         }

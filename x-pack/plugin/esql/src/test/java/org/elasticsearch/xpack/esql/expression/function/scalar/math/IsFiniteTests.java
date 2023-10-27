@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -21,7 +22,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IsFiniteTests extends AbstractRationalUnaryPredicateTests {
-    public IsFiniteTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public IsFiniteTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -40,9 +41,9 @@ public class IsFiniteTests extends AbstractRationalUnaryPredicateTests {
         );
     }
 
-    private static TestCase makeTestCase(double val, boolean expected) {
-        return new TestCase(
-            List.of(new TypedData(val, DataTypes.DOUBLE, "arg")),
+    private static TestCaseSupplier.TestCase makeTestCase(double val, boolean expected) {
+        return new TestCaseSupplier.TestCase(
+            List.of(new TestCaseSupplier.TypedData(val, DataTypes.DOUBLE, "arg")),
             "IsFiniteEvaluator[val=Attribute[channel=0]]",
             DataTypes.BOOLEAN,
             equalTo(expected)

@@ -467,11 +467,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      * @throws org.elasticsearch.common.util.concurrent.EsRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
-    public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+    public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor) {
         final Runnable contextPreservingRunnable = threadContext.preserveContext(command);
         final Runnable toSchedule;
-        if (Names.SAME.equals(executor) == false) {
-            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor(executor));
+        if (executor != EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor);
         } else if (slowSchedulerWarnThresholdNanos > 0) {
             toSchedule = new Runnable() {
                 @Override
@@ -503,7 +503,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return new ScheduledCancellableAdapter(scheduler.schedule(toSchedule, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
-    public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
+    public void scheduleUnlessShuttingDown(TimeValue delay, Executor executor, Runnable command) {
         try {
             schedule(command, delay, executor);
         } catch (EsRejectedExecutionException e) {
@@ -523,8 +523,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
     }
 
-    @Override
-    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
+    public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
         var runnable = new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);

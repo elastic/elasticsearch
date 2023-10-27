@@ -220,6 +220,12 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elast
 For information about our documentation processes, see the
 xref:docs/README.asciidoc[docs README].
 
+[[examples]]
+== Examples and guides
+
+The https://github.com/elastic/elasticsearch-labs[`elasticsearch-labs`] repo contains executable Python notebooks, sample apps, and resources to test out Elasticsearch for vector search, hybrid search and generative AI use cases.
+
+
 [[contribute]]
 == Contribute
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -92,7 +93,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
      */
     public BucketSortPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
-        sorts = in.readList(FieldSortBuilder::new);
+        sorts = in.readCollectionAsList(FieldSortBuilder::new);
         from = in.readVInt();
         size = in.readOptionalVInt();
         gapPolicy = GapPolicy.readFrom(in);
@@ -100,7 +101,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeList(sorts);
+        out.writeCollection(sorts);
         out.writeVInt(from);
         out.writeOptionalVInt(size);
         gapPolicy.writeTo(out);
@@ -194,6 +195,6 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

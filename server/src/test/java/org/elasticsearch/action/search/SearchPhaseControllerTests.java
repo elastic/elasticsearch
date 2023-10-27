@@ -1128,7 +1128,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             AtomicReference<TotalHits> totalHitsListener = new AtomicReference<>();
             SearchProgressListener progressListener = new SearchProgressListener() {
                 @Override
-                public void onQueryResult(int shardIndex) {
+                public void onQueryResult(int shardIndex, QuerySearchResult queryResult) {
                     assertThat(shardIndex, lessThan(expectedNumResults));
                     numQueryResultListener.incrementAndGet();
                 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -42,9 +42,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
-        shardIds = in.readList(ShardId::new);
+        shardIds = in.readCollectionAsList(ShardId::new);
         fields = in.readStringArray();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             filters = in.readStringArray();
             allowedTypes = in.readStringArray();
         } else {
@@ -122,9 +122,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(shardIds);
+        out.writeCollection(shardIds);
         out.writeStringArray(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_2_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_2_0)) {
             out.writeStringArray(filters);
             out.writeStringArray(allowedTypes);
         }

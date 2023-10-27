@@ -9,6 +9,7 @@ emp_no:integer
 
 longToLong
 from employees
+| sort emp_no
 | where languages.long < avg_worked_seconds
 | limit 1
 | keep emp_no;
@@ -19,6 +20,7 @@ emp_no:integer
 
 doubleToDouble
 from employees
+| sort emp_no
 | where height < 10.0
 | limit 1
 | keep emp_no;

@@ -33,25 +33,26 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
     private final Map<String, Integer> stackTraceEvents;
     private final int totalFrames;
     private final double samplingRate;
+    private final long totalSamples;
 
     public GetStackTracesResponse(StreamInput in) throws IOException {
         this.stackTraces = in.readBoolean()
             ? in.readMap(
                 i -> new StackTrace(
-                    i.readList(StreamInput::readInt),
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readInt)
+                    i.readCollectionAsList(StreamInput::readInt),
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readInt)
                 )
             )
             : null;
         this.stackFrames = in.readBoolean()
             ? in.readMap(
                 i -> new StackFrame(
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readString),
-                    i.readList(StreamInput::readInt),
-                    i.readList(StreamInput::readInt)
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readString),
+                    i.readCollectionAsList(StreamInput::readInt),
+                    i.readCollectionAsList(StreamInput::readInt)
                 )
             )
             : null;
@@ -59,6 +60,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraceEvents = in.readBoolean() ? in.readMap(StreamInput::readInt) : null;
         this.totalFrames = in.readInt();
         this.samplingRate = in.readDouble();
+        this.totalSamples = in.readLong();
     }
 
     public GetStackTracesResponse(
@@ -67,7 +69,8 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         Map<String, String> executables,
         Map<String, Integer> stackTraceEvents,
         int totalFrames,
-        double samplingRate
+        double samplingRate,
+        long totalSamples
     ) {
         this.stackTraces = stackTraces;
         this.stackFrames = stackFrames;
@@ -75,16 +78,17 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         this.stackTraceEvents = stackTraceEvents;
         this.totalFrames = totalFrames;
         this.samplingRate = samplingRate;
+        this.totalSamples = totalSamples;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (stackTraces != null) {
             out.writeBoolean(true);
-            out.writeMap(stackTraces, StreamOutput::writeString, (o, v) -> {
+            out.writeMap(stackTraces, (o, v) -> {
                 o.writeCollection(v.addressOrLines, StreamOutput::writeInt);
-                o.writeCollection(v.fileIds, StreamOutput::writeString);
-                o.writeCollection(v.frameIds, StreamOutput::writeString);
+                o.writeStringCollection(v.fileIds);
+                o.writeStringCollection(v.frameIds);
                 o.writeCollection(v.typeIds, StreamOutput::writeInt);
             });
         } else {
@@ -92,9 +96,9 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         if (stackFrames != null) {
             out.writeBoolean(true);
-            out.writeMap(stackFrames, StreamOutput::writeString, (o, v) -> {
-                o.writeCollection(v.fileName, StreamOutput::writeString);
-                o.writeCollection(v.functionName, StreamOutput::writeString);
+            out.writeMap(stackFrames, (o, v) -> {
+                o.writeStringCollection(v.fileName);
+                o.writeStringCollection(v.functionName);
                 o.writeCollection(v.functionOffset, StreamOutput::writeInt);
                 o.writeCollection(v.lineNumber, StreamOutput::writeInt);
             });
@@ -103,18 +107,19 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         }
         if (executables != null) {
             out.writeBoolean(true);
-            out.writeMap(executables, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(executables, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
         if (stackTraceEvents != null) {
             out.writeBoolean(true);
-            out.writeMap(stackTraceEvents, StreamOutput::writeString, StreamOutput::writeInt);
+            out.writeMap(stackTraceEvents, StreamOutput::writeInt);
         } else {
             out.writeBoolean(false);
         }
         out.writeInt(totalFrames);
         out.writeDouble(samplingRate);
+        out.writeLong(totalSamples);
     }
 
     public Map<String, StackTrace> getStackTraces() {
@@ -137,6 +142,14 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
         return totalFrames;
     }
 
+    public double getSamplingRate() {
+        return samplingRate;
+    }
+
+    public long getTotalSamples() {
+        return totalSamples;
+    }
+
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
@@ -147,11 +160,16 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
             optional("stack_trace_events", stackTraceEvents, ChunkedToXContentHelper::map),
             Iterators.single((b, p) -> b.field("total_frames", totalFrames)),
             Iterators.single((b, p) -> b.field("sampling_rate", samplingRate)),
+            // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
+            //
+            // * start
+            // * end
+            // * totalSamples
             ChunkedToXContentHelper.endObject()
         );
     }
 
-    private <T> Iterator<? extends ToXContent> optional(
+    private static <T> Iterator<? extends ToXContent> optional(
         String name,
         Map<String, T> values,
         BiFunction<String, Map<String, T>, Iterator<? extends ToXContent>> supplier

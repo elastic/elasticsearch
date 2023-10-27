@@ -22,10 +22,12 @@
           cancel-builds-on-update: true
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'test-full-bwc'
           black-list-labels:
             - '>test-mute'
+            - 'buildkite-opt-in'
     axes:
       - axis:
           type: slave

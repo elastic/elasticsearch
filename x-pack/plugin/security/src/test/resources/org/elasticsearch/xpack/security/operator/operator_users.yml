@@ -9,3 +9,7 @@ operator:
     auth_type: "token"
     token_source: "file"
     token_names: [ "kibana-token" ]
+  - usernames: [ "me@elastic.co" ]
+    realm_type: "jwt"
+    realm_name: "jwt1"
+

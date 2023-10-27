@@ -158,7 +158,7 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
             if (isEmpty() == false) {
                 final HistogramValue histogramValue = (HistogramValue) label.get();
                 final List<Double> values = new ArrayList<>();
-                final List<Integer> counts = new ArrayList<>();
+                final List<Long> counts = new ArrayList<>();
                 while (histogramValue.next()) {
                     values.add(histogramValue.value());
                     counts.add(histogramValue.count());

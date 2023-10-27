@@ -36,19 +36,18 @@ import static org.elasticsearch.compute.gen.AggregatorImplementer.valueVectorTyp
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.ELEMENT_TYPE;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT;
 import static org.elasticsearch.compute.gen.Types.INTERMEDIATE_STATE_DESC;
+import static org.elasticsearch.compute.gen.Types.INT_BLOCK;
 import static org.elasticsearch.compute.gen.Types.INT_VECTOR;
 import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
-import static org.elasticsearch.compute.gen.Types.LONG_BLOCK;
-import static org.elasticsearch.compute.gen.Types.LONG_VECTOR;
 import static org.elasticsearch.compute.gen.Types.PAGE;
 import static org.elasticsearch.compute.gen.Types.SEEN_GROUP_IDS;
 import static org.elasticsearch.compute.gen.Types.blockType;
@@ -94,9 +93,6 @@ public class GroupingAggregatorImplementer {
         this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.valuesIsBytesRef = BYTES_REF.equals(TypeName.get(combine.getParameters().get(combine.getParameters().size() - 1).asType()));
         this.createParameters = init.getParameters().stream().map(Parameter::from).collect(Collectors.toList());
-        if (false == createParameters.stream().anyMatch(p -> p.type().equals(BIG_ARRAYS))) {
-            createParameters.add(0, new Parameter(BIG_ARRAYS, "bigArrays"));
-        }
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -149,6 +145,7 @@ public class GroupingAggregatorImplementer {
         );
         builder.addField(stateType, "state", Modifier.PRIVATE, Modifier.FINAL);
         builder.addField(LIST_INTEGER, "channels", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         for (VariableElement p : init.getParameters()) {
             builder.addField(TypeName.get(p.asType()), p.getSimpleName().toString(), Modifier.PRIVATE, Modifier.FINAL);
@@ -159,10 +156,10 @@ public class GroupingAggregatorImplementer {
         builder.addMethod(intermediateStateDesc());
         builder.addMethod(intermediateBlockCount());
         builder.addMethod(prepareProcessPage());
-        builder.addMethod(addRawInputLoop(LONG_VECTOR, valueBlockType(init, combine)));
-        builder.addMethod(addRawInputLoop(LONG_VECTOR, valueVectorType(init, combine)));
-        builder.addMethod(addRawInputLoop(LONG_BLOCK, valueBlockType(init, combine)));
-        builder.addMethod(addRawInputLoop(LONG_BLOCK, valueVectorType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, valueBlockType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_VECTOR, valueVectorType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, valueBlockType(init, combine)));
+        builder.addMethod(addRawInputLoop(INT_BLOCK, valueVectorType(init, combine)));
         builder.addMethod(addIntermediateInput());
         builder.addMethod(addIntermediateRowInput());
         builder.addMethod(evaluateIntermediate());
@@ -176,13 +173,14 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("create");
         builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC).returns(implementation);
         builder.addParameter(LIST_INTEGER, "channels");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         for (Parameter p : createParameters) {
             builder.addParameter(p.type(), p.name());
         }
         if (init.getParameters().isEmpty()) {
-            builder.addStatement("return new $T(channels, $L)", implementation, callInit());
+            builder.addStatement("return new $T(channels, $L, driverContext)", implementation, callInit());
         } else {
-            builder.addStatement("return new $T(channels, $L, $L)", implementation, callInit(), initParameters());
+            builder.addStatement("return new $T(channels, $L, driverContext, $L)", implementation, callInit(), initParameters());
         }
         return builder.build();
     }
@@ -196,7 +194,7 @@ public class GroupingAggregatorImplementer {
         if (init.getReturnType().toString().equals(stateType.toString())) {
             builder.add("$T.$L($L)", declarationType, init.getSimpleName(), initParameters());
         } else {
-            builder.add("new $T(bigArrays, $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
+            builder.add("new $T(driverContext.bigArrays(), $T.$L($L))", stateType, declarationType, init.getSimpleName(), initParameters());
         }
         return builder.build();
     }
@@ -218,8 +216,10 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(LIST_INTEGER, "channels");
         builder.addParameter(stateType, "state");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
         builder.addStatement("this.channels = channels");
         builder.addStatement("this.state = state");
+        builder.addStatement("this.driverContext = driverContext");
 
         for (VariableElement p : init.getParameters()) {
             builder.addParameter(TypeName.get(p.asType()), p.getSimpleName().toString());
@@ -281,12 +281,12 @@ public class GroupingAggregatorImplementer {
         builder.addSuperinterface(GROUPING_AGGREGATOR_FUNCTION_ADD_INPUT);
 
         MethodSpec.Builder block = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        block.addParameter(TypeName.INT, "positionOffset").addParameter(LONG_BLOCK, "groupIds");
+        block.addParameter(TypeName.INT, "positionOffset").addParameter(INT_BLOCK, "groupIds");
         addBlock.accept(block);
         builder.addMethod(block.build());
 
         MethodSpec.Builder vector = MethodSpec.methodBuilder("add").addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        vector.addParameter(TypeName.INT, "positionOffset").addParameter(LONG_VECTOR, "groupIds");
+        vector.addParameter(TypeName.INT, "positionOffset").addParameter(INT_VECTOR, "groupIds");
         addBlock.accept(vector);
         builder.addMethod(vector.build());
 
@@ -295,7 +295,7 @@ public class GroupingAggregatorImplementer {
 
     /**
      * Generate an {@code addRawInput} method to perform the actual aggregation.
-     * @param groupsType The type of the group key, always {@code LongBlock} or {@code LongVector}
+     * @param groupsType The type of the group key, always {@code IntBlock} or {@code IntVector}
      * @param valuesType The type of the values to consume, always a subclass of {@code Block} or a subclass of {@code Vector}
      */
     private MethodSpec addRawInputLoop(TypeName groupsType, TypeName valuesType) {
@@ -320,9 +320,9 @@ public class GroupingAggregatorImplementer {
                 builder.addStatement("int groupStart = groups.getFirstValueIndex(groupPosition)");
                 builder.addStatement("int groupEnd = groupStart + groups.getValueCount(groupPosition)");
                 builder.beginControlFlow("for (int g = groupStart; g < groupEnd; g++)");
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(g))");
+                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(g))");
             } else {
-                builder.addStatement("int groupId = Math.toIntExact(groups.getLong(groupPosition))");
+                builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
             }
 
             if (valuesIsBlock) {
@@ -409,7 +409,7 @@ public class GroupingAggregatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(TypeName.INT, "positionOffset");
-        builder.addParameter(LONG_VECTOR, "groups");
+        builder.addParameter(INT_VECTOR, "groups");
         builder.addParameter(PAGE, "page");
 
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
@@ -439,7 +439,7 @@ public class GroupingAggregatorImplementer {
         }
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            builder.addStatement("int groupId = Math.toIntExact(groups.getLong(groupPosition))");
+            builder.addStatement("int groupId = Math.toIntExact(groups.getInt(groupPosition))");
             if (hasPrimitiveState()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
@@ -507,7 +507,7 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected");
-        builder.addStatement("state.toIntermediate(blocks, offset, selected)");
+        builder.addStatement("state.toIntermediate(blocks, offset, selected, driverContext)");
         return builder.build();
     }
 
@@ -517,11 +517,13 @@ public class GroupingAggregatorImplementer {
             .addModifiers(Modifier.PUBLIC)
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
-            .addParameter(INT_VECTOR, "selected");
+            .addParameter(INT_VECTOR, "selected")
+            .addParameter(DRIVER_CONTEXT, "driverContext");
+
         if (evaluateFinal == null) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selected)");
+            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, driverContext)");
         } else {
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected)", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, driverContext)", declarationType);
         }
         return builder.build();
     }

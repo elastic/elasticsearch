@@ -61,25 +61,25 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test").setId("7").setSource("foo", "f")
         );
 
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 7);
+        assertHitCount(prepareSearch("test").setSize(0), 7);
 
         // Deletes two docs that matches "foo:a"
         assertThat(deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).get(), matcher().deleted(2));
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 5);
+        assertHitCount(prepareSearch("test").setSize(0), 5);
 
         // Deletes the two first docs with limit by size
         DeleteByQueryRequestBuilder request = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).size(2).refresh(true);
         request.source().addSort("foo.keyword", SortOrder.ASC);
         assertThat(request.get(), matcher().deleted(2));
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 3);
+        assertHitCount(prepareSearch("test").setSize(0), 3);
 
         // Deletes but match no docs
         assertThat(deleteByQuery().source("test").filter(termQuery("foo", "no_match")).refresh(true).get(), matcher().deleted(0));
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 3);
+        assertHitCount(prepareSearch("test").setSize(0), 3);
 
         // Deletes all remaining docs
         assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(), matcher().deleted(3));
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+        assertHitCount(prepareSearch("test").setSize(0), 0);
     }
 
     public void testDeleteByQueryWithOneIndex() throws Exception {
@@ -92,7 +92,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         indexRandom(true, true, true, builders);
 
         assertThat(deleteByQuery().source("t*").filter(QueryBuilders.matchAllQuery()).refresh(true).get(), matcher().deleted(docs));
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+        assertHitCount(prepareSearch("test").setSize(0), 0);
     }
 
     public void testDeleteByQueryWithMultipleIndices() throws Exception {
@@ -122,15 +122,15 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
 
         for (int i = 0; i < indices; i++) {
             long remaining = docs - candidates[i];
-            assertHitCount(client().prepareSearch("test-" + i).setSize(0).get(), remaining);
+            assertHitCount(prepareSearch("test-" + i).setSize(0), remaining);
         }
 
-        assertHitCount(client().prepareSearch().setSize(0).get(), (indices * docs) - deletions);
+        assertHitCount(prepareSearch().setSize(0), (indices * docs) - deletions);
     }
 
     public void testDeleteByQueryWithMissingIndex() throws Exception {
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("foo", "a"));
-        assertHitCount(client().prepareSearch().setSize(0).get(), 1);
+        assertHitCount(prepareSearch().setSize(0), 1);
 
         try {
             deleteByQuery().source("missing").filter(QueryBuilders.matchAllQuery()).get();
@@ -154,19 +154,19 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         indexRandom(true, true, true, builders);
 
         logger.info("--> counting documents with no routing, should be equal to [{}]", docs);
-        assertHitCount(client().prepareSearch().setSize(0).get(), docs);
+        assertHitCount(prepareSearch().setSize(0), docs);
 
         String routing = String.valueOf(randomIntBetween(2, docs));
 
         logger.info("--> counting documents with routing [{}]", routing);
-        long expected = client().prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
+        long expected = prepareSearch().setSize(0).setRouting(routing).get().getHits().getTotalHits().value;
 
         logger.info("--> delete all documents with routing [{}] with a delete-by-query", routing);
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery());
         delete.source().setRouting(routing);
         assertThat(delete.refresh(true).get(), matcher().deleted(expected));
 
-        assertHitCount(client().prepareSearch().setSize(0).get(), docs - expected);
+        assertHitCount(prepareSearch().setSize(0), docs - expected);
     }
 
     public void testDeleteByMatchQuery() throws Exception {
@@ -186,13 +186,13 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         indexRandom(true, true, true, builders);
 
         int n = between(0, docs - 1);
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(matchQuery("_id", Integer.toString(n))).get(), 1);
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get(), docs);
+        assertHitCount(prepareSearch("test").setSize(0).setQuery(matchQuery("_id", Integer.toString(n))), 1);
+        assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()), docs);
 
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("alias").filter(matchQuery("_id", Integer.toString(n)));
         assertThat(delete.refresh(true).get(), matcher().deleted(1L));
 
-        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get(), docs - 1);
+        assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.matchAllQuery()), docs - 1);
     }
 
     public void testDeleteByQueryWithDateMath() throws Exception {
@@ -201,7 +201,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         DeleteByQueryRequestBuilder delete = deleteByQuery().source("test").filter(rangeQuery("d").to("now-1h"));
         assertThat(delete.refresh(true).get(), matcher().deleted(1L));
 
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+        assertHitCount(prepareSearch("test").setSize(0), 0);
     }
 
     public void testDeleteByQueryOnReadOnlyIndex() throws Exception {
@@ -224,7 +224,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             disableIndexBlock("test", SETTING_READ_ONLY);
         }
 
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+        assertHitCount(prepareSearch("test").setSize(0), docs);
     }
 
     public void testDeleteByQueryOnReadOnlyAllowDeleteIndex() throws Exception {
@@ -244,6 +244,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             if (diskAllocationDeciderEnabled == false) {
                 // Disable the disk allocation decider to ensure the read_only_allow_delete block cannot be released
                 setDiskAllocationDeciderEnabled(false);
+                refreshClusterInfo(); // ensures the logic for removing blocks upon disabling the decider is executed once
             }
             // When a read_only_allow_delete block is set on the index,
             // it will trigger a retry policy in the delete by query request because the rest status of the block is 429
@@ -279,9 +280,9 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             }
         }
         if (diskAllocationDeciderEnabled) {
-            assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+            assertHitCount(prepareSearch("test").setSize(0), 0);
         } else {
-            assertHitCount(client().prepareSearch("test").setSize(0).get(), docs);
+            assertHitCount(prepareSearch("test").setSize(0), docs);
         }
     }
 
@@ -296,7 +297,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test").setId("6").setSource("foo", "e"),
             client().prepareIndex("test").setId("7").setSource("foo", "f")
         );
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 7);
+        assertHitCount(prepareSearch("test").setSize(0), 7);
 
         int slices = randomSlices();
         int expectedSlices = expectedSliceStatuses(slices, "test");
@@ -306,14 +307,14 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
             deleteByQuery().source("test").filter(termQuery("foo", "a")).refresh(true).setSlices(slices).get(),
             matcher().deleted(2).slices(hasSize(expectedSlices))
         );
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 5);
+        assertHitCount(prepareSearch("test").setSize(0), 5);
 
         // Delete remaining docs
         assertThat(
             deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).setSlices(slices).get(),
             matcher().deleted(5).slices(hasSize(expectedSlices))
         );
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 0);
+        assertHitCount(prepareSearch("test").setSize(0), 0);
     }
 
     public void testMultipleSources() throws Exception {
@@ -332,7 +333,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         indexRandom(true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
-            assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
+            assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
         int slices = randomSlices(1, 10);
@@ -346,7 +347,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         );
 
         for (String index : docs.keySet()) {
-            assertHitCount(client().prepareSearch(index).setSize(0).get(), 0);
+            assertHitCount(prepareSearch(index).setSize(0), 0);
         }
 
     }

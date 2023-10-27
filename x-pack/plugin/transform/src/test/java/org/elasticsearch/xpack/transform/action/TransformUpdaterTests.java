@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.TransformConfigVersionUtils;
+import org.elasticsearch.xpack.transform.DefaultTransformExtension;
 import org.elasticsearch.xpack.transform.action.TransformUpdater.UpdateResult;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
@@ -76,6 +77,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private ClusterService clusterService = mock(ClusterService.class);
     private TransformAuditor auditor = new MockTransformAuditor(clusterService);
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
+    private final Settings destIndexSettings = new DefaultTransformExtension().getTransformDestinationIndexSettings();
 
     private static class MyMockClient extends NoOpClient {
 
@@ -157,6 +159,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -192,6 +195,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -264,6 +268,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -331,6 +336,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 true,
                 false,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -378,6 +384,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 true,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -420,6 +427,7 @@ public class TransformUpdaterTests extends ESTestCase {
                 false,
                 true,
                 AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+                destIndexSettings,
                 listener
             ),
             updateResult -> {
@@ -454,6 +462,7 @@ public class TransformUpdaterTests extends ESTestCase {
             false,
             true,
             AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            destIndexSettings,
             ActionListener.wrap(
                 r -> fail("Should fail due to missing privileges"),
                 e -> assertThat(e.getMessage(), is(equalTo("missing privileges")))

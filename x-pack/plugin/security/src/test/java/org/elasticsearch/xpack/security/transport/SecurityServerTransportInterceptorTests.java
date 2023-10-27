@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
@@ -407,7 +407,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             }
         };
         AsyncSender sender = interceptor.interceptSender(intercepted);
-        final TransportVersion connectionVersion = TransportVersion.fromId(Version.CURRENT.id - randomIntBetween(100, 100000));
+        final TransportVersion connectionVersion = TransportVersion.fromId(TransportVersion.current().id() - randomIntBetween(100, 100000));
         assertEquals(connectionVersion, TransportVersion.min(connectionVersion, TransportVersion.current()));
 
         Transport.Connection connection = mock(Transport.Connection.class);
@@ -570,7 +570,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 logger,
                 DeleteIndexAction.NAME,
                 randomBoolean(),
-                randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC,
+                threadPool.executor(randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC),
                 (request, channel, task) -> fail("should fail at destructive operations check to trigger listener failure"),
                 Map.of(
                     profileName,
@@ -986,7 +986,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         );
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             versionBeforeCrossClusterAccessRealm
         );
         when(connection.getTransportVersion()).thenReturn(version);

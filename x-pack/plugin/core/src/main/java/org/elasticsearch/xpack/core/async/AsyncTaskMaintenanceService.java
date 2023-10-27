@@ -162,7 +162,7 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     synchronized void scheduleNextCleanup() {
         if (isCleanupRunning) {
             try {
-                cancellable = threadPool.schedule(this::executeNextCleanup, delay, ThreadPool.Names.GENERIC);
+                cancellable = threadPool.schedule(this::executeNextCleanup, delay, threadPool.generic());
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("failed to schedule next maintenance task; shutting down", e);

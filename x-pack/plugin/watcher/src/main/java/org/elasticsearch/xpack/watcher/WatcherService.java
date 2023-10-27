@@ -419,7 +419,7 @@ public class WatcherService {
      * @param index           The index of the local shard
      * @return true if the we should parse the watch on this node, false otherwise
      */
-    private boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
+    private static boolean parseWatchOnThisNode(String id, int totalShardCount, int index) {
         int hash = Murmur3HashFunction.hash(id);
         int shardIndex = Math.floorMod(hash, totalShardCount);
         return shardIndex == index;

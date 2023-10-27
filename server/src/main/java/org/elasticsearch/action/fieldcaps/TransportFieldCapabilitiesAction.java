@@ -23,9 +23,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,6 +48,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -82,7 +85,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, ThreadPool.Names.SAME);
+        super(
+            FieldCapabilitiesAction.NAME,
+            transportService,
+            actionFilters,
+            FieldCapabilitiesRequest::new,
+            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
+        );
         this.threadPool = threadPool;
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
@@ -91,7 +100,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.indicesService = indicesService;
         transportService.registerRequestHandler(
             ACTION_NODE_NAME,
-            ThreadPool.Names.SEARCH_COORDINATION,
+            this.searchCoordinationExecutor,
             FieldCapabilitiesNodeRequest::new,
             new NodeTransportHandler()
         );
@@ -310,67 +319,86 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
 
         task.ensureNotCancelled();
-        return new FieldCapabilitiesResponse(
-            indices,
-            buildResponseMap(indexResponsesMap, responseMapBuilder, request.includeUnmapped()),
-            failures
-        );
+        Map<String, Map<String, FieldCapabilities>> responseMap = Maps.newMapWithExpectedSize(responseMapBuilder.size());
+        if (request.includeUnmapped()) {
+            collectResponseMapIncludingUnmapped(indices, responseMapBuilder, responseMap);
+        } else {
+            collectResponseMap(responseMapBuilder, responseMap);
+        }
+        return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 
-    private static Map<String, Map<String, FieldCapabilities>> buildResponseMap(
-        Map<String, FieldCapabilitiesIndexResponse> indexResponsesMap,
+    private static void collectResponseMapIncludingUnmapped(
+        String[] indices,
         Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-        boolean includeUnmapped
+        Map<String, Map<String, FieldCapabilities>> responseMap
     ) {
-        Map<String, Map<String, FieldCapabilities>> responseMap = Maps.newMapWithExpectedSize(responseMapBuilder.size());
-        final var indices = indexResponsesMap.keySet();
+        final Set<String> mappedScratch = new HashSet<>();
         for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
             var typeMapBuilder = entry.getValue().entrySet();
 
-            Function<Boolean, FieldCapabilities> unmapped = null;
-            if (includeUnmapped) {
-                // do this directly, rather than using the builder, to save creating a whole lot of objects we don't need
-                unmapped = getUnmappedFields(
-                    indices,
-                    entry.getKey(),
-                    typeMapBuilder.stream().flatMap(t -> t.getValue().getIndices()).collect(Collectors.toSet())
-                );
+            // do this directly, rather than using the builder, to save creating a whole lot of objects we don't need
+            mappedScratch.clear();
+            for (Map.Entry<String, FieldCapabilities.Builder> b : typeMapBuilder) {
+                b.getValue().getIndices(mappedScratch);
             }
+            var unmapped = getUnmappedFields(indices, entry.getKey(), mappedScratch);
 
             final int resSize = typeMapBuilder.size() + (unmapped == null ? 0 : 1);
-            boolean multiTypes = resSize > 1;
-            final Map<String, FieldCapabilities> res = Maps.newHashMapWithExpectedSize(resSize);
-            for (Map.Entry<String, FieldCapabilities.Builder> e : typeMapBuilder) {
-                res.put(e.getKey(), e.getValue().build(multiTypes));
-            }
+            final Map<String, FieldCapabilities> res = capabilities(resSize, typeMapBuilder);
             if (unmapped != null) {
-                res.put("unmapped", unmapped.apply(multiTypes));
+                res.put("unmapped", unmapped.apply(resSize > 1));
             }
             responseMap.put(entry.getKey(), Collections.unmodifiableMap(res));
         }
-        return Collections.unmodifiableMap(responseMap);
+    }
+
+    private static void collectResponseMap(
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        Map<String, Map<String, FieldCapabilities>> responseMap
+    ) {
+        for (Map.Entry<String, Map<String, FieldCapabilities.Builder>> entry : responseMapBuilder.entrySet()) {
+            var typeMapBuilder = entry.getValue().entrySet();
+            responseMap.put(entry.getKey(), Collections.unmodifiableMap(capabilities(typeMapBuilder.size(), typeMapBuilder)));
+        }
+    }
+
+    private static Map<String, FieldCapabilities> capabilities(int resSize, Set<Map.Entry<String, FieldCapabilities.Builder>> builders) {
+        boolean multiTypes = resSize > 1;
+        final Map<String, FieldCapabilities> res = Maps.newHashMapWithExpectedSize(resSize);
+        for (Map.Entry<String, FieldCapabilities.Builder> e : builders) {
+            res.put(e.getKey(), e.getValue().build(multiTypes));
+        }
+        return res;
     }
 
     @Nullable
-    private static Function<Boolean, FieldCapabilities> getUnmappedFields(Set<String> indices, String field, Set<String> mappedIndices) {
-        if (mappedIndices.size() != indices.size()) {
-            return mt -> new FieldCapabilities(
-                field,
-                "unmapped",
-                false,
-                false,
-                false,
-                false,
-                null,
-                mt ? Sets.difference(indices, mappedIndices).toArray(Strings.EMPTY_ARRAY) : null,
-                null,
-                null,
-                null,
-                null,
-                Map.of()
-            );
+    private static Function<Boolean, FieldCapabilities> getUnmappedFields(String[] indices, String field, Set<String> mappedIndices) {
+        if (mappedIndices.size() != indices.length) {
+            return mt -> {
+                final String[] diff;
+                if (mt) {
+                    diff = new String[indices.length - mappedIndices.size()];
+                    Iterator<String> indicesIter = Iterators.forArray(indices);
+                    for (int i = 0; i < diff.length; i++) {
+                        diff[i] = nextIndex(indicesIter, mappedIndices);
+                    }
+                } else {
+                    diff = null;
+                }
+                return new FieldCapabilities(field, "unmapped", false, false, false, false, null, diff, null, null, null, null, Map.of());
+            };
         }
         return null;
+    }
+
+    private static String nextIndex(Iterator<String> iter, Set<String> filtered) {
+        while (true) {
+            String index = iter.next();
+            if (filtered.contains(index) == false) {
+                return index;
+            }
+        }
     }
 
     private static void innerMerge(
@@ -389,17 +417,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             final String field = entry.getKey();
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
-            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
-                fieldCap.getType(),
-                key -> new FieldCapabilities.Builder(field, key)
-            );
+            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.type(), key -> new FieldCapabilities.Builder(field, key));
             builder.add(
                 indices,
                 fieldCap.isMetadatafield(),
                 fieldCap.isSearchable(),
                 fieldCap.isAggregatable(),
                 fieldCap.isDimension(),
-                fieldCap.getMetricType(),
+                fieldCap.metricType(),
                 fieldCap.meta()
             );
         }
@@ -462,6 +487,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
                     final Set<ShardId> unmatched = new HashSet<>();
@@ -470,7 +496,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                             final FieldCapabilitiesIndexResponse response = fetcher.fetch(
                                 (CancellableTask) task,
                                 shardId,
-                                request.fields(),
+                                fieldNameFilter,
                                 request.filters(),
                                 request.allowedTypes(),
                                 request.indexFilter(),

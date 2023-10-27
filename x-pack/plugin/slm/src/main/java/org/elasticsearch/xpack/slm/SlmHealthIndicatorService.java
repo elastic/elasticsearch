@@ -83,6 +83,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     private final ClusterService clusterService;
     private volatile long failedSnapshotWarnThreshold;
 
+    @SuppressWarnings("this-escape")
     public SlmHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
         this.failedSnapshotWarnThreshold = clusterService.getClusterSettings().get(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING);
@@ -134,7 +135,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 .values()
                 .stream()
                 .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
-                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getName))
+                .sorted(Comparator.comparing(SnapshotLifecyclePolicyMetadata::getId))
                 .toList();
 
             if (unhealthyPolicies.size() > 0) {
@@ -152,7 +153,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 String unhealthyPolicyCauses = unhealthyPolicies.stream()
                     .map(
                         policy -> "- ["
-                            + policy.getName()
+                            + policy.getId()
                             + "] had ["
                             + policy.getInvocationsSinceLastSuccess()
                             + "] repeated failures without successful execution"
@@ -166,7 +167,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     : "An automated snapshot policy is unhealthy:\n") + unhealthyPolicyCauses;
 
                 String unhealthyPolicyActions = unhealthyPolicies.stream()
-                    .map(policy -> "- GET /_slm/policy/" + policy.getPolicy().getId() + "?human")
+                    .map(policy -> "- GET /_slm/policy/" + policy.getId() + "?human")
                     .collect(Collectors.joining("\n"));
                 String action = "Check the snapshot lifecycle "
                     + (unhealthyPolicies.size() > 1 ? "policies" : "policy")
@@ -185,7 +186,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                                 new Diagnosis.Resource(
                                     Diagnosis.Resource.Type.SLM_POLICY,
                                     unhealthyPolicies.stream()
-                                        .map(SnapshotLifecyclePolicyMetadata::getName)
+                                        .map(SnapshotLifecyclePolicyMetadata::getId)
                                         .limit(Math.min(unhealthyPolicies.size(), maxAffectedResourcesCount))
                                         .toList()
                                 )
@@ -242,7 +243,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                         unhealthyPolicies.stream()
                             .collect(
                                 Collectors.toMap(
-                                    SnapshotLifecyclePolicyMetadata::getName,
+                                    SnapshotLifecyclePolicyMetadata::getId,
                                     SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
                                 )
                             )

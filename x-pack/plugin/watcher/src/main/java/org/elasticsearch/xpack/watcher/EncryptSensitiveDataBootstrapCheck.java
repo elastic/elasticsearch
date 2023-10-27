@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 
@@ -49,5 +50,10 @@ final class EncryptSensitiveDataBootstrapCheck implements BootstrapCheck {
     @Override
     public boolean alwaysEnforce() {
         return true;
+    }
+
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_ENCRYPT_SENSITIVE_DATA;
     }
 }

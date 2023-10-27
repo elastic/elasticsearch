@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -15,16 +17,25 @@ import java.util.Arrays;
  */
 public final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanArrayVector.class);
+
     private final boolean[] values;
 
+    private final BooleanBlock block;
+
     public BooleanArrayVector(boolean[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BooleanArrayVector(boolean[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -44,7 +55,21 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
 
     @Override
     public BooleanVector filter(int... positions) {
-        return new FilterBooleanVector(this, positions);
+        try (BooleanVector.Builder builder = blockFactory.newBooleanVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendBoolean(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    public static long ramBytesEstimated(boolean[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override
@@ -64,4 +89,5 @@ public final class BooleanArrayVector extends AbstractVector implements BooleanV
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

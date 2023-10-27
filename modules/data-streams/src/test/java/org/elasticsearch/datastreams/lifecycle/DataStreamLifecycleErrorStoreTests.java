@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore.MAX_ERROR_MESSAGE_LENGTH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -30,10 +31,15 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
     }
 
     public void testRecordAndRetrieveError() {
-        errorStore.recordError("test", new NullPointerException("testing"));
+        String existingRecordedError = errorStore.recordError("test", new NullPointerException("testing"));
+        assertThat(existingRecordedError, is(nullValue()));
         assertThat(errorStore.getError("test"), is(notNullValue()));
         assertThat(errorStore.getAllIndices().size(), is(1));
         assertThat(errorStore.getAllIndices().get(0), is("test"));
+
+        existingRecordedError = errorStore.recordError("test", new IllegalStateException("bad state"));
+        assertThat(existingRecordedError, is(notNullValue()));
+        assertThat(existingRecordedError, containsString("testing"));
     }
 
     public void testRetrieveAfterClear() {

@@ -1,0 +1,5 @@
+pr: 100323
+summary: "CCR: Use local cluster state request"
+area: CCR
+type: bug
+issues: []

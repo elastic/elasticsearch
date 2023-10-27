@@ -8,8 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -32,6 +34,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
     private CommonStatsFlags indices = new CommonStatsFlags();
     private final Set<String> requestedMetrics = new HashSet<>();
+    private boolean includeShardsStats = true;
 
     public NodesStatsRequest() {
         super((String[]) null);
@@ -42,7 +45,12 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
 
         indices = new CommonStatsFlags(in);
         requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        requestedMetrics.addAll(in.readStringCollectionAsList());
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_SHARDS_STATS_ADDED)) {
+            includeShardsStats = in.readBoolean();
+        } else {
+            includeShardsStats = true;
+        }
     }
 
     /**
@@ -149,15 +157,41 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     @Override
+    public String getDescription() {
+        return Strings.format(
+            "nodes=%s, metrics=%s, flags=%s",
+            Arrays.toString(nodesIds()),
+            requestedMetrics.toString(),
+            Arrays.toString(indices.getFlags())
+        );
+    }
+
+    @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return NodesStatsRequest.this.getDescription();
+            }
+        };
+    }
+
+    public boolean includeShardsStats() {
+        return includeShardsStats;
+    }
+
+    public void setIncludeShardsStats(boolean includeShardsStats) {
+        this.includeShardsStats = includeShardsStats;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+        out.writeStringCollection(requestedMetrics);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INCLUDE_SHARDS_STATS_ADDED)) {
+            out.writeBoolean(includeShardsStats);
+        }
     }
 
     /**

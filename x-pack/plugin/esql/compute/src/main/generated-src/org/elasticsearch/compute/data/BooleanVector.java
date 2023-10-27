@@ -7,12 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
+
 /**
  * Vector that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, FilterBooleanVector, BooleanArrayVector,
-    BooleanBigArrayVector {
+public sealed interface BooleanVector extends Vector permits ConstantBooleanVector, BooleanArrayVector, BooleanBigArrayVector {
     boolean getBoolean(int position);
 
     @Override
@@ -66,15 +70,79 @@ public sealed interface BooleanVector extends Vector permits ConstantBooleanVect
         return result;
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new BooleanVectorBuilder(estimatedSize);
+    /** Deserializes a Vector from the given stream input. */
+    static BooleanVector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        final boolean constant = in.readBoolean();
+        if (constant && positions > 0) {
+            return blockFactory.newConstantBooleanVector(in.readBoolean(), positions);
+        } else {
+            try (var builder = blockFactory.newBooleanVectorFixedBuilder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.appendBoolean(in.readBoolean());
+                }
+                return builder.build();
+            }
+        }
     }
 
+    /** Serializes this Vector to the given stream output. */
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        out.writeBoolean(isConstant());
+        if (isConstant() && positions > 0) {
+            out.writeBoolean(getBoolean(0));
+        } else {
+            for (int i = 0; i < positions; i++) {
+                out.writeBoolean(getBoolean(i));
+            }
+        }
+    }
+
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    static Builder newVectorBuilder(int estimatedSize) {
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+    /**
+     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.newBooleanVectorBuilder(estimatedSize);
+    }
+
+    /**
+     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
+        return blockFactory.newBooleanVectorFixedBuilder(size);
+    }
+
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits BooleanVectorBuilder {
         /**
          * Appends a boolean to the current entry.
          */
         Builder appendBoolean(boolean value);
+
+        @Override
+        BooleanVector build();
+    }
+
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Vector.Builder permits BooleanVectorFixedBuilder {
+        /**
+         * Appends a boolean to the current entry.
+         */
+        FixedBuilder appendBoolean(boolean value);
 
         @Override
         BooleanVector build();

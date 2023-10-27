@@ -219,7 +219,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final TimeValue delay = periodicTaskInterval;
                 if (delay.getMillis() > 0L) {
                     final PeriodicMaintenanceTask task = new PeriodicMaintenanceTask(periodicTaskKeepAlive, periodicTaskBatchSize);
-                    periodicTask = threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+                    periodicTask = threadPool.schedule(task, delay, threadPool.generic());
                 } else {
                     periodicTask = null;
                 }

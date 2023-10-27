@@ -14,8 +14,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.ToIntFunction;
 
 public class Iterators {
 
@@ -151,8 +153,12 @@ public class Iterators {
         }
     }
 
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public static <T, U> Iterator<U> map(Iterator<? extends T> input, Function<T, ? extends U> fn) {
         if (input.hasNext()) {
+            if (input instanceof MapIterator mapIterator) {
+                return new MapIterator<>(mapIterator.input, mapIterator.fn.andThen(fn));
+            }
             return new MapIterator<>(input, fn);
         } else {
             return Collections.emptyIterator();
@@ -226,6 +232,38 @@ public class Iterators {
             }
             return value;
         }
+    }
+
+    public static <T> boolean equals(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2, BiPredicate<T, T> itemComparer) {
+        if (iterator1 == null) {
+            return iterator2 == null;
+        }
+        if (iterator2 == null) {
+            return false;
+        }
+
+        while (iterator1.hasNext()) {
+            if (iterator2.hasNext() == false) {
+                return false;
+            }
+
+            if (itemComparer.test(iterator1.next(), iterator2.next()) == false) {
+                return false;
+            }
+        }
+
+        return iterator2.hasNext() == false;
+    }
+
+    public static <T> int hashCode(Iterator<? extends T> iterator, ToIntFunction<T> itemHashcode) {
+        if (iterator == null) {
+            return 0;
+        }
+        int result = 1;
+        while (iterator.hasNext()) {
+            result = 31 * result + itemHashcode.applyAsInt(iterator.next());
+        }
+        return result;
     }
 
 }

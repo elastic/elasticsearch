@@ -41,6 +41,11 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     private Integer sampleSize;
 
+    // We intentionally don't expose this field via the REST API but we can control behavior within Elasticsearch.
+    // Once we have migrated all client-side code to dedicated APIs (such as the flamegraph API), we can adjust
+    // sample counts by default and remove this flag.
+    private Boolean adjustSampleCount;
+
     public GetStackTracesRequest() {
         this(null, null);
     }
@@ -53,12 +58,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public GetStackTracesRequest(StreamInput in) throws IOException {
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
         this.sampleSize = in.readOptionalInt();
+        this.adjustSampleCount = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalNamedWriteable(query);
         out.writeOptionalInt(sampleSize);
+        out.writeOptionalBoolean(adjustSampleCount);
     }
 
     public Integer getSampleSize() {
@@ -67,6 +74,14 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     public QueryBuilder getQuery() {
         return query;
+    }
+
+    public boolean isAdjustSampleCount() {
+        return Boolean.TRUE.equals(adjustSampleCount);
+    }
+
+    public void setAdjustSampleCount(Boolean adjustSampleCount) {
+        this.adjustSampleCount = adjustSampleCount;
     }
 
     public void parseXContent(XContentParser parser) throws IOException {
@@ -158,7 +173,13 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, sampleSize);
+        // The object representation of `query` may use Lucene's ByteRef to represent values. This class' hashCode implementation
+        // uses StringUtils.GOOD_FAST_HASH_SEED which is reinitialized for each JVM. This means that hashcode is consistent *within*
+        // a JVM but will not be consistent across the cluster. As we use hashCode e.g. to initialize the random number generator in
+        // Resampler to produce a consistent downsampling results, relying on the default hashCode implementation of `query` will
+        // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
+        // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
+        return Objects.hash(Objects.toString(query, "null"), sampleSize);
     }
 
     @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -23,7 +24,7 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInte
 import static org.hamcrest.Matchers.equalTo;
 
 public class MulTests extends AbstractArithmeticTestCase {
-    public MulTests(@Name("TestCase") Supplier<TestCase> testCaseSupplier) {
+    public MulTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -33,8 +34,11 @@ public class MulTests extends AbstractArithmeticTestCase {
             // Ensure we don't have an overflow
             int rhs = randomIntBetween(-255, 255);
             int lhs = randomIntBetween(-255, 255);
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.INTEGER, "lhs"), new TypedData(rhs, DataTypes.INTEGER, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.INTEGER, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+                ),
                 "MulIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.INTEGER,
                 equalTo(lhs * rhs)
@@ -43,8 +47,11 @@ public class MulTests extends AbstractArithmeticTestCase {
             // Ensure we don't have an overflow
             long rhs = randomLongBetween(-1024, 1024);
             long lhs = randomLongBetween(-1024, 1024);
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.LONG, "lhs"), new TypedData(rhs, DataTypes.LONG, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.LONG, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.LONG, "rhs")
+                ),
                 "MulLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.LONG,
                 equalTo(lhs * rhs)
@@ -52,8 +59,11 @@ public class MulTests extends AbstractArithmeticTestCase {
         }), new TestCaseSupplier("Double * Double", () -> {
             double rhs = randomDouble();
             double lhs = randomDouble();
-            return new TestCase(
-                List.of(new TypedData(lhs, DataTypes.DOUBLE, "lhs"), new TypedData(rhs, DataTypes.DOUBLE, "rhs")),
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhs, DataTypes.DOUBLE, "lhs"),
+                    new TestCaseSupplier.TypedData(rhs, DataTypes.DOUBLE, "rhs")
+                ),
                 "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataTypes.DOUBLE,
                 equalTo(lhs * rhs)

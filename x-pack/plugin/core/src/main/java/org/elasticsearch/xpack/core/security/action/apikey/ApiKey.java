@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +46,7 @@ import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterAp
  */
 public final class ApiKey implements ToXContentObject, Writeable {
 
-    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersion.V_8_500_010;
+    public static final TransportVersion CROSS_CLUSTER_KEY_VERSION = TransportVersions.V_8_500_020;
 
     public enum Type {
         /**
@@ -159,7 +160,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     public ApiKey(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             this.name = in.readOptionalString();
         } else {
             this.name = in.readString();
@@ -178,13 +179,13 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = in.readBoolean();
         this.username = in.readString();
         this.realm = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             this.metadata = in.readMap();
         } else {
             this.metadata = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
-            final List<RoleDescriptor> roleDescriptors = in.readOptionalList(RoleDescriptor::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
+            final List<RoleDescriptor> roleDescriptors = in.readOptionalCollectionAsList(RoleDescriptor::new);
             this.roleDescriptors = roleDescriptors != null ? List.copyOf(roleDescriptors) : null;
             this.limitedBy = in.readOptionalWriteable(RoleDescriptorsIntersection::new);
         } else {
@@ -308,7 +309,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_5_0)) {
             out.writeOptionalString(name);
         } else {
             out.writeString(name);
@@ -322,10 +323,10 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeBoolean(invalidated);
         out.writeString(username);
         out.writeString(realm);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeGenericMap(metadata);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeOptionalCollection(roleDescriptors);
             out.writeOptionalWriteable(limitedBy);
         }

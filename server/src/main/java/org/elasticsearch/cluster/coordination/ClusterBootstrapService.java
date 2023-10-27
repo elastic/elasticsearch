@@ -16,12 +16,12 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -130,7 +130,11 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
                 logger.info("this node is locked into cluster UUID [{}] and will not attempt further cluster bootstrapping", clusterUUID);
             } else {
                 transportService.getThreadPool()
-                    .scheduleWithFixedDelay(() -> logRemovalWarning(clusterUUID), TimeValue.timeValueHours(12), Names.SAME);
+                    .scheduleWithFixedDelay(
+                        () -> logRemovalWarning(clusterUUID),
+                        TimeValue.timeValueHours(12),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                    );
                 logRemovalWarning(clusterUUID);
             }
         } else {
@@ -211,19 +215,20 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
             unconfiguredBootstrapTimeout
         );
 
-        transportService.getThreadPool().scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
-                logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
-                startBootstrap(discoveredNodes, emptyList());
-            }
+        transportService.getThreadPool()
+            .scheduleUnlessShuttingDown(unconfiguredBootstrapTimeout, transportService.getThreadPool().generic(), new Runnable() {
+                @Override
+                public void run() {
+                    final Set<DiscoveryNode> discoveredNodes = getDiscoveredNodes();
+                    logger.debug("performing best-effort cluster bootstrapping with {}", discoveredNodes);
+                    startBootstrap(discoveredNodes, emptyList());
+                }
 
-            @Override
-            public String toString() {
-                return "unconfigured-discovery delayed bootstrap";
-            }
-        });
+                @Override
+                public String toString() {
+                    return "unconfigured-discovery delayed bootstrap";
+                }
+            });
     }
 
     private Set<DiscoveryNode> getDiscoveredNodes() {
@@ -259,17 +264,18 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
             votingConfigurationConsumer.accept(votingConfiguration);
         } catch (Exception e) {
             logger.warn(() -> "exception when bootstrapping with " + votingConfiguration + ", rescheduling", e);
-            transportService.getThreadPool().scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), Names.GENERIC, new Runnable() {
-                @Override
-                public void run() {
-                    doBootstrap(votingConfiguration);
-                }
+            transportService.getThreadPool()
+                .scheduleUnlessShuttingDown(TimeValue.timeValueSeconds(10), transportService.getThreadPool().generic(), new Runnable() {
+                    @Override
+                    public void run() {
+                        doBootstrap(votingConfiguration);
+                    }
 
-                @Override
-                public String toString() {
-                    return "retry of failed bootstrapping with " + votingConfiguration;
-                }
-            });
+                    @Override
+                    public String toString() {
+                        return "retry of failed bootstrapping with " + votingConfiguration;
+                    }
+                });
         }
     }
 

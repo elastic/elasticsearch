@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,7 +29,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             // recent versions send a BytesTransportRequest containing a compressed representation of the state
             final var bytes = in.readReleasableBytesReference();
             final var version = in.getTransportVersion();
@@ -67,7 +68,7 @@ public class ValidateJoinRequest extends TransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getTransportVersion().before(TransportVersion.V_8_3_0);
+        assert out.getTransportVersion().before(TransportVersions.V_8_3_0);
         super.writeTo(out);
         stateSupplier.get().writeTo(out);
     }

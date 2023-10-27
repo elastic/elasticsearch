@@ -10,21 +10,23 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * Vector that stores $type$ values.
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector {
 $elseif(boolean)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
-    $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
 $elseif(double)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector,
-    $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
 $else$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, Filter$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector {
 $endif$
 
 $if(BytesRef)$
@@ -101,21 +103,89 @@ $endif$
         return result;
     }
 
-    static Builder newVectorBuilder(int estimatedSize) {
-        return new $Type$VectorBuilder(estimatedSize);
+    /** Deserializes a Vector from the given stream input. */
+    static $Type$Vector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
+        final int positions = in.readVInt();
+        final boolean constant = in.readBoolean();
+        if (constant && positions > 0) {
+            return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
+        } else {
+            try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+                for (int i = 0; i < positions; i++) {
+                    builder.append$Type$(in.read$Type$());
+                }
+                return builder.build();
+            }
+        }
     }
+
+    /** Serializes this Vector to the given stream output. */
+    default void writeTo(StreamOutput out) throws IOException {
+        final int positions = getPositionCount();
+        out.writeVInt(positions);
+        out.writeBoolean(isConstant());
+        if (isConstant() && positions > 0) {
+$if(BytesRef)$
+            out.write$Type$(get$Type$(0, new BytesRef()));
+$else$
+            out.write$Type$(get$Type$(0));
+$endif$
+        } else {
+            for (int i = 0; i < positions; i++) {
+$if(BytesRef)$
+                out.write$Type$(get$Type$(i, new BytesRef()));
+$else$
+                out.write$Type$(get$Type$(i));
+$endif$
+            }
+        }
+    }
+
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    static Builder newVectorBuilder(int estimatedSize) {
+        return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
+    }
+
+$if(BytesRef)$
+    /**
+     * Creates a builder that grows as needed.
+     */
+$else$
+    /**
+     * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
+     * if you know the size up front because it's faster.
+     */
+$endif$
+    static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.new$Type$VectorBuilder(estimatedSize);
+    }
+
+$if(BytesRef)$
+$else$
+    /**
+     * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
+     * if you know the size up front because it's faster.
+     */
+    static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {
+        return blockFactory.new$Type$VectorFixedBuilder(size);
+    }
+$endif$
 
 $if(int)$
     /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive) {
+    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
         int[] values = new int[endExclusive - startInclusive];
         for (int i = 0; i < values.length; i++) {
             values[i] = startInclusive + i;
         }
-        return new IntArrayVector(values, values.length);
+        return blockFactory.newIntArrayVector(values, values.length);
     }
 $endif$
 
+    /**
+     * A builder that grows as needed.
+     */
     sealed interface Builder extends Vector.Builder permits $Type$VectorBuilder {
         /**
          * Appends a $type$ to the current entry.
@@ -125,4 +195,20 @@ $endif$
         @Override
         $Type$Vector build();
     }
+
+$if(BytesRef)$
+$else$
+    /**
+     * A builder that never grows.
+     */
+    sealed interface FixedBuilder extends Vector.Builder permits $Type$VectorFixedBuilder {
+        /**
+         * Appends a $type$ to the current entry.
+         */
+        FixedBuilder append$Type$($type$ value);
+
+        @Override
+        $Type$Vector build();
+    }
+$endif$
 }

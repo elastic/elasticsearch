@@ -9,20 +9,29 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Run a set of drivers to completion.
  */
 public abstract class DriverRunner {
+    private final ThreadContext threadContext;
+
+    public DriverRunner(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
+
     /**
      * Start a driver.
      */
@@ -33,8 +42,11 @@ public abstract class DriverRunner {
      */
     public void runToCompletion(List<Driver> drivers, ActionListener<Void> listener) {
         AtomicReference<Exception> failure = new AtomicReference<>();
+        AtomicArray<Map<String, List<String>>> responseHeaders = new AtomicArray<>(drivers.size());
         CountDown counter = new CountDown(drivers.size());
-        for (Driver driver : drivers) {
+        for (int i = 0; i < drivers.size(); i++) {
+            Driver driver = drivers.get(i);
+            int driverIndex = i;
             ActionListener<Void> driverListener = new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
@@ -69,7 +81,9 @@ public abstract class DriverRunner {
                 }
 
                 private void done() {
+                    responseHeaders.setOnce(driverIndex, threadContext.getResponseHeaders());
                     if (counter.countDown()) {
+                        mergeResponseHeaders(responseHeaders);
                         for (Driver d : drivers) {
                             if (d.status().status() == DriverStatus.Status.QUEUED) {
                                 d.close();
@@ -91,32 +105,22 @@ public abstract class DriverRunner {
         }
     }
 
-    /**
-     * Run all the of the listed drivers in the supplier {@linkplain ThreadPool}.
-     * @return the headers added to the context while running the drivers
-     */
-    public static Map<String, List<String>> runToCompletion(ThreadPool threadPool, int maxIterations, List<Driver> drivers) {
-        DriverRunner runner = new DriverRunner() {
-            @Override
-            protected void start(Driver driver, ActionListener<Void> driverListener) {
-                Driver.start(threadPool.executor("esql"), driver, maxIterations, driverListener);
+    private void mergeResponseHeaders(AtomicArray<Map<String, List<String>>> responseHeaders) {
+        final Map<String, Set<String>> merged = new HashMap<>();
+        for (int i = 0; i < responseHeaders.length(); i++) {
+            final Map<String, List<String>> resp = responseHeaders.get(i);
+            if (resp == null || resp.isEmpty()) {
+                continue;
             }
-        };
-        AtomicReference<Map<String, List<String>>> responseHeaders = new AtomicReference<>();
-        PlainActionFuture<Void> future = new PlainActionFuture<>();
-        runner.runToCompletion(drivers, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                responseHeaders.set(threadPool.getThreadContext().getResponseHeaders());
-                future.onResponse(null);
+            for (Map.Entry<String, List<String>> e : resp.entrySet()) {
+                // Use LinkedHashSet to retain the order of the values
+                merged.computeIfAbsent(e.getKey(), k -> new LinkedHashSet<>(e.getValue().size())).addAll(e.getValue());
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                future.onFailure(e);
+        }
+        for (Map.Entry<String, Set<String>> e : merged.entrySet()) {
+            for (String v : e.getValue()) {
+                threadContext.addResponseHeader(e.getKey(), v);
             }
-        });
-        future.actionGet();
-        return responseHeaders.get();
+        }
     }
 }

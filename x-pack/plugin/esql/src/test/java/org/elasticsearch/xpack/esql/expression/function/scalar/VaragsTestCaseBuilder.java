@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
@@ -179,8 +179,8 @@ public class VaragsTestCaseBuilder {
         return this;
     }
 
-    public List<AbstractFunctionTestCase.TestCaseSupplier> suppliers() {
-        List<AbstractFunctionTestCase.TestCaseSupplier> suppliers = new ArrayList<>();
+    public List<TestCaseSupplier> suppliers() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
         // TODO more types
         if (expectedStr != null) {
             strings(suppliers);
@@ -197,19 +197,19 @@ public class VaragsTestCaseBuilder {
         return suppliers;
     }
 
-    private void strings(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+    private void strings(List<TestCaseSupplier> suppliers) {
         for (int count = 1; count < MAX_WIDTH; count++) {
             for (boolean multivalued : new boolean[] { false, true }) {
                 int paramCount = count;
                 suppliers.add(
-                    new AbstractFunctionTestCase.TestCaseSupplier(
+                    new TestCaseSupplier(
                         testCaseName(paramCount, multivalued, DataTypes.KEYWORD),
                         dataTypes(paramCount, DataTypes.KEYWORD),
                         () -> stringCase(DataTypes.KEYWORD, paramCount, multivalued)
                     )
                 );
                 suppliers.add(
-                    new AbstractFunctionTestCase.TestCaseSupplier(
+                    new TestCaseSupplier(
                         testCaseName(paramCount, multivalued, DataTypes.TEXT),
                         dataTypes(paramCount, DataTypes.TEXT),
                         () -> stringCase(DataTypes.TEXT, paramCount, multivalued)
@@ -219,29 +219,27 @@ public class VaragsTestCaseBuilder {
         }
     }
 
-    private AbstractFunctionTestCase.TestCase stringCase(DataType dataType, int paramCount, boolean multivalued) {
+    private TestCaseSupplier.TestCase stringCase(DataType dataType, int paramCount, boolean multivalued) {
         String[][] data = new String[paramCount][];
-        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        List<TestCaseSupplier.TypedData> typedData = new ArrayList<>(paramCount);
         for (int p = 0; p < paramCount; p++) {
             if (multivalued) {
                 data[p] = ESTestCase.randomList(1, 4, () -> ESTestCase.randomAlphaOfLength(5)).toArray(String[]::new);
-                typedData.add(
-                    new AbstractFunctionTestCase.TypedData(Arrays.stream(data[p]).map(BytesRef::new).toList(), dataType, "field" + p)
-                );
+                typedData.add(new TestCaseSupplier.TypedData(Arrays.stream(data[p]).map(BytesRef::new).toList(), dataType, "field" + p));
             } else {
                 data[p] = new String[] { ESTestCase.randomAlphaOfLength(5) };
-                typedData.add(new AbstractFunctionTestCase.TypedData(new BytesRef(data[p][0]), dataType, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(new BytesRef(data[p][0]), dataType, "field" + p));
             }
         }
         return testCase(typedData, expectedEvaluatorPrefix.apply("BytesRef"), dataType, expectedStr.apply(data));
     }
 
-    private void longs(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+    private void longs(List<TestCaseSupplier> suppliers) {
         for (int count = 1; count < MAX_WIDTH; count++) {
             for (boolean multivalued : new boolean[] { false, true }) {
                 int paramCount = count;
                 suppliers.add(
-                    new AbstractFunctionTestCase.TestCaseSupplier(
+                    new TestCaseSupplier(
                         testCaseName(paramCount, multivalued, DataTypes.LONG),
                         dataTypes(paramCount, DataTypes.LONG),
                         () -> longCase(paramCount, multivalued)
@@ -251,34 +249,30 @@ public class VaragsTestCaseBuilder {
         }
     }
 
-    private AbstractFunctionTestCase.TestCase longCase(int paramCount, boolean multivalued) {
+    private TestCaseSupplier.TestCase longCase(int paramCount, boolean multivalued) {
         long[][] data = new long[paramCount][];
-        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        List<TestCaseSupplier.TypedData> typedData = new ArrayList<>(paramCount);
         for (int p = 0; p < paramCount; p++) {
             if (multivalued) {
                 List<Long> d = ESTestCase.randomList(1, 4, () -> ESTestCase.randomLong());
                 data[p] = d.stream().mapToLong(Long::longValue).toArray();
                 typedData.add(
-                    new AbstractFunctionTestCase.TypedData(
-                        Arrays.stream(data[p]).mapToObj(Long::valueOf).toList(),
-                        DataTypes.LONG,
-                        "field" + p
-                    )
+                    new TestCaseSupplier.TypedData(Arrays.stream(data[p]).mapToObj(Long::valueOf).toList(), DataTypes.LONG, "field" + p)
                 );
             } else {
                 data[p] = new long[] { ESTestCase.randomLong() };
-                typedData.add(new AbstractFunctionTestCase.TypedData(data[p][0], DataTypes.LONG, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataTypes.LONG, "field" + p));
             }
         }
         return testCase(typedData, expectedEvaluatorPrefix.apply("Long"), DataTypes.LONG, expectedLong.apply(data));
     }
 
-    private void ints(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+    private void ints(List<TestCaseSupplier> suppliers) {
         for (int count = 1; count < MAX_WIDTH; count++) {
             for (boolean multivalued : new boolean[] { false, true }) {
                 int paramCount = count;
                 suppliers.add(
-                    new AbstractFunctionTestCase.TestCaseSupplier(
+                    new TestCaseSupplier(
                         testCaseName(paramCount, multivalued, DataTypes.INTEGER),
                         dataTypes(paramCount, DataTypes.INTEGER),
                         () -> intCase(paramCount, multivalued)
@@ -288,28 +282,28 @@ public class VaragsTestCaseBuilder {
         }
     }
 
-    private AbstractFunctionTestCase.TestCase intCase(int paramCount, boolean multivalued) {
+    private TestCaseSupplier.TestCase intCase(int paramCount, boolean multivalued) {
         int[][] data = new int[paramCount][];
-        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        List<TestCaseSupplier.TypedData> typedData = new ArrayList<>(paramCount);
         for (int p = 0; p < paramCount; p++) {
             if (multivalued) {
                 List<Integer> d = ESTestCase.randomList(1, 4, () -> ESTestCase.randomInt());
                 data[p] = d.stream().mapToInt(Integer::intValue).toArray();
-                typedData.add(new AbstractFunctionTestCase.TypedData(d, DataTypes.INTEGER, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(d, DataTypes.INTEGER, "field" + p));
             } else {
                 data[p] = new int[] { ESTestCase.randomInt() };
-                typedData.add(new AbstractFunctionTestCase.TypedData(data[p][0], DataTypes.INTEGER, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataTypes.INTEGER, "field" + p));
             }
         }
         return testCase(typedData, expectedEvaluatorPrefix.apply("Int"), DataTypes.INTEGER, expectedInt.apply(data));
     }
 
-    private void booleans(List<AbstractFunctionTestCase.TestCaseSupplier> suppliers) {
+    private void booleans(List<TestCaseSupplier> suppliers) {
         for (int count = 1; count < MAX_WIDTH; count++) {
             for (boolean multivalued : new boolean[] { false, true }) {
                 int paramCount = count;
                 suppliers.add(
-                    new AbstractFunctionTestCase.TestCaseSupplier(
+                    new TestCaseSupplier(
                         testCaseName(paramCount, multivalued, DataTypes.BOOLEAN),
                         dataTypes(paramCount, DataTypes.BOOLEAN),
                         () -> booleanCase(paramCount, multivalued)
@@ -319,9 +313,9 @@ public class VaragsTestCaseBuilder {
         }
     }
 
-    private AbstractFunctionTestCase.TestCase booleanCase(int paramCount, boolean multivalued) {
+    private TestCaseSupplier.TestCase booleanCase(int paramCount, boolean multivalued) {
         boolean[][] data = new boolean[paramCount][];
-        List<AbstractFunctionTestCase.TypedData> typedData = new ArrayList<>(paramCount);
+        List<TestCaseSupplier.TypedData> typedData = new ArrayList<>(paramCount);
         for (int p = 0; p < paramCount; p++) {
             if (multivalued) {
                 int size = ESTestCase.between(1, 5);
@@ -331,10 +325,10 @@ public class VaragsTestCaseBuilder {
                     data[p][i] = ESTestCase.randomBoolean();
                     paramData.add(data[p][i]);
                 }
-                typedData.add(new AbstractFunctionTestCase.TypedData(paramData, DataTypes.BOOLEAN, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(paramData, DataTypes.BOOLEAN, "field" + p));
             } else {
                 data[p] = new boolean[] { ESTestCase.randomBoolean() };
-                typedData.add(new AbstractFunctionTestCase.TypedData(data[p][0], DataTypes.BOOLEAN, "field" + p));
+                typedData.add(new TestCaseSupplier.TypedData(data[p][0], DataTypes.BOOLEAN, "field" + p));
             }
         }
         return testCase(typedData, expectedEvaluatorPrefix.apply("Boolean"), DataTypes.BOOLEAN, expectedBoolean.apply(data));
@@ -348,13 +342,13 @@ public class VaragsTestCaseBuilder {
             + ")";
     }
 
-    protected AbstractFunctionTestCase.TestCase testCase(
-        List<AbstractFunctionTestCase.TypedData> typedData,
+    protected TestCaseSupplier.TestCase testCase(
+        List<TestCaseSupplier.TypedData> typedData,
         String expectedEvaluatorPrefix,
         DataType expectedType,
         Matcher<Object> expectedValue
     ) {
-        return new AbstractFunctionTestCase.TestCase(
+        return new TestCaseSupplier.TestCase(
             typedData,
             expectedToString(expectedEvaluatorPrefix, typedData.size()),
             expectedType,

@@ -14,6 +14,7 @@ $endif$
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -21,8 +22,12 @@ import java.io.IOException;
  * Block that stores $type$ values.
  * This class is generated. Do not edit it.
  */
-public sealed interface $Type$Block extends Block permits Filter$Type$Block, $Type$ArrayBlock, $Type$VectorBlock {
+public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock {
 
+$if(BytesRef)$
+    BytesRef NULL_VALUE = new BytesRef();
+
+$endif$
     /**
      * Retrieves the $type$ value stored at the given value index.
      *
@@ -48,48 +53,63 @@ $endif$
     @Override
     $Type$Block filter(int... positions);
 
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::of);
-
     @Override
     default String getWriteableName() {
         return "$Type$Block";
     }
 
-    static $Type$Block of(StreamInput in) throws IOException {
-        final int positions = in.readVInt();
-        var builder = newBlockBuilder(positions);
-        for (int i = 0; i < positions; i++) {
-            if (in.readBoolean()) {
-                builder.appendNull();
-            } else {
-                final int valueCount = in.readVInt();
-                builder.beginPositionEntry();
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-                    builder.append$Type$(in.read$Type$());
-                }
-                builder.endPositionEntry();
-            }
+    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "$Type$Block", $Type$Block::readFrom);
+
+    private static $Type$Block readFrom(StreamInput in) throws IOException {
+        return readFrom((BlockStreamInput) in);
+    }
+
+    private static $Type$Block readFrom(BlockStreamInput in) throws IOException {
+        final boolean isVector = in.readBoolean();
+        if (isVector) {
+            return $Type$Vector.readFrom(in.blockFactory(), in).asBlock();
         }
-        return builder.build();
+        final int positions = in.readVInt();
+        try ($Type$Block.Builder builder = in.blockFactory().new$Type$BlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (in.readBoolean()) {
+                    builder.appendNull();
+                } else {
+                    final int valueCount = in.readVInt();
+                    builder.beginPositionEntry();
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                        builder.append$Type$(in.read$Type$());
+                    }
+                    builder.endPositionEntry();
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override
     default void writeTo(StreamOutput out) throws IOException {
-        final int positions = getPositionCount();
-        out.writeVInt(positions);
-        for (int pos = 0; pos < positions; pos++) {
-            if (isNull(pos)) {
-                out.writeBoolean(true);
-            } else {
-                out.writeBoolean(false);
-                final int valueCount = getValueCount(pos);
-                out.writeVInt(valueCount);
-                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
-$if(BytesRef)$
-                    out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
-$else$
-                    out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
-$endif$
+        $Type$Vector vector = asVector();
+        out.writeBoolean(vector != null);
+        if (vector != null) {
+            vector.writeTo(out);
+        } else {
+            final int positions = getPositionCount();
+            out.writeVInt(positions);
+            for (int pos = 0; pos < positions; pos++) {
+                if (isNull(pos)) {
+                    out.writeBoolean(true);
+                } else {
+                    out.writeBoolean(false);
+                    final int valueCount = getValueCount(pos);
+                    out.writeVInt(valueCount);
+                    for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+    $if(BytesRef)$
+                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex, new BytesRef()));
+    $else$
+                        out.write$Type$(get$Type$(getFirstValueIndex(pos) + valueIndex));
+    $endif$
+                    }
                 }
             }
         }
@@ -113,6 +133,9 @@ $endif$
      * equals method works properly across different implementations of the $Type$Block interface.
      */
     static boolean equals($Type$Block block1, $Type$Block block2) {
+        if (block1 == block2) {
+            return true;
+        }
         final int positions = block1.getPositionCount();
         if (positions != block2.getPositionCount()) {
             return false;
@@ -180,19 +203,34 @@ $endif$
         return result;
     }
 
+    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static Builder newBlockBuilder(int estimatedSize) {
-        return new $Type$BlockBuilder(estimatedSize);
+        return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
+        return blockFactory.new$Type$BlockBuilder(estimatedSize);
+    }
+
+    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     static $Type$Block newConstantBlockWith($type$ value, int positions) {
-        return new Constant$Type$Vector(value, positions).asBlock();
+        return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
-    sealed interface Builder extends Block.Builder permits $Type$BlockBuilder {
+    static $Type$Block newConstantBlockWith($type$ value, int positions, BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$BlockWith(value, positions);
+    }
 
+    /**
+     * Builder for {@link $Type$Block}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.$Type$Builder permits $Type$BlockBuilder {
         /**
          * Appends a $type$ to the current entry.
          */
+        @Override
         Builder append$Type$($type$ value);
 
         /**
@@ -216,12 +254,11 @@ $endif$
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

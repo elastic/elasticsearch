@@ -9,15 +9,23 @@
 package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.TopNOperator;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -77,8 +85,34 @@ public class TopNBenchmark {
             case TWO_LONGS, LONGS_AND_BYTES_REFS -> 2;
             default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
         };
+        List<ElementType> elementTypes = switch (data) {
+            case LONGS -> List.of(ElementType.LONG);
+            case INTS -> List.of(ElementType.INT);
+            case DOUBLES -> List.of(ElementType.DOUBLE);
+            case BOOLEANS -> List.of(ElementType.BOOLEAN);
+            case BYTES_REFS -> List.of(ElementType.BYTES_REF);
+            case TWO_LONGS -> List.of(ElementType.INT, ElementType.INT);
+            case LONGS_AND_BYTES_REFS -> List.of(ElementType.INT, ElementType.BYTES_REF);
+            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
+        };
+        List<TopNEncoder> encoders = switch (data) {
+            case LONGS, INTS, DOUBLES, BOOLEANS -> List.of(TopNEncoder.DEFAULT_SORTABLE);
+            case BYTES_REFS -> List.of(TopNEncoder.UTF8);
+            case TWO_LONGS -> List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE);
+            case LONGS_AND_BYTES_REFS -> List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.UTF8);
+            default -> throw new IllegalArgumentException("unsupported data type [" + data + "]");
+        };
+        CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
+            List.of(),
+            ClusterSettings.createBuiltInClusterSettings()
+        );
         return new TopNOperator(
+            BlockFactory.getNonBreakingInstance(),
+            breakerService.getBreaker(CircuitBreaker.REQUEST),
             topCount,
+            elementTypes,
+            encoders,
             IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, false, false)).toList(),
             16 * 1024
         );

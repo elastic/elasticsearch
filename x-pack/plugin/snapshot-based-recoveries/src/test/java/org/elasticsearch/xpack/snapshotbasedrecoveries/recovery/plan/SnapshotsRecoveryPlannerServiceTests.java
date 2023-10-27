@@ -28,6 +28,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -71,7 +72,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(
         "index",
-        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).build()
+        Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
     );
     private static final ByteSizeValue PART_SIZE = ByteSizeValue.ofBytes(Long.MAX_VALUE);
     private static final ShardId shardId = new ShardId(INDEX_SETTINGS.getIndex(), 1);
@@ -219,7 +220,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 if (snapshotVersion == null) {
                     luceneVersion = randomVersionBetween(
                         random(),
-                        IndexVersion.V_7_0_0,
+                        IndexVersions.V_7_0_0,
                         RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION
                     ).luceneVersion();
                 } else {
@@ -410,7 +411,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     }
                 },
                 true,
-                IndexVersion.V_7_14_0, // Unsupported version,
+                IndexVersions.V_7_14_0, // Unsupported version,
                 randomBoolean()
             );
 

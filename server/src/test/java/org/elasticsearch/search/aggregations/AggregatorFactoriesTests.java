@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -333,19 +334,19 @@ public class AggregatorFactoriesTests extends ESTestCase {
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
-            assertFalse(builder.supportsParallelCollection());
+            assertTrue(builder.supportsParallelCollection());
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
-            assertFalse(builder.supportsParallelCollection());
+            assertTrue(builder.supportsParallelCollection());
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
             builder.addAggregator(
                 new CompositeAggregationBuilder("composite", Collections.singletonList(new TermsValuesSourceBuilder("name")))
             );
-            assertFalse(builder.supportsParallelCollection());
+            assertTrue(builder.supportsParallelCollection());
         }
         {
             AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
@@ -397,7 +398,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.ZERO;
+            return TransportVersions.ZERO;
         }
 
         @Override

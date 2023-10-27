@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 
@@ -25,11 +26,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         List<BytesRef> input = LongStream.range(0, end)
             .mapToObj(l -> new BytesRef("word1_" + l + " word2_" + l + " word3_" + l))
             .collect(Collectors.toList());
-        return new BytesRefBlockSourceOperator(input);
+        return new BytesRefBlockSourceOperator(blockFactory, input);
     }
 
     record FirstWord(String fieldName) implements Function<String, Map<String, String>> {
@@ -42,7 +43,19 @@ public class StringExtractOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
-        return new StringExtractOperator.StringExtractOperatorFactory(new String[] { "test" }, () -> page -> page.getBlock(0), expEval);
+        return new StringExtractOperator.StringExtractOperatorFactory(
+            new String[] { "test" },
+            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block.Ref eval(Page page) {
+                    return new Block.Ref(page.getBlock(0), page);
+                }
+
+                @Override
+                public void close() {}
+            },
+            expEval
+        );
     }
 
     @Override
@@ -71,17 +84,20 @@ public class StringExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected ByteSizeValue smallEnoughToCircuitBreak() {
-        assumeTrue("doesn't use big arrays so can't break", false);
-        return null;
+        return ByteSizeValue.ofBytes(between(1, 32));
     }
 
     public void testMultivalueDissectInput() {
 
-        StringExtractOperator operator = new StringExtractOperator(
-            new String[] { "test" },
-            (page) -> page.getBlock(0),
-            new FirstWord("test")
-        );
+        StringExtractOperator operator = new StringExtractOperator(new String[] { "test" }, new EvalOperator.ExpressionEvaluator() {
+            @Override
+            public Block.Ref eval(Page page) {
+                return new Block.Ref(page.getBlock(0), page);
+            }
+
+            @Override
+            public void close() {}
+        }, new FirstWord("test"), driverContext());
 
         BytesRefBlock.Builder builder = BytesRefBlock.newBlockBuilder(1);
         builder.beginPositionEntry();
@@ -109,5 +125,10 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         assertThat(brb.getBytesRef(idx, spare).utf8ToString(), equalTo("foo3"));
         assertThat(brb.getBytesRef(idx + 1, spare).utf8ToString(), equalTo("foo4"));
         assertThat(brb.getBytesRef(idx + 2, spare).utf8ToString(), equalTo("foo5"));
+    }
+
+    @Override
+    protected DriverContext driverContext() {
+        return nonBreakingDriverContext();
     }
 }

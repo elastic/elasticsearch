@@ -6,12 +6,15 @@
  */
 
 module org.elasticsearch.compute {
+
     requires org.apache.lucene.core;
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.compute.ann;
     requires org.elasticsearch.xcontent;
+    // required due to dependency on org.elasticsearch.common.util.concurrent.AbstractAsyncTask
     requires org.apache.logging.log4j;
+    requires org.elasticsearch.logging;
     requires org.elasticsearch.tdigest;
 
     exports org.elasticsearch.compute;
@@ -21,4 +24,5 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.operator;
     exports org.elasticsearch.compute.operator.exchange;
     exports org.elasticsearch.compute.aggregation.blockhash;
+    exports org.elasticsearch.compute.operator.topn;
 }

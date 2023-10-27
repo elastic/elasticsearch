@@ -78,7 +78,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
         indices = in.readStringArray();
         this.responseMap = in.readMap(FieldCapabilitiesResponse::readField);
         this.indexResponses = FieldCapabilitiesIndexResponse.readList(in);
-        this.failures = in.readList(FieldCapabilitiesFailure::new);
+        this.failures = in.readCollectionAsList(FieldCapabilitiesFailure::new);
     }
 
     /**
@@ -147,13 +147,13 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
-        out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
+        out.writeMap(responseMap, FieldCapabilitiesResponse::writeField);
         FieldCapabilitiesIndexResponse.writeList(out, indexResponses);
-        out.writeList(failures);
+        out.writeCollection(failures);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
-        out.writeMap(map, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(map, StreamOutput::writeWriteable);
     }
 
     @Override

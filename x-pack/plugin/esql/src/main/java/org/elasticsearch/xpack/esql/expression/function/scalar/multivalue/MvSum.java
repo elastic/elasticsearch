@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -38,15 +38,16 @@ public class MvSum extends AbstractMultivalueFunction {
     }
 
     @Override
-    protected Supplier<EvalOperator.ExpressionEvaluator> evaluator(Supplier<EvalOperator.ExpressionEvaluator> fieldEval) {
+    protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> () -> new MvSumDoubleEvaluator(fieldEval.get());
-            case INT -> () -> new MvSumIntEvaluator(source(), fieldEval.get());
+            case DOUBLE -> new MvSumDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvSumIntEvaluator.Factory(source(), fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? () -> new MvSumUnsignedLongEvaluator(source(), fieldEval.get())
-                : () -> new MvSumLongEvaluator(source(), fieldEval.get());
-            case NULL -> () -> EvalOperator.CONSTANT_NULL;
-            default -> throw EsqlUnsupportedOperationException.unsupportedDataType(field().dataType());
+                ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
+                : new MvSumLongEvaluator.Factory(source(), fieldEval);
+            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }
 

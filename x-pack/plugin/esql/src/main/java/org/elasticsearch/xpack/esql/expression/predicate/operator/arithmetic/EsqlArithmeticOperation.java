@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.EsqlUnsupportedOperationException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -23,7 +20,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.io.IOException;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -52,17 +49,17 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
 
         @Override
         public String getWriteableName() {
-            throw EsqlUnsupportedOperationException.methodNotImplemented();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw EsqlUnsupportedOperationException.methodNotImplemented();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public Object doApply(Object o, Object o2) {
-            throw EsqlUnsupportedOperationException.methodNotImplemented();
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -71,7 +68,10 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
         }
     }
 
-    interface ArithmeticEvaluator extends TriFunction<Source, ExpressionEvaluator, ExpressionEvaluator, ExpressionEvaluator> {};
+    /** Arithmetic (quad) function. */
+    interface ArithmeticEvaluator {
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, ExpressionEvaluator.Factory rhs);
+    }
 
     private final ArithmeticEvaluator ints;
     private final ArithmeticEvaluator longs;
@@ -98,7 +98,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public final Object fold() {
+    public Object fold() {
         return EvaluatorMapper.super.fold();
     }
 
@@ -110,15 +110,13 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
     }
 
     @Override
-    public final Supplier<ExpressionEvaluator> toEvaluator(
-        java.util.function.Function<Expression, Supplier<ExpressionEvaluator>> toEvaluator
-    ) {
+    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
         if (leftType.isNumeric()) {
 
-            Supplier<EvalOperator.ExpressionEvaluator> l = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
-            Supplier<EvalOperator.ExpressionEvaluator> r = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
+            var lhs = Cast.cast(left().dataType(), commonType, toEvaluator.apply(left()));
+            var rhs = Cast.cast(right().dataType(), commonType, toEvaluator.apply(right()));
 
             ArithmeticEvaluator eval;
             if (commonType == INTEGER) {
@@ -132,7 +130,7 @@ abstract class EsqlArithmeticOperation extends ArithmeticOperation implements Ev
             } else {
                 throw new EsqlIllegalArgumentException("Unsupported type " + commonType);
             }
-            return () -> eval.apply(source(), l.get(), r.get());
+            return eval.apply(source(), lhs, rhs);
         }
         throw new EsqlIllegalArgumentException("Unsupported type " + leftType);
     }

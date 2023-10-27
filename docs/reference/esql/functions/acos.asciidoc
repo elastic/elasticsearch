@@ -1,6 +1,27 @@
+[discrete]
 [[esql-acos]]
 === `ACOS`
-Inverse https://en.wikipedia.org/wiki/Inverse_trigonometric_functions[cosine] trigonometric function.
+
+*Syntax*
+
+[.text-center]
+image::esql/functions/signature/acos.svg[Embedded,opts=inline]
+
+*Parameters*
+
+`n`::
+Numeric expression. If `null`, the function returns `null`.
+
+*Description*
+
+Returns the {wikipedia}/Inverse_trigonometric_functions[arccosine] of `n` as an
+angle, expressed in radians.
+
+*Supported types*
+
+include::types/acos.asciidoc[]
+
+*Example*
 
 [source.merge.styled,esql]
 ----

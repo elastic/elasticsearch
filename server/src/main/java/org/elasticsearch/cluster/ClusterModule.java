@@ -416,10 +416,6 @@ public class ClusterModule extends AbstractModule {
         return allocationService;
     }
 
-    public MetadataDeleteIndexService getMetadataDeleteIndexService() {
-        return metadataDeleteIndexService;
-    }
-
     @Override
     protected void configure() {
         bind(GatewayAllocator.class).asEagerSingleton();

@@ -161,7 +161,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         groups = groupsArray == null ? null : Arrays.asList(groupsArray);
         description = in.readOptionalString();
         if (in.readBoolean()) {
-            detectorUpdates = in.readList(DetectorUpdate::new);
+            detectorUpdates = in.readCollectionAsList(DetectorUpdate::new);
         } else {
             detectorUpdates = null;
         }
@@ -173,7 +173,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
-            categorizationFilters = in.readStringList();
+            categorizationFilters = in.readStringCollectionAsList();
         } else {
             categorizationFilters = null;
         }
@@ -205,7 +205,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
-            out.writeList(detectorUpdates);
+            out.writeCollection(detectorUpdates);
         }
         out.writeOptionalWriteable(modelPlotConfig);
         out.writeOptionalWriteable(analysisLimits);
@@ -701,7 +701,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             detectorIndex = in.readInt();
             description = in.readOptionalString();
             if (in.readBoolean()) {
-                rules = in.readList(DetectionRule::new);
+                rules = in.readCollectionAsList(DetectionRule::new);
             } else {
                 rules = null;
             }
@@ -725,7 +725,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             out.writeOptionalString(description);
             out.writeBoolean(rules != null);
             if (rules != null) {
-                out.writeList(rules);
+                out.writeCollection(rules);
             }
         }
 

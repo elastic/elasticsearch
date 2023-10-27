@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -75,7 +75,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 Map.of("ids", List.of("id1", "id2"))
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", Collections.singletonList(myQueryRule1));
-            IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset);
+            DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
             assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
 
@@ -96,7 +96,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             Map.of("docs", List.of(Map.of("_index", "my_index1", "_id", "id3"), Map.of("_index", "my_index2", "_id", "id4")))
         );
         final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
-        IndexResponse newResp = awaitPutQueryRuleset(myQueryRuleset);
+        DocWriteResponse newResp = awaitPutQueryRuleset(myQueryRuleset);
         assertThat(newResp.status(), equalTo(RestStatus.OK));
         assertThat(newResp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
         QueryRuleset getQueryRuleset = awaitGetQueryRuleset(myQueryRuleset.id());
@@ -128,7 +128,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset_" + i, rules);
 
-            IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset);
+            DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
             assertThat(resp.status(), equalTo(RestStatus.CREATED));
             assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
         }
@@ -182,7 +182,7 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
                 Map.of("ids", List.of("id3", "id4"))
             );
             final QueryRuleset myQueryRuleset = new QueryRuleset("my_ruleset", List.of(myQueryRule1, myQueryRule2));
-            IndexResponse resp = awaitPutQueryRuleset(myQueryRuleset);
+            DocWriteResponse resp = awaitPutQueryRuleset(myQueryRuleset);
             assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
             assertThat(resp.getIndex(), equalTo(QUERY_RULES_CONCRETE_INDEX_NAME));
 
@@ -195,13 +195,13 @@ public class QueryRulesIndexServiceTests extends ESSingleNodeTestCase {
         expectThrows(ResourceNotFoundException.class, () -> awaitGetQueryRuleset("my_ruleset"));
     }
 
-    private IndexResponse awaitPutQueryRuleset(QueryRuleset queryRuleset) throws Exception {
+    private DocWriteResponse awaitPutQueryRuleset(QueryRuleset queryRuleset) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        final AtomicReference<IndexResponse> resp = new AtomicReference<>(null);
+        final AtomicReference<DocWriteResponse> resp = new AtomicReference<>(null);
         final AtomicReference<Exception> exc = new AtomicReference<>(null);
         queryRulesIndexService.putQueryRuleset(queryRuleset, new ActionListener<>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 resp.set(indexResponse);
                 latch.countDown();
             }

@@ -60,13 +60,13 @@ public class ListTasksResponse extends BaseTasksResponse {
 
     public ListTasksResponse(StreamInput in) throws IOException {
         super(in);
-        tasks = in.readImmutableList(TaskInfo::from);
+        tasks = in.readCollectionAsImmutableList(TaskInfo::from);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(tasks);
+        out.writeCollection(tasks);
     }
 
     protected static <T> ConstructingObjectParser<T, Void> setupParser(

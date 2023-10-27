@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -24,7 +25,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -75,7 +75,11 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         AtomicReference<CountDownLatch> latch = new AtomicReference<>(new CountDownLatch(1));
         AtomicReference<CountDownLatch> latch2 = new AtomicReference<>(new CountDownLatch(1));
         final AtomicInteger count = new AtomicInteger();
-        IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(1)) {
+        IndexService.BaseAsyncTask task = new IndexService.BaseAsyncTask(
+            indexService,
+            indexService.getThreadPool().generic(),
+            TimeValue.timeValueMillis(1)
+        ) {
             @Override
             protected void runInternal() {
                 final CountDownLatch l1 = latch.get();
@@ -96,11 +100,6 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                     }
                 }
             }
-
-            @Override
-            protected String getThreadPool() {
-                return ThreadPool.Names.GENERIC;
-            }
         };
 
         latch.get().await();
@@ -115,11 +114,9 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         latch2.get().countDown();
         assertEquals(2, count.get());
 
-        task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(1000000)) {
+        task = new IndexService.BaseAsyncTask(indexService, EsExecutors.DIRECT_EXECUTOR_SERVICE, TimeValue.timeValueMillis(1000000)) {
             @Override
-            protected void runInternal() {
-
-            }
+            protected void runInternal() {}
         };
         assertTrue(task.mustReschedule());
 
@@ -140,11 +137,9 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(index);
         assertNotSame(closedIndexService, indexService);
 
-        task = new IndexService.BaseAsyncTask(indexService, TimeValue.timeValueMillis(100000)) {
+        task = new IndexService.BaseAsyncTask(indexService, EsExecutors.DIRECT_EXECUTOR_SERVICE, TimeValue.timeValueMillis(100000)) {
             @Override
-            protected void runInternal() {
-
-            }
+            protected void runInternal() {}
         };
         assertTrue(task.mustReschedule());
         assertFalse(task.isClosed());

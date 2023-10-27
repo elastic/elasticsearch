@@ -41,8 +41,11 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
@@ -53,43 +56,39 @@ import static org.mockito.Mockito.when;
 
 public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
 
+    private ThreadContext threadContext;
     private ClusterService clusterService;
     private ApiKeyService apiKeyService;
     private AuthenticationService authenticationService;
 
     @Before
     public void init() throws Exception {
+        this.threadContext = new ThreadContext(Settings.EMPTY);
         this.apiKeyService = mock(ApiKeyService.class);
         this.authenticationService = mock(AuthenticationService.class);
-        this.clusterService = mockClusterServiceWithMinTransportVersion(TransportVersion.current());
+        this.clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
+        when(clusterService.state().getMinTransportVersion()).thenReturn(TransportVersion.current());
+        when(clusterService.threadPool().getThreadContext()).thenReturn(threadContext);
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
-        clusterService = mockClusterServiceWithMinTransportVersion(
-            TransportVersionUtils.randomVersionBetween(
+        when(clusterService.state().getMinTransportVersion()).thenReturn(TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.MINIMUM_COMPATIBLE,
                 TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            )
-        );
+            ));
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
-        final var threadContext = new ThreadContext(Settings.EMPTY);
+        when(authcContext.getThreadContext()).thenReturn(threadContext);
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
             CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
             AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
         );
-        crossClusterAccessHeaders.writeToContext(threadContext);
-        when(authcContext.getThreadContext()).thenReturn(threadContext);
         final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
-        final ArgumentCaptor<AuthenticationToken> authenticationTokenCapture = ArgumentCaptor.forClass(AuthenticationToken.class);
-        doNothing().when(authcContext).addAuthenticationToken(authenticationTokenCapture.capture());
-        when(authcContext.getMostRecentAuthenticationToken()).thenAnswer(ignored -> authenticationTokenCapture.getValue());
         when(authcContext.getRequest()).thenReturn(auditableRequest);
         when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
-        // TODO
-        // when(authenticationService.newContext(anyString(), any(), anyBoolean())).thenReturn(authcContext);
+        when(authenticationService.newContext(anyString(), any(), isNull())).thenReturn(authcContext);
         final CrossClusterAccessAuthenticationService service = new CrossClusterAccessAuthenticationService(
             clusterService,
             apiKeyService,
@@ -269,7 +268,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         return argThat(arg -> arg.principal().equals(credentials.principal()) && arg.credentials().equals(credentials.credentials()));
     }
 
-    private static ClusterService mockClusterServiceWithMinTransportVersion(final TransportVersion transportVersion) {
+    private static ClusterService mockClusterServiceWithMinTransportVersion(final TransportVersion transportVersion,
+                                                                            final ThreadContext threadContext) {
         final ClusterService clusterService = mock(ClusterService.class, Mockito.RETURNS_DEEP_STUBS);
         when(clusterService.state().getMinTransportVersion()).thenReturn(transportVersion);
         return clusterService;

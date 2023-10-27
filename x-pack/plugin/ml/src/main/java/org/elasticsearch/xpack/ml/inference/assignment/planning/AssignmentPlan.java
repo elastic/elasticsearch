@@ -457,8 +457,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             accountMemory(m, n, requiredMemory);
         }
 
-
-
         public void accountMemory(Deployment m, Node n, long requiredMemory) {
             // remainingNodeMemory.computeIfPresent(n, (k, v) -> v - m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId.get(n.id())));
 

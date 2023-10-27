@@ -216,7 +216,7 @@ public class LinearizabilityChecker {
      * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
     public static boolean isLinearizable(SequentialSpec spec, History history) throws LinearizableCheckAborted {
-        return isLinearizable(spec, history, o -> { throw new IllegalArgumentException("history is not complete"); });
+        return isLinearizable(spec, history, o -> { throw new AssertionError("history is not complete"); });
     }
 
     /**
@@ -246,10 +246,6 @@ public class LinearizabilityChecker {
                 throw new LinearizableCheckAborted();
             }
             return allLinearizable;
-        } catch (OutOfMemoryError e) {
-            // Large histories can be problematic and have the linearizability checker run OOM
-            logger.warn("Running linearizable check caused OOM");
-            throw new LinearizableCheckAborted();
         } finally {
             ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
         }

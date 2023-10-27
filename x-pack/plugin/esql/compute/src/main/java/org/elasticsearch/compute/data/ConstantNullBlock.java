@@ -182,7 +182,12 @@ public final class ConstantNullBlock extends AbstractBlock {
 
         @Override
         public Block.Builder mvOrdering(MvOrdering mvOrdering) {
-            throw new UnsupportedOperationException();
+            /*
+             * This is called when copying but otherwise doesn't do
+             * anything because there aren't multivalue fields in a
+             * block containing only nulls.
+             */
+            return this;
         }
 
         @Override

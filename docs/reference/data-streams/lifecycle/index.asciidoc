@@ -2,7 +2,7 @@
 [[data-stream-lifecycle]]
 == Data stream lifecycle
 
-preview:[]
+preview::[]
 
 A data stream lifecycle is the built-in mechanism data streams use to manage their lifecycle. It enables you to easily
 automate the management of your data streams according to your retention requirements. For example, you could configure

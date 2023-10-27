@@ -141,6 +141,7 @@ public class OperatorTests extends MapperServiceTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101413")
     public void testGroupingWithOrdinals() throws Exception {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();

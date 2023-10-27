@@ -17,9 +17,9 @@ import java.util.function.Consumer;
  * Page Consumer operator that deep copies the input page, closes it, and then passes the copy
  * to the underlying page consumer.
  */
-public class ResultPageSinkOperator extends PageConsumerOperator {
+public class TestResultPageSinkOperator extends PageConsumerOperator {
 
-    public ResultPageSinkOperator(Consumer<Page> pageConsumer) {
+    public TestResultPageSinkOperator(Consumer<Page> pageConsumer) {
         super(page -> {
             Page copy = BlockTestUtils.deepCopyOf(page, BlockFactory.getNonBreakingInstance());
             page.releaseBlocks();

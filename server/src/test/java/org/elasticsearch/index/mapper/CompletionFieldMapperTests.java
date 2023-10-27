@@ -681,8 +681,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(doc.docs().size(), equalTo(1));
         assertNull(doc.docs().get(0).get("field"));
         assertNotNull(doc.docs().get(0).getField("_ignored"));
-        IndexableField ignoredFields = doc.docs().get(0).getField("_ignored");
-        assertThat(ignoredFields.stringValue(), equalTo("field"));
+        List<IndexableField> ignoredFields = doc.docs().get(0).getFields("_ignored");
+        assertTrue(ignoredFields.stream().anyMatch(field -> "field".equals(field.stringValue())));
 
         // null inputs are ignored
         ParsedDocument nullDoc = defaultMapper.parse(source(b -> b.nullField("field")));

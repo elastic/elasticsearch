@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -54,9 +55,19 @@ public class IgnoredFieldMapperTests extends MetadataMapperTestCase {
         );
         ParsedDocument document = mapper.parse(source(b -> b.field("field", "value")));
         List<IndexableField> fields = document.rootDoc().getFields(IgnoredFieldMapper.NAME);
-        assertEquals(1, fields.size());
-        assertEquals(IndexOptions.DOCS, fields.get(0).fieldType().indexOptions());
-        assertTrue(fields.get(0).fieldType().stored());
+        assertEquals(2, fields.size());
+        IndexableField stringField = fields.stream()
+            .filter(field -> DocValuesType.NONE == field.fieldType().docValuesType())
+            .findFirst()
+            .orElseThrow();
+        assertEquals(IndexOptions.DOCS, stringField.fieldType().indexOptions());
+        assertEquals("field", stringField.stringValue());
+        assertTrue(stringField.fieldType().stored());
+        IndexableField docValues = fields.stream()
+            .filter(field -> DocValuesType.SORTED_SET == field.fieldType().docValuesType())
+            .findFirst()
+            .orElseThrow();
+        assertEquals(IndexOptions.NONE, docValues.fieldType().indexOptions());
     }
 
     public void testFetchIgnoredFieldValue() throws IOException {

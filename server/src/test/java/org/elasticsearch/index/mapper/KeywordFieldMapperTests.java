@@ -236,8 +236,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fields.size());
 
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.size());
-        assertEquals("field", fields.get(0).stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(doc.rootDoc().getFields("_ignored").stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testNullValue() throws IOException {

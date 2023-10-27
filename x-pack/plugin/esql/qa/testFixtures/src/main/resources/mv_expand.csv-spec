@@ -225,3 +225,11 @@ emp_no:integer |  job_positions:keyword
 10004          |Head Human Resources
 10004          |Reporting Analyst
 ;
+
+
+expandFoldable
+row a = "foobar", b = ["foo", "bar"], c = 12 | mv_expand b | where b LIKE "fo*";
+
+a:keyword   | b:keyword | c:integer
+foobar      | foo       | 12
+;

@@ -19,7 +19,7 @@ import java.io.IOException;
  * Block that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock {
+public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock {
 
     BytesRef NULL_VALUE = new BytesRef();
 

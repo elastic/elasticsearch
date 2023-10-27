@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondit
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -173,7 +174,14 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
                 null,
                 lifecycle,
-                randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+                randomBoolean()
+                    ? new ErrorEntry(
+                        System.currentTimeMillis(),
+                        new NullPointerException("bad times").getMessage(),
+                        System.currentTimeMillis(),
+                        randomIntBetween(0, 30)
+                    )
+                    : null
             );
             Response response = new Response(List.of(explainIndexWithNullGenerationDate), null);
 
@@ -223,7 +231,14 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
             randomBoolean() ? now + TimeValue.timeValueDays(1).getMillis() : null,
             randomBoolean() ? TimeValue.timeValueMillis(now) : null,
             lifecycle,
-            randomBoolean() ? new NullPointerException("bad times").getMessage() : null
+            randomBoolean()
+                ? new ErrorEntry(
+                    System.currentTimeMillis(),
+                    new NullPointerException("bad times").getMessage(),
+                    System.currentTimeMillis(),
+                    randomIntBetween(0, 30)
+                )
+                : null
         );
     }
 

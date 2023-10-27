@@ -50,7 +50,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
     @Nullable
     private final DataStreamLifecycle lifecycle;
     @Nullable
-    private final String error;
+    private final ErrorEntry error;
     private Supplier<Long> nowSupplier = System::currentTimeMillis;
 
     public ExplainIndexDataStreamLifecycle(
@@ -60,7 +60,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         @Nullable Long rolloverDate,
         @Nullable TimeValue generationDate,
         @Nullable DataStreamLifecycle lifecycle,
-        @Nullable String error
+        @Nullable ErrorEntry error
     ) {
         this.index = index;
         this.managedByLifecycle = managedByLifecycle;
@@ -79,7 +79,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             this.rolloverDate = in.readOptionalLong();
             this.generationDateMillis = in.readOptionalLong();
             this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle::new);
-            this.error = in.readOptionalString();
+            this.error = in.readOptionalWriteable(ErrorEntry::new);
         } else {
             this.indexCreationDate = null;
             this.rolloverDate = null;
@@ -139,7 +139,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
             out.writeOptionalLong(rolloverDate);
             out.writeOptionalLong(generationDateMillis);
             out.writeOptionalWriteable(lifecycle);
-            out.writeOptionalString(error);
+            out.writeOptionalWriteable(error);
         }
     }
 
@@ -202,7 +202,7 @@ public class ExplainIndexDataStreamLifecycle implements Writeable, ToXContentObj
         return lifecycle;
     }
 
-    public String getError() {
+    public ErrorEntry getError() {
         return error;
     }
 

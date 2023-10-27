@@ -2083,7 +2083,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * This ensures that operations using {@code SnapshotsService#executeConsistentStateUpdate} right after mounting a fresh repository will
      * have a consistent view of the {@link RepositoryData} before any data has been written to the repository.
      *
-     * @param responseExecutor
+     * @param responseExecutor executor to use to complete the listener if not completing it on the calling thread
      * @param listener         listener to resolve with new repository data
      * @return {@code true} if this method at least started the initialization process successfully and will eventually complete the
      * listener, {@code false} if there was some concurrent state change which prevents us from starting repo generation tracking (typically

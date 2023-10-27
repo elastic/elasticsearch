@@ -181,7 +181,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             return segmentGeneration;
         }
 
-        public long getPrimaryTerm() {
+        public long primaryTerm() {
             return primaryTerm;
         }
 

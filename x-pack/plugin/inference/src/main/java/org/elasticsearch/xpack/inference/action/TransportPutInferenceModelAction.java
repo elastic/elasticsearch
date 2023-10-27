@@ -103,6 +103,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             return;
         }
 
+        // Check if all the nodes in this cluster know about the service
         if (service.get().getMinimalSupportedVersion().after(state.getMinTransportVersion())) {
             logger.warn(
                 format(
@@ -125,8 +126,6 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             );
             return;
         }
-
-        // we need to know if all the nodes in this cluster know about the service
 
         if (service.get().isInClusterService()) {
             // Find the cluster platform as the service may need that

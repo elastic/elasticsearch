@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -46,13 +45,13 @@ public class ModelConfigurations implements ToXContentObject, VersionedNamedWrit
         TaskType taskType,
         String service,
         ServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings
+        TaskSettings taskSettings
     ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.taskType = Objects.requireNonNull(taskType);
         this.service = Objects.requireNonNull(service);
         this.serviceSettings = Objects.requireNonNull(serviceSettings);
-        this.taskSettings = taskSettings;
+        this.taskSettings = Objects.requireNonNull(taskSettings);
     }
 
     public ModelConfigurations(StreamInput in) throws IOException {

@@ -78,5 +78,9 @@ public interface InferenceService extends Closeable {
         return false;
     }
 
+    /**
+     * Defines the version required across all clusters to use this service
+     * @return {@link TransportVersion} specifying the version
+     */
     TransportVersion getMinimalSupportedVersion();
 }

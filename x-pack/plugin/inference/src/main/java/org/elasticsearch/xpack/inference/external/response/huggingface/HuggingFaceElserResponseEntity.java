@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.response.huggingface;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -26,8 +24,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class HuggingFaceElserResponseEntity {
-
-    private static final Logger logger = LogManager.getLogger(HuggingFaceElserResponseEntity.class);
 
     /**
      * The response from hugging face will be formatted as [{"token": 0.0...123}]. Each object within the array will correspond to the

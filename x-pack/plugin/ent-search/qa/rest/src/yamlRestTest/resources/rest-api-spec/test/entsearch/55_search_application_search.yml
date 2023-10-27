@@ -72,6 +72,7 @@ setup:
                   type: string
                 field_value:
                   type: string
+
   - do:
       search_application.put:
         name: test-search-application-with-list

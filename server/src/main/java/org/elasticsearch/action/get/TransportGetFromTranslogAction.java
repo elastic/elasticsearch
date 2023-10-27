@@ -155,7 +155,9 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             super(in);
             segmentGeneration = in.readZLong();
             getResult = in.readOptionalWriteable(GetResult::new);
-            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.PRIMARY_TERM_ADDED)
+                ? in.readVLong()
+                : Engine.UNKNOWN_PRIMARY_TERM;
         }
 
         @Override

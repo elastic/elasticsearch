@@ -25,6 +25,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -143,6 +144,11 @@ public abstract class Plugin implements Closeable {
          * A service to access features supported by nodes in the cluster
          */
         FeatureService featureService();
+
+        /**
+         * The system indices for the cluster
+         */
+        SystemIndices systemIndices();
     }
 
     /**

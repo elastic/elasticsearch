@@ -23,49 +23,80 @@ import java.util.Objects;
  */
 public class TrialLicenseVersion implements ToXContentFragment, Writeable {
 
-    // Increment this when we want users to be able to start a new trial. Note that BWC with old versions of Elasticsearch cause this to be
-    // limited to a maximum of 99 (inclusive). See the Version class for more info.
-    public static final TrialLicenseVersion CURRENT = new TrialLicenseVersion(8);
+    // This was the highest version at the time we cut over to having a specific version for the trial license, rather than reusing the
+    // generic Elasticsearch version. While it's derived from the Elasticsearch version formula for BWC, it is independent of it going
+    // forward. When we want users to be able to start a new trial, increment this number.
+    // Pkg-private for testing only.
+    static final int TRIAL_VERSION_CUTOVER = 8_12_00_99;
+    public static final TrialLicenseVersion CURRENT = new TrialLicenseVersion(TRIAL_VERSION_CUTOVER);
 
-    private final int era;
+    // The most recently released major version when we cut over. Here for maintaining BWC behavior.
+    static final int TRIAL_VERSION_CUTOVER_MAJOR = 8;
 
-    public TrialLicenseVersion(int era) {
-        this.era = era;
+    private final int trialVersion;
+
+    public TrialLicenseVersion(int trialVersion) {
+        this.trialVersion = trialVersion;
     }
 
     public TrialLicenseVersion(StreamInput in) throws IOException {
-        this.era = (in.readVInt() - 99) / 1000000; // Copied from the constructor of Version
+        this.trialVersion = in.readVInt();
     }
 
-    public static TrialLicenseVersion fromString(String from) {
-        String[] parts = from.split("[.-]");
-        if (parts.length == 0) {
-            throw new IllegalArgumentException("illegal trial era format: [" + from + "]");
-        }
+    public static TrialLicenseVersion fromXContent(String from) {
         try {
-            final int era = Integer.parseInt(parts[0]);
-            return new TrialLicenseVersion(era);
+            return new TrialLicenseVersion(Integer.parseInt(from));
+        } catch (NumberFormatException ex) {
+            return new TrialLicenseVersion(parseVersionString(from));
+        }
+    }
+
+    // copied from Version and simplified, for backwards compatibility parsing old version strings in LicensesMetadata XContent
+    private static int parseVersionString(String version) {
+        final boolean snapshot = version.endsWith("-SNAPSHOT"); // this is some BWC for 2.x and before indices
+        if (snapshot) {
+            version = version.substring(0, version.length() - 9);
+        }
+        String[] parts = version.split("[.-]");
+        if (parts.length != 3) {
+            throw new IllegalArgumentException("unable to parse trial license version: " + version);
+        }
+
+        try {
+            final int rawMajor = Integer.parseInt(parts[0]);
+            // we reverse the version id calculation based on some assumption as we can't reliably reverse the modulo
+            final int major = rawMajor * 1000000;
+            final int minor = Integer.parseInt(parts[1]) * 10000;
+            final int revision = Integer.parseInt(parts[2]) * 100;
+
+            // 99 is leftover from alpha/beta/rc, it should be removed
+            return major + minor + revision + 99;
+
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("unable to parse trial era: [" + from + "]", e);
+            throw new IllegalArgumentException("unable to parse trial license version: " + version, e);
         }
     }
 
     int asInt() {
-        return era;
+        return trialVersion;
     }
 
     public boolean ableToStartNewTrialSince(TrialLicenseVersion since) {
-        return since.asInt() < era;
+        if (since.asInt() < TRIAL_VERSION_CUTOVER) {
+            int sinceMajorVersion = since.asInt() / 1_000_000; // integer division is intentional
+            return sinceMajorVersion < TRIAL_VERSION_CUTOVER_MAJOR;
+        }
+        return since.asInt() < trialVersion;
     }
 
     @Override
     public String toString() {
-        return Integer.toString(era);
+        return Integer.toString(trialVersion);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(asVersionString()); // suffix added for BWC
+        return builder.value(trialVersion); // suffix added for BWC
     }
 
     // pkg-private for testing
@@ -78,16 +109,16 @@ public class TrialLicenseVersion implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrialLicenseVersion that = (TrialLicenseVersion) o;
-        return era == that.era;
+        return trialVersion == that.trialVersion;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(era);
+        return Objects.hash(trialVersion);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt((era * 1000000) + 99); // matches Version serialization
+        out.writeVInt(trialVersion);
     }
 }

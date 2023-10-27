@@ -62,6 +62,15 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
         ClusterStateTaskExecutor.TaskContext<StartTrialClusterTask> taskContext
     ) {
         assert taskContext.getTask() == this;
+        if (discoveryNodes.getMaxNodeVersion().after(discoveryNodes.getSmallestNonClientNodeVersion())) {
+            throw new IllegalStateException(
+                "Please ensure all nodes are on the same version before starting your trial, the highest node version in this cluster is ["
+                    + discoveryNodes.getMaxNodeVersion()
+                    + "] and the lowest node version is ["
+                    + discoveryNodes.getMinNodeVersion()
+                    + "]"
+            );
+        }
         final var listener = ActionListener.runBefore(this.listener, () -> {
             logger.debug("started self generated trial license: {}", currentLicensesMetadata);
         });

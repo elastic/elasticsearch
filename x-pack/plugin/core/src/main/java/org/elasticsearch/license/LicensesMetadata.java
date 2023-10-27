@@ -133,7 +133,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
                         }
                     } else if (fieldName.equals(Fields.TRIAL_LICENSE)) {
                         parser.nextToken();
-                        trialLicense = TrialLicenseVersion.fromString(parser.text());
+                        trialLicense = TrialLicenseVersion.fromXContent(parser.text());
                     }
                 }
             }

@@ -104,7 +104,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
 
     /**
      * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @Deprecated use {@link BlockFactory#newLongVectorBuilder}
+     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
@@ -115,7 +115,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     /**
      * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
      * if you know the size up front because it's faster.
-     * @Deprecated use {@link BlockFactory#newLongVectorBuilder}
+     * @deprecated use {@link BlockFactory#newLongVectorBuilder}
      */
     @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
@@ -125,7 +125,7 @@ public sealed interface LongVector extends Vector permits ConstantLongVector, Lo
     /**
      * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
      * if you know the size up front because it's faster.
-     * @Deprecated use {@link BlockFactory#newLongVectorFixedBuilder}
+     * @deprecated use {@link BlockFactory#newLongVectorFixedBuilder}
      */
     @Deprecated
     static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {

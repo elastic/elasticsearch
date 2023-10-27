@@ -103,7 +103,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
 
     /**
      * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @Deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
+     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
@@ -113,7 +113,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
 
     /**
      * Creates a builder that grows as needed.
-     * @Deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
+     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
      */
     @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {

@@ -103,7 +103,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
 
     /**
      * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
-     * @Deprecated use {@link BlockFactory#newIntVectorBuilder}
+     * @deprecated use {@link BlockFactory#newIntVectorBuilder}
      */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
     @Deprecated
@@ -114,7 +114,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     /**
      * Creates a builder that grows as needed. Prefer {@link #newVectorFixedBuilder}
      * if you know the size up front because it's faster.
-     * @Deprecated use {@link BlockFactory#newIntVectorBuilder}
+     * @deprecated use {@link BlockFactory#newIntVectorBuilder}
      */
     @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
@@ -124,7 +124,7 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
     /**
      * Creates a builder that never grows. Prefer this over {@link #newVectorBuilder}
      * if you know the size up front because it's faster.
-     * @Deprecated use {@link BlockFactory#newIntVectorFixedBuilder}
+     * @deprecated use {@link BlockFactory#newIntVectorFixedBuilder}
      */
     @Deprecated
     static FixedBuilder newVectorFixedBuilder(int size, BlockFactory blockFactory) {

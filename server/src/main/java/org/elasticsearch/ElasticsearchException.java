@@ -1864,8 +1864,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             TransportVersions.TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED
         ),
         INVALID_BUCKET_PATH_EXCEPTION(
-            AggregationExecutionException.InvalidBucketPath.class,
-            AggregationExecutionException.InvalidBucketPath::new,
+            AggregationExecutionException.InvalidPath.class,
+            AggregationExecutionException.InvalidPath::new,
             174,
             TransportVersions.INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED
         );

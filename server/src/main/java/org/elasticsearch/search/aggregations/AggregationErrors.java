@@ -133,7 +133,7 @@ public class AggregationErrors {
      */
     public static RuntimeException incompatibleAggregationType(String aggPath, String expected, String got, String currentAgg) {
 
-        return new AggregationExecutionException.InvalidBucketPath(
+        return new AggregationExecutionException.InvalidPath(
             aggPath
                 + " must reference a "
                 + expected

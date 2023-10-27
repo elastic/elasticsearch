@@ -30,17 +30,17 @@ public class AggregationExecutionException extends ElasticsearchException {
         super(in);
     }
 
-    public static class InvalidBucketPath extends AggregationExecutionException {
+    public static class InvalidPath extends AggregationExecutionException {
 
-        public InvalidBucketPath(String msg) {
+        public InvalidPath(String msg) {
             super(msg);
         }
 
-        public InvalidBucketPath(String msg, Throwable cause) {
+        public InvalidPath(String msg, Throwable cause) {
             super(msg, cause);
         }
 
-        public InvalidBucketPath(StreamInput in) throws IOException {
+        public InvalidPath(StreamInput in) throws IOException {
             super(in);
         }
 

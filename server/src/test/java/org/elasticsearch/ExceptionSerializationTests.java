@@ -837,7 +837,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(171, ApiNotAvailableException.class);
         ids.put(172, RecoveryCommitTooNewException.class);
         ids.put(173, TooManyScrollContextsException.class);
-        ids.put(174, AggregationExecutionException.InvalidBucketPath.class);
+        ids.put(174, AggregationExecutionException.InvalidPath.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

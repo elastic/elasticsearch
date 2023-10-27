@@ -221,9 +221,4 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             throw new UncheckedIOException(e);
         }
     }
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
 }

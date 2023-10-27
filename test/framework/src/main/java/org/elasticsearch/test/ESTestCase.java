@@ -810,7 +810,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static Boolean randomOptionalBoolean() {
-        return randomBoolean() ? randomBoolean() : null;
+        return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
     }
 
     public static byte randomByte() {

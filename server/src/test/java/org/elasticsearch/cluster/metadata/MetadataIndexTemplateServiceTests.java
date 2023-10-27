@@ -2597,6 +2597,34 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        state = service.addComponentTemplate(state, true, "ct", ct);
+
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of("test*"),
+            null,
+            List.of("ct"),
+            null,
+            1L,
+            null,
+            null,
+            null,
+            null,
+            randomOptionalBoolean()
+        );
+        service.addIndexTemplateV2(state, false, "foo", it);
+
+        if (it.deprecated()) {
+            assertWarnings();
+        } else if (ct.deprecated()) {
+            assertWarnings("Index template [foo] uses deprecated component template [ct]");
+        }
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);

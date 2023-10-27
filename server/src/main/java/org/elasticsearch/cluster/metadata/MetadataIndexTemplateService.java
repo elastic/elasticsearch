@@ -309,7 +309,12 @@ public class MetadataIndexTemplateService {
             template.template().aliases(),
             template.template().lifecycle()
         );
-        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(finalTemplate, template.version(), template.metadata());
+        final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
+            finalTemplate,
+            template.version(),
+            template.metadata(),
+            template.deprecated()
+        );
 
         if (finalComponentTemplate.equals(existing)) {
             return currentState;
@@ -733,6 +738,7 @@ public class MetadataIndexTemplateService {
         if (templateToValidate.deprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
             validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
+            // TODO come up with a plan how to validate usage of deprecated ILM policies
             // we don't have access to the core/main plugin here so we can't use the IndexLifecycleMetadata type
             // validateUseOfDeprecatedIlmPolicies(name, currentState.metadata().custom(IndexLifecycleMetadata.TYPE), combinedSettings);
         }
@@ -767,7 +773,7 @@ public class MetadataIndexTemplateService {
                 ct -> deprecationLogger.warn(
                     DeprecationCategory.TEMPLATES,
                     "use_of_deprecated_component_template",
-                    "Index template {} uses deprecated component template {}",
+                    "index template [{}] uses deprecated component template [{}]",
                     name,
                     ct.v1()
                 )
@@ -790,7 +796,7 @@ public class MetadataIndexTemplateService {
                 p -> deprecationLogger.warn(
                     DeprecationCategory.TEMPLATES,
                     "use_of_deprecated_ingest_pipeline",
-                    "Index template {} uses deprecated component template {}",
+                    "index template [{}] uses deprecated ingest pipeline [{}]",
                     name,
                     p.getId()
                 )

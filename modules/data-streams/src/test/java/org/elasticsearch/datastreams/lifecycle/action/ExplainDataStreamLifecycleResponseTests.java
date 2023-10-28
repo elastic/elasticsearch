@@ -104,7 +104,21 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
                 assertThat(explainIndexMap.get("lifecycle"), is(Map.of("enabled", true))); // empty lifecycle
-                assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
+                if (explainIndex.getError() != null) {
+                    Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
+                    assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
+                    assertThat(
+                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_FIELD.getPreferredName()),
+                        is(explainIndex.getError().firstOccurrenceTimestamp())
+                    );
+                    assertThat(
+                        errorObject.get(ErrorEntry.LAST_RECORDED_TIMESTAMP_FIELD.getPreferredName()),
+                        is(explainIndex.getError().recordedTimestamp())
+                    );
+                    assertThat(errorObject.get(ErrorEntry.RETRY_COUNT_FIELD.getPreferredName()), is(explainIndex.getError().retryCount()));
+                } else {
+                    assertThat(explainIndexMap.get("error"), is(nullValue()));
+                }
             }
         }
 
@@ -156,7 +170,21 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                 } else {
                     assertThat(explainIndexMap.get("generation_time"), is(nullValue()));
                 }
-                assertThat(explainIndexMap.get("error"), is(explainIndex.getError()));
+                if (explainIndex.getError() != null) {
+                    Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
+                    assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
+                    assertThat(
+                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_FIELD.getPreferredName()),
+                        is(explainIndex.getError().firstOccurrenceTimestamp())
+                    );
+                    assertThat(
+                        errorObject.get(ErrorEntry.LAST_RECORDED_TIMESTAMP_FIELD.getPreferredName()),
+                        is(explainIndex.getError().recordedTimestamp())
+                    );
+                    assertThat(errorObject.get(ErrorEntry.RETRY_COUNT_FIELD.getPreferredName()), is(explainIndex.getError().retryCount()));
+                } else {
+                    assertThat(explainIndexMap.get("error"), is(nullValue()));
+                }
 
                 Map<String, Object> lifecycleRollover = (Map<String, Object>) ((Map<String, Object>) explainIndexMap.get("lifecycle")).get(
                     "rollover"

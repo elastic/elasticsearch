@@ -30,10 +30,10 @@ public record ErrorEntry(long firstOccurrenceTimestamp, String error, long recor
         this(in.readLong(), in.readString(), in.readLong(), in.readInt());
     }
 
-    private static final ParseField FIRST_OCCURRENCE_FIELD = new ParseField("first_occurrence_millis");
-    private static final ParseField MESSAGE_FIELD = new ParseField("message");
-    private static final ParseField LAST_RECORDED_TIMESTAMP_FIELD = new ParseField("last_recorded_millis");
-    private static final ParseField RETRY_COUNT_FIELD = new ParseField("retry_count");
+    public static final ParseField FIRST_OCCURRENCE_FIELD = new ParseField("first_occurrence_millis");
+    public static final ParseField MESSAGE_FIELD = new ParseField("message");
+    public static final ParseField LAST_RECORDED_TIMESTAMP_FIELD = new ParseField("last_recorded_millis");
+    public static final ParseField RETRY_COUNT_FIELD = new ParseField("retry_count");
 
     /**
      * Creates a new ErrorEntry with the same first occurent timestamp and error message as the provided existing record, but with a fresh

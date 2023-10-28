@@ -25,6 +25,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.plugin.ShardsAvailabilityPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -49,7 +50,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, ShardsAvailabilityPlugin.class);
     }
 
     /**

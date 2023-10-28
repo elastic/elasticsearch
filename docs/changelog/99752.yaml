@@ -1,0 +1,5 @@
+pr: 99752
+summary: Pass shard's primary term to Engine#addSegmentGenerationListener
+area: Store
+type: enhancement
+issues: []

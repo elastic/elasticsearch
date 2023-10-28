@@ -31,9 +31,6 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock vBlock = (DoubleBlock) vRef.block();
       DoubleVector vVector = vBlock.asVector();
       if (vVector == null) {

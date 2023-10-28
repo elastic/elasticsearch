@@ -54,6 +54,43 @@ constant_keyword:
   - match: {values.0.0: 17}
 
 ---
+constant_keyword with null value:
+  - skip:
+      features: warnings
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              kind:
+                type: constant_keyword
+              color:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "color": "red" }
+
+  - do:
+      warnings:
+        - "No limit defined, adding default limit of [500]"
+      esql.query:
+        body:
+          query: 'from test'
+  - match: { columns.0.name: color }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: kind }
+  - match: { columns.1.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: red }
+  - match: { values.0.1: null }
+
+---
 multivalued keyword:
   - do:
       indices.create:

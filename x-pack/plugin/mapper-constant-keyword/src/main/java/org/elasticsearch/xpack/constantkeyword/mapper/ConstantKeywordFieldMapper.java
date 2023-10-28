@@ -138,6 +138,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // TODO build a constant block directly
+            if (value == null) {
+                return BlockDocValuesReader.nulls();
+            }
             BytesRef bytes = new BytesRef(value);
             return context -> new BlockDocValuesReader() {
                 private int docId;

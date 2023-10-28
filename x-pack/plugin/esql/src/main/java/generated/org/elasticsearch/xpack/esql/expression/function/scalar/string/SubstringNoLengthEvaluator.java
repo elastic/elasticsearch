@@ -38,14 +38,8 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref startRef = start.eval(page)) {
-        if (startRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         IntBlock startBlock = (IntBlock) startRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {

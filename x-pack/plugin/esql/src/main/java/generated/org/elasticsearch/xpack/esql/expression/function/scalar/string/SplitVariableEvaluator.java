@@ -40,14 +40,8 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref delimRef = delim.eval(page)) {
-        if (delimRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         BytesRefBlock delimBlock = (BytesRefBlock) delimRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {

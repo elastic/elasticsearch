@@ -35,14 +35,8 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BooleanBlock lhsBlock = (BooleanBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         BooleanBlock rhsBlock = (BooleanBlock) rhsRef.block();
         BooleanVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {

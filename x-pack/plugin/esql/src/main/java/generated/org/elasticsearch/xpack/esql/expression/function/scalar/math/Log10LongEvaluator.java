@@ -39,9 +39,6 @@ public final class Log10LongEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {

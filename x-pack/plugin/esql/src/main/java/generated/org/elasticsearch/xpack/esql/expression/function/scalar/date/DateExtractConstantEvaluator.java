@@ -40,9 +40,6 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
-      if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {

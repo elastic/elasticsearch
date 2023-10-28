@@ -31,9 +31,6 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       IntBlock fieldValBlock = (IntBlock) fieldValRef.block();
       IntVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {

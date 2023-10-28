@@ -441,9 +441,6 @@ public class EvaluatorImplementer {
         public void evalToBlock(MethodSpec.Builder builder) {
             TypeName blockType = blockType(type);
             builder.beginControlFlow("try (Block.Ref $LRef = $L.eval(page))", name, name);
-            builder.beginControlFlow("if ($LRef.block().areAllValuesNull())", name);
-            builder.addStatement("return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()))");
-            builder.endControlFlow();
             builder.addStatement("$T $LBlock = ($T) $LRef.block()", blockType, name, blockType, name);
         }
 
@@ -570,13 +567,7 @@ public class EvaluatorImplementer {
             builder.beginControlFlow("for (int i = 0; i < $LBlocks.length; i++)", name);
             {
                 builder.addStatement("$LRefs[i] = $L[i].eval(page)", name, name);
-                builder.addStatement("Block block = $LRefs[i].block()", name);
-                builder.beginControlFlow("if (block.areAllValuesNull())");
-                builder.addStatement(
-                    "return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()))"
-                );
-                builder.endControlFlow();
-                builder.addStatement("$LBlocks[i] = ($T) block", name, blockType);
+                builder.addStatement("$LBlocks[i] = ($T) $LRefs[i].block()", name, blockType, name);
             }
             builder.endControlFlow();
         }

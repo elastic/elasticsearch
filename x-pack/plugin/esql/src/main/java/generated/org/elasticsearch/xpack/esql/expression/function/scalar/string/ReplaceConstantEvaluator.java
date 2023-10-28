@@ -46,14 +46,8 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref newStrRef = newStr.eval(page)) {
-        if (newStrRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {

@@ -37,14 +37,8 @@ public final class GreaterThanOrEqualIntsEvaluator implements EvalOperator.Expre
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       IntBlock lhsBlock = (IntBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         IntBlock rhsBlock = (IntBlock) rhsRef.block();
         IntVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {

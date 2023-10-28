@@ -38,14 +38,8 @@ public final class GreaterThanOrEqualKeywordsEvaluator implements EvalOperator.E
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock lhsBlock = (BytesRefBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         BytesRefBlock rhsBlock = (BytesRefBlock) rhsRef.block();
         BytesRefVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {

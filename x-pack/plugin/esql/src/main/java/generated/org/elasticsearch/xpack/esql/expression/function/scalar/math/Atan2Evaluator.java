@@ -35,14 +35,8 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref yRef = y.eval(page)) {
-      if (yRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       DoubleBlock yBlock = (DoubleBlock) yRef.block();
       try (Block.Ref xRef = x.eval(page)) {
-        if (xRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         DoubleBlock xBlock = (DoubleBlock) xRef.block();
         DoubleVector yVector = yBlock.asVector();
         if (yVector == null) {

@@ -42,14 +42,8 @@ public final class PowIntEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref baseRef = base.eval(page)) {
-      if (baseRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
       try (Block.Ref exponentRef = exponent.eval(page)) {
-        if (exponentRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
         DoubleVector baseVector = baseBlock.asVector();
         if (baseVector == null) {

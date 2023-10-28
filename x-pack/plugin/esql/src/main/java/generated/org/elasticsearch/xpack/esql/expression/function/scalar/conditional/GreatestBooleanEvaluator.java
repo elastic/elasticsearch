@@ -38,11 +38,7 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
       BooleanBlock[] valuesBlocks = new BooleanBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (BooleanBlock) block;
+        valuesBlocks[i] = (BooleanBlock) valuesRefs[i].block();
       }
       BooleanVector[] valuesVectors = new BooleanVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {

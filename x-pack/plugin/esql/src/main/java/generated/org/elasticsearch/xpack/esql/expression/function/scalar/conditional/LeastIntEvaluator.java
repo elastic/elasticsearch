@@ -37,11 +37,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
       IntBlock[] valuesBlocks = new IntBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (IntBlock) block;
+        valuesBlocks[i] = (IntBlock) valuesRefs[i].block();
       }
       IntVector[] valuesVectors = new IntVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {

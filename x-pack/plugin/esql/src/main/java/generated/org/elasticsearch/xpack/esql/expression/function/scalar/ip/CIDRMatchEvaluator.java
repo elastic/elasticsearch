@@ -40,20 +40,13 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref ipRef = ip.eval(page)) {
-      if (ipRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock ipBlock = (BytesRefBlock) ipRef.block();
       Block.Ref[] cidrsRefs = new Block.Ref[cidrs.length];
       try (Releasable cidrsRelease = Releasables.wrap(cidrsRefs)) {
         BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
         for (int i = 0; i < cidrsBlocks.length; i++) {
           cidrsRefs[i] = cidrs[i].eval(page);
-          Block block = cidrsRefs[i].block();
-          if (block.areAllValuesNull()) {
-            return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-          }
-          cidrsBlocks[i] = (BytesRefBlock) block;
+          cidrsBlocks[i] = (BytesRefBlock) cidrsRefs[i].block();
         }
         BytesRefVector ipVector = ipBlock.asVector();
         if (ipVector == null) {

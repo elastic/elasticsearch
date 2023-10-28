@@ -39,11 +39,7 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
       BytesRefBlock[] valuesBlocks = new BytesRefBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (BytesRefBlock) block;
+        valuesBlocks[i] = (BytesRefBlock) valuesRefs[i].block();
       }
       BytesRefVector[] valuesVectors = new BytesRefVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {

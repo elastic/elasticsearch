@@ -38,9 +38,6 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       DoubleBlock valBlock = (DoubleBlock) valRef.block();
       DoubleVector valVector = valBlock.asVector();
       if (valVector == null) {

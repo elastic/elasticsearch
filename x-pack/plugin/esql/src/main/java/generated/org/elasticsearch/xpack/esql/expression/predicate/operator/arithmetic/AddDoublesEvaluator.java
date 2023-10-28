@@ -35,14 +35,8 @@ public final class AddDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
         DoubleVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {

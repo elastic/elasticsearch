@@ -33,9 +33,6 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       IntBlock vBlock = (IntBlock) vRef.block();
       IntVector vVector = vBlock.asVector();
       if (vVector == null) {

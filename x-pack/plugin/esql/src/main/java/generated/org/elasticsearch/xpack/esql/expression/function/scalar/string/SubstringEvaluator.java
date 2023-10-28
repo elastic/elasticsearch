@@ -42,19 +42,10 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref startRef = start.eval(page)) {
-        if (startRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
         IntBlock startBlock = (IntBlock) startRef.block();
         try (Block.Ref lengthRef = length.eval(page)) {
-          if (lengthRef.block().areAllValuesNull()) {
-            return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-          }
           IntBlock lengthBlock = (IntBlock) lengthRef.block();
           BytesRefVector strVector = strBlock.asVector();
           if (strVector == null) {

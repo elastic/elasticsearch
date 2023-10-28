@@ -38,11 +38,7 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
       LongBlock[] valuesBlocks = new LongBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
-        }
-        valuesBlocks[i] = (LongBlock) block;
+        valuesBlocks[i] = (LongBlock) valuesRefs[i].block();
       }
       LongVector[] valuesVectors = new LongVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {

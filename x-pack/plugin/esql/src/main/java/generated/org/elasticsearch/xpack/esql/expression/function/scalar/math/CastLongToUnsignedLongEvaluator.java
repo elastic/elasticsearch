@@ -33,7 +33,7 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
       if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       LongBlock vBlock = (LongBlock) vRef.block();
       LongVector vVector = vBlock.asVector();
@@ -45,7 +45,7 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -58,7 +58,7 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   }
 
   public LongVector eval(int positionCount, LongVector vVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Cast.castLongToUnsignedLong(vVector.getLong(p)));
       }

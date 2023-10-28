@@ -42,12 +42,12 @@ public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       LongBlock lhsBlock = (LongBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
         }
         LongBlock rhsBlock = (LongBlock) rhsRef.block();
         LongVector lhsVector = lhsBlock.asVector();
@@ -64,7 +64,7 @@ public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public LongBlock eval(int positionCount, LongBlock lhsBlock, LongBlock rhsBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -86,7 +86,7 @@ public final class ModLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public LongBlock eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Mod.processLongs(lhsVector.getLong(p), rhsVector.getLong(p)));

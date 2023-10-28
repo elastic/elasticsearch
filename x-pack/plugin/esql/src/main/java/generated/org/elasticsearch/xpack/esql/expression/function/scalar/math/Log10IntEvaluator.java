@@ -40,7 +40,7 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       IntBlock valBlock = (IntBlock) valRef.block();
       IntVector valVector = valBlock.asVector();
@@ -52,7 +52,7 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public DoubleBlock eval(int positionCount, IntBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -70,7 +70,7 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public DoubleBlock eval(int positionCount, IntVector valVector) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Log10.process(valVector.getInt(p)));

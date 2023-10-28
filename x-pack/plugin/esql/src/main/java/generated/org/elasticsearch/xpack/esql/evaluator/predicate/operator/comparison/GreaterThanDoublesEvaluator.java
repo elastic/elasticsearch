@@ -38,12 +38,12 @@ public final class GreaterThanDoublesEvaluator implements EvalOperator.Expressio
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
         }
         DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
         DoubleVector lhsVector = lhsBlock.asVector();
@@ -60,7 +60,7 @@ public final class GreaterThanDoublesEvaluator implements EvalOperator.Expressio
   }
 
   public BooleanBlock eval(int positionCount, DoubleBlock lhsBlock, DoubleBlock rhsBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -77,7 +77,7 @@ public final class GreaterThanDoublesEvaluator implements EvalOperator.Expressio
   }
 
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(GreaterThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
       }

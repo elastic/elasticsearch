@@ -42,12 +42,12 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public Block.Ref eval(Page page) {
     try (Block.Ref baseRef = base.eval(page)) {
       if (baseRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       DoubleBlock baseBlock = (DoubleBlock) baseRef.block();
       try (Block.Ref exponentRef = exponent.eval(page)) {
         if (exponentRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
         }
         DoubleBlock exponentBlock = (DoubleBlock) exponentRef.block();
         DoubleVector baseVector = baseBlock.asVector();
@@ -64,7 +64,7 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -86,7 +86,7 @@ public final class PowDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));

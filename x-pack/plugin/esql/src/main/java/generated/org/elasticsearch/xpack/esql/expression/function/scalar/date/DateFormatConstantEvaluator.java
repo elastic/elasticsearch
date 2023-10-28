@@ -39,7 +39,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
       if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
@@ -51,7 +51,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -64,7 +64,7 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   }
 
   public BytesRefVector eval(int positionCount, LongVector valVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatter));
       }

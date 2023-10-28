@@ -41,7 +41,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
       if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       BytesRefVector strVector = strBlock.asVector();
@@ -53,7 +53,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
@@ -67,7 +67,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         Split.process(result, strVector.getBytesRef(p, strScratch), delim, scratch);

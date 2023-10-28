@@ -38,12 +38,12 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
       if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       IntBlock lhsBlock = (IntBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
         if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
         }
         IntBlock rhsBlock = (IntBlock) rhsRef.block();
         IntVector lhsVector = lhsBlock.asVector();
@@ -60,7 +60,7 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
   }
 
   public BooleanBlock eval(int positionCount, IntBlock lhsBlock, IntBlock rhsBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (lhsBlock.isNull(p) || lhsBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -77,7 +77,7 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
   }
 
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(LessThanOrEqual.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
       }

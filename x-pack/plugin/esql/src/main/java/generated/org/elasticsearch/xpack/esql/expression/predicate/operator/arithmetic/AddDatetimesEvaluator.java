@@ -44,7 +44,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   public Block.Ref eval(Page page) {
     try (Block.Ref datetimeRef = datetime.eval(page)) {
       if (datetimeRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+        return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
       }
       LongBlock datetimeBlock = (LongBlock) datetimeRef.block();
       LongVector datetimeVector = datetimeBlock.asVector();
@@ -56,7 +56,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -74,7 +74,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Add.processDatetimes(datetimeVector.getLong(p), temporalAmount));

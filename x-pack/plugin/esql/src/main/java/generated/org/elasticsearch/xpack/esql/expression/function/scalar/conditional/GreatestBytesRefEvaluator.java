@@ -41,7 +41,7 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
         valuesRefs[i] = values[i].eval(page);
         Block block = valuesRefs[i].block();
         if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
+          return Block.Ref.floating(driverContext.blockFactory().newConstantNullBlock(page.getPositionCount()));
         }
         valuesBlocks[i] = (BytesRefBlock) block;
       }
@@ -57,7 +57,7 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef[] valuesValues = new BytesRef[values.length];
       BytesRef[] valuesScratch = new BytesRef[values.length];
       for (int i = 0; i < values.length; i++) {
@@ -82,7 +82,7 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef[] valuesValues = new BytesRef[values.length];
       BytesRef[] valuesScratch = new BytesRef[values.length];
       for (int i = 0; i < values.length; i++) {

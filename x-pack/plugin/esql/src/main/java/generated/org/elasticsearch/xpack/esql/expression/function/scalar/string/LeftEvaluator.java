@@ -47,14 +47,8 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref lengthRef = length.eval(page)) {
-        if (lengthRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         IntBlock lengthBlock = (IntBlock) lengthRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {

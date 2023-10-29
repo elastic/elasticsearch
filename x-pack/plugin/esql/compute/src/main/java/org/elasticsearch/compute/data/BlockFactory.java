@@ -175,9 +175,12 @@ public class BlockFactory {
         return new IntVectorBuilder(estimatedSize, this);
     }
 
+<<<<<<< HEAD
     /**
      * Build a {@link IntVector.FixedBuilder} that never grows.
      */
+=======
+>>>>>>> main
     public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
         return new IntVectorFixedBuilder(size, this);
     }

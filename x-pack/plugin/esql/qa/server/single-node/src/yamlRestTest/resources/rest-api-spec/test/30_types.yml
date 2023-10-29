@@ -55,8 +55,6 @@ constant_keyword:
 
 ---
 constant_keyword with null value:
-  - skip:
-      features: warnings
   - do:
       indices.create:
         index:  test
@@ -77,11 +75,9 @@ constant_keyword with null value:
           - { "color": "red" }
 
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
       esql.query:
         body:
-          query: 'from test'
+          query: 'from test | limit 1'
   - match: { columns.0.name: color }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: kind }

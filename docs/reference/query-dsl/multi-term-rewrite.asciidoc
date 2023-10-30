@@ -40,7 +40,6 @@ the less costly terms into a filter bitset.
 This method can cause the generated `bool` query to exceed the clause limit in the
 <<indices-query-bool-max-clause-count, `indices.query.bool.max_clause_count`>>
 setting. If the query exceeds this limit, {es} returns an error.
-F
 
 `constant_score` ::
 Uses the `constant_score_boolean` method for fewer matching terms. Otherwise,

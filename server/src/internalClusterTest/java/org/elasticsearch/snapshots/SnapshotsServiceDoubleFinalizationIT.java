@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -52,9 +51,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SnapshotsServiceNpeIT extends AbstractSnapshotIntegTestCase {
+public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegTestCase {
 
-    public void testNPE() throws Exception {
+    public void testNoDoubleFinalization() throws Exception {
         // 0 - Basic setup
         final String masterNodeName = internalCluster().startNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -101,7 +100,7 @@ public class SnapshotsServiceNpeIT extends AbstractSnapshotIntegTestCase {
 
         // 3 - Stop data node so that index-2, index-3 become unassigned
         internalCluster().stopNode(dataNodeName);
-        ensureColor(ClusterHealthStatus.RED, TimeValue.timeValueSeconds(30), false, "index-2", "index-3");
+        internalCluster().validateClusterFormed();
 
         // 4 - Create new snapshot for the unassigned index and its shards should have both QUEUED and MISSING
         future = setWaitForClusterState(state -> {

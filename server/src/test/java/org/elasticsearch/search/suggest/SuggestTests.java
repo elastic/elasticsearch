@@ -247,9 +247,9 @@ public class SuggestTests extends ESTestCase {
         );
 
         final Suggest suggest = createTestItem();
-        // if bwc version is below V_8_8_0 we need to make sure potential
-        // search hits in CompletionSuggestion$Entry$Option don't have "rank" set
-        // TODO remove this once MINIMUM_COMPATIBLE > V_8_8_0
+        // suggest is disallowed when using rank, but the randomization rarely sets it
+        // we need to make sure CompletionSuggestion$Entry$Option doesn't have "rank" set
+        // because for some older versions it will not serialize.
         if (bwcVersion.before(TransportVersions.V_8_8_0)) {
             for (CompletionSuggestion s : suggest.filter(CompletionSuggestion.class)) {
                 for (CompletionSuggestion.Entry entry : s.entries) {

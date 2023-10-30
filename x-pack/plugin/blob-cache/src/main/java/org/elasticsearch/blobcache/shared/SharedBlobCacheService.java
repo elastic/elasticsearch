@@ -35,6 +35,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -58,6 +61,9 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.metrics.APMMetricUtils.getOrRegisterLongCounter;
+import static org.elasticsearch.common.metrics.APMMetricUtils.getOrRegisterLongHistogram;
 
 public class SharedBlobCacheService<KeyType> implements Releasable {
 
@@ -285,18 +291,34 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final LongAdder evictCount = new LongAdder();
 
+    private final LongHistogram cacheMissLoadTimes;
+    LongCounter cacheMissCounter;
+
+
+    public SharedBlobCacheService(
+        NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor, TelemetryProvider telemetryProvider
+    ) {
+        this(environment, settings, threadPool, ioExecutor, ioExecutor, telemetryProvider);
+    }
+
+    /**
+     * @deprecated A NOOP telemetry provider is used here in order to maintain backward compatibility. This constructor will be removed in
+     * the future.
+     */
+    @Deprecated()
     public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor);
+        this(environment, settings, threadPool, ioExecutor, ioExecutor, TelemetryProvider.NOOP);
     }
 
     // gradlew requires 'rawtypes' even if IntelliJ doesn't
-    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
         String ioExecutor,
-        String bulkExecutor
+        String bulkExecutor,
+        TelemetryProvider telemetryProvider
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
@@ -340,6 +362,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         decayTask.rescheduleIfNecessary();
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+
+        this.cacheMissLoadTimes = getOrRegisterLongHistogram(
+            telemetryProvider.getMeterRegistry(),
+            "elasticsearch.blob_cache.miss_that_triggered_read_from_blob_store",
+            "The number of times there was a cache miss that triggered a read from the blob store",
+            "count"
+        );
+        this.cacheMissCounter = getOrRegisterLongCounter(
+            telemetryProvider.getMeterRegistry(),
+            "elasticsearch.blob_cache.cache_miss_load_times",
+            "The timing data for populating entries in the blob store resulting from a cache miss.",
+            "count"
+        );
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -1043,6 +1078,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
+            RangeMissingHandler writerTimingDecorator = (
+                SharedBytes.IO channel,
+                int channelPos,
+                int relativePos,
+                int length,
+                IntConsumer progressUpdater
+            ) -> {
+                var startTime = threadPool.relativeTimeInMillis();
+                writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
+                var elapsedTime = threadPool.relativeTimeInMillis() - startTime;
+                SharedBlobCacheService.this.cacheMissLoadTimes.record(elapsedTime);
+                SharedBlobCacheService.this.cacheMissCounter.increment();
+            };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip
                 return 0;
@@ -1050,9 +1098,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writer, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerTimingDecorator, startRegion);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writer, startRegion, endRegion);
+            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerTimingDecorator, startRegion, endRegion);
         }
 
         private int readSingleRegion(

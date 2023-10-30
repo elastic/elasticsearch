@@ -34,9 +34,6 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {
@@ -76,5 +73,23 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val) {
+      this.val = val;
+    }
+
+    @Override
+    public SqrtUnsignedLongEvaluator get(DriverContext context) {
+      return new SqrtUnsignedLongEvaluator(val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SqrtUnsignedLongEvaluator[" + "val=" + val + "]";
+    }
   }
 }

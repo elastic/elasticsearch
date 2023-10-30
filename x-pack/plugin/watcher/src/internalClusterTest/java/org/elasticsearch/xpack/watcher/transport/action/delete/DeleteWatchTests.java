@@ -81,9 +81,7 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
                 // during execution
                 refresh(HistoryStoreField.INDEX_PREFIX + "*");
 
-                SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*")
-                    .setQuery(matchAllQuery())
-                    .get();
+                SearchResponse searchResponse = prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(matchAllQuery()).get();
                 assertHitCount(searchResponse, 1);
 
                 Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();

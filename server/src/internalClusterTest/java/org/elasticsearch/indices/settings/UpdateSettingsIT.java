@@ -468,7 +468,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         {
             final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             assertAcked(
-                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "500ms")).get()
+                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "500ms"))
             );
             final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
@@ -476,14 +476,10 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         {
             final boolean block = randomBoolean();
-            assertAcked(
-                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)).get()
-            );
+            assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)));
             final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             assertAcked(
-                indicesAdmin().prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.blocks.read_only", block == false))
-                    .get()
+                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block == false))
             );
             final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(1 + settingsVersion));
@@ -491,7 +487,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             // if the read-only block is present, remove it
             if (block == false) {
                 assertAcked(
-                    indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", false)).get()
+                    indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", false))
                 );
             }
         }
@@ -505,9 +501,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             final String refreshInterval = indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
             assertAcked(
-                indicesAdmin().prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
-                    .get()
+                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
             );
             final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(settingsVersion));
@@ -515,21 +509,17 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         {
             final boolean block = randomBoolean();
-            assertAcked(
-                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)).get()
-            );
+            assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)));
             // now put the same block again
             final long settingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
-            assertAcked(
-                indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)).get()
-            );
+            assertAcked(indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", block)));
             final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
             assertThat(newSettingsVersion, equalTo(settingsVersion));
 
             // if the read-only block is present, remove it
             if (block) {
                 assertAcked(
-                    indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", false)).get()
+                    indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.blocks.read_only", false))
                 );
             }
         }
@@ -548,9 +538,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas")
         );
         assertAcked(
-            indicesAdmin().prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
-                .get()
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
         );
         final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
         assertThat(newSettingsVersion, equalTo(settingsVersion));
@@ -571,7 +559,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings("test")
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1 + numberOfReplicas))
-                .get()
         );
         final long newSettingsVersion = clusterAdmin().prepareState().get().getState().metadata().index("test").getSettingsVersion();
         assertThat(newSettingsVersion, equalTo(1 + settingsVersion));

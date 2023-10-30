@@ -55,8 +55,8 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     @Evaluator
     static BytesRef process(
-        @Fixed(includeInToString = false) BytesRef out,
-        @Fixed(includeInToString = false) UnicodeUtil.UTF8CodePoint cp,
+        @Fixed(includeInToString = false, build = true) BytesRef out,
+        @Fixed(includeInToString = false, build = true) UnicodeUtil.UTF8CodePoint cp,
         BytesRef str,
         int length
     ) {
@@ -73,13 +73,12 @@ public class Left extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var strSupplier = toEvaluator.apply(str);
-        var lengthSupplier = toEvaluator.apply(length);
-        return dvrCtx -> {
-            BytesRef out = new BytesRef();
-            UnicodeUtil.UTF8CodePoint cp = new UnicodeUtil.UTF8CodePoint();
-            return new LeftEvaluator(out, cp, strSupplier.get(dvrCtx), lengthSupplier.get(dvrCtx), dvrCtx);
-        };
+        return new LeftEvaluator.Factory(
+            context -> new BytesRef(),
+            context -> new UnicodeUtil.UTF8CodePoint(),
+            toEvaluator.apply(str),
+            toEvaluator.apply(length)
+        );
     }
 
     @Override

@@ -32,9 +32,6 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock fieldValBlock = (DoubleBlock) fieldValRef.block();
       DoubleVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
@@ -74,5 +71,23 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.fieldVal = fieldVal;
+    }
+
+    @Override
+    public AbsDoubleEvaluator get(DriverContext context) {
+      return new AbsDoubleEvaluator(fieldVal.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AbsDoubleEvaluator[" + "fieldVal=" + fieldVal + "]";
+    }
   }
 }

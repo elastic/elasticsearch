@@ -45,6 +45,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -349,7 +350,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final Setting<IndexVersion> SETTING_INDEX_VERSION_CREATED = Setting.versionIdSetting(
         SETTING_VERSION_CREATED,
-        IndexVersion.ZERO,
+        IndexVersions.ZERO,
         IndexVersion::fromId,
         Property.IndexScope,
         Property.PrivateIndex
@@ -1057,7 +1058,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * Return the {@link IndexVersion} that this index provides compatibility for.
-     * This is typically compared to the {@link IndexVersion#MINIMUM_COMPATIBLE} to figure out whether the index can be handled
+     * This is typically compared to the {@link IndexVersions#MINIMUM_COMPATIBLE} to figure out whether the index can be handled
      * by the cluster.
      * By default, this is equal to the {@link #getCreationVersion()}, but can also be a newer version if the index has been imported as
      * a legacy index from an older snapshot, and its metadata has been converted to be handled by newer version nodes.
@@ -2190,7 +2191,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             var aliasesMap = aliases.build();
             for (AliasMetadata alias : aliasesMap.values()) {
                 if (alias.alias().equals(index)) {
-                    if (repair && indexCreatedVersion.equals(IndexVersion.V_8_5_0)) {
+                    if (repair && indexCreatedVersion.equals(IndexVersions.V_8_5_0)) {
                         var updatedBuilder = ImmutableOpenMap.builder(aliasesMap);
                         final var brokenAlias = updatedBuilder.remove(index);
                         final var fixedAlias = AliasMetadata.newAliasMetadata(brokenAlias, index + "-alias-corrupted-by-8-5");
@@ -2505,7 +2506,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_MAPPINGS_HASH -> {
                             assert mappingsByHash != null : "no deduplicated mappings given";
                             if (mappingsByHash.containsKey(parser.text()) == false) {
-                                throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
+                                throw new IllegalArgumentException(
+                                    "mapping of index [" + builder.index + "] with hash [" + parser.text() + "] not found"
+                                );
                             }
                             builder.putMapping(mappingsByHash.get(parser.text()));
                         }
@@ -2520,7 +2523,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             assert mappingVersion : "mapping version should be present for indices created on or after 6.5.0";
             assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
-            assert indexCreatedVersion(builder.settings).before(IndexVersion.V_7_2_0) || aliasesVersion
+            assert indexCreatedVersion(builder.settings).before(IndexVersions.V_7_2_0) || aliasesVersion
                 : "aliases version should be present for indices created on or after 7.2.0";
             return builder.build(true);
         }
@@ -2657,7 +2660,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     private static IndexVersion indexCreatedVersion(Settings indexSettings) {
         IndexVersion indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion.equals(IndexVersion.ZERO)) {
+        if (indexVersion.equals(IndexVersions.ZERO)) {
             final String message = String.format(
                 Locale.ROOT,
                 "[%s] is not present in the index settings for index with UUID [%s]",
@@ -2676,7 +2679,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static Settings addHumanReadableSettings(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
         IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(settings);
-        if (version.equals(IndexVersion.ZERO) == false) {
+        if (version.equals(IndexVersions.ZERO) == false) {
             builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);

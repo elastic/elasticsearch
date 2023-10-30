@@ -38,14 +38,8 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref prefixRef = prefix.eval(page)) {
-        if (prefixRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock prefixBlock = (BytesRefBlock) prefixRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
@@ -99,5 +93,27 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, prefix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory prefix;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory prefix) {
+      this.str = str;
+      this.prefix = prefix;
+    }
+
+    @Override
+    public StartsWithEvaluator get(DriverContext context) {
+      return new StartsWithEvaluator(str.get(context), prefix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "StartsWithEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
+    }
   }
 }

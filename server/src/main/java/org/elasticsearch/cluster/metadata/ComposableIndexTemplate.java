@@ -8,7 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -161,20 +161,20 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public ComposableIndexTemplate(StreamInput in) throws IOException {
-        this.indexPatterns = in.readStringList();
+        this.indexPatterns = in.readStringCollectionAsList();
         if (in.readBoolean()) {
             this.template = new Template(in);
         } else {
             this.template = null;
         }
-        this.componentTemplates = in.readOptionalStringList();
+        this.componentTemplates = in.readOptionalStringCollectionAsList();
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
         this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
         this.allowAutoCreate = in.readOptionalBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-            this.ignoreMissingComponentTemplates = in.readOptionalStringList();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+            this.ignoreMissingComponentTemplates = in.readOptionalStringCollectionAsList();
         } else {
             this.ignoreMissingComponentTemplates = null;
         }
@@ -265,7 +265,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalStringCollection(ignoreMissingComponentTemplates);
         }
     }
@@ -394,12 +394,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 allowCustomRouting = in.readBoolean();
             } else {
                 allowCustomRouting = false;
             }
-            if (in.getTransportVersion().between(TransportVersion.V_8_1_0, TransportVersion.V_8_3_0)) {
+            if (in.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
                 // Accidentally included index_mode to binary node to node protocol in previous releases.
                 // (index_mode is removed and was part of code based when tsdb was behind a feature flag)
                 // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
@@ -438,10 +438,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 out.writeBoolean(allowCustomRouting);
             }
-            if (out.getTransportVersion().between(TransportVersion.V_8_1_0, TransportVersion.V_8_3_0)) {
+            if (out.getTransportVersion().between(TransportVersions.V_8_1_0, TransportVersions.V_8_3_0)) {
                 // See comment in constructor.
                 out.writeBoolean(false);
             }

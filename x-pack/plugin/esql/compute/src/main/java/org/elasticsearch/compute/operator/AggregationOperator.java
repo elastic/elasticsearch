@@ -34,11 +34,13 @@ public class AggregationOperator implements Operator {
     private boolean finished;
     private Page output;
     private final List<Aggregator> aggregators;
+    private final DriverContext driverContext;
 
     public record AggregationOperatorFactory(List<Factory> aggregators, AggregatorMode mode) implements OperatorFactory {
+
         @Override
         public Operator get(DriverContext driverContext) {
-            return new AggregationOperator(aggregators.stream().map(Factory::get).toList());
+            return new AggregationOperator(aggregators.stream().map(x -> x.apply(driverContext)).toList(), driverContext);
         }
 
         @Override
@@ -56,10 +58,11 @@ public class AggregationOperator implements Operator {
         }
     }
 
-    public AggregationOperator(List<Aggregator> aggregators) {
+    public AggregationOperator(List<Aggregator> aggregators, DriverContext driverContext) {
         Objects.requireNonNull(aggregators);
         checkNonEmpty(aggregators);
         this.aggregators = aggregators;
+        this.driverContext = driverContext;
     }
 
     @Override
@@ -71,8 +74,12 @@ public class AggregationOperator implements Operator {
     public void addInput(Page page) {
         checkState(needsInput(), "Operator is already finishing");
         requireNonNull(page, "page is null");
-        for (Aggregator aggregator : aggregators) {
-            aggregator.processPage(page);
+        try {
+            for (Aggregator aggregator : aggregators) {
+                aggregator.processPage(page);
+            }
+        } finally {
+            page.releaseBlocks();
         }
     }
 
@@ -89,15 +96,25 @@ public class AggregationOperator implements Operator {
             return;
         }
         finished = true;
-        int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
-        Block[] blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
-        int offset = 0;
-        for (int i = 0; i < aggregators.size(); i++) {
-            var aggregator = aggregators.get(i);
-            aggregator.evaluate(blocks, offset);
-            offset += aggBlockCounts[i];
+        Block[] blocks = null;
+        boolean success = false;
+        try {
+            int[] aggBlockCounts = aggregators.stream().mapToInt(Aggregator::evaluateBlockCount).toArray();
+            // TODO: look into allocating the blocks lazily
+            blocks = new Block[Arrays.stream(aggBlockCounts).sum()];
+            int offset = 0;
+            for (int i = 0; i < aggregators.size(); i++) {
+                var aggregator = aggregators.get(i);
+                aggregator.evaluate(blocks, offset, driverContext);
+                offset += aggBlockCounts[i];
+            }
+            output = new Page(blocks);
+            success = true;
+        } finally {
+            if (success == false && blocks != null) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
-        output = new Page(blocks);
     }
 
     @Override
@@ -107,6 +124,9 @@ public class AggregationOperator implements Operator {
 
     @Override
     public void close() {
+        if (output != null) {
+            Releasables.closeExpectNoException(() -> output.releaseBlocks());
+        }
         Releasables.close(aggregators);
     }
 

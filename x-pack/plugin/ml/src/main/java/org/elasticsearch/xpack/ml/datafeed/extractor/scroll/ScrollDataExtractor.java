@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -30,8 +31,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.NoSuchElementException;
@@ -170,18 +169,6 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     /**
-     * Utility class to convert ByteArrayOutputStream to ByteArrayInputStream without copying the underlying buffer.
-     */
-    private static class ConvertableByteArrayOutputStream extends ByteArrayOutputStream {
-        public ByteArrayInputStream resetThisAndGetByteArrayInputStream() {
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(buf, 0, count);
-            buf = new byte[0];
-            count = 0;
-            return inputStream;
-        }
-    }
-
-    /**
      * IMPORTANT: This is not an idempotent method. This method changes the input array by setting each element to <code>null</code>.
      */
     private InputStream processAndConsumeSearchHits(SearchHit hits[]) throws IOException {
@@ -192,7 +179,7 @@ class ScrollDataExtractor implements DataExtractor {
             return null;
         }
 
-        ConvertableByteArrayOutputStream outputStream = new ConvertableByteArrayOutputStream();
+        BytesStreamOutput outputStream = new BytesStreamOutput();
 
         SearchHit lastHit = hits[hits.length - 1];
         lastTimestamp = context.extractedFields.timeFieldValue(lastHit);
@@ -217,7 +204,7 @@ class ScrollDataExtractor implements DataExtractor {
                 hits[i] = null;
             }
         }
-        return outputStream.resetThisAndGetByteArrayInputStream();
+        return outputStream.bytes().streamInput();
     }
 
     private InputStream continueScroll() throws IOException {

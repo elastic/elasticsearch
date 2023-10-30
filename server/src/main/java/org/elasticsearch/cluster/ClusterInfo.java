@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -48,8 +49,8 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersion.V_7_13_0;
-    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersion.V_8_6_0;
+    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
+    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -245,6 +246,14 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     }
 
     /**
+     * Returns the shard size for the given shard routing or <code>defaultValue</code> it that metric is not available.
+     */
+    public long getShardSize(ShardId shardId, boolean primary, long defaultValue) {
+        Long shardSize = getShardSize(shardId, primary);
+        return shardSize == null ? defaultValue : shardSize;
+    }
+
+    /**
      * Returns the nodes absolute data-path the given shard is allocated on or <code>null</code> if the information is not available.
      */
     public String getDataPath(ShardRouting shardRouting) {
@@ -358,7 +367,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         public static final ReservedSpace EMPTY = new ReservedSpace(0, new HashSet<>());
 
         ReservedSpace(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readSet(ShardId::new));
+            this(in.readVLong(), in.readCollectionAsSet(ShardId::new));
         }
 
         @Override

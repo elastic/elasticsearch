@@ -10,16 +10,19 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -51,17 +54,17 @@ public class TransportActionProxyTests extends ESTestCase {
     private static final Version CURRENT_VERSION = Version.fromString(String.valueOf(Version.CURRENT.major) + ".0.0");
     protected static final VersionInformation version0 = new VersionInformation(
         CURRENT_VERSION.minimumCompatibilityVersion(),
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
-    protected static final TransportVersion transportVersion0 = TransportVersion.MINIMUM_COMPATIBLE;
+    protected static final TransportVersion transportVersion0 = TransportVersions.MINIMUM_COMPATIBLE;
 
     protected DiscoveryNode nodeA;
     protected MockTransportService serviceA;
 
     protected static final VersionInformation version1 = new VersionInformation(
         Version.fromId(CURRENT_VERSION.id + 1),
-        IndexVersion.MINIMUM_COMPATIBLE,
+        IndexVersions.MINIMUM_COMPATIBLE,
         IndexVersion.current()
     );
     protected static final TransportVersion transportVersion1 = TransportVersion.fromId(TransportVersion.current().id() + 1);
@@ -107,32 +110,47 @@ public class TransportActionProxyTests extends ESTestCase {
     }
 
     public void testSendMessage() throws InterruptedException {
-        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertEquals(request.sourceNode, "TS_A");
-            final SimpleTestResponse response = new SimpleTestResponse("TS_A");
-            channel.sendResponse(response);
-            assertThat(response.hasReferences(), equalTo(false));
-        });
+        serviceA.registerRequestHandler(
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse response = new SimpleTestResponse("TS_A");
+                channel.sendResponse(response);
+                assertThat(response.hasReferences(), equalTo(false));
+            }
+        );
         final boolean cancellable = randomBoolean();
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
-        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertThat(task instanceof CancellableTask, equalTo(cancellable));
-            assertEquals(request.sourceNode, "TS_A");
-            final SimpleTestResponse response = new SimpleTestResponse("TS_B");
-            channel.sendResponse(response);
-            assertThat(response.hasReferences(), equalTo(false));
-        });
+        serviceB.registerRequestHandler(
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse response = new SimpleTestResponse("TS_B");
+                channel.sendResponse(response);
+                assertThat(response.hasReferences(), equalTo(false));
+            }
+        );
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
-        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertThat(task instanceof CancellableTask, equalTo(cancellable));
-            assertEquals(request.sourceNode, "TS_A");
-            final SimpleTestResponse response = new SimpleTestResponse("TS_C");
-            channel.sendResponse(response);
-            assertThat(response.hasReferences(), equalTo(false));
-        });
+        serviceC.registerRequestHandler(
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertThat(task instanceof CancellableTask, equalTo(cancellable));
+                assertEquals(request.sourceNode, "TS_A");
+                final SimpleTestResponse response = new SimpleTestResponse("TS_C");
+                channel.sendResponse(response);
+                assertThat(response.hasReferences(), equalTo(false));
+            }
+        );
 
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
         // Node A -> Node B -> Node C: different versions - serialize the response
@@ -247,7 +265,7 @@ public class TransportActionProxyTests extends ESTestCase {
         final boolean cancellable = randomBoolean();
         serviceB.registerRequestHandler(
             "internal:test",
-            randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
+            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
             SimpleTestRequest::new,
             (request, channel, task) -> {
                 try {
@@ -307,24 +325,39 @@ public class TransportActionProxyTests extends ESTestCase {
 
     public void testException() throws InterruptedException {
         boolean cancellable = randomBoolean();
-        serviceA.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertEquals(request.sourceNode, "TS_A");
-            SimpleTestResponse response = new SimpleTestResponse("TS_A");
-            channel.sendResponse(response);
-        });
+        serviceA.registerRequestHandler(
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertEquals(request.sourceNode, "TS_A");
+                SimpleTestResponse response = new SimpleTestResponse("TS_A");
+                channel.sendResponse(response);
+            }
+        );
         TransportActionProxy.registerProxyAction(serviceA, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceA, nodeB);
 
-        serviceB.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            assertEquals(request.sourceNode, "TS_A");
-            SimpleTestResponse response = new SimpleTestResponse("TS_B");
-            channel.sendResponse(response);
-        });
+        serviceB.registerRequestHandler(
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                assertEquals(request.sourceNode, "TS_A");
+                SimpleTestResponse response = new SimpleTestResponse("TS_B");
+                channel.sendResponse(response);
+            }
+        );
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", cancellable, SimpleTestResponse::new);
         AbstractSimpleTransportTestCase.connectToNode(serviceB, nodeC);
-        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
-            throw new ElasticsearchException("greetings from TS_C");
-        });
+        serviceC.registerRequestHandler(
+            "internal:test",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            SimpleTestRequest::new,
+            (request, channel, task) -> {
+                throw new ElasticsearchException("greetings from TS_C");
+            }
+        );
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", cancellable, SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);

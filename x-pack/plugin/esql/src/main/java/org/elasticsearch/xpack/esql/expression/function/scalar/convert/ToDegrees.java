@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -17,7 +16,6 @@ import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
@@ -29,24 +27,22 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
  * to <a href="https://en.wikipedia.org/wiki/Degree_(angle)">degrees</a>.
  */
 public class ToDegrees extends AbstractConvertFunction implements EvaluatorMapper {
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            DOUBLE,
-            ToDegreesEvaluator::new,
-            INTEGER,
-            (field, source) -> new ToDegreesEvaluator(new ToDoubleFromIntEvaluator(field, source), source),
-            LONG,
-            (field, source) -> new ToDegreesEvaluator(new ToDoubleFromLongEvaluator(field, source), source),
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DOUBLE, ToDegreesEvaluator.Factory::new),
+        Map.entry(INTEGER, (field, source) -> new ToDegreesEvaluator.Factory(new ToDoubleFromIntEvaluator.Factory(field, source), source)),
+        Map.entry(LONG, (field, source) -> new ToDegreesEvaluator.Factory(new ToDoubleFromLongEvaluator.Factory(field, source), source)),
+        Map.entry(
             UNSIGNED_LONG,
-            (field, source) -> new ToDegreesEvaluator(new ToDoubleFromUnsignedLongEvaluator(field, source), source)
-        );
+            (field, source) -> new ToDegreesEvaluator.Factory(new ToDoubleFromUnsignedLongEvaluator.Factory(field, source), source)
+        )
+    );
 
     public ToDegrees(Source source, Expression field) {
         super(source, field);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

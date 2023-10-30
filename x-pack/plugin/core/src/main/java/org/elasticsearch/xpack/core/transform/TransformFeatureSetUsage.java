@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +50,7 @@ public class TransformFeatureSetUsage extends Usage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_5_0;
+        return TransportVersions.V_7_5_0;
     }
 
     @Override

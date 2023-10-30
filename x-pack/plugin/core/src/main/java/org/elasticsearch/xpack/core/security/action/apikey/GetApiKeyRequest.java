@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -25,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public final class GetApiKeyRequest extends ActionRequest {
 
-    static TransportVersion API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION = TransportVersion.V_8_500_054;
+    static TransportVersion API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION = TransportVersions.V_8_500_054;
 
     private final String realmName;
     private final String userName;
@@ -41,12 +42,12 @@ public final class GetApiKeyRequest extends ActionRequest {
         userName = textOrNull(in.readOptionalString());
         apiKeyId = textOrNull(in.readOptionalString());
         apiKeyName = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
             ownedByAuthenticatedUser = false;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             withLimitedBy = in.readBoolean();
         } else {
             withLimitedBy = false;
@@ -140,10 +141,10 @@ public final class GetApiKeyRequest extends ActionRequest {
         out.writeOptionalString(userName);
         out.writeOptionalString(apiKeyId);
         out.writeOptionalString(apiKeyName);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             out.writeBoolean(withLimitedBy);
         }
         if (out.getTransportVersion().onOrAfter(API_KEY_ACTIVE_ONLY_PARAM_TRANSPORT_VERSION)) {

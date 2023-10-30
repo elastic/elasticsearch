@@ -1,5 +1,0 @@
-pr: 98508
-summary: Adding special logic to the disk health check for search-only nodes
-area: Health
-type: enhancement
-issues: []

@@ -59,6 +59,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -70,6 +71,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -94,10 +97,10 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -218,7 +221,10 @@ public class ClusterStateChanges {
             transport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(SETTINGS)
+                .address(boundAddress.publishAddress())
+                .build(),
             clusterSettings,
             Collections.emptySet(),
             Tracer.NOOP
@@ -402,9 +408,11 @@ public class ClusterStateChanges {
         return runTasks(
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
-            List.of(JoinTask.singleNode(discoveryNode, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
-                throw new AssertionError("should not complete publication");
-            }), clusterState.term()))
+            List.of(
+                JoinTask.singleNode(discoveryNode, CompatibilityVersionsUtils.staticCurrent(), DUMMY_REASON, ActionListener.running(() -> {
+                    throw new AssertionError("should not complete publication");
+                }), clusterState.term())
+            )
         );
     }
 
@@ -415,9 +423,16 @@ public class ClusterStateChanges {
             List.of(
                 JoinTask.completingElection(
                     nodes.stream()
-                        .map(node -> new JoinTask.NodeJoinTask(node, transportVersion, DUMMY_REASON, ActionListener.running(() -> {
-                            throw new AssertionError("should not complete publication");
-                        }))),
+                        .map(
+                            node -> new JoinTask.NodeJoinTask(
+                                node,
+                                new CompatibilityVersions(transportVersion, Map.of()),
+                                DUMMY_REASON,
+                                ActionListener.running(() -> {
+                                    throw new AssertionError("should not complete publication");
+                                })
+                            )
+                        ),
                     clusterState.term() + between(1, 10)
                 )
             )

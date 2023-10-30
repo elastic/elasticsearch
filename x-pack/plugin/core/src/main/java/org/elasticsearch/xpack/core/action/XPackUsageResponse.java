@@ -24,7 +24,7 @@ public class XPackUsageResponse extends ActionResponse {
     }
 
     public XPackUsageResponse(final StreamInput in) throws IOException {
-        usages = in.readNamedWriteableList(XPackFeatureSet.Usage.class);
+        usages = in.readNamedWriteableCollectionAsList(XPackFeatureSet.Usage.class);
     }
 
     public List<XPackFeatureSet.Usage> getUsages() {

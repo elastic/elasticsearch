@@ -16,7 +16,6 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -65,6 +64,8 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
@@ -119,11 +120,11 @@ public class NativeUsersStore {
             listener.onFailure(t);
         };
 
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else if (userNames.length == 1) { // optimization for single user lookup
             final String username = userNames[0];
             getUserAndPassword(
@@ -161,11 +162,11 @@ public class NativeUsersStore {
     }
 
     void getUserCount(final ActionListener<Long> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(0L);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -188,8 +189,8 @@ public class NativeUsersStore {
      * Async method to retrieve a user and their password
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
-        if (frozenSecurityIndex.isAvailable() == false) {
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
+        if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
             if (frozenSecurityIndex.indexExists() == false) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
@@ -327,7 +328,7 @@ public class NativeUsersStore {
                     )
                     .setRefreshPolicy(refresh)
                     .request(),
-                listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
+                listener.<DocWriteResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)),
                 client::index
             );
         });
@@ -433,7 +434,7 @@ public class NativeUsersStore {
                     )
                     .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                     .request(),
-                listener.<IndexResponse>delegateFailure(
+                listener.<DocWriteResponse>delegateFailure(
                     (l, updateResponse) -> clearRealmCache(
                         putUserRequest.username(),
                         l,
@@ -538,11 +539,11 @@ public class NativeUsersStore {
     }
 
     public void deleteUser(final DeleteUserRequest deleteUserRequest, final ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(false);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username()))
@@ -596,11 +597,11 @@ public class NativeUsersStore {
     }
 
     void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(null);
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -649,11 +650,11 @@ public class NativeUsersStore {
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndex.checkIndexVersionThenExecute(
                 listener::onFailure,

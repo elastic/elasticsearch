@@ -60,7 +60,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            actions = in.readList(DataStreamAction::new);
+            actions = in.readCollectionAsList(DataStreamAction::new);
         }
 
         @Override

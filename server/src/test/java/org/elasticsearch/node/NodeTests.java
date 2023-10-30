@@ -11,22 +11,17 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -42,18 +37,14 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsServiceTests;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
@@ -76,7 +67,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -93,7 +83,17 @@ import static org.mockito.Mockito.mock;
 public class NodeTests extends ESTestCase {
 
     public static class CheckPlugin extends Plugin {
-        public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
+        public static final BootstrapCheck CHECK = new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.success();
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        };
 
         @Override
         public List<BootstrapCheck> getBootstrapChecks() {
@@ -431,22 +431,7 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService,
-            IndicesService indicesService
-        ) {
+        public Collection<?> createComponents(PluginServices services) {
             List<Object> components = new ArrayList<>();
             components.add(new PluginComponentBinding<>(MyInterface.class, getRandomBool() ? new Foo() : new Bar()));
             return components;
@@ -634,8 +619,12 @@ public class NodeTests extends ESTestCase {
         @Override
         public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
             return Optional.of(
-                (nodeEnvironment, namedXContentRegistry, clusterSettings, threadPool) -> persistedClusterStateService =
-                    new PersistedClusterStateService(
+                (
+                    nodeEnvironment,
+                    namedXContentRegistry,
+                    clusterSettings,
+                    threadPool,
+                    compatibilityVersions) -> persistedClusterStateService = new PersistedClusterStateService(
                         nodeEnvironment,
                         namedXContentRegistry,
                         clusterSettings,
@@ -658,7 +647,7 @@ public class NodeTests extends ESTestCase {
                     List.of(TestClusterCoordinationPlugin1.class, TestClusterCoordinationPlugin2.class, getTestTransportPlugin())
                 )
             ).getMessage(),
-            containsString("multiple persisted-state-service factories found")
+            containsString("A single " + ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class.getName() + " was expected")
         );
 
         try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
@@ -671,5 +660,4 @@ public class NodeTests extends ESTestCase {
             }
         }
     }
-
 }

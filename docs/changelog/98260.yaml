@@ -1,5 +1,0 @@
-pr: 98260
-summary: Avoid lifecycle NPE in the data stream lifecycle usage API
-area: Data streams
-type: bug
-issues: []

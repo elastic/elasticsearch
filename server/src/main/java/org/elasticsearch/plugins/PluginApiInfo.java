@@ -26,7 +26,7 @@ import java.util.List;
 public record PluginApiInfo(List<String> legacyInterfaces, List<String> legacyMethods) implements Writeable, ToXContentFragment {
 
     public PluginApiInfo(StreamInput in) throws IOException {
-        this(in.readImmutableList(StreamInput::readString), in.readImmutableList(StreamInput::readString));
+        this(in.readCollectionAsImmutableList(StreamInput::readString), in.readCollectionAsImmutableList(StreamInput::readString));
     }
 
     @Override

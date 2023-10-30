@@ -1,0 +1,30 @@
+[[esql-agg-functions]]
+==== {esql} aggregate functions
+
+++++
+<titleabbrev>Aggregate functions</titleabbrev>
+++++
+
+The <<esql-stats-by>> function supports these aggregate functions:
+
+// tag::agg_list[]
+* <<esql-agg-avg>>
+* <<esql-agg-count>>
+* <<esql-agg-count-distinct>>
+* <<esql-agg-max>>
+* <<esql-agg-median>>
+* <<esql-agg-median-absolute-deviation>>
+* <<esql-agg-min>>
+* <<esql-agg-percentile>>
+* <<esql-agg-sum>>
+// end::agg_list[]
+
+include::avg.asciidoc[]
+include::count.asciidoc[]
+include::count-distinct.asciidoc[]
+include::max.asciidoc[]
+include::median.asciidoc[]
+include::median-absolute-deviation.asciidoc[]
+include::min.asciidoc[]
+include::percentile.asciidoc[]
+include::sum.asciidoc[]

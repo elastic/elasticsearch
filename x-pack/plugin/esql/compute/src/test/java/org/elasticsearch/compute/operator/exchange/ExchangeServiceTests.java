@@ -10,15 +10,20 @@ package org.elasticsearch.compute.operator.exchange;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ConstantIntVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
@@ -93,7 +98,7 @@ public class ExchangeServiceTests extends ESTestCase {
         assertThat(sourceExchanger.refCount(), equalTo(2));
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
         assertThat(sourceExchanger.refCount(), equalTo(3));
-        ListenableActionFuture<Void> waitForReading = source.waitForReading();
+        SubscribableListener<Void> waitForReading = source.waitForReading();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
         assertTrue(sink1.waitForWriting().isDone());
@@ -221,17 +226,21 @@ public class ExchangeServiceTests extends ESTestCase {
 
                 @Override
                 public void addInput(Page page) {
-                    assertFalse("already finished", finished);
-                    IntBlock block = page.getBlock(0);
-                    for (int i = 0; i < block.getPositionCount(); i++) {
-                        int v = block.getInt(i);
-                        if (v < maxOutputSeqNo) {
-                            assertTrue(receivedSeqNos.add(v));
-                            // Early termination
-                            if (receivedSeqNos.size() >= maxOutputSeqNo && randomBoolean()) {
-                                finished = true;
+                    try {
+                        assertFalse("already finished", finished);
+                        IntBlock block = page.getBlock(0);
+                        for (int i = 0; i < block.getPositionCount(); i++) {
+                            int v = block.getInt(i);
+                            if (v < maxOutputSeqNo) {
+                                assertTrue(receivedSeqNos.add(v));
+                                // Early termination
+                                if (receivedSeqNos.size() >= maxOutputSeqNo && randomBoolean()) {
+                                    finished = true;
+                                }
                             }
                         }
+                    } finally {
+                        page.releaseBlocks();
                     }
                 }
 
@@ -267,22 +276,40 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < numSinks; i++) {
             String description = "sink-" + i;
             ExchangeSinkOperator sinkOperator = new ExchangeSinkOperator(exchangeSink.get(), Function.identity());
-            DriverContext dc = new DriverContext();
-            Driver d = new Driver("test-session:1", dc, () -> description, seqNoGenerator.get(dc), List.of(), sinkOperator, () -> {});
+            DriverContext dc = driverContext();
+            Driver d = new Driver(
+                "test-session:1",
+                dc,
+                () -> description,
+                seqNoGenerator.get(dc),
+                List.of(),
+                sinkOperator,
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
             drivers.add(d);
         }
         for (int i = 0; i < numSources; i++) {
             String description = "source-" + i;
             ExchangeSourceOperator sourceOperator = new ExchangeSourceOperator(exchangeSource.get());
-            DriverContext dc = new DriverContext();
-            Driver d = new Driver("test-session:2", dc, () -> description, sourceOperator, List.of(), seqNoCollector.get(dc), () -> {});
+            DriverContext dc = driverContext();
+            Driver d = new Driver(
+                "test-session:2",
+                dc,
+                () -> description,
+                sourceOperator,
+                List.of(),
+                seqNoCollector.get(dc),
+                Driver.DEFAULT_STATUS_INTERVAL,
+                () -> {}
+            );
             drivers.add(d);
         }
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        new DriverRunner() {
+        new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));
@@ -311,9 +338,10 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testEarlyTerminate() {
-        IntBlock block = new ConstantIntVector(1, 2).asBlock();
-        Page p1 = new Page(block);
-        Page p2 = new Page(block);
+        IntBlock block1 = new ConstantIntVector(1, 2).asBlock();
+        IntBlock block2 = new ConstantIntVector(1, 2).asBlock();
+        Page p1 = new Page(block1);
+        Page p2 = new Page(block2);
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
         ExchangeSink sink = sinkExchanger.createExchangeSink();
         sink.addPage(p1);
@@ -323,17 +351,17 @@ public class ExchangeServiceTests extends ESTestCase {
         sinkExchanger.fetchPageAsync(true, future);
         ExchangeResponse resp = future.actionGet();
         assertTrue(resp.finished());
-        assertNull(resp.page());
+        assertNull(resp.takePage());
         assertTrue(sink.waitForWriting().isDone());
         assertTrue(sink.isFinished());
     }
 
     public void testConcurrentWithTransportActions() throws Exception {
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR);
+        ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR);
+        ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
 
@@ -349,13 +377,13 @@ public class ExchangeServiceTests extends ESTestCase {
         }
     }
 
-    public void testFailToRespondPage() throws Exception {
+    public void testFailToRespondPage() {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
-        ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR);
+        ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange0.registerTransportHandler(node0);
         MockTransportService node1 = newTransportService();
-        ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR);
+        ExchangeService exchange1 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);
@@ -370,17 +398,25 @@ public class ExchangeServiceTests extends ESTestCase {
             ) throws Exception {
                 FilterTransportChannel filterChannel = new FilterTransportChannel(channel) {
                     @Override
-                    public void sendResponse(TransportResponse response) throws IOException {
-                        ExchangeResponse exchangeResponse = (ExchangeResponse) response;
-                        if (exchangeResponse.page() != null) {
-                            IntBlock block = exchangeResponse.page().getBlock(0);
+                    public void sendResponse(TransportResponse transportResponse) throws IOException {
+                        ExchangeResponse origResp = (ExchangeResponse) transportResponse;
+                        Page page = origResp.takePage();
+                        if (page != null) {
+                            IntBlock block = page.getBlock(0);
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
+                                    page.releaseBlocks();
                                     throw new IOException("page is too large");
                                 }
                             }
                         }
-                        super.sendResponse(response);
+                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
+                        origResp.decRef();
+                        while (origResp.hasReferences()) {
+                            newResp.incRef();
+                            origResp.decRef();
+                        }
+                        super.sendResponse(newResp);
                     }
                 };
                 handler.messageReceived(request, filterChannel, task);
@@ -449,6 +485,27 @@ public class ExchangeServiceTests extends ESTestCase {
         @Override
         public void sendResponse(Exception exception) throws IOException {
             in.sendResponse(exception);
+        }
+    }
+
+    private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
+
+    private DriverContext driverContext() {
+        BlockFactory blockFactory = blockFactory();
+        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+    }
+
+    private BlockFactory blockFactory() {
+        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        breakers.add(breaker);
+        return new BlockFactory(breaker, bigArrays);
+    }
+
+    @After
+    public void allMemoryReleased() {
+        for (CircuitBreaker breaker : breakers) {
+            assertThat(breaker.getUsed(), equalTo(0L));
         }
     }
 }

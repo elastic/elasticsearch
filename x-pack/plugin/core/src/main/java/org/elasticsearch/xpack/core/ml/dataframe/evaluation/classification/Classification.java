@@ -75,6 +75,7 @@ public class Classification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
+    @SuppressWarnings("this-escape")
     public Classification(
         String actualField,
         @Nullable String predictedField,
@@ -110,7 +111,7 @@ public class Classification implements Evaluation {
             in.readOptionalString(),
             true
         );
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override

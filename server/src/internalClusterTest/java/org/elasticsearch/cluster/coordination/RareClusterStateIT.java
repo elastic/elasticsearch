@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -212,7 +213,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
             assertThat(masterClusterStateVersion, equalTo(dataClusterStateVersion));
         });
-        assertHitCount(client().prepareSearch("test").get(), 0);
+        assertHitCount(prepareSearch("test"), 0);
     }
 
     public void testDelayedMappingPropagationOnPrimary() throws Exception {
@@ -283,7 +284,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // this request does not change the cluster state, because mapping is already created,
         // we don't await and cancel committed publication
-        ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
+        ActionFuture<DocWriteResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         // Wait a bit to make sure that the reason why we did not get a response
         // is that cluster state processing is blocked and not just that it takes
@@ -372,7 +373,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             assertEquals(minVersion, maxVersion);
         });
 
-        final ActionFuture<IndexResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
+        final ActionFuture<DocWriteResponse> docIndexResponse = client().prepareIndex("index").setId("1").setSource("field", 42).execute();
 
         assertBusy(() -> assertTrue(client().prepareGet("index", "1").get().isExists()));
 
@@ -381,7 +382,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // if the dynamic mapping update is not applied on the replica yet.
         // this request does not change the cluster state, because the mapping is dynamic,
         // we need to await and cancel committed publication
-        ActionFuture<IndexResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(
+        ActionFuture<DocWriteResponse> dynamicMappingsFut = executeAndCancelCommittedPublication(
             client().prepareIndex("index").setId("2").setSource("field2", 42)
         );
 

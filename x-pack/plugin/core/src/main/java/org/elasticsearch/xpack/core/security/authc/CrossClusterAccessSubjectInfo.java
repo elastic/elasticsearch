@@ -169,7 +169,7 @@ public final class CrossClusterAccessSubjectInfo {
         final TransportVersion version = TransportVersion.readVersion(in);
         in.setTransportVersion(version);
         final Authentication authentication = new Authentication(in);
-        final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readImmutableList(RoleDescriptorsBytes::new);
+        final List<RoleDescriptorsBytes> roleDescriptorsBytesList = in.readCollectionAsImmutableList(RoleDescriptorsBytes::new);
         return new CrossClusterAccessSubjectInfo(authentication, roleDescriptorsBytesList);
     }
 

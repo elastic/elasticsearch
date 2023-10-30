@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
+import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.ReferenceDocs;
@@ -271,7 +271,7 @@ public class LagDetector {
                         try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                             threadContext.markAsSystemContext();
                             client.execute(
-                                NodesHotThreadsAction.INSTANCE,
+                                TransportNodesHotThreadsAction.TYPE,
                                 new NodesHotThreadsRequest(discoveryNode).threads(500),
                                 ActionListener.runBefore(debugListener, () -> Releasables.close(releasable))
                             );

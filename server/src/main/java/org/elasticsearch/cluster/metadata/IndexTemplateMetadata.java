@@ -181,7 +181,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
     public static IndexTemplateMetadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        builder.patterns(in.readStringList());
+        builder.patterns(in.readStringCollectionAsList());
         builder.settings(Settings.readSettingsFromStream(in));
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
@@ -248,6 +248,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
             aliases = new HashMap<>();
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(IndexTemplateMetadata indexTemplateMetadata) {
             this.name = indexTemplateMetadata.name();
             order(indexTemplateMetadata.order());

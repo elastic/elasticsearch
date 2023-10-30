@@ -112,12 +112,6 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T configFile(String fileName, Resource configFile);
 
     /**
-     * Adds a secret to the local secure settings file. This should be used instead of {@link #keystore(String, String)} when file-based
-     * secure settings are enabled.
-     */
-    T secret(String key, String value);
-
-    /**
      * Sets the version of Elasticsearch. Defaults to {@link Version#CURRENT}.
      */
     T version(Version version);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.core.Releasable;
 
@@ -16,16 +17,25 @@ import org.elasticsearch.core.Releasable;
  */
 public final class BooleanBigArrayVector extends AbstractVector implements BooleanVector, Releasable {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BooleanBigArrayVector.class);
+
     private final BitArray values;
 
+    private final BooleanBlock block;
+
     public BooleanBigArrayVector(BitArray values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public BooleanBigArrayVector(BitArray values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new BooleanVectorBlock(this);
     }
 
     @Override
     public BooleanBlock asBlock() {
-        return new BooleanVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -44,12 +54,27 @@ public final class BooleanBigArrayVector extends AbstractVector implements Boole
     }
 
     @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
     public BooleanVector filter(int... positions) {
-        return new FilterBooleanVector(this, positions);
+        final BitArray filtered = new BitArray(positions.length, blockFactory.bigArrays());
+        for (int i = 0; i < positions.length; i++) {
+            if (values.get(positions[i])) {
+                filtered.set(i);
+            }
+        }
+        return new BooleanBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         values.close();
     }
 

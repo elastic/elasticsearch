@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -22,7 +23,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -147,20 +147,20 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-            this.objectsToInfer = in.readImmutableList(StreamInput::readMap);
+            this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 this.inferenceTimeout = in.readTimeValue();
             } else {
                 this.inferenceTimeout = TimeValue.MAX_VALUE;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
-                textInput = in.readOptionalStringList();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
+                textInput = in.readOptionalStringCollectionAsList();
             } else {
                 textInput = null;
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 highPriority = in.readBoolean();
             }
         }
@@ -222,13 +222,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 out.writeTimeValue(inferenceTimeout);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeOptionalStringCollection(textInput);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(highPriority);
             }
         }
@@ -316,7 +316,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableList(InferenceResults.class));
+            this.inferenceResults = Collections.unmodifiableList(in.readNamedWriteableCollectionAsList(InferenceResults.class));
             this.isLicensed = in.readBoolean();
             this.id = in.readOptionalString();
         }

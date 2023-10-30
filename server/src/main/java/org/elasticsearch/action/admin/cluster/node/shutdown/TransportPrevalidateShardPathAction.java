@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
@@ -46,7 +47,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
     NodePrevalidateShardPathResponse> {
 
     public static final String ACTION_NAME = "internal:admin/indices/prevalidate_shard_path";
-    public static final ActionType<PrevalidateShardPathResponse> TYPE = new ActionType<>(ACTION_NAME, PrevalidateShardPathResponse::new);
+    public static final ActionType<PrevalidateShardPathResponse> TYPE = new ActionType<>(ACTION_NAME, Writeable.Reader.localOnly());
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateShardPathAction.class);
 
     private final TransportService transportService;
@@ -64,13 +65,11 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
     ) {
         super(
             ACTION_NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            PrevalidateShardPathRequest::new,
             NodePrevalidateShardPathRequest::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
         this.nodeEnv = nodeEnv;

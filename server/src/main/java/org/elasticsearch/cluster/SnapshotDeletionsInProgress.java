@@ -9,7 +9,9 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,7 +58,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     public SnapshotDeletionsInProgress(StreamInput in) throws IOException {
-        this(in.readImmutableList(Entry::new));
+        this(in.readCollectionAsImmutableList(Entry::new));
     }
 
     private static boolean assertNoConcurrentDeletionsForSameRepository(List<Entry> entries) {
@@ -162,7 +164,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.MINIMUM_COMPATIBLE;
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -228,7 +230,7 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         public Entry(StreamInput in) throws IOException {
             this.repoName = in.readString();
-            this.snapshots = in.readImmutableList(SnapshotId::new);
+            this.snapshots = in.readCollectionAsImmutableList(SnapshotId::new);
             this.startTime = in.readVLong();
             this.repositoryStateId = in.readLong();
             this.state = State.readFrom(in);
@@ -320,7 +322,14 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
 
         @Override
         public String toString() {
-            return "SnapshotDeletionsInProgress.Entry[[" + uuid + "][" + state + "]" + snapshots + "]";
+            return Strings.format(
+                "SnapshotDeletionsInProgress.Entry[[%s@%d][%s][%s]%s]",
+                repoName,
+                repositoryStateId,
+                uuid,
+                state,
+                snapshots
+            );
         }
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,6 +39,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
     public static final ParseField SIZE = new ParseField("size");
     public static final ParseField CHECKSUM_SHA256 = new ParseField("sha256");
     public static final ParseField VOCABULARY_FILE = new ParseField("vocabulary_file");
+    public static final ParseField PLATFORM_ARCHITECTURE = new ParseField("platform_architecture");
 
     private static final ConstructingObjectParser<ModelPackageConfig, Void> LENIENT_PARSER = createParser(true);
     private static final ConstructingObjectParser<ModelPackageConfig, Void> STRICT_PARSER = createParser(false);
@@ -66,7 +68,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
                     metadata,
                     (String) a[9], // model_type
                     tags,
-                    (String) a[11] // vocabulary file
+                    (String) a[11], // vocabulary file
+                    (String) a[12] // platform architecture
                 );
             }
         );
@@ -91,6 +94,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.MODEL_TYPE);
         parser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), TrainedModelConfig.TAGS);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), VOCABULARY_FILE);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), PLATFORM_ARCHITECTURE);
 
         return parser;
     }
@@ -117,6 +121,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
     private final String modelType;
     private final List<String> tags;
     private final String vocabularyFile;
+    private final String platformArchitecture;
 
     public ModelPackageConfig(
         String packagedModelId,
@@ -130,7 +135,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         Map<String, Object> metadata,
         String modelType,
         List<String> tags,
-        String vocabularyFile
+        String vocabularyFile,
+        String platformArchitecture
     ) {
         this.packagedModelId = ExceptionsHelper.requireNonNull(packagedModelId, PACKAGED_MODEL_ID);
         this.modelRepository = modelRepository;
@@ -147,6 +153,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.modelType = modelType;
         this.tags = tags == null ? Collections.emptyList() : Collections.unmodifiableList(tags);
         this.vocabularyFile = vocabularyFile;
+        this.platformArchitecture = platformArchitecture;
     }
 
     public ModelPackageConfig(StreamInput in) throws IOException {
@@ -160,8 +167,13 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.inferenceConfigSource = in.readMap();
         this.metadata = in.readMap();
         this.modelType = in.readOptionalString();
-        this.tags = in.readOptionalList(StreamInput::readString);
+        this.tags = in.readOptionalCollectionAsList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+            this.platformArchitecture = in.readOptionalString();
+        } else {
+            platformArchitecture = null;
+        }
     }
 
     public String getPackagedModelId() {
@@ -212,6 +224,10 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         return vocabularyFile;
     }
 
+    public String getPlatformArchitecture() {
+        return platformArchitecture;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -249,6 +265,9 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         if (Strings.isNullOrEmpty(vocabularyFile) == false) {
             builder.field(VOCABULARY_FILE.getPreferredName(), vocabularyFile);
         }
+        if (Strings.isNullOrEmpty(platformArchitecture) == false) {
+            builder.field(PLATFORM_ARCHITECTURE.getPreferredName(), platformArchitecture);
+        }
 
         builder.endObject();
         return builder;
@@ -268,6 +287,9 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(modelType);
         out.writeOptionalStringCollection(tags);
         out.writeOptionalString(vocabularyFile);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+            out.writeOptionalString(platformArchitecture);
+        }
     }
 
     @Override
@@ -290,7 +312,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(modelType, that.modelType)
             && Objects.equals(tags, that.tags)
-            && Objects.equals(vocabularyFile, that.vocabularyFile);
+            && Objects.equals(vocabularyFile, that.vocabularyFile)
+            && Objects.equals(platformArchitecture, that.platformArchitecture);
     }
 
     @Override
@@ -307,7 +330,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             metadata,
             modelType,
             tags,
-            vocabularyFile
+            vocabularyFile,
+            platformArchitecture
         );
     }
 
@@ -330,6 +354,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         private String modelType;
         private List<String> tags;
         private String vocabularyFile;
+        private String platformArchitecture;
 
         public Builder(ModelPackageConfig modelPackageConfig) {
             this.packagedModelId = modelPackageConfig.packagedModelId;
@@ -344,6 +369,7 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             this.modelType = modelPackageConfig.modelType;
             this.tags = modelPackageConfig.tags;
             this.vocabularyFile = modelPackageConfig.vocabularyFile;
+            this.platformArchitecture = modelPackageConfig.platformArchitecture;
         }
 
         public Builder setPackedModelId(String packagedModelId) {
@@ -406,6 +432,11 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             return this;
         }
 
+        public Builder setPlatformArchitecture(String platformArchitecture) {
+            this.platformArchitecture = platformArchitecture;
+            return this;
+        }
+
         /**
          * Reset all fields which are only part of the package metadata, but not be part
          * of the config.
@@ -441,7 +472,8 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
                 metadata,
                 modelType,
                 tags,
-                vocabularyFile
+                vocabularyFile,
+                platformArchitecture
             );
         }
     }

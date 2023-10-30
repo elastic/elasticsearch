@@ -152,8 +152,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().prepareIndex("test_index").setId("1").setSource("field1", "value1", "field2", "value 2").setRefreshPolicy(IMMEDIATE).get();
 
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch("test_index")
-            .setQuery(termQuery("field1", "value1"))
+        SearchResponse searchResponse = prepareSearch("test_index").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
             .execute()
@@ -168,8 +167,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
         // now only match on one template (template_1)
-        searchResponse = client().prepareSearch("text_index")
-            .setQuery(termQuery("field1", "value1"))
+        searchResponse = prepareSearch("text_index").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
             .execute()
@@ -512,21 +510,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 5L);
+        assertHitCount(prepareSearch("test_index"), 5L);
+        assertHitCount(prepareSearch("simple_alias"), 5L);
+        assertHitCount(prepareSearch("templated_alias-test_index"), 5L);
 
-        searchResponse = client().prepareSearch("simple_alias").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("templated_alias-test_index").get();
-        assertHitCount(searchResponse, 5L);
-
-        searchResponse = client().prepareSearch("filtered_alias").get();
+        SearchResponse searchResponse = prepareSearch("filtered_alias").get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("type"), equalTo("type2"));
 
         // Search the complex filter alias
-        searchResponse = client().prepareSearch("complex_filtered_alias").get();
+        searchResponse = prepareSearch("complex_filtered_alias").get();
         assertHitCount(searchResponse, 3L);
 
         Set<String> types = new HashSet<>();
@@ -563,10 +556,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(prepareSearch("test_index"), 2L);
 
-        searchResponse = client().prepareSearch("my_alias").get();
+        SearchResponse searchResponse = prepareSearch("my_alias").get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
     }
@@ -599,13 +591,10 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         client().prepareIndex("test_index").setId("2").setSource("field", "value2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch("test_index").get();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(prepareSearch("test_index"), 2L);
+        assertHitCount(prepareSearch("alias1"), 2L);
 
-        searchResponse = client().prepareSearch("alias1").get();
-        assertHitCount(searchResponse, 2L);
-
-        searchResponse = client().prepareSearch("alias2").get();
+        SearchResponse searchResponse = prepareSearch("alias2").get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value2"));
     }
@@ -822,7 +811,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setVersion(version)
                 .setOrder(order)
                 .setMapping("field", "type=text")
-                .get()
         );
 
         GetIndexTemplatesResponse response = indicesAdmin().prepareGetTemplates("versioned_template").get();
@@ -861,8 +849,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         ensureGreen();
 
         // ax -> matches template
-        SearchResponse searchResponse = client().prepareSearch("ax")
-            .setQuery(termQuery("field1", "value1"))
+        SearchResponse searchResponse = prepareSearch("ax").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
             .execute()
@@ -873,8 +860,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertNull(searchResponse.getHits().getAt(0).field("field2"));
 
         // bx -> matches template
-        searchResponse = client().prepareSearch("bx")
-            .setQuery(termQuery("field1", "value1"))
+        searchResponse = prepareSearch("bx").setQuery(termQuery("field1", "value1"))
             .addStoredField("field1")
             .addStoredField("field2")
             .execute()
@@ -926,7 +912,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("just_partitions")
                 .setPatterns(Collections.singletonList("te*"))
                 .setSettings(Settings.builder().put("index.routing_partition_size", "6"))
-                .get()
         );
 
         // create an index with too few shards

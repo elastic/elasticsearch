@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -53,7 +53,7 @@ public class TransformHealthIssueTests extends AbstractWireSerializingTestCase<T
             getNamedWriteableRegistry(),
             StreamOutput::writeWriteable,
             TransformHealthIssue::new,
-            TransportVersion.V_8_7_0
+            TransportVersions.V_8_7_0
         );
         assertThat(deserializedIssue.getType(), is(equalTo("unknown")));
     }

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -1233,8 +1234,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
     }
 
     public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
-        var template = indexTemplate.template();
-        if (indexTemplate.getDataStreamTemplate() == null || template == null) {
+        if (indexTemplate.getDataStreamTemplate() == null) {
             return false;
         }
 
@@ -1467,7 +1467,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
     private static class MetadataDiff implements Diff<Metadata> {
 
-        private static final TransportVersion NOOP_METADATA_DIFF_VERSION = TransportVersion.V_8_5_0;
+        private static final TransportVersion NOOP_METADATA_DIFF_VERSION = TransportVersions.V_8_5_0;
         private static final TransportVersion NOOP_METADATA_DIFF_SAFE_VERSION =
             PublicationTransportHandler.INCLUDES_LAST_COMMITTED_DATA_VERSION;
 
@@ -1535,7 +1535,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
             } else {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
@@ -1543,7 +1543,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata = DiffableUtils.readJdkMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -1572,13 +1572,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             coordinationMetadata.writeTo(out);
             transientSettings.writeTo(out);
             persistentSettings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
                 hashesOfConsistentSettings.writeTo(out);
             }
             indices.writeTo(out);
             templates.writeTo(out);
             customs.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
                 reservedStateMetadata.writeTo(out);
             }
         }
@@ -1611,7 +1611,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
     }
 
-    public static final TransportVersion MAPPINGS_AS_HASH_VERSION = TransportVersion.V_8_1_0;
+    public static final TransportVersion MAPPINGS_AS_HASH_VERSION = TransportVersions.V_8_1_0;
 
     public static Metadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
@@ -1621,7 +1621,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
         }
         final Function<String, MappingMetadata> mappingLookup;
@@ -1648,7 +1648,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
                 builder.put(ReservedStateMetadata.readFrom(in));
@@ -1665,7 +1665,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         coordinationMetadata.writeTo(out);
         transientSettings.writeTo(out);
         persistentSettings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
@@ -1680,7 +1680,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         }
         out.writeCollection(templates.values());
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeCollection(reservedStateMetadata.values());
         }
     }
@@ -1727,6 +1727,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         private final Map<String, MappingMetadata> mappingsByHash;
 
+        @SuppressWarnings("this-escape")
         public Builder() {
             this(Map.of(), 0);
         }
@@ -1749,6 +1750,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             this.reservedStateMetadata = new HashMap<>(metadata.reservedStateMetadata);
         }
 
+        @SuppressWarnings("this-escape")
         private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = ImmutableOpenMap.builder(indexCountHint);

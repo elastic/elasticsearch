@@ -1,5 +1,9 @@
 ---
 setup:
+  - skip:
+      version: "8.7.00 - 8.9.99"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
   - do:
       snapshot.create_repository:
         repository: test_repo
@@ -126,15 +130,11 @@ teardown:
         snapshot: test_restore_tsdb
         wait_for_completion: true
 
-  # Check recovery stats
+  # Verify that the index is healthy
   - do:
-      indices.recovery:
-        index: test_index
-
-  - match: { test_index.shards.0.type: SNAPSHOT }
-  - match: { test_index.shards.0.stage: DONE }
-  - match: { test_index.shards.0.index.files.recovered: 1}
-  - gt:    { test_index.shards.0.index.size.recovered_in_bytes: 0}
+      cluster.health:
+        wait_for_status: green
+  - match: { status: green }
 
   - do:
       search:

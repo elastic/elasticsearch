@@ -57,7 +57,7 @@ public class ValidationLoss implements ToXContentObject, Writeable {
 
     public ValidationLoss(StreamInput in) throws IOException {
         lossType = in.readString();
-        foldValues = in.readList(FoldValues::new);
+        foldValues = in.readCollectionAsList(FoldValues::new);
     }
 
     @Override

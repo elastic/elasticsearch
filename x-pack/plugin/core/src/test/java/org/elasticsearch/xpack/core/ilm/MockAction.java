@@ -45,7 +45,7 @@ public class MockAction implements LifecycleAction {
     }
 
     public MockAction(StreamInput in) throws IOException {
-        this.steps = in.readList(MockStep::new);
+        this.steps = in.readCollectionAsList(MockStep::new);
         this.safe = in.readBoolean();
     }
 

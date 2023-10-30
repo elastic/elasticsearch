@@ -111,6 +111,7 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    public static final long UNKNOWN_PRIMARY_TERM = -1L;
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -283,10 +284,9 @@ public abstract class Engine implements Closeable {
     public interface IndexCommitListener {
 
         /**
-         * This method is invoked each time a new Lucene commit is created through this engine. There is no guarantee that a listener will
-         * be notified of the commits in order, ie newer commits may appear before older ones. The {@link IndexCommitRef} prevents the
-         * {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such, the listener must close the
-         * reference as soon as it is done with it.
+         * This method is invoked each time a new Lucene commit is created through this engine. Note that commits are notified in order. The
+         * {@link IndexCommitRef} prevents the {@link IndexCommitRef} files to be deleted from disk until the reference is closed. As such,
+         * the listener must close the reference as soon as it is done with it.
          *
          * @param shardId         the {@link ShardId} of shard
          * @param store           the index shard store
@@ -1127,7 +1127,7 @@ public abstract class Engine implements Closeable {
      * Called when our engine is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     // NOTE: do NOT rename this to something containing flush or refresh!
-    public abstract void writeIndexingBuffer() throws EngineException;
+    public abstract void writeIndexingBuffer() throws IOException;
 
     /**
      * Checks if this engine should be flushed periodically.
@@ -2115,8 +2115,19 @@ public abstract class Engine implements Closeable {
 
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     *
+     * @deprecated use {@link #addPrimaryTermAndGenerationListener(long, long, ActionListener)} instead.
      */
+    @Deprecated
     public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        addPrimaryTermAndGenerationListener(UNKNOWN_PRIMARY_TERM, minGeneration, listener);
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a primary term >= minPrimaryTerm
+     * and a segment generation >= minGeneration.
+     */
+    public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 
@@ -2130,13 +2141,13 @@ public abstract class Engine implements Closeable {
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
      * contains the generation of the index commit that the reader has opened upon refresh.
      */
-    public record RefreshResult(boolean refreshed, long generation) {
+    public record RefreshResult(boolean refreshed, long primaryTerm, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
         public static final RefreshResult NO_REFRESH = new RefreshResult(false);
 
         public RefreshResult(boolean refreshed) {
-            this(refreshed, UNKNOWN_GENERATION);
+            this(refreshed, UNKNOWN_PRIMARY_TERM, UNKNOWN_GENERATION);
         }
     }
 

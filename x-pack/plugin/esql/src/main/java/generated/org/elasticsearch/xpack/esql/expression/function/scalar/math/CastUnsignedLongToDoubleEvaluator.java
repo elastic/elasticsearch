@@ -12,7 +12,9 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Cast}.
@@ -21,46 +23,73 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator v;
 
-  public CastUnsignedLongToDoubleEvaluator(EvalOperator.ExpressionEvaluator v) {
+  private final DriverContext driverContext;
+
+  public CastUnsignedLongToDoubleEvaluator(EvalOperator.ExpressionEvaluator v,
+      DriverContext driverContext) {
     this.v = v;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block vUncastBlock = v.eval(page);
-    if (vUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref vRef = v.eval(page)) {
+      LongBlock vBlock = (LongBlock) vRef.block();
+      LongVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), vBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), vVector).asBlock());
     }
-    LongBlock vBlock = (LongBlock) vUncastBlock;
-    LongVector vVector = vBlock.asVector();
-    if (vVector == null) {
-      return eval(page.getPositionCount(), vBlock);
-    }
-    return eval(page.getPositionCount(), vVector).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, LongBlock vBlock) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendDouble(Cast.castUnsignedLongToDouble(vBlock.getLong(vBlock.getFirstValueIndex(p))));
       }
-      result.appendDouble(Cast.castUnsignedLongToDouble(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, LongVector vVector) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)));
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendDouble(Cast.castUnsignedLongToDouble(vVector.getLong(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "CastUnsignedLongToDoubleEvaluator[" + "v=" + v + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastUnsignedLongToDoubleEvaluator get(DriverContext context) {
+      return new CastUnsignedLongToDoubleEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastUnsignedLongToDoubleEvaluator[" + "v=" + v + "]";
+    }
   }
 }

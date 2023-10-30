@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -380,6 +381,6 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_9_0;
+        return TransportVersions.V_7_9_0;
     }
 }

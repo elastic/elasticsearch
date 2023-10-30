@@ -12,7 +12,11 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.List;
+
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Types used by the code generator.
@@ -28,6 +32,7 @@ public class Types {
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
     static final ClassName BLOCK = ClassName.get(DATA_PACKAGE, "Block");
     static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
+    static final ClassName BLOCK_REF = ClassName.get(DATA_PACKAGE, "Block", "Ref");
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
@@ -88,7 +93,10 @@ public class Types {
     static final ClassName INTERMEDIATE_STATE_DESC = ClassName.get(AGGREGATION_PACKAGE, "IntermediateStateDesc");
     static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
 
+    static final ClassName DRIVER_CONTEXT = ClassName.get(OPERATOR_PACKAGE, "DriverContext");
+
     static final ClassName EXPRESSION_EVALUATOR = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator");
+    static final ClassName EXPRESSION_EVALUATOR_FACTORY = ClassName.get(OPERATOR_PACKAGE, "EvalOperator", "ExpressionEvaluator", "Factory");
     static final ClassName ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR = ClassName.get(
         "org.elasticsearch.xpack.esql.expression.function.scalar.multivalue",
         "AbstractMultivalueFunction",
@@ -110,6 +118,9 @@ public class Types {
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.ql.tree", "Source");
 
     static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
+
+    static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
+    static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
     static ClassName blockType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
@@ -263,4 +274,16 @@ public class Types {
         throw new IllegalArgumentException("unknown element type for [" + t + "]");
     }
 
+    static boolean extendsSuper(javax.lang.model.util.Types types, TypeMirror c, String superName) {
+        Deque<TypeMirror> mirrors = new ArrayDeque<>();
+        mirrors.add(c);
+        while (mirrors.isEmpty() == false) {
+            TypeMirror m = mirrors.pop();
+            if (m.toString().equals(superName)) {
+                return true;
+            }
+            mirrors.addAll(types.directSupertypes(m));
+        }
+        return false;
+    }
 }

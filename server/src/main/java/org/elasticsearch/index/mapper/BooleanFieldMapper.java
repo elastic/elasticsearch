@@ -93,6 +93,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
 
+        @SuppressWarnings("this-escape")
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -123,14 +124,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue()
             );
-            return new BooleanFieldMapper(
-                name,
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                context.isSourceSynthetic(),
-                this
-            );
+            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -259,6 +253,14 @@ public class BooleanFieldMapper extends FieldMapper {
                 case "T" -> true;
                 default -> throw new IllegalArgumentException("Expected [T] or [F] but got [" + value + "]");
             };
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return BlockDocValuesReader.booleans(name());
+            }
+            return BlockSourceReader.booleans(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

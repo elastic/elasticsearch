@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public abstract class AsyncOperator implements Operator {
 
-    private volatile ListenableActionFuture<Void> blockedFuture;
+    private volatile SubscribableListener<Void> blockedFuture;
 
     private final Map<Long, Page> buffers = ConcurrentCollections.newConcurrentMap();
     private final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -109,7 +109,7 @@ public abstract class AsyncOperator implements Operator {
 
     private void notifyIfBlocked() {
         if (blockedFuture != null) {
-            final ListenableActionFuture<Void> future;
+            final SubscribableListener<Void> future;
             synchronized (this) {
                 future = blockedFuture;
                 this.blockedFuture = null;
@@ -153,7 +153,7 @@ public abstract class AsyncOperator implements Operator {
     }
 
     @Override
-    public ListenableActionFuture<Void> isBlocked() {
+    public SubscribableListener<Void> isBlocked() {
         if (finished) {
             return Operator.NOT_BLOCKED;
         }
@@ -167,7 +167,7 @@ public abstract class AsyncOperator implements Operator {
                 return Operator.NOT_BLOCKED;
             }
             if (blockedFuture == null) {
-                blockedFuture = new ListenableActionFuture<>();
+                blockedFuture = new SubscribableListener<>();
             }
             return blockedFuture;
         }

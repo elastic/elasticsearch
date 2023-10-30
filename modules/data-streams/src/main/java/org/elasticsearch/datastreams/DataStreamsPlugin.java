@@ -18,13 +18,9 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -60,20 +56,11 @@ import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettingProvider;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -102,10 +89,19 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7),
         Setting.Property.IndexScope,
-        Setting.Property.Dynamic
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
     );
     public static final String LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
-
+    public static final Setting<TimeValue> LOOK_BACK_TIME = Setting.timeSetting(
+        "index.look_back_time",
+        TimeValue.timeValueHours(2),
+        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueDays(7),
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic,
+        Setting.Property.ServerlessPublic
+    );
     // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
@@ -141,6 +137,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         List<Setting<?>> pluginSettings = new ArrayList<>();
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
+        pluginSettings.add(LOOK_BACK_TIME);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
@@ -148,37 +145,27 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        Tracer tracer,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
 
         Collection<Object> components = new ArrayList<>();
-        var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(environment.settings(), threadPool, clusterService);
+        var updateTimeSeriesRangeService = new UpdateTimeSeriesRangeService(
+            services.environment().settings(),
+            services.threadPool(),
+            services.clusterService()
+        );
         this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
         components.add(this.updateTimeSeriesRangeService.get());
         errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore());
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
-                new OriginSettingClient(client, DATA_STREAM_LIFECYCLE_ORIGIN),
-                clusterService,
+                new OriginSettingClient(services.client(), DATA_STREAM_LIFECYCLE_ORIGIN),
+                services.clusterService(),
                 getClock(),
-                threadPool,
-                threadPool::absoluteTimeInMillis,
-                errorStoreInitialisationService.get()
+                services.threadPool(),
+                services.threadPool()::absoluteTimeInMillis,
+                errorStoreInitialisationService.get(),
+                services.allocationService()
             )
         );
         dataLifecycleInitialisationService.get().init();

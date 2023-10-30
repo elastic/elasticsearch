@@ -35,27 +35,21 @@ import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusA
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.TransportPostFeatureUpgradeAction;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateShardPathAction;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
@@ -247,9 +241,12 @@ import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.action.support.MappedActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymRuleAction;
 import org.elasticsearch.action.synonyms.DeleteSynonymsAction;
@@ -274,7 +271,6 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -306,6 +302,7 @@ import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
@@ -457,19 +454,19 @@ import org.elasticsearch.rest.action.synonyms.RestGetSynonymsSetsAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymRuleAction;
 import org.elasticsearch.rest.action.synonyms.RestPutSynonymsAction;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -507,7 +504,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
-    private final boolean serverlessEnabled;
+    private final RestExtension restExtension;
 
     public ActionModule(
         Settings settings,
@@ -523,7 +520,8 @@ public class ActionModule extends AbstractModule {
         SystemIndices systemIndices,
         Tracer tracer,
         ClusterService clusterService,
-        List<ReservedClusterStateHandler<?>> reservedStateHandlers
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers,
+        RestExtension restExtension
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -532,7 +530,6 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
-        this.serverlessEnabled = DiscoveryNode.isServerless();
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -570,6 +567,7 @@ public class ActionModule extends AbstractModule {
             restController = new RestController(restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
         }
         reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
+        this.restExtension = restExtension;
     }
 
     private static <T> T getRestServerComponent(
@@ -666,16 +664,16 @@ public class ActionModule extends AbstractModule {
         }
         ActionRegistry actions = new ActionRegistry();
 
-        actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
-        actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
-        actions.register(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.TransportAction.class);
-        actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
-        actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
-        actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
-        actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
+        actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
+        actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
+        actions.register(RemoteClusterNodesAction.TYPE, RemoteClusterNodesAction.TransportAction.class);
+        actions.register(TransportNodesStatsAction.TYPE, TransportNodesStatsAction.class);
+        actions.register(TransportNodesUsageAction.TYPE, TransportNodesUsageAction.class);
+        actions.register(TransportNodesHotThreadsAction.TYPE, TransportNodesHotThreadsAction.class);
+        actions.register(TransportListTasksAction.TYPE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
-        actions.register(GetHealthAction.INSTANCE, GetHealthAction.TransportAction.class);
+        actions.register(GetHealthAction.INSTANCE, GetHealthAction.LocalAction.class);
         actions.register(PrevalidateNodeRemovalAction.INSTANCE, TransportPrevalidateNodeRemovalAction.class);
         actions.register(HealthApiStatsAction.INSTANCE, HealthApiStatsTransportAction.class);
 
@@ -842,17 +840,31 @@ public class ActionModule extends AbstractModule {
     }
 
     private static ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
-        return new ActionFilters(
-            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
-        );
+        List<ActionFilter> finalFilters = new ArrayList<>();
+        List<MappedActionFilter> mappedFilters = new ArrayList<>();
+        for (var plugin : actionPlugins) {
+            for (var filter : plugin.getActionFilters()) {
+                if (filter instanceof MappedActionFilter mappedFilter) {
+                    mappedFilters.add(mappedFilter);
+                } else {
+                    finalFilters.add(filter);
+                }
+            }
+        }
+        if (mappedFilters.isEmpty() == false) {
+            finalFilters.add(new MappedActionFilters(mappedFilters));
+        }
+        return new ActionFilters(Set.copyOf(finalFilters));
     }
 
     public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
         List<AbstractCatAction> catActions = new ArrayList<>();
+        Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
+        Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
         Consumer<RestHandler> registerHandler = handler -> {
-            if (shouldKeepRestHandler(handler)) {
-                if (handler instanceof AbstractCatAction) {
-                    catActions.add((AbstractCatAction) handler);
+            if (restFilter.test(handler)) {
+                if (handler instanceof AbstractCatAction catAction && catActionsFilter.test(catAction)) {
+                    catActions.add(catAction);
                 }
                 restController.registerHandler(handler);
             } else {
@@ -1055,16 +1067,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
-    }
-
-    /**
-     * This method is used to determine whether a RestHandler ought to be kept in memory or not. Returns true if serverless mode is
-     * disabled, or if there is any ServlerlessScope annotation on the RestHandler.
-     * @param handler
-     * @return
-     */
-    private boolean shouldKeepRestHandler(final RestHandler handler) {
-        return serverlessEnabled == false || handler.getServerlessScope() != null;
     }
 
     @Override

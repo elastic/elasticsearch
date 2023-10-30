@@ -32,7 +32,7 @@ public class CIDRMatchFunctionProcessor implements Processor {
 
     public CIDRMatchFunctionProcessor(StreamInput in) throws IOException {
         source = in.readNamedWriteable(Processor.class);
-        addresses = in.readNamedWriteableList(Processor.class);
+        addresses = in.readNamedWriteableCollectionAsList(Processor.class);
     }
 
     @Override

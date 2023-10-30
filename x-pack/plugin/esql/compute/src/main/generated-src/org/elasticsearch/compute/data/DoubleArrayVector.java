@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
+
 import java.util.Arrays;
 
 /**
@@ -15,16 +17,25 @@ import java.util.Arrays;
  */
 public final class DoubleArrayVector extends AbstractVector implements DoubleVector {
 
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleArrayVector.class);
+
     private final double[] values;
 
+    private final DoubleBlock block;
+
     public DoubleArrayVector(double[] values, int positionCount) {
-        super(positionCount);
+        this(values, positionCount, BlockFactory.getNonBreakingInstance());
+    }
+
+    public DoubleArrayVector(double[] values, int positionCount, BlockFactory blockFactory) {
+        super(positionCount, blockFactory);
         this.values = values;
+        this.block = new DoubleVectorBlock(this);
     }
 
     @Override
     public DoubleBlock asBlock() {
-        return new DoubleVectorBlock(this);
+        return block;
     }
 
     @Override
@@ -44,7 +55,21 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new FilterDoubleVector(this, positions);
+        try (DoubleVector.Builder builder = blockFactory.newDoubleVectorBuilder(positions.length)) {
+            for (int pos : positions) {
+                builder.appendDouble(values[pos]);
+            }
+            return builder.build();
+        }
+    }
+
+    public static long ramBytesEstimated(double[] values) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesEstimated(values);
     }
 
     @Override
@@ -64,4 +89,5 @@ public final class DoubleArrayVector extends AbstractVector implements DoubleVec
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", values=" + Arrays.toString(values) + ']';
     }
+
 }

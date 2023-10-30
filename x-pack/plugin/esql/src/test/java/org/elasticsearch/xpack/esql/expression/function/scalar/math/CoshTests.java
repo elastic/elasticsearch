@@ -25,8 +25,44 @@ public class CoshTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble("CoshEvaluator", "val", Math::cosh);
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        List<TestCaseSupplier> suppliers = TestCaseSupplier.forUnaryCastingToDouble(
+            "CoshEvaluator",
+            "val",
+            Math::cosh,
+            -710d,
+            710d,  // Hyperbolic Cosine grows extremely fast. Values outside this range return Double.POSITIVE_INFINITY
+            List.of()
+        );
+        suppliers = anyNullIsNull(true, suppliers);
+
+        // Out of range cases
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "CoshEvaluator",
+                "val",
+                k -> null,
+                Double.NEGATIVE_INFINITY,
+                -711d,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
+                )
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forUnaryCastingToDouble(
+                "CoshEvaluator",
+                "val",
+                k -> null,
+                711d,
+                Double.POSITIVE_INFINITY,
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: cosh overflow"
+                )
+            )
+        );
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
     }
 
     @Override

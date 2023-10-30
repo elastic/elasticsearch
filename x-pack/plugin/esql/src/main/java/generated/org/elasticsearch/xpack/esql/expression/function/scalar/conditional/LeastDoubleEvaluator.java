@@ -11,7 +11,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Least}.
@@ -20,65 +23,95 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator[] values;
 
-  public LeastDoubleEvaluator(EvalOperator.ExpressionEvaluator[] values) {
+  private final DriverContext driverContext;
+
+  public LeastDoubleEvaluator(EvalOperator.ExpressionEvaluator[] values,
+      DriverContext driverContext) {
     this.values = values;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
-    for (int i = 0; i < valuesBlocks.length; i++) {
-      Block block = values[i].eval(page);
-      if (block.areAllValuesNull()) {
-        return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    Block.Ref[] valuesRefs = new Block.Ref[values.length];
+    try (Releasable valuesRelease = Releasables.wrap(valuesRefs)) {
+      DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
+      for (int i = 0; i < valuesBlocks.length; i++) {
+        valuesRefs[i] = values[i].eval(page);
+        valuesBlocks[i] = (DoubleBlock) valuesRefs[i].block();
       }
-      valuesBlocks[i] = (DoubleBlock) block;
-    }
-    DoubleVector[] valuesVectors = new DoubleVector[values.length];
-    for (int i = 0; i < valuesBlocks.length; i++) {
-      valuesVectors[i] = valuesBlocks[i].asVector();
-      if (valuesVectors[i] == null) {
-        return eval(page.getPositionCount(), valuesBlocks);
+      DoubleVector[] valuesVectors = new DoubleVector[values.length];
+      for (int i = 0; i < valuesBlocks.length; i++) {
+        valuesVectors[i] = valuesBlocks[i].asVector();
+        if (valuesVectors[i] == null) {
+          return Block.Ref.floating(eval(page.getPositionCount(), valuesBlocks));
+        }
       }
+      return Block.Ref.floating(eval(page.getPositionCount(), valuesVectors).asBlock());
     }
-    return eval(page.getPositionCount(), valuesVectors).asBlock();
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
-          result.appendNull();
-          continue position;
+    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      double[] valuesValues = new double[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          if (valuesBlocks[i].isNull(p) || valuesBlocks[i].getValueCount(p) != 1) {
+            result.appendNull();
+            continue position;
+          }
         }
+        // unpack valuesBlocks into valuesValues
+        for (int i = 0; i < valuesBlocks.length; i++) {
+          int o = valuesBlocks[i].getFirstValueIndex(p);
+          valuesValues[i] = valuesBlocks[i].getDouble(o);
+        }
+        result.appendDouble(Least.process(valuesValues));
       }
-      // unpack valuesBlocks into valuesValues
-      for (int i = 0; i < valuesBlocks.length; i++) {
-        int o = valuesBlocks[i].getFirstValueIndex(p);
-        valuesValues[i] = valuesBlocks[i].getDouble(o);
-      }
-      result.appendDouble(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount);
-    double[] valuesValues = new double[values.length];
-    position: for (int p = 0; p < positionCount; p++) {
-      // unpack valuesVectors into valuesValues
-      for (int i = 0; i < valuesVectors.length; i++) {
-        valuesValues[i] = valuesVectors[i].getDouble(p);
+    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      double[] valuesValues = new double[values.length];
+      position: for (int p = 0; p < positionCount; p++) {
+        // unpack valuesVectors into valuesValues
+        for (int i = 0; i < valuesVectors.length; i++) {
+          valuesValues[i] = valuesVectors[i].getDouble(p);
+        }
+        result.appendDouble(Least.process(valuesValues));
       }
-      result.appendDouble(Least.process(valuesValues));
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "LeastDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastDoubleEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastDoubleEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

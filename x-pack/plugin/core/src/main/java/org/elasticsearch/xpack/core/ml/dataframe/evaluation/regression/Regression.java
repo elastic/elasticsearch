@@ -69,6 +69,7 @@ public class Regression implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
+    @SuppressWarnings("this-escape")
     public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
         this.fields = new EvaluationFields(
             ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
@@ -87,7 +88,7 @@ public class Regression implements Evaluation {
 
     public Regression(StreamInput in) throws IOException {
         this.fields = new EvaluationFields(in.readString(), in.readString(), null, null, null, false);
-        this.metrics = in.readNamedWriteableList(EvaluationMetric.class);
+        this.metrics = in.readNamedWriteableCollectionAsList(EvaluationMetric.class);
     }
 
     @Override

@@ -16,12 +16,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTestCase<LuceneSourceOperator.Status> {
     public static LuceneSourceOperator.Status simple() {
-        return new LuceneSourceOperator.Status(0, 1, 5, 123, 99990);
+        return new LuceneSourceOperator.Status(0, 0, 1, 5, 123, 99990, 8000);
     }
 
     public static String simpleToJson() {
         return """
-            {"current_leaf":0,"total_leaves":1,"leaf_position":123,"leaf_size":99990,"pages_emitted":5}""";
+            {"processed_slices":0,"slice_index":0,"total_slices":1,"pages_emitted":5,"slice_min":123,"slice_max":99990,"current":8000}""";
     }
 
     public void testToXContent() {
@@ -40,49 +40,32 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
             randomNonNegativeInt()
         );
     }
 
     @Override
     protected LuceneSourceOperator.Status mutateInstance(LuceneSourceOperator.Status instance) {
-        return switch (between(0, 4)) {
-            case 0 -> new LuceneSourceOperator.Status(
-                randomValueOtherThan(instance.currentLeaf(), ESTestCase::randomNonNegativeInt),
-                instance.totalLeaves(),
-                instance.pagesEmitted(),
-                instance.leafPosition(),
-                instance.leafSize()
-            );
-            case 1 -> new LuceneSourceOperator.Status(
-                instance.currentLeaf(),
-                randomValueOtherThan(instance.totalLeaves(), ESTestCase::randomNonNegativeInt),
-                instance.pagesEmitted(),
-                instance.leafPosition(),
-                instance.leafSize()
-            );
-            case 2 -> new LuceneSourceOperator.Status(
-                instance.currentLeaf(),
-                instance.totalLeaves(),
-                randomValueOtherThan(instance.pagesEmitted(), ESTestCase::randomNonNegativeInt),
-                instance.leafPosition(),
-                instance.leafSize()
-            );
-            case 3 -> new LuceneSourceOperator.Status(
-                instance.currentLeaf(),
-                instance.totalLeaves(),
-                instance.pagesEmitted(),
-                randomValueOtherThan(instance.leafPosition(), ESTestCase::randomNonNegativeInt),
-                instance.leafSize()
-            );
-            case 4 -> new LuceneSourceOperator.Status(
-                instance.currentLeaf(),
-                instance.totalLeaves(),
-                instance.pagesEmitted(),
-                instance.leafPosition(),
-                randomValueOtherThan(instance.leafSize(), ESTestCase::randomNonNegativeInt)
-            );
+        int processedSlices = instance.processedSlices();
+        int sliceIndex = instance.sliceIndex();
+        int totalSlices = instance.totalSlices();
+        int pagesEmitted = instance.pagesEmitted();
+        int sliceMin = instance.sliceMin();
+        int sliceMax = instance.sliceMax();
+        int current = instance.current();
+        switch (between(0, 6)) {
+            case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
+            case 1 -> sliceIndex = randomValueOtherThan(sliceIndex, ESTestCase::randomNonNegativeInt);
+            case 2 -> totalSlices = randomValueOtherThan(totalSlices, ESTestCase::randomNonNegativeInt);
+            case 3 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
+            case 4 -> sliceMin = randomValueOtherThan(sliceMin, ESTestCase::randomNonNegativeInt);
+            case 5 -> sliceMax = randomValueOtherThan(sliceMax, ESTestCase::randomNonNegativeInt);
+            case 6 -> current = randomValueOtherThan(current, ESTestCase::randomNonNegativeInt);
             default -> throw new UnsupportedOperationException();
-        };
+        }
+        ;
+        return new LuceneSourceOperator.Status(processedSlices, sliceIndex, totalSlices, pagesEmitted, sliceMin, sliceMax, current);
     }
 }

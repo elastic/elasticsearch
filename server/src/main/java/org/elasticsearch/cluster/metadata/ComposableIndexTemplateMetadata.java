@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -92,7 +93,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_7_0;
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
@@ -165,7 +166,7 @@ public class ComposableIndexTemplateMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_7_0;
+            return TransportVersions.V_7_7_0;
         }
     }
 }

@@ -249,7 +249,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param verbose Whether to calculate and include the details in the result
      * @return The CoordinationDiagnosticsResult for the given localMasterHistory
      */
-    private CoordinationDiagnosticsResult diagnoseOnMasterHasChangedIdentity(
+    private static CoordinationDiagnosticsResult diagnoseOnMasterHasChangedIdentity(
         MasterHistory localMasterHistory,
         int masterChanges,
         boolean verbose
@@ -352,7 +352,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * Returns a CoordinationDiagnosticsResult for the case when the master is seen as stable
      * @return A CoordinationDiagnosticsResult for the case when the master is seen as stable (GREEN status, no impacts or details)
      */
-    private CoordinationDiagnosticsResult getMasterIsStableResult(boolean verbose, MasterHistory localMasterHistory) {
+    private static CoordinationDiagnosticsResult getMasterIsStableResult(boolean verbose, MasterHistory localMasterHistory) {
         String summary = "The cluster has a stable master node";
         logger.trace("The cluster has a stable master node");
         CoordinationDiagnosticsDetails details = getDetails(verbose, localMasterHistory, null, null);
@@ -1285,7 +1285,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             boolean hasRecentMasters = in.readBoolean();
             List<DiscoveryNode> recentMasters;
             if (hasRecentMasters) {
-                recentMasters = in.readImmutableList(DiscoveryNode::new);
+                recentMasters = in.readCollectionAsImmutableList(DiscoveryNode::new);
             } else {
                 recentMasters = null;
             }

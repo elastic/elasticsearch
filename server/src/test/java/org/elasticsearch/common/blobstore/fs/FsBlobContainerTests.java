@@ -13,6 +13,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -86,7 +87,7 @@ public class FsBlobContainerTests extends ESTestCase {
         final long start = randomLongBetween(0L, Math.max(0L, blobData.length - 1));
         final long length = randomLongBetween(1L, blobData.length - start);
 
-        try (InputStream stream = container.readBlob(blobName, start, length)) {
+        try (InputStream stream = container.readBlob(OperationPurpose.SNAPSHOT, blobName, start, length)) {
             assertThat(totalBytesRead.get(), equalTo(0L));
             assertThat(Streams.consumeFully(stream), equalTo(length));
             assertThat(totalBytesRead.get(), equalTo(length));
@@ -118,11 +119,11 @@ public class FsBlobContainerTests extends ESTestCase {
             path
         );
 
-        container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
+        container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, List.of(blobName).listIterator());
         // Should not throw exception
-        container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
+        container.deleteBlobsIgnoringIfNotExists(OperationPurpose.SNAPSHOT, List.of(blobName).listIterator());
 
-        assertFalse(container.blobExists(blobName));
+        assertFalse(container.blobExists(OperationPurpose.SNAPSHOT, blobName));
     }
 
     private static BytesReference getBytesAsync(Consumer<ActionListener<OptionalBytesReference>> consumer) {
@@ -149,10 +150,11 @@ public class FsBlobContainerTests extends ESTestCase {
 
         for (int i = 0; i < 5; i++) {
             switch (between(1, 4)) {
-                case 1 -> assertEquals(expectedValue.get(), getBytesAsync(l -> container.getRegister(key, l)));
+                case 1 -> assertEquals(expectedValue.get(), getBytesAsync(l -> container.getRegister(OperationPurpose.SNAPSHOT, key, l)));
                 case 2 -> assertFalse(
                     getAsync(
                         l -> container.compareAndSetRegister(
+                            OperationPurpose.SNAPSHOT,
                             key,
                             randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
                             new BytesArray(randomByteArrayOfLength(8)),
@@ -164,6 +166,7 @@ public class FsBlobContainerTests extends ESTestCase {
                     expectedValue.get(),
                     getBytesAsync(
                         l -> container.compareAndExchangeRegister(
+                            OperationPurpose.SNAPSHOT,
                             key,
                             randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
                             new BytesArray(randomByteArrayOfLength(8)),
@@ -178,20 +181,26 @@ public class FsBlobContainerTests extends ESTestCase {
 
             final var newValue = new BytesArray(randomByteArrayOfLength(8));
             if (randomBoolean()) {
-                assertTrue(getAsync(l -> container.compareAndSetRegister(key, expectedValue.get(), newValue, l)));
+                assertTrue(
+                    getAsync(l -> container.compareAndSetRegister(OperationPurpose.SNAPSHOT, key, expectedValue.get(), newValue, l))
+                );
             } else {
                 assertEquals(
                     expectedValue.get(),
-                    getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), newValue, l))
+                    getBytesAsync(
+                        l -> container.compareAndExchangeRegister(OperationPurpose.SNAPSHOT, key, expectedValue.get(), newValue, l)
+                    )
                 );
             }
             expectedValue.set(newValue);
         }
 
-        container.writeBlob(key, new BytesArray(new byte[17]), false);
+        container.writeBlob(OperationPurpose.SNAPSHOT, key, new BytesArray(new byte[17]), false);
         expectThrows(
             IllegalStateException.class,
-            () -> getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), BytesArray.EMPTY, l))
+            () -> getBytesAsync(
+                l -> container.compareAndExchangeRegister(OperationPurpose.SNAPSHOT, key, expectedValue.get(), BytesArray.EMPTY, l)
+            )
         );
     }
 
@@ -225,15 +234,25 @@ public class FsBlobContainerTests extends ESTestCase {
             BlobPath.EMPTY,
             path
         );
-        container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true);
+        container.writeBlobAtomic(
+            OperationPurpose.SNAPSHOT,
+            blobName,
+            new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+            true
+        );
         final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-        container.writeBlobAtomic(blobName, blobData, false);
-        assertEquals(blobData, Streams.readFully(container.readBlob(blobName)));
+        container.writeBlobAtomic(OperationPurpose.SNAPSHOT, blobName, blobData, false);
+        assertEquals(blobData, Streams.readFully(container.readBlob(OperationPurpose.SNAPSHOT, blobName)));
         expectThrows(
             FileAlreadyExistsException.class,
-            () -> container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true)
+            () -> container.writeBlobAtomic(
+                OperationPurpose.SNAPSHOT,
+                blobName,
+                new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+                true
+            )
         );
-        for (String blob : container.listBlobs().keySet()) {
+        for (String blob : container.listBlobs(OperationPurpose.SNAPSHOT).keySet()) {
             assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
         }
     }

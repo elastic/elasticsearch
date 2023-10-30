@@ -42,9 +42,9 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -252,6 +252,7 @@ public class TransportService extends AbstractLifecycleComponent
         );
     }
 
+    @SuppressWarnings("this-escape")
     public TransportService(
         Settings settings,
         Transport transport,
@@ -672,7 +673,7 @@ public class TransportService extends AbstractLifecycleComponent
                     + "] but this node is build ["
                     + Build.current().hash()
                     + "] of version ["
-                    + Version.CURRENT
+                    + Build.current().version()
                     + "] which has an incompatible wire format",
                 e
             );
@@ -1116,46 +1117,6 @@ public class TransportService extends AbstractLifecycleComponent
             }
         }
         return false;
-    }
-
-    /**
-     * Temporary passthrough function that continues to take a String rather than Executor type.
-     *
-     * @param action
-     * @param executor
-     * @param requestReader
-     * @param handler
-     * @param <Request>
-     */
-    public <Request extends TransportRequest> void registerRequestHandler(
-        String action,
-        String executor,
-        Writeable.Reader<Request> requestReader,
-        TransportRequestHandler<Request> handler
-    ) {
-        registerRequestHandler(action, threadPool.executor(executor), requestReader, handler);
-    }
-
-    /**
-     * Temporary passthrough function that continues to take a String rather than Executor type.
-     *
-     * @param action
-     * @param executor
-     * @param forceExecution
-     * @param canTripCircuitBreaker
-     * @param requestReader
-     * @param handler
-     * @param <Request>
-     */
-    public <Request extends TransportRequest> void registerRequestHandler(
-        String action,
-        String executor,
-        boolean forceExecution,
-        boolean canTripCircuitBreaker,
-        Writeable.Reader<Request> requestReader,
-        TransportRequestHandler<Request> handler
-    ) {
-        registerRequestHandler(action, threadPool.executor(executor), forceExecution, canTripCircuitBreaker, requestReader, handler);
     }
 
     /**

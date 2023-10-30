@@ -70,6 +70,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.util.CombinedBitSet;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
@@ -96,6 +97,7 @@ import static org.elasticsearch.search.internal.ContextIndexSearcher.intersectSc
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableLeafReader;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitablePointValues;
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -228,12 +230,9 @@ public class ContextIndexSearcherTests extends ESTestCase {
                     1
                 );
                 int numSegments = directoryReader.getContext().leaves().size();
-                assertEquals(numSegments, searcher.slices(directoryReader.getContext().leaves()).length);
                 KnnFloatVectorQuery vectorQuery = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, 10, null);
                 vectorQuery.rewrite(searcher);
-                // Note: we expect one execute call less than segments since the last is executed on the caller thread, but no additional
-                // exceptions to the offloading of operations. For details see QueueSizeBasedExecutor#processTask.
-                assertBusy(() -> assertEquals(numSegments - 1, executor.getCompletedTaskCount()));
+                assertBusy(() -> assertEquals(numSegments, executor.getCompletedTaskCount()));
             }
         } finally {
             terminate(executor);
@@ -282,7 +281,6 @@ public class ContextIndexSearcherTests extends ESTestCase {
         doTestContextIndexSearcher(true, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/94615")
     public void testContextIndexSearcherDenseWithDeletions() throws IOException {
         doTestContextIndexSearcher(false, true);
     }
@@ -335,7 +333,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         if (sparse) {
             assertThat(bitSet, instanceOf(SparseFixedBitSet.class));
         } else {
-            assertThat(bitSet, instanceOf(FixedBitSet.class));
+            assertThat(bitSet, anyOf(instanceOf(FixedBitSet.class), instanceOf(MatchAllBitSet.class)));
         }
 
         DocumentSubsetDirectoryReader filteredReader = new DocumentSubsetDirectoryReader(reader, cache, roleQuery);
@@ -567,7 +565,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         1
                     )
                 ) {
-                    leafSlices = contextIndexSearcher.getSlicesForCollection();
+                    leafSlices = contextIndexSearcher.getSlices();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);
                     for (int i = 0; i < numThrowingLeafSlices; i++) {
                         LeafSlice throwingLeafSlice = leafSlices[randomIntBetween(0, Math.min(leafSlices.length, numAvailableThreads) - 1)];
@@ -703,7 +701,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
                         1
                     )
                 ) {
-                    leafSlices = contextIndexSearcher.getSlicesForCollection();
+                    leafSlices = contextIndexSearcher.getSlices();
                     int numThrowingLeafSlices = randomIntBetween(1, 3);
                     for (int i = 0; i < numThrowingLeafSlices; i++) {
                         LeafSlice throwingLeafSlice = leafSlices[randomIntBetween(0, Math.min(leafSlices.length, numAvailableThreads) - 1)];

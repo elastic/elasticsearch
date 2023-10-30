@@ -119,7 +119,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 parser,
                 meta.get()
             );
-            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
+            return new PointFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
         }
 
     }
@@ -150,7 +150,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     }
 
     @Override
-    protected void index(DocumentParserContext context, CartesianPoint point) throws IOException {
+    protected void index(DocumentParserContext context, CartesianPoint point) {
         if (fieldType().isIndexed()) {
             context.doc().add(new XYPointField(fieldType().name(), (float) point.getX(), (float) point.getY()));
         }

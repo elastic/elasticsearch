@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -38,7 +39,8 @@ public class RetryableActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -69,7 +71,8 @@ public class RetryableActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -116,7 +119,8 @@ public class RetryableActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(randomFrom(1, 10, randomIntBetween(100, 2000))),
             TimeValue.timeValueSeconds(1),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -163,7 +167,8 @@ public class RetryableActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(0),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -192,7 +197,8 @@ public class RetryableActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -221,7 +227,8 @@ public class RetryableActionTests extends ESTestCase {
             taskQueue.getThreadPool(),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueSeconds(30),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override
@@ -259,7 +266,8 @@ public class RetryableActionTests extends ESTestCase {
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(50),
             TimeValue.timeValueSeconds(1),
-            future
+            future,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         ) {
 
             @Override

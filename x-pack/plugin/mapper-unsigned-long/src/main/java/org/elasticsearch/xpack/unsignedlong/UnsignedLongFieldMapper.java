@@ -24,6 +24,9 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -99,6 +102,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), mode);
         }
 
+        @SuppressWarnings("this-escape")
         public Builder(String name, boolean ignoreMalformedByDefault, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(
@@ -203,7 +207,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new UnsignedLongFieldMapper(name, fieldType, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -310,6 +314,26 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             }
             return query;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                // Counters are not supported by ESQL so we load them in null
+                return BlockDocValuesReader.nulls();
+            }
+            if (hasDocValues()) {
+                return BlockDocValuesReader.longs(name());
+            }
+            return BlockSourceReader.longs(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    if (value.equals("")) {
+                        return nullValueFormatted;
+                    }
+                    return parseUnsignedLong(value);
+                }
+            });
         }
 
         @Override
@@ -460,8 +484,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             }
             String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
             final BigDecimal bigDecimalValue = new BigDecimal(stringValue);  // throws an exception if it is an improper number
-            if (bigDecimalValue.compareTo(BigDecimal.ZERO) <= 0) {
-                return 0L; // for values <=0, set lowerTerm to 0
+            if (bigDecimalValue.compareTo(BigDecimal.ZERO) < 0) {
+                return 0L; // for values < 0, set lowerTerm to 0
             }
             int c = bigDecimalValue.compareTo(BIGDECIMAL_2_64_MINUS_ONE);
             if (c > 0 || (c == 0 && include == false)) {

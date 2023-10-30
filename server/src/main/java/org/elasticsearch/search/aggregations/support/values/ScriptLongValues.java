@@ -12,7 +12,7 @@ import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.script.AggregationScript;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -85,7 +85,7 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
             // make sure of using true/false in the key_as_string field
             return ((Boolean) o).booleanValue() ? 1L : 0L;
         } else {
-            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
+            throw AggregationErrors.unsupportedScriptValue(o == null ? "null" : o.toString());
         }
     }
 

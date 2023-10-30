@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -54,7 +55,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         IndicesRequest.Replaceable,
         ToXContentObject {
 
-    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersion.V_8_0_0;
+    public static final TransportVersion SETTINGS_IN_REQUEST_VERSION = TransportVersions.V_8_0_0;
 
     public static int MAXIMUM_METADATA_BYTES = 1024; // chosen arbitrarily
 

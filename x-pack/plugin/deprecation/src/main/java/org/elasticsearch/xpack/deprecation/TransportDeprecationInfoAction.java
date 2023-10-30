@@ -70,7 +70,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             DeprecationInfoAction.Request::new,
             indexNameExpressionResolver,
             DeprecationInfoAction.Response::new,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;

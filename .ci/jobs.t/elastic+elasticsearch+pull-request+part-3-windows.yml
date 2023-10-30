@@ -24,10 +24,12 @@
             - 7.17
           excluded-regions:
             - ^docs/.*
+            - ^x-pack/docs/.*
           white-list-labels:
             - 'test-windows'
           black-list-labels:
             - '>test-mute'
+            - 'buildkite-opt-in'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

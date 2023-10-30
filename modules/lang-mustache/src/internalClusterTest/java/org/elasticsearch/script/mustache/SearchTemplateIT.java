@@ -100,7 +100,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -121,7 +121,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -142,7 +142,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
             }""";
         SearchTemplateRequest request = SearchTemplateRequest.fromXContent(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
-        SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
+        SearchTemplateResponse searchResponse = client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get();
         assertThat(searchResponse.getResponse().getHits().getHits().length, equalTo(1));
     }
 
@@ -351,7 +351,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     /**
-     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before Version.CURRENT works
+     * Test that triggering the CCS compatibility check with a query that shouldn't go to the minor before
+     * TransportVersions.MINIMUM_CCS_VERSION works
      */
     public void testCCSCheckCompatibility() throws Exception {
         String templateString = """
@@ -362,7 +363,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         request.setRequest(new SearchRequest());
         ExecutionException ex = expectThrows(
             ExecutionException.class,
-            () -> client().execute(SearchTemplateAction.INSTANCE, request).get()
+            () -> client().execute(MustachePlugin.SEARCH_TEMPLATE_ACTION, request).get()
         );
 
         Throwable primary = ex.getCause();

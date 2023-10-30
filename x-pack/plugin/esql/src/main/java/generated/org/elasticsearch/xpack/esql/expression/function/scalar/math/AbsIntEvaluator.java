@@ -10,7 +10,9 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
@@ -19,46 +21,72 @@ import org.elasticsearch.compute.operator.EvalOperator;
 public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   private final EvalOperator.ExpressionEvaluator fieldVal;
 
-  public AbsIntEvaluator(EvalOperator.ExpressionEvaluator fieldVal) {
+  private final DriverContext driverContext;
+
+  public AbsIntEvaluator(EvalOperator.ExpressionEvaluator fieldVal, DriverContext driverContext) {
     this.fieldVal = fieldVal;
+    this.driverContext = driverContext;
   }
 
   @Override
-  public Block eval(Page page) {
-    Block fieldValUncastBlock = fieldVal.eval(page);
-    if (fieldValUncastBlock.areAllValuesNull()) {
-      return Block.constantNullBlock(page.getPositionCount());
+  public Block.Ref eval(Page page) {
+    try (Block.Ref fieldValRef = fieldVal.eval(page)) {
+      IntBlock fieldValBlock = (IntBlock) fieldValRef.block();
+      IntVector fieldValVector = fieldValBlock.asVector();
+      if (fieldValVector == null) {
+        return Block.Ref.floating(eval(page.getPositionCount(), fieldValBlock));
+      }
+      return Block.Ref.floating(eval(page.getPositionCount(), fieldValVector).asBlock());
     }
-    IntBlock fieldValBlock = (IntBlock) fieldValUncastBlock;
-    IntVector fieldValVector = fieldValBlock.asVector();
-    if (fieldValVector == null) {
-      return eval(page.getPositionCount(), fieldValBlock);
-    }
-    return eval(page.getPositionCount(), fieldValVector).asBlock();
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {
-    IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
-        result.appendNull();
-        continue position;
+    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
+          result.appendNull();
+          continue position;
+        }
+        result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
       }
-      result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
+      return result.build();
     }
-    return result.build();
   }
 
   public IntVector eval(int positionCount, IntVector fieldValVector) {
-    IntVector.Builder result = IntVector.newVectorBuilder(positionCount);
-    position: for (int p = 0; p < positionCount; p++) {
-      result.appendInt(Abs.process(fieldValVector.getInt(p)));
+    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+      position: for (int p = 0; p < positionCount; p++) {
+        result.appendInt(Abs.process(fieldValVector.getInt(p)));
+      }
+      return result.build();
     }
-    return result.build();
   }
 
   @Override
   public String toString() {
     return "AbsIntEvaluator[" + "fieldVal=" + fieldVal + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+      this.fieldVal = fieldVal;
+    }
+
+    @Override
+    public AbsIntEvaluator get(DriverContext context) {
+      return new AbsIntEvaluator(fieldVal.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AbsIntEvaluator[" + "fieldVal=" + fieldVal + "]";
+    }
   }
 }

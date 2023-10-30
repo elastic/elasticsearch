@@ -108,3 +108,110 @@ from employees | eval true_bool = null is null, false_bool = null is not null, n
 true_bool:boolean  | negated_true:boolean | false_bool:boolean | negated_false:boolean | first_name:keyword | last_name:keyword   
 true               | false                | false              | true                  | Georgi             | Facello
 ;
+
+
+repetitiveEval
+from employees | sort emp_no | keep emp_no | eval sum = emp_no + 1 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no  
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no 
+| eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no | eval sum = sum + emp_no
+| limit 3 
+;
+
+emp_no:i | sum:i
+10001 | 3230324
+10002 | 3230647
+10003 | 3230970
+; 
+
+chainedEvalReusingPreviousValue
+from employees | sort emp_no | eval x1 = concat(first_name, "."), x2 = concat(x1, "."), x3 = concat(x2, ".") | keep x*, first_name | limit 5;
+
+   x1:keyword  |   x2:keyword  |  x3:keyword   |first_name:keyword   
+Georgi.        |Georgi..       |Georgi...      |Georgi         
+Bezalel.       |Bezalel..      |Bezalel...     |Bezalel        
+Parto.         |Parto..        |Parto...       |Parto          
+Chirstian.     |Chirstian..    |Chirstian...   |Chirstian      
+Kyoichi.       |Kyoichi..      |Kyoichi...     |Kyoichi
+;
+
+chainedEvalReusingPreviousValue2
+from employees | sort emp_no | eval x1 = concat(first_name, "."), x2 = concat(x1, last_name), x3 = concat(x2, gender) | keep x*, first_name, gender | limit 5;
+
+   x1:keyword  |   x2:keyword    |  x3:keyword      |first_name:keyword|gender:keyword
+Georgi.        |Georgi.Facello   |Georgi.FacelloM   |Georgi            |M              
+Bezalel.       |Bezalel.Simmel   |Bezalel.SimmelF   |Bezalel           |F              
+Parto.         |Parto.Bamford    |Parto.BamfordM    |Parto             |M              
+Chirstian.     |Chirstian.Koblick|Chirstian.KoblickM|Chirstian         |M              
+Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakM |Kyoichi           |M
+;
+
+chainedEvalReusingPreviousValue3
+from employees | sort emp_no | eval x1 = concat(first_name, "."), x2 = concat(x1, last_name), x3 = concat(x2, x1) | keep x*, first_name | limit 5;
+
+   x1:keyword  |   x2:keyword    |        x3:keyword         |first_name:keyword
+Georgi.        |Georgi.Facello   |Georgi.FacelloGeorgi.      |Georgi         
+Bezalel.       |Bezalel.Simmel   |Bezalel.SimmelBezalel.     |Bezalel        
+Parto.         |Parto.Bamford    |Parto.BamfordParto.        |Parto          
+Chirstian.     |Chirstian.Koblick|Chirstian.KoblickChirstian.|Chirstian      
+Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakKyoichi.   |Kyoichi
+;
+
+roundArrays
+row a = [1.2], b = [2.4, 7.9] | eval c = round(a), d = round(b), e = round([1.2]), f = round([1.2, 4.6]), g = round([1.14], 1), h = round([1.14], [1, 2]);
+
+a:double | b:double   | c:double | d: double | e:double  | f:double  | g:double  | h:double 
+1.2      | [2.4, 7.9] | 1.0      | null      | 1.0       | null      | 1.1       | null
+;
+
+
+evalSplitFoldable
+from employees | sort emp_no | eval foldable = "foo,bar" | eval folded_mv = split(foldable, ",") | keep emp_no, foldable, folded_mv | limit 2;
+
+emp_no:integer  | foldable:keyword | folded_mv:keyword
+10001           | "foo,bar"        | [foo, bar]
+10002           | "foo,bar"        | [foo, bar]
+;

@@ -1,8 +1,10 @@
+[discrete]
 [[esql-left]]
 === `LEFT`
+[.text-center]
+image::esql/functions/signature/left.svg[Embedded,opts=inline]
 
-Return the substring that extract 'length' chars
-from string starting from 0.
+Return the substring that extracts 'length' chars from the 'string' starting from the left.
 
 [source.merge.styled,esql]
 ----
@@ -12,3 +14,7 @@ include::{esql-specs}/string.csv-spec[tag=left]
 |===
 include::{esql-specs}/string.csv-spec[tag=left-result]
 |===
+
+Supported types:
+
+include::types/left.asciidoc[]

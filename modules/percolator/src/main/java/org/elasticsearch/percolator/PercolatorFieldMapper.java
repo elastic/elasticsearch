@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -163,7 +164,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 name(),
                 fieldType,
                 multiFields,
-                copyTo.build(),
+                copyTo,
                 searchExecutionContext,
                 extractedTermsField,
                 extractionResultField,
@@ -327,7 +328,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         // This was extracted the method above, because otherwise it is difficult to test what terms are included in
         // the query in case a CoveringQuery is used (it does not have a getter to retrieve the clauses)
-        Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
+        static Tuple<List<BytesRef>, Map<String, List<byte[]>>> extractTermsAndRanges(IndexReader indexReader) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             Map<String, List<byte[]>> encodedPointValuesByField = new HashMap<>();
 
@@ -457,7 +458,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)
         ) {
-            if (indexVersion.before(IndexVersion.V_8_8_0)) {
+            if (indexVersion.before(IndexVersions.V_8_8_0)) {
                 // just use the index version directly
                 // there's a direct mapping from IndexVersion to TransportVersion before 8.8.0
                 out.setTransportVersion(TransportVersion.fromId(indexVersion.id()));

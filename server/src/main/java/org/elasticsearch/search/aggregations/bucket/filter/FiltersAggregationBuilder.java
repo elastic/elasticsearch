@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -126,7 +127,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         otherBucket = in.readBoolean();
         otherBucketKey = in.readString();
-        keyedBucket = in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) ? in.readBoolean() : true;
+        keyedBucket = in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readBoolean() : true;
     }
 
     @Override
@@ -135,7 +136,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         out.writeCollection(filters, keyed ? StreamOutput::writeWriteable : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeBoolean(keyedBucket);
         }
     }
@@ -392,6 +393,6 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

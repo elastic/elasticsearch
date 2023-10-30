@@ -56,6 +56,7 @@ public abstract class InternalCentroid extends InternalAggregation implements Ce
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected InternalCentroid(StreamInput in, FieldExtractor firstField, FieldExtractor secondField) throws IOException {
         super(in);
         count = in.readVLong();

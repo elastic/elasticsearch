@@ -27,10 +27,10 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
             left,
             right,
             MUL,
-            MulIntsEvaluator::new,
-            MulLongsEvaluator::new,
-            MulUnsignedLongsEvaluator::new,
-            (s, l, r) -> new MulDoublesEvaluator(l, r)
+            MulIntsEvaluator.Factory::new,
+            MulLongsEvaluator.Factory::new,
+            MulUnsignedLongsEvaluator.Factory::new,
+            (s, lhs, rhs) -> new MulDoublesEvaluator.Factory(lhs, rhs)
         );
     }
 

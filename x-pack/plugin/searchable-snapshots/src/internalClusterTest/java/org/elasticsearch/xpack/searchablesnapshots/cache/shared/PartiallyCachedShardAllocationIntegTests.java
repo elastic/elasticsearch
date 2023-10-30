@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoNodeAction;
 import org.junit.After;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -213,21 +212,10 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
             final MockTransportService mockTransportService = (MockTransportService) transportService;
             mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
                 if (action.equals(FrozenCacheInfoNodeAction.NAME)) {
-                    cacheInfoBlockGetter.apply(connection.getNode().getName()).addListener(new ActionListener<Void>() {
-                        @Override
-                        public void onResponse(Void aVoid) {
-                            try {
-                                connection.sendRequest(requestId, action, request, options);
-                            } catch (IOException e) {
-                                onFailure(e);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new AssertionError("unexpected", e);
-                        }
-                    });
+                    cacheInfoBlockGetter.apply(connection.getNode().getName())
+                        .addListener(
+                            ActionTestUtils.assertNoFailureListener(ignored -> connection.sendRequest(requestId, action, request, options))
+                        );
                 } else {
                     connection.sendRequest(requestId, action, request, options);
                 }
@@ -283,18 +271,15 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchab
         );
 
         // Unblock the other new node, but maybe inject a few errors
-        final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            newNodes.get(0)
-        );
         final Semaphore failurePermits = new Semaphore(between(0, 2));
-        transportService.addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
-            if (failurePermits.tryAcquire()) {
-                channel.sendResponse(new ElasticsearchException("simulated"));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(newNodes.get(0))
+            .addRequestHandlingBehavior(FrozenCacheInfoNodeAction.NAME, (handler, request, channel, task) -> {
+                if (failurePermits.tryAcquire()) {
+                    channel.sendResponse(new ElasticsearchException("simulated"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
         cacheInfoBlockGetter.apply(newNodes.get(0)).onResponse(null);
 
         final RestoreSnapshotResponse restoreSnapshotResponse = responseFuture.actionGet(10, TimeUnit.SECONDS);

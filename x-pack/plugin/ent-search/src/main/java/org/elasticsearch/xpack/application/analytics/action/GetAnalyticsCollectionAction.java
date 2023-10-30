@@ -109,7 +109,7 @@ public class GetAnalyticsCollectionAction extends ActionType<GetAnalyticsCollect
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.collections = in.readList(AnalyticsCollection::new);
+            this.collections = in.readCollectionAsList(AnalyticsCollection::new);
         }
 
         public Response(List<AnalyticsCollection> collections) {

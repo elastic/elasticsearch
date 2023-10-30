@@ -260,7 +260,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
         super(in);
         emptyBucketInfo = new EmptyBucketInfo(in);
         format = in.readNamedWriteable(DocValueFormat.class);
-        buckets = in.readList(stream -> new Bucket(stream, format));
+        buckets = in.readCollectionAsList(stream -> new Bucket(stream, format));
         targetNumBuckets = in.readVInt();
     }
 

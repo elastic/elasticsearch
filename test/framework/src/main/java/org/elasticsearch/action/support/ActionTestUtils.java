@@ -17,6 +17,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
@@ -65,7 +66,7 @@ public class ActionTestUtils {
     }
 
     public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
-        return ActionListener.wrap(consumer, e -> { throw new AssertionError(e); });
+        return ActionListener.wrap(consumer, ESTestCase::fail);
     }
 
     public static ResponseListener wrapAsRestResponseListener(ActionListener<Response> listener) {

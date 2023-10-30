@@ -23,10 +23,7 @@ public class ContentPathTests extends ESTestCase {
     public void testRemovePath() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
-        String[] path = contentPath.getPath();
-        assertEquals("foo", path[0]);
         contentPath.remove();
-        assertNull(path[0]);
         assertEquals(0, contentPath.length());
         String pathAsText = contentPath.pathAsText("bar");
         assertEquals("bar", pathAsText);
@@ -36,7 +33,21 @@ public class ContentPathTests extends ESTestCase {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
         contentPath.remove();
-        expectThrows(IndexOutOfBoundsException.class, contentPath::remove);
+        expectThrows(IllegalStateException.class, contentPath::remove);
+    }
+
+    public void testRootPath() {
+        ContentPath contentPath = new ContentPath();
+        assertEquals("root", contentPath.pathAsText("root"));
+        assertEquals(0, contentPath.length());
+    }
+
+    public void testNestedPath() {
+        ContentPath contentPath = new ContentPath();
+        contentPath.add("root");
+        contentPath.add("inner");
+        assertEquals("root.inner.leaf1", contentPath.pathAsText("leaf1"));
+        assertEquals("root.inner.leaf2", contentPath.pathAsText("leaf2"));
     }
 
     public void testBehaviourWithLongerPath() {
@@ -82,6 +93,15 @@ public class ContentPathTests extends ESTestCase {
         assertEquals("foo.bar.baz", contentPath.pathAsText("baz"));
     }
 
+    public void testPathTextAfterLeafRemoval() {
+        ContentPath contentPath = new ContentPath();
+        contentPath.add("root");
+        contentPath.add("inner");
+        contentPath.add("leaf");
+        contentPath.remove();
+        assertEquals("root.inner.newLeaf", contentPath.pathAsText("newLeaf"));
+    }
+
     public void testPathAsTextAfterRemove() {
         ContentPath contentPath = new ContentPath();
         contentPath.add("foo");
@@ -99,5 +119,28 @@ public class ContentPathTests extends ESTestCase {
         contentPath.remove();
         contentPath.add("baz");
         assertEquals("foo.baz.qux", contentPath.pathAsText("qux"));
+    }
+
+    public void testPathTextAfterRootRemovalAndNewPathAdded() {
+        ContentPath contentPath = new ContentPath();
+        contentPath.add("root");
+        contentPath.add("inner");
+        contentPath.add("leaf");
+        contentPath.remove();
+        contentPath.remove();
+        contentPath.remove();
+        contentPath.add("newRoot");
+        contentPath.add("newInner");
+        assertEquals("newRoot.newInner.newLeaf", contentPath.pathAsText("newLeaf"));
+    }
+
+    public void testPathTextRemovalAfterPathAsTextHasBeenCalled() {
+        ContentPath contentPath = new ContentPath();
+        contentPath.add("root");
+        contentPath.add("inner");
+        contentPath.pathAsText("leaf");
+        contentPath.remove();
+        contentPath.add("newInner");
+        assertEquals("root.newInner.newLeaf", contentPath.pathAsText("newLeaf"));
     }
 }

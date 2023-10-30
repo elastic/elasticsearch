@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -112,7 +113,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_13_0;
+        return TransportVersions.V_7_13_0;
     }
 
     @Override
@@ -162,7 +163,7 @@ public class ModelAliasMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_13_0;
+            return TransportVersions.V_7_13_0;
         }
 
     }

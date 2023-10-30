@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -180,7 +181,10 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         SearchableSnapshots.getSearchableRepository(repository); // just check it's valid
 
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
-        repository.getRepositoryData(repositoryDataListener);
+        repository.getRepositoryData(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO fork to SNAPSHOT_META and drop the forking below, see #101445
+            repositoryDataListener
+        );
         repositoryDataListener.addListener(listener.delegateFailureAndWrap((delegate, repoData) -> {
             final Map<String, IndexId> indexIds = repoData.getIndices();
             if (indexIds.containsKey(indexName) == false) {

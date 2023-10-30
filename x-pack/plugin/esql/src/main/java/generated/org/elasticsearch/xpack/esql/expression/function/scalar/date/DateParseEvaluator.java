@@ -47,14 +47,8 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
       try (Block.Ref formatterRef = formatter.eval(page)) {
-        if (formatterRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
         BytesRefVector valVector = valBlock.asVector();
         if (valVector == null) {

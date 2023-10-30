@@ -352,10 +352,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
             Settings.builder().put(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), TimeValue.timeValueMillis(100))
         );
         final Semaphore recoveriesToDisrupt = new Semaphore(scaledRandomIntBetween(0, 4));
-        final MockTransportService primaryTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            primaryShardNodeName
-        );
+        final var primaryTransportService = MockTransportService.getInstance(primaryShardNodeName);
         primaryTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE) && recoveriesToDisrupt.tryAcquire()) {
                 if (randomBoolean()) {

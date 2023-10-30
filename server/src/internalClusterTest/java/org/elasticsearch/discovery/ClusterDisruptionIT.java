@@ -42,7 +42,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -573,17 +572,14 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
             }
         });
 
-        final MockTransportService dataTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            dataNode
-        );
-        dataTransportService.addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
-            if (removedNode.isDone() == false) {
-                channel.sendResponse(new ElasticsearchException("simulated check failure"));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(dataNode)
+            .addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
+                if (removedNode.isDone() == false) {
+                    channel.sendResponse(new ElasticsearchException("simulated check failure"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
 
         removedNode.actionGet(10, TimeUnit.SECONDS);
         ensureStableCluster(2);

@@ -1,5 +1,5 @@
 pr: 100766
-summary: "ESQL: Properly handle multi-values in fold() and date math"
+summary: "Properly handle multi-values in fold() and date math"
 area: ES|QL
 type: bug
 issues:

@@ -1,5 +1,5 @@
 pr: 100351
-summary: "ESQL: support metric tsdb fields while querying index patterns"
+summary: "support metric tsdb fields while querying index patterns"
 area: ES|QL
 type: bug
 issues:

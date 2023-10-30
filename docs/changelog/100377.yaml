@@ -1,5 +1,5 @@
 pr: 100377
-summary: "ESQL: Add identity check in Block equality"
+summary: "Add identity check in Block equality"
 area: ES|QL
 type: bug
 issues:

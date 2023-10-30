@@ -1,5 +1,5 @@
 pr: 100782
-summary: "ESQL: `mv_expand` pushes down limit and project and keep the limit after\
+summary: "`mv_expand` pushes down limit and project and keep the limit after\
   \ it untouched"
 area: ES|QL
 type: bug

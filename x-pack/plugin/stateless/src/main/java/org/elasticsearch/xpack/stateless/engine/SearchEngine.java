@@ -725,7 +725,7 @@ public class SearchEngine extends Engine {
     }
 
     @Override
-    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+    public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         addOrExecuteSegmentGenerationListener(minGeneration, listener);
     }
 

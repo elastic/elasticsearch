@@ -1050,13 +1050,7 @@ class NodeConstruction {
             discoveryModule.getCoordinator(),
             masterHistoryService
         );
-        final HealthService healthService = createHealthService(
-            clusterService,
-            clusterModule,
-            coordinationDiagnosticsService,
-            threadPool,
-            systemIndices
-        );
+        final HealthService healthService = createHealthService(clusterService, coordinationDiagnosticsService, threadPool);
         HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
         healthPeriodicLogger.init();
         HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
@@ -1269,10 +1263,8 @@ class NodeConstruction {
 
     private HealthService createHealthService(
         ClusterService clusterService,
-        ClusterModule clusterModule,
         CoordinationDiagnosticsService coordinationDiagnosticsService,
-        ThreadPool threadPool,
-        SystemIndices systemIndices
+        ThreadPool threadPool
     ) {
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),

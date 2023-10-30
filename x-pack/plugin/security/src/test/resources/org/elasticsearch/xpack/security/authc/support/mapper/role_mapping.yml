@@ -1,0 +1,27 @@
+# roleA   this is an elasticsearch role
+#  - groupA-DN  this is any group, ldap DN, or unix group
+#  - groupB-DN
+#  - user1-DN
+
+#This is a comment
+ldap_sales:
+  roles: [ "kibana_user", "sales" ]
+  rules:
+    all:
+      - field: { dn: "*,ou=sales,dc=example,dc=com" }
+  enabled: true
+operator:
+  roles: [ "operator" ]
+  rules:
+    all:
+      - field: { realm.name: "jwt1" }
+      - field: { username: "operator" }
+  enabled: true
+saml:
+  rules:
+    all:
+      - field: { realm.name: "saml1" }
+  role_templates:
+    - template: "{\"source\":\"{{#tojson}}groups{{/tojson}}\"}"
+      format: "json"
+  enabled: true

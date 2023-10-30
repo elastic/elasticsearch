@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -20,7 +21,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -38,36 +42,92 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNa
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.security.authc.support.FileBasedRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ExpressionRoleMappingTests extends ESTestCase {
 
-    private RealmConfig realm;
+    private static final String ROLE_MAPPING_FILE = "role_mapping.yml";
+    private RealmConfig ldapRealm;
+    private RealmConfig samlRealm;
 
     @Before
     public void setupMapping() throws Exception {
-        RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
-        realm = new RealmConfig(
-            realmIdentifier,
-            Settings.builder().put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            Mockito.mock(Environment.class),
-            new ThreadContext(Settings.EMPTY)
+        RealmConfig.RealmIdentifier ldapRealmIdentifier = new RealmConfig.RealmIdentifier("ldap", "ldap1");
+        RealmConfig.RealmIdentifier samlRealmIdentifier = new RealmConfig.RealmIdentifier("saml", "saml1");
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(RealmSettings.getFullSettingKey(ldapRealmIdentifier, RealmSettings.ORDER_SETTING), 0)
+            .put(RealmSettings.getFullSettingKey(samlRealmIdentifier, RealmSettings.ORDER_SETTING), 1)
+            .build();
+        var env = TestEnvironment.newEnvironment(settings);
+        if (Files.exists(env.configFile()) == false) {
+            Path dir = Files.createDirectory(env.configFile());
+            Files.copy(getDataPath(ROLE_MAPPING_FILE), dir.resolve(ROLE_MAPPING_FILE));
+        }
+        ldapRealm = new RealmConfig(ldapRealmIdentifier, settings, env, new ThreadContext(Settings.EMPTY));
+        samlRealm = new RealmConfig(samlRealmIdentifier, settings, env, new ThreadContext(Settings.EMPTY));
+    }
+
+    public void testRoleMapping() {
+        final var mapper = new FileBasedRoleMapper(ldapRealm, NamedXContentRegistry.EMPTY, null);
+        final var user1a = new UserRoleMapper.UserData(
+            "john.smith",
+            "cn=john.smith,ou=sales,dc=example,dc=com",
+            List.of(),
+            Map.of("active", true),
+            ldapRealm
         );
+        final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
+        mapper.resolveRoles(user1a, future);
+        final Set<String> roles = future.actionGet();
+        assertThat(roles, contains("kibana_user", "sales"));
+    }
+
+    public void testRoleMappingWithTemplates() {
+        final var mapper = new FileBasedRoleMapper(
+            samlRealm,
+            NamedXContentRegistry.EMPTY,
+            new MockScriptService(Settings.EMPTY, Map.of("mustache", new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS)
+        );
+        final var user = new UserRoleMapper.UserData(
+            "alice",
+            "cn=alice,ou=sales,dc=example,dc=org", // note "org", not "com"
+            List.of("group1", "group2"),
+            Map.of("active", true),
+            samlRealm
+        );
+        final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
+        mapper.resolveRoles(user, future);
+        final Set<String> roles = future.actionGet();
+        assertThat(roles, containsInAnyOrder("group1", "group2"));
+    }
+
+    public void testFileParsing() throws IOException {
+        final Path file = getDataPath(ROLE_MAPPING_FILE);
+        final List<ExpressionRoleMapping> actual = FileBasedRoleMapper.parseExpressionRoleMappings(file, NamedXContentRegistry.EMPTY);
+        assertThat(actual, notNullValue());
+        assertThat(actual.size(), is(3));
     }
 
     public void testValidExpressionWithFixedRoleNames() throws Exception {
@@ -101,7 +161,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             "cn=john.smith,ou=sales,dc=example,dc=com",
             List.of(),
             Map.of("active", true),
-            realm
+            ldapRealm
         );
         final UserRoleMapper.UserData user1b = new UserRoleMapper.UserData(
             user1a.getUsername(),
@@ -129,7 +189,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             "cn=jamie.perez,ou=sales,dc=example,dc=com",
             List.of(),
             Map.of("active", false),
-            realm
+            ldapRealm
         );
 
         final UserRoleMapper.UserData user3 = new UserRoleMapper.UserData(
@@ -137,10 +197,10 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             "cn=simone.ng,ou=finance,dc=example,dc=com",
             List.of(),
             Map.of("active", true),
-            realm
+            ldapRealm
         );
 
-        final UserRoleMapper.UserData user4 = new UserRoleMapper.UserData("peter.null", null, List.of(), Map.of("active", true), realm);
+        final UserRoleMapper.UserData user4 = new UserRoleMapper.UserData("peter.null", null, List.of(), Map.of("active", true), ldapRealm);
 
         assertThat(mapping.getExpression().match(user1a.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(user1b.asModel()), equalTo(true));
@@ -179,21 +239,21 @@ public class ExpressionRoleMappingTests extends ESTestCase {
             null,
             List.of("Audi R8 owners"),
             Map.of("boss", true),
-            realm
+            ldapRealm
         );
         final UserRoleMapper.UserData userPepper = new UserRoleMapper.UserData(
             "pepper.potts",
             null,
             List.of("marvel", "cn=admins,dc=stark-enterprises,dc=com"),
             Map.of(),
-            realm
+            ldapRealm
         );
         final UserRoleMapper.UserData userMax = new UserRoleMapper.UserData(
             "max.rockatansky",
             null,
             List.of("bronze"),
             Map.of("mad", true),
-            realm
+            ldapRealm
         );
         assertThat(mapping.getExpression().match(userTony.asModel()), equalTo(true));
         assertThat(mapping.getExpression().match(userPepper.asModel()), equalTo(true));

@@ -19,10 +19,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.junit.After;
 import org.junit.Before;
 
@@ -92,6 +94,13 @@ public class DnRoleMapperTests extends ESTestCase {
             DnRoleMapper mapper = createMapper(file, watcherService);
             assertThat(mapper.mappingsCount(), is(0));
         }
+    }
+
+    public void testFileBasedRoleMapper() throws IOException {
+        final Path file = getDataPath("role_mapping_with_expression.yml");
+        final List<ExpressionRoleMapping> actual = FileBasedRoleMapper.parseExpressionRoleMappings(file, NamedXContentRegistry.EMPTY);
+        assertThat(actual, notNullValue());
+        assertThat(actual.size(), is(2));
     }
 
     public void testMapper_AutoReload() throws Exception {

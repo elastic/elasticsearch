@@ -13,8 +13,10 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -38,7 +40,9 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
+import org.elasticsearch.xpack.security.authc.support.FileBasedRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
+import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -122,6 +126,27 @@ public final class InternalRealms {
         return feature;
     }
 
+    public static Map<String, Realm.Factory> getFactories(
+        ThreadPool threadPool,
+        Settings settings,
+        ResourceWatcherService resourceWatcherService,
+        SSLService sslService,
+        NativeUsersStore nativeUsersStore,
+        NativeRoleMappingStore nativeRoleMappingStore,
+        SecurityIndexManager securityIndex
+    ) {
+        return getFactories(
+            threadPool,
+            settings,
+            resourceWatcherService,
+            sslService,
+            nativeUsersStore,
+            nativeRoleMappingStore,
+            securityIndex,
+            null
+        );
+    }
+
     /**
      * Creates {@link Realm.Factory factories} for each <em>internal</em> realm type.
      * This excludes the {@link ReservedRealm}, as it cannot be created dynamically.
@@ -135,7 +160,8 @@ public final class InternalRealms {
         SSLService sslService,
         NativeUsersStore nativeUsersStore,
         NativeRoleMappingStore nativeRoleMappingStore,
-        SecurityIndexManager securityIndex
+        SecurityIndexManager securityIndex,
+        ScriptService scriptService
     ) {
         return Map.of(
             // file realm
@@ -164,7 +190,11 @@ public final class InternalRealms {
             config -> new OpenIdConnectRealm(config, sslService, nativeRoleMappingStore, resourceWatcherService),
             // JWT realm
             JwtRealmSettings.TYPE,
-            config -> new JwtRealm(config, sslService, nativeRoleMappingStore)
+            config -> new JwtRealm(
+                config,
+                sslService,
+                new CompositeRoleMapper(new FileBasedRoleMapper(config, NamedXContentRegistry.EMPTY, scriptService))
+            )
         );
     }
 

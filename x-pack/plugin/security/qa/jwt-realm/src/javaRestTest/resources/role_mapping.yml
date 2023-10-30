@@ -1,0 +1,7 @@
+operator:
+  roles: [ "file-role" ]
+  rules:
+    all:
+      - field: { realm.name: "jwt1" }
+      - field: { "metadata.jwt_claim_sub": "file-user" }
+  enabled: true

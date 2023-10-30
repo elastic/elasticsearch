@@ -111,6 +111,7 @@ public class JwtRestIT extends ESRestTestCase {
         .keystore("xpack.security.authc.realms.jwt.jwt3.client_authentication.shared_secret", VALID_SHARED_SECRET)
         .user("admin_user", "admin-password")
         .user("test_file_user", "test-password", "viewer", false)
+        .configFile("role_mapping.yml", Resource.fromClasspath("role_mapping.yml"))
         .build();
 
     private static final SetOnce<String> SERVICE_SUBJECT = new SetOnce<>();
@@ -138,6 +139,7 @@ public class JwtRestIT extends ESRestTestCase {
         settings.put("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id");
         settings.put("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0");
         settings.put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE");
+        settings.put("xpack.security.authc.realms.jwt.jwt1.files.role_mapping", "role_mapping.yml");
         // Use default value (RS256) for signature algorithm
         settings.put("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset");
 
@@ -294,6 +296,38 @@ public class JwtRestIT extends ESRestTestCase {
             ] }
             """, principal);
         authenticateToRealm1WithRoleMapping(principal, dn, name, mail, List.of(), rules);
+    }
+
+    public void testAuthenticateToRealm1WithFileBasedRoleMapping() throws Exception {
+        final String principal = "file-user";
+        final String dn = randomDn();
+        final String name = randomName();
+        final String mail = randomMail();
+        authenticateToRealm1WithFileBasedRoleMapping(principal, dn, name, mail, List.of());
+    }
+
+    private void authenticateToRealm1WithFileBasedRoleMapping(String principal, String dn, String name, String mail, List<String> groups)
+        throws Exception {
+        final List<String> roles = List.of("file-role");
+
+        final SignedJWT jwt = buildAndSignJwtForRealm1(principal, dn, name, mail, groups, Instant.now());
+        final TestSecurityClient client = getSecurityClient(jwt, Optional.empty());
+
+        final Map<String, Object> response = client.authenticate();
+
+        final String description = "Authentication response [" + response + "]";
+        assertThat(description, response, hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
+        assertThat(
+            description,
+            assertMap(response, User.Fields.AUTHENTICATION_REALM),
+            hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
+        );
+        assertThat(description, assertList(response, User.Fields.ROLES), Matchers.containsInAnyOrder(roles.toArray(String[]::new)));
+        assertThat(description, assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
+
+        // The user has no real role (we never define them) so everything they try to do will be FORBIDDEN
+        final ResponseException exception = expectThrows(ResponseException.class, () -> client.getRoleDescriptors(new String[] { "*" }));
+        assertThat(exception.getResponse(), hasStatusCode(RestStatus.FORBIDDEN));
     }
 
     private void authenticateToRealm1WithRoleMapping(

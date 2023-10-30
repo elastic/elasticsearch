@@ -109,7 +109,7 @@ public class BlockFactory {
         return new BooleanBlockBuilder(estimatedSize, this);
     }
 
-    BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+    public BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
         return new BooleanVectorFixedBuilder(size, this);
     }
 
@@ -172,7 +172,7 @@ public class BlockFactory {
         return new IntVectorBuilder(estimatedSize, this);
     }
 
-    IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
         return new IntVectorFixedBuilder(size, this);
     }
 

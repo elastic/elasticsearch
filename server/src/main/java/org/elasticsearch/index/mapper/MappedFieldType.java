@@ -42,6 +42,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -50,6 +51,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -629,4 +631,33 @@ public abstract class MappedFieldType {
                 + "]."
         );
     }
+
+    /**
+     * Returns a loader for ESQL or {@code null} if the field doesn't support
+     * ESQL.
+     */
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return null;
+    }
+
+    /**
+     * Arguments for {@link #blockLoader}.
+     */
+    public interface BlockLoaderContext {
+        /**
+         * The name of the index.
+         */
+        String indexName();
+
+        /**
+         * {@link SearchLookup} used for building scripts.
+         */
+        SearchLookup lookup();
+
+        /**
+         * Find the paths in {@code _source} that contain values for the field named {@code name}.
+         */
+        Set<String> sourcePaths(String name);
+    }
+
 }

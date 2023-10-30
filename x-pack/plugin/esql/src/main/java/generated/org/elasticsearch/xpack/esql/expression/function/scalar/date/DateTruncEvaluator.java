@@ -36,9 +36,6 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock fieldValBlock = (LongBlock) fieldValRef.block();
       LongVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
@@ -78,5 +75,26 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(fieldVal);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+
+    private final Rounding.Prepared rounding;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory fieldVal, Rounding.Prepared rounding) {
+      this.fieldVal = fieldVal;
+      this.rounding = rounding;
+    }
+
+    @Override
+    public DateTruncEvaluator get(DriverContext context) {
+      return new DateTruncEvaluator(fieldVal.get(context), rounding, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateTruncEvaluator[" + "fieldVal=" + fieldVal + ", rounding=" + rounding + "]";
+    }
   }
 }

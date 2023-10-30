@@ -38,14 +38,8 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref startRef = start.eval(page)) {
-        if (startRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         IntBlock startBlock = (IntBlock) startRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
@@ -96,5 +90,27 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, start);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory start;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory start) {
+      this.str = str;
+      this.start = start;
+    }
+
+    @Override
+    public SubstringNoLengthEvaluator get(DriverContext context) {
+      return new SubstringNoLengthEvaluator(str.get(context), start.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubstringNoLengthEvaluator[" + "str=" + str + ", start=" + start + "]";
+    }
   }
 }

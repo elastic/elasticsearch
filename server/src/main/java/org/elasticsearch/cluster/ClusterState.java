@@ -287,6 +287,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
     }
 
+    public boolean clusterProperlyFormed() {
+        return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
+    }
+
     public Map<String, CompatibilityVersions> compatibilityVersions() {
         return this.compatibilityVersions;
     }

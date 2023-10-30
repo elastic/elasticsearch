@@ -92,6 +92,16 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         }
 
         @Override
+        public boolean loadSource() {
+            return true;
+        }
+
+        @Override
+        public Set<String> loadFields() {
+            return Set.of();
+        }
+
+        @Override
         public final Block constant(BlockFactory factory, int size) {
             throw new UnsupportedOperationException();
         }

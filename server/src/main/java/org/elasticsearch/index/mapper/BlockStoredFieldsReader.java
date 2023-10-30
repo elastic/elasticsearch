@@ -74,6 +74,17 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
             this.field = field;
         }
 
+
+        @Override
+        public boolean loadSource() {
+            return false;
+        }
+
+        @Override
+        public Set<String> loadFields() {
+            return Set.of(field);
+        }
+
         @Override
         public final Method method() {
             return Method.DOC_VALUES;

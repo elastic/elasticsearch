@@ -16,6 +16,7 @@ import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.Set;
 
 /**
  * Interface for loading data in a block shape. Instances of this class
@@ -27,13 +28,18 @@ public interface BlockLoader {
      */
     enum Method {
         CONSTANT,
-        DOC_VALUES; // TODO add STORED_FIELDS
+        DOC_VALUES,
+        STORED_FIELDS;
     }
 
     /**
      * How blocks should be loaded.
      */
     Method method();
+
+    boolean loadSource();
+
+    Set<String> loadFields();
 
     /**
      * The {@link BlockLoader.Builder} for data of this type. Called when
@@ -78,6 +84,16 @@ public interface BlockLoader {
             }
 
             @Override
+            public boolean loadSource() {
+                return false;
+            }
+
+            @Override
+            public Set<String> loadFields() {
+                return Set.of();
+            }
+
+            @Override
             public Builder builder(BlockFactory factory, int expectedCount) {
                 return factory.nulls(expectedCount);
             }
@@ -107,6 +123,16 @@ public interface BlockLoader {
             @Override
             public Method method() {
                 return Method.CONSTANT;
+            }
+
+            @Override
+            public boolean loadSource() {
+                return false;
+            }
+
+            @Override
+            public Set<String> loadFields() {
+                return Set.of();
             }
 
             @Override

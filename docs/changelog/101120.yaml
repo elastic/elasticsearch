@@ -1,5 +1,5 @@
 pr: 101120
-summary: "ESQL: Fix escaping of backslash in LIKE operator"
+summary: "Fix escaping of backslash in LIKE operator"
 area: ES|QL
 type: bug
 issues:

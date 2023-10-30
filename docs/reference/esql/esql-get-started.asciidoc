@@ -5,19 +5,50 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-A simple example of an {esql} query is shown below:
-[source,esql]
+This guide shows you can use {esql} to query and aggregate your data.
+
+[discrete]
+[[esql-getting-started-prerequisites]]
+=== Prerequisites
+
+To follow along with the queries in this getting started guide, first ingest the
+following sample data:
+
+[source,console]
 ----
-FROM employees
-| EVAL age = DATE_DIFF(NOW(), birth_date, 'Y')
-| STATS AVG(age) BY department
-| SORT age DESC
+PUT sample_data/_bulk
+{"index": {}}
+{"@timestamp": "2023-10-23T12:15:03.360Z", "client.ip": "172.21.2.162", "message": "Connected to 10.1.0.3", "event.duration": 3450233}
+{"index": {}}
+{"@timestamp": "2023-10-23T13:33:34.937Z", "client.ip": "172.21.0.5", "message": "Disconnected", "event.duration": 1232382}
+{"index": {}}
+{"@timestamp": "2023-10-23T13:51:54.732Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 8268153}
+{"index": {}}
+{"@timestamp": "2023-10-23T13:52:55.015Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 8268153}
+{"index": {}}
+{"@timestamp": "2023-10-23T13:53:55.832Z", "client.ip": "172.21.3.15", "message": "Connection error", "event.duration": 8268153}
 ----
+
+[discrete]
+[[esql-getting-started-running-queries]]
+==== Run an {esql} query
+
+In {kib}, you can use Console or Discover to run {esql} queries:
+
+include::{es-repo-dir}/tab-widgets/esql/esql-getting-started-widget.asciidoc[]
+
+[discrete]
+[[esql-getting-started-first-query]]
+==== Your first {esql} query
 
 Each {esql} query starts with a <<esql-commands,source command>>. A source command produces
 a table, typically with data from {es}.
 
 image::images/esql/source-command.svg[A source command producing a table from {es},align="center"]
+
+[discrete]
+[[esql-getting-started-where]]
+==== Multiple processing commands
 
 A source command can be followed by one or more
 <<esql-commands,processing commands>>. Processing commands change an
@@ -26,9 +57,33 @@ Processing commands can perform filtering, projection, aggregation, and more.
 
 image::images/esql/processing-command.svg[A processing command changing an input table,align="center"]
 
+[discrete]
+[[esql-getting-started-limit]]
+==== Additional processing commands
+
 You can chain processing commands, separated by a pipe character: `|`. Each
 processing command works on the output table of the previous command.
 
 image::images/esql/chaining-processing-commands.svg[Processing commands can be chained,align="center"]
 
 The result of a query is the table produced by the final processing command.
+
+[discrete]
+[[esql-getting-started-stats]]
+==== Calculate statistics
+
+[discrete]
+[[esql-getting-started-histogram]]
+==== Create a date histogram
+
+
+
+[discrete]
+[[esql-getting-started-process-data]]
+==== Process data
+
+
+
+[discrete]
+[[esql-getting-started-enrich]]
+==== Enrich data

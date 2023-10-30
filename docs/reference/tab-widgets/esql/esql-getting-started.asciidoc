@@ -1,0 +1,12 @@
+// tag::console[]
+
+Console
+
+// end::console[]
+
+
+// tag::discover[]
+
+Discover
+
+// end::discover[]

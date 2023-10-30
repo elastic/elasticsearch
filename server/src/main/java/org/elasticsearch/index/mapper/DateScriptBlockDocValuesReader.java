@@ -8,14 +8,31 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.DateFieldScript;
+
+import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for date scripts.
  */
 public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static DocValuesBlockLoader blockLoader(DateFieldScript.LeafFactory factory) {
-        return context -> new DateScriptBlockDocValuesReader(factory.newInstance(context));
+    static class DateScriptBlockLoader extends DocValuesBlockLoader {
+        private final DateFieldScript.LeafFactory factory;
+
+        DateScriptBlockLoader(DateFieldScript.LeafFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new DateScriptBlockDocValuesReader(factory.newInstance(context));
+        }
     }
 
     private final DateFieldScript script;
@@ -31,13 +48,9 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.LongBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-        return factory.longs(expectedCount);  // Note that we don't pre-sort our output so we can't use longsFromDocValues
-    }
-
-    @Override
     public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
-        try (BlockLoader.LongBuilder builder = builder(factory, docs.count())) {
+        // Note that we don't sort the values sort, so we can't use factory.longsFromDocValues
+        try (BlockLoader.LongBuilder builder = factory.longs(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }

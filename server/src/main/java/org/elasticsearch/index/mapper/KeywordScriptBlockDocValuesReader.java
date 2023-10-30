@@ -8,15 +8,33 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.StringFieldScript;
+
+import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
 public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static DocValuesBlockLoader blockLoader(StringFieldScript.LeafFactory factory) {
-        return context -> new KeywordScriptBlockDocValuesReader(factory.newInstance(context));
+    static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
+        private final StringFieldScript.LeafFactory factory;
+
+        KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new KeywordScriptBlockDocValuesReader(factory.newInstance(context));
+        }
     }
 
     private final BytesRefBuilder bytesBuild = new BytesRefBuilder();
@@ -33,13 +51,9 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.BytesRefBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-        return factory.bytesRefs(expectedCount);  // Note that we don't pre-sort our output so we can't use bytesRefsFromDocValues
-    }
-
-    @Override
     public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
-        try (BlockLoader.BytesRefBuilder builder = builder(factory, docs.count())) {
+        // Note that we don't pre-sort our output so we can't use bytesRefsFromDocValues
+        try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }

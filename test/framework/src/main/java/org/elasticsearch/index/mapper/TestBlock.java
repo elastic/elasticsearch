@@ -82,6 +82,11 @@ public class TestBlock
         }
 
         @Override
+        public BlockLoader.LongBuilder nulls(int expectedCount) {
+            return new TestBlock(null);
+        }
+
+        @Override
         public BlockLoader.Block constantNulls(int size) {
             TestBlock block = new TestBlock(null);
             for (int i = 0; i < size; i++) {

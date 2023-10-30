@@ -36,6 +36,12 @@ public interface BlockLoader {
     Method method();
 
     /**
+     * The {@link BlockLoader.Builder} for data of this type. Called when
+     * loading from a multi-segment or unsorted block.
+     */
+    Builder builder(BlockFactory factory, int expectedCount);
+
+    /**
      * Build a {@link LeafReaderContext leaf} level reader for doc values.
      * This is only supported if {@link #method} returns {@link Method#DOC_VALUES}.
      */
@@ -66,19 +72,28 @@ public interface BlockLoader {
      */
     static BlockLoader constantNulls() {
         return new BlockLoader() {
-            @Override public Method method() {
+            @Override
+            public Method method() {
                 return Method.CONSTANT;
             }
 
-            @Override public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.nulls(expectedCount);
+            }
+
+            @Override
+            public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
                 throw new UnsupportedEncodingException();
             }
 
-            @Override public Block constant(BlockFactory factory, int size) {
+            @Override
+            public Block constant(BlockFactory factory, int size) {
                 return factory.constantNulls(size);
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return "ConstantNull";
             }
         };
@@ -89,24 +104,32 @@ public interface BlockLoader {
      */
     static BlockLoader constantBytes(BytesRef value) {
         return new BlockLoader() {
-            @Override public Method method() {
+            @Override
+            public Method method() {
                 return Method.CONSTANT;
             }
 
-            @Override public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            @Override
+            public Builder builder(BlockFactory factory, int expectedCount) {
+                return factory.bytesRefs(expectedCount);
+            }
+
+            @Override
+            public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
                 throw new UnsupportedEncodingException();
             }
 
-            @Override public Block constant(BlockFactory factory, int size) {
+            @Override
+            public Block constant(BlockFactory factory, int size) {
                 return factory.constantBytes(value, size);
             }
 
-            @Override public String toString() {
+            @Override
+            public String toString() {
                 return "ConstantBytes[" + value + "]";
             }
         };
     }
-
 
     /**
      * A list of documents to load.
@@ -178,6 +201,11 @@ public interface BlockLoader {
          * Build a builder to load longs without any loading constraints.
          */
         LongBuilder longs(int expectedCount);
+
+        /**
+         * Build a builder to load only {@code null}s.
+         */
+        Builder nulls(int expectedCount);
 
         /**
          * Build a block that contains only {@code null}.

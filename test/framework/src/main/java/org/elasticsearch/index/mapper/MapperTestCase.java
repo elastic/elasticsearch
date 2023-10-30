@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
@@ -26,6 +28,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -1241,18 +1244,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testBlockLoaderReadValues() throws IOException {
-        testBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
+        testBlockLoader((loader, reader) -> (TestBlock) reader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
     }
 
+    @Repeat(iterations=1000)
     public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
-        testBlockLoader(blockReader -> {
-            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
-            blockReader.readValuesFromSingleDoc(0, block);
+        testBlockLoader((loader, reader) -> {
+            TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, 1);
+            reader.readValuesFromSingleDoc(0, block);
             return block;
         });
     }
 
-    private void testBlockLoader(CheckedFunction<BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
+    private void testBlockLoader(CheckedBiFunction<BlockLoader, BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
         MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
@@ -1292,7 +1296,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext ctx = reader.leaves().get(0);
                 TestBlock block = switch (loader.method()) {
                     case CONSTANT -> (TestBlock) loader.constant(TestBlock.FACTORY, ctx.reader().numDocs());
-                    case DOC_VALUES, STORED_FIELDS -> body.apply(loader.docValuesReader(ctx));
+                    case DOC_VALUES -> body.apply(loader, loader.docValuesReader(ctx));
                 };
                 Object inBlock = block.get(0);
                 if (inBlock != null) {

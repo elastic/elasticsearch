@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
@@ -46,13 +47,17 @@ import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -86,19 +91,44 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(BigArrays bigArrays) {
+        if (reader == null) {
+            // Init a reader if one hasn't been built, so things don't blow up
+            try {
+                initIndex(100);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         return factory(reader, new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG));
     }
 
     static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft) {
-        return new ValuesSourceReaderOperator.Factory(
-            List.of(BlockReaderFactories.loaderToFactory(reader, ft.blockLoader(null))),
-            0,
-            ft.name()
-        );
+        return factory(reader, ft.name(), ft.blockLoader(null));
+    }
+
+    static Operator.OperatorFactory factory(IndexReader reader, String name, BlockLoader loader) {
+        return new ValuesSourceReaderOperator.Factory(List.of(loader), List.of(reader), 0, name);
     }
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        try {
+            initIndex(size);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        var luceneFactory = new LuceneSourceOperator.Factory(
+            List.of(mockSearchContext(reader)),
+            ctx -> new MatchAllDocsQuery(),
+            randomFrom(DataPartitioning.values()),
+            randomIntBetween(1, 10),
+            randomPageSize(),
+            LuceneOperator.NO_LIMIT
+        );
+        return luceneFactory.get(driverContext());
+    }
+
+    private void initIndex(int size) throws IOException {
         // The test wants more than one segment. We shoot for about 10.
         int commitEvery = Math.max(1, size / 10);
         try (
@@ -132,23 +162,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 }
             }
             reader = writer.getReader();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
-        var luceneFactory = new LuceneSourceOperator.Factory(
-            List.of(mockSearchContext(reader)),
-            ctx -> new MatchAllDocsQuery(),
-            randomFrom(DataPartitioning.values()),
-            randomIntBetween(1, 10),
-            randomPageSize(),
-            LuceneOperator.NO_LIMIT
-        );
-        return luceneFactory.get(driverContext());
     }
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "DocValuesReaderOperator[field = long]";
+        return "ValuesSourceReaderOperator[field = long]";
     }
 
     @Override
@@ -184,7 +203,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         loadSimpleAndAssert(
             driverContext,
-            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000))),
+            Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING
         );
     }
 
@@ -196,13 +216,18 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 CannedSourceOperator.mergePages(
                     CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), between(100, 5000)))
                 )
-            )
+            ),
+            Block.MvOrdering.UNORDERED
         );
     }
 
     public void testEmpty() {
         DriverContext driverContext = driverContext();
-        loadSimpleAndAssert(driverContext, CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 0)));
+        loadSimpleAndAssert(
+            driverContext,
+            CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 0)),
+            Block.MvOrdering.UNORDERED
+        );
     }
 
     public void testLoadAllInOnePageShuffled() {
@@ -219,10 +244,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             shuffledBlocks[b] = source.getBlock(b).filter(shuffleArray);
         }
         source = new Page(shuffledBlocks);
-        loadSimpleAndAssert(driverContext, List.of(source));
+        loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED);
     }
 
-    private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input) {
+    private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input, Block.MvOrdering expectedMvOrdering) {
         List<Operator> operators = List.of(
             factory(reader, new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
@@ -233,12 +258,33 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             factory(reader, new NumberFieldMapper.NumberFieldType("mv_key", NumberFieldMapper.NumberType.INTEGER)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext),
-            factory(reader, new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext)
+            factory(reader, new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext),
+            factory(reader, "constant_bytes", new BlockLoader() {
+                @Override
+                public Method method() {
+                    return Method.CONSTANT;
+                }
+
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+
+                @Override
+                public BlockDocValuesReader docValuesReader(LeafReaderContext context) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Block constant(BlockFactory factory, int size) {
+                    return factory.constantBytes(new BytesRef("foo"), size);
+                }
+            }).get(driverContext)
         );
         List<Page> results = drive(operators, input.iterator(), driverContext);
         assertThat(results, hasSize(input.size()));
         for (Page p : results) {
-            assertThat(p.getBlockCount(), equalTo(11));
+            assertThat(p.getBlockCount(), equalTo(12));
             IntVector keys = p.<IntBlock>getBlock(1).asVector();
             LongVector longs = p.<LongBlock>getBlock(2).asVector();
             BytesRefVector keywords = p.<BytesRefBlock>getBlock(3).asVector();
@@ -249,6 +295,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             LongBlock mvLongs = p.<LongBlock>getBlock(8);
             DoubleVector doubles = p.<DoubleBlock>getBlock(9).asVector();
             DoubleBlock mvDoubles = p.getBlock(10);
+            BytesRefBlock constantBytes = p.getBlock(11);
 
             for (int i = 0; i < p.getPositionCount(); i++) {
                 int key = keys.getInt(i);
@@ -261,7 +308,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvKeywords.getBytesRef(offset + v, new BytesRef()).utf8ToString(), equalTo(PREFIX[v] + key));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvKeywords.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
+                    assertThat(mvKeywords.mvOrdering(), equalTo(expectedMvOrdering));
                 }
 
                 assertThat(bools.getBoolean(i), equalTo(key % 2 == 0));
@@ -271,7 +318,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvBools.getBoolean(offset + v), equalTo(BOOLEANS[key % 3][v]));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvBools.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
+                    assertThat(mvBools.mvOrdering(), equalTo(expectedMvOrdering));
                 }
 
                 assertThat(mvInts.getValueCount(i), equalTo(key % 3 + 1));
@@ -280,7 +327,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvInts.getInt(offset + v), equalTo(1_000 * key + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvInts.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
+                    assertThat(mvInts.mvOrdering(), equalTo(expectedMvOrdering));
                 }
 
                 assertThat(mvLongs.getValueCount(i), equalTo(key % 3 + 1));
@@ -289,7 +336,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvLongs.getLong(offset + v), equalTo(-1_000L * key + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvLongs.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
+                    assertThat(mvLongs.mvOrdering(), equalTo(expectedMvOrdering));
                 }
 
                 assertThat(doubles.getDouble(i), equalTo(key / 123_456d));
@@ -298,8 +345,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                     assertThat(mvDoubles.getDouble(offset + v), equalTo(key / 123_456d + v));
                 }
                 if (key % 3 > 0) {
-                    assertThat(mvDoubles.mvOrdering(), equalTo(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING));
+                    assertThat(mvDoubles.mvOrdering(), equalTo(expectedMvOrdering));
                 }
+
+                assertThat(constantBytes.getBytesRef(i, new BytesRef()), equalTo(new BytesRef("foo")));
             }
         }
         for (Operator op : operators) {

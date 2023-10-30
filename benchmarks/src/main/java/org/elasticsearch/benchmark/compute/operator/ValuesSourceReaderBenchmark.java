@@ -134,7 +134,8 @@ public class ValuesSourceReaderBenchmark {
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             BlockFactory.getNonBreakingInstance(),
-            List.of(BlockReaderFactories.loaderToFactory(reader, blockLoader(name))),
+            List.of(blockLoader(name)),
+            List.of(reader),
             0,
             name
         );

@@ -943,7 +943,7 @@ public class TextFieldMapper extends FieldMapper {
             }
             if (isSyntheticSource) {
                 if (isStored()) {
-                    return BlockStoredFieldsReader.bytesRefsFromStrings(name());
+                    return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
                 }
                 /*
                  * We *shouldn't fall to this exception. The mapping should be
@@ -957,7 +957,7 @@ public class TextFieldMapper extends FieldMapper {
                         + "] is supported because synthetic _source is enabled and we don't have a way to load the fields"
                 );
             }
-            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
         }
 
         @Override

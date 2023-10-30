@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -18,12 +19,14 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -42,33 +45,36 @@ import java.util.TreeMap;
 public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
      * Creates a factory for {@link ValuesSourceReaderOperator}.
-     * @param factories the value source, type and index readers to use for extraction
+     * @param blockLoaders the value source, type and index readers to use for extraction
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public record Factory(List<BlockDocValuesReader.Factory> factories, int docChannel, String field)
+    public record Factory(List<BlockLoader> blockLoaders, List<IndexReader> readers, int docChannel, String field)
         implements
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), factories, docChannel, field);
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), blockLoaders, readers, docChannel, field);
         }
 
         @Override
         public String describe() {
-            return "DocValuesReaderOperator[field = " + field + "]";
+            return "ValuesSourceReaderOperator[field = " + field + "]";
         }
     }
 
     /**
-     * A list, one entry per shard, of factories for {@link BlockDocValuesReader}s
-     * which perform the actual reading.
+     * A list, one entry per shard, of {@link BlockLoader}s which load the
+     * actual blocks.
      */
-    private final List<BlockDocValuesReader.Factory> factories;
+    private final List<BlockLoader> blockLoaders;
+    private final List<IndexReader> readers;
     private final int docChannel;
     private final String field;
     private final ComputeBlockLoaderFactory blockFactory;
 
+    private BlockLoader lastLoader;
+    private Block lastConstant;
     private BlockDocValuesReader lastReader;
     private int lastShard = -1;
     private int lastSegment = -1;
@@ -77,17 +83,19 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     /**
      * Creates a new extractor
-     * @param factories builds {@link BlockDocValuesReader}
+     * @param blockLoaders actually loads the blocks
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
     public ValuesSourceReaderOperator(
         BlockFactory blockFactory,
-        List<BlockDocValuesReader.Factory> factories,
+        List<BlockLoader> blockLoaders,
+        List<IndexReader> readers,
         int docChannel,
         String field
     ) {
-        this.factories = factories;
+        this.blockLoaders = blockLoaders;
+        this.readers = readers;
         this.docChannel = docChannel;
         this.field = field;
         this.blockFactory = new ComputeBlockLoaderFactory(blockFactory);
@@ -109,6 +117,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private Block loadFromSingleLeaf(DocVector docVector) throws IOException {
         setupReader(docVector.shards().getInt(0), docVector.segments().getInt(0), docVector.docs().getInt(0));
+        if (lastLoader.method() == BlockLoader.Method.CONSTANT) {
+            return (Block) lastLoader.constant(blockFactory, docVector.docs().getPositionCount());
+        }
         return ((Block) lastReader.readValues(blockFactory, new BlockLoader.Docs() {
             private final IntVector docs = docVector.docs();
 
@@ -128,8 +139,15 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         int[] forwards = docVector.shardSegmentDocMapForwards();
         int doc = docVector.docs().getInt(forwards[0]);
         setupReader(docVector.shards().getInt(forwards[0]), docVector.segments().getInt(forwards[0]), doc);
-        try (BlockLoader.Builder builder = lastReader.builder(blockFactory, forwards.length)) {
-            lastReader.readValuesFromSingleDoc(doc, builder);
+        if (lastLoader.method() == BlockLoader.Method.CONSTANT && docVector.segments().isConstant()) {
+            return (Block) lastLoader.constant(blockFactory, docVector.docs().getPositionCount());
+        }
+        try (Block.Builder builder = (Block.Builder) lastLoader.builder(blockFactory, forwards.length)) {
+            if (lastConstant != null) {
+                builder.copyFrom(lastConstant, 0, 1);
+            } else {
+                lastReader.readValuesFromSingleDoc(doc, builder);
+            }
             for (int i = 1; i < forwards.length; i++) {
                 int shard = docVector.shards().getInt(forwards[i]);
                 int segment = docVector.segments().getInt(forwards[i]);
@@ -137,9 +155,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 if (segment != lastSegment || shard != lastShard) {
                     setupReader(shard, segment, doc);
                 }
-                lastReader.readValuesFromSingleDoc(doc, builder);
+                if (lastConstant != null) {
+                    builder.copyFrom(lastConstant, 0, 1);
+                } else {
+                    lastReader.readValuesFromSingleDoc(doc, builder);
+                }
             }
-            try (Block orig = ((Block.Builder) builder).build()) {
+            try (Block orig = builder.build()) {
                 return orig.filter(docVector.shardSegmentDocMapBackwards());
             }
         }
@@ -150,15 +172,32 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             return;
         }
 
-        lastReader = factories.get(shard).build(segment);
+        Releasables.closeExpectNoException(lastConstant);
+        lastConstant = null;
+
+        lastLoader = blockLoaders.get(shard);
+        switch (lastLoader.method()) {
+            case CONSTANT -> {
+                lastConstant = (Block) lastLoader.constant(blockFactory, 1);
+                readersBuilt.compute("constant[" + lastConstant + "]", (k, v) -> v == null ? 1 : v + 1);
+            }
+            case DOC_VALUES -> {
+                lastReader = lastLoader.docValuesReader(readers.get(shard).leaves().get(segment));
+                readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);
+            }
+        }
         lastShard = shard;
         lastSegment = segment;
-        readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(super::close, lastConstant);
     }
 
     @Override
     public String toString() {
-        return "DocValuesReaderOperator[field = " + field + "]";
+        return "ValuesSourceReaderOperator[field = " + field + "]";
     }
 
     @Override
@@ -169,7 +208,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     public static class Status extends AbstractPageMappingOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "values_source_reader", // This is the old name for this class but it's not worth updating it in the binary protocol.
+            "values_source_reader",
             Status::new
         );
 
@@ -289,6 +328,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
+        public BlockLoader.Builder nulls(int expectedCount) {
+            return ElementType.NULL.newBlockBuilder(expectedCount, factory);
+        }
+
+        @Override
         public Block constantNulls(int size) {
             return factory.newConstantNullBlock(size);
         }
@@ -303,4 +347,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             return new SingletonOrdinalsBuilder(factory, ordinals, count);
         }
     }
+
+    // TODO tests that mix source loaded fields and doc values in the same block
 }

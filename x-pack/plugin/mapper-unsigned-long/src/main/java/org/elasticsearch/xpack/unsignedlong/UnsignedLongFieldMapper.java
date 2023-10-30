@@ -323,9 +323,9 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 return BlockLoader.constantNulls();
             }
             if (hasDocValues()) {
-                return BlockDocValuesReader.longs(name());
+                return new BlockDocValuesReader.LongsBlockLoader(name());
             }
-            return BlockSourceReader.longs(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
+            return new BlockSourceReader.LongsBlockLoader(new SourceValueFetcher(blContext.sourcePaths(name()), nullValueFormatted) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

@@ -324,9 +324,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (textFieldType.isSyntheticSource()) {
-                return BlockStoredFieldsReader.bytesRefsFromStrings(storedFieldNameForSyntheticSource());
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(storedFieldNameForSyntheticSource());
             }
-            return BlockSourceReader.bytesRefs(SourceValueFetcher.toString(blContext.sourcePaths(name())));
+            return new BlockSourceReader.BytesRefsBlockLoader(SourceValueFetcher.toString(blContext.sourcePaths(name())));
         }
 
         @Override

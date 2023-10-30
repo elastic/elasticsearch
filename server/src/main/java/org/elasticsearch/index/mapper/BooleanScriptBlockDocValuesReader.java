@@ -8,14 +8,31 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.BooleanFieldScript;
+
+import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for {@code boolean} scripts.
  */
 public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static DocValuesBlockLoader blockLoader(BooleanFieldScript.LeafFactory factory) {
-        return context -> new BooleanScriptBlockDocValuesReader(factory.newInstance(context));
+    static class BooleanScriptBlockLoader extends DocValuesBlockLoader {
+        private final BooleanFieldScript.LeafFactory factory;
+
+        BooleanScriptBlockLoader(BooleanFieldScript.LeafFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new BooleanScriptBlockDocValuesReader(factory.newInstance(context));
+        }
     }
 
     private final BooleanFieldScript script;
@@ -31,14 +48,9 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.BooleanBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-        // Note that we don't emit falses before trues so we conform to the doc values contract and can use booleansFromDocValues
-        return factory.booleansFromDocValues(expectedCount);
-    }
-
-    @Override
     public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
-        try (BlockLoader.BooleanBuilder builder = builder(factory, docs.count())) {
+        // Note that we don't emit falses before trues so we conform to the doc values contract and can use booleansFromDocValues
+        try (BlockLoader.BooleanBuilder builder = factory.booleans(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);
             }

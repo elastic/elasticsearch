@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -28,123 +29,6 @@ import java.util.Set;
  * order.
  */
 public abstract class BlockSourceReader extends BlockDocValuesReader {
-    /**
-     * Read {@code boolean}s from {@code _source}.
-     */
-    public static DocValuesBlockLoader booleans(ValueFetcher fetcher) {
-        StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
-        return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
-            @Override
-            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.booleans(expectedCount);
-            }
-
-            @Override
-            protected void append(BlockLoader.Builder builder, Object v) {
-                ((BlockLoader.BooleanBuilder) builder).appendBoolean((Boolean) v);
-            }
-
-            @Override
-            public String toString() {
-                return "SourceBooleans";
-            }
-        };
-    }
-
-    /**
-     * Read {@link BytesRef}s from {@code _source}.
-     */
-    public static DocValuesBlockLoader bytesRefs(ValueFetcher fetcher) {
-        StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
-        return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
-            BytesRef scratch = new BytesRef();
-
-            @Override
-            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.bytesRefs(expectedCount);
-            }
-
-            @Override
-            protected void append(BlockLoader.Builder builder, Object v) {
-                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
-            }
-
-            @Override
-            public String toString() {
-                return "SourceBytes";
-            }
-        };
-    }
-
-    /**
-     * Read {@code double}s from {@code _source}.
-     */
-    public static DocValuesBlockLoader doubles(ValueFetcher fetcher) {
-        StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
-        return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
-            @Override
-            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.doubles(expectedCount);
-            }
-
-            @Override
-            protected void append(BlockLoader.Builder builder, Object v) {
-                ((BlockLoader.DoubleBuilder) builder).appendDouble(((Number) v).doubleValue());
-            }
-
-            @Override
-            public String toString() {
-                return "SourceDoubles";
-            }
-        };
-    }
-
-    /**
-     * Read {@code int}s from {@code _source}.
-     */
-    public static DocValuesBlockLoader ints(ValueFetcher fetcher) {
-        StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
-        return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
-            @Override
-            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.ints(expectedCount);
-            }
-
-            @Override
-            protected void append(BlockLoader.Builder builder, Object v) {
-                ((BlockLoader.IntBuilder) builder).appendInt(((Number) v).intValue());
-            }
-
-            @Override
-            public String toString() {
-                return "SourceInts";
-            }
-        };
-    }
-
-    /**
-     * Read {@code long}s from {@code _source}.
-     */
-    public static DocValuesBlockLoader longs(ValueFetcher fetcher) {
-        StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
-        return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
-            @Override
-            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.longs(expectedCount);
-            }
-
-            @Override
-            protected void append(BlockLoader.Builder builder, Object v) {
-                ((BlockLoader.LongBuilder) builder).appendLong(((Number) v).longValue());
-            }
-
-            @Override
-            public String toString() {
-                return "SourceLongs";
-            }
-        };
-    }
-
     private final ValueFetcher fetcher;
     private final LeafStoredFieldLoader loader;
     private final List<Object> ignoredValues = new ArrayList<>();
@@ -154,6 +38,8 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         this.fetcher = fetcher;
         this.loader = loader;
     }
+
+    protected abstract BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int count);
 
     @Override
     public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
@@ -195,5 +81,216 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     @Override
     public int docID() {
         return docID;
+    }
+
+    private abstract static class SourceBlockLoader implements BlockLoader {
+        protected final StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
+
+        @Override
+        public final Method method() {
+            return Method.DOC_VALUES;
+        }
+
+        @Override
+        public final Block constant(BlockFactory factory, int size) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    public static class BooleansBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public BooleansBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new Booleans(fetcher, loader.getLoader(context, null));
+        }
+    }
+
+    private static class Booleans extends BlockSourceReader {
+        Booleans(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
+            super(fetcher, loader);
+        }
+
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.booleans(expectedCount);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.BooleanBuilder) builder).appendBoolean((Boolean) v);
+        }
+
+        @Override
+        public String toString() {
+            return "SourceBooleans";
+        }
+    }
+
+    public static class BytesRefsBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public BytesRefsBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new BytesRefs(fetcher, loader.getLoader(context, null));
+        }
+    }
+
+    private static class BytesRefs extends BlockSourceReader {
+        BytesRef scratch = new BytesRef();
+
+        BytesRefs(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
+            super(fetcher, loader);
+        }
+
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.bytesRefs(expectedCount);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(toBytesRef(scratch, (String) v));
+        }
+
+        @Override
+        public String toString() {
+            return "SourceBytes";
+        }
+    }
+
+    public static class DoublesBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public DoublesBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new Doubles(fetcher, loader.getLoader(context, null));
+        }
+    }
+
+    private static class Doubles extends BlockSourceReader {
+        Doubles(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
+            super(fetcher, loader);
+        }
+
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.doubles(expectedCount);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.DoubleBuilder) builder).appendDouble(((Number) v).doubleValue());
+        }
+
+        @Override
+        public String toString() {
+            return "SourceDoubles";
+        }
+    }
+
+    public static class IntsBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public IntsBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.ints(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new Ints(fetcher, loader.getLoader(context, null));
+        }
+    }
+
+    private static class Ints extends BlockSourceReader {
+        Ints(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
+            super(fetcher, loader);
+        }
+
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.ints(expectedCount);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.IntBuilder) builder).appendInt(((Number) v).intValue());
+        }
+
+        @Override
+        public String toString() {
+            return "SourceInts";
+        }
+    }
+
+    public static class LongsBlockLoader extends SourceBlockLoader {
+        private final ValueFetcher fetcher;
+
+        public LongsBlockLoader(ValueFetcher fetcher) {
+            this.fetcher = fetcher;
+        }
+
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.longs(expectedCount);
+        }
+
+        @Override
+        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+            return new Longs(fetcher, loader.getLoader(context, null));
+        }
+    }
+
+    private static class Longs extends BlockSourceReader {
+        Longs(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
+            super(fetcher, loader);
+        }
+
+        @Override
+        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+            return factory.longs(expectedCount);
+        }
+
+        @Override
+        protected void append(BlockLoader.Builder builder, Object v) {
+            ((BlockLoader.LongBuilder) builder).appendLong(((Number) v).longValue());
+        }
+
+        @Override
+        public String toString() {
+            return "SourceLongs";
+        }
     }
 }

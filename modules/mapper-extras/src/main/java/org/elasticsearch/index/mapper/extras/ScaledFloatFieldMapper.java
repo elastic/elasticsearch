@@ -314,9 +314,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             }
             if (hasDocValues()) {
                 double scalingFactorInverse = 1d / scalingFactor;
-                return BlockDocValuesReader.doubles(name(), l -> l * scalingFactorInverse);
+                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
             }
-            return BlockSourceReader.doubles(sourceValueFetcher(blContext.sourcePaths(name())));
+            return new BlockSourceReader.DoublesBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())));
         }
 
         @Override

@@ -400,7 +400,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
             BlockDocValuesReader blockReader = loader.docValuesReader(ctx);
-            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, ctx.reader().numDocs());
+            TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, ctx.reader().numDocs());
             for (int i = 0; i < ctx.reader().numDocs(); i++) {
                 blockReader.readValuesFromSingleDoc(i, block);
             }

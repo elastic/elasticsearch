@@ -12,7 +12,7 @@ esplugin {
   classname 'org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.17.0'
+def otelVersion = '1.31.0'
 
 dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"

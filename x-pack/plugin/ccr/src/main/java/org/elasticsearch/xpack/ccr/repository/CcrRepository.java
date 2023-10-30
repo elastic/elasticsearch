@@ -257,9 +257,9 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         try {
-            csDeduplicator.execute(listener.map(response -> {
+            csDeduplicator.execute(new ThreadedActionListener<>(responseExecutor, listener.map(response -> {
                 final Metadata remoteMetadata = response.getMetadata();
                 final String[] concreteAllIndices = remoteMetadata.getConcreteAllIndices();
                 final Map<String, SnapshotId> copiedSnapshotIds = Maps.newMapWithExpectedSize(concreteAllIndices.length);
@@ -287,7 +287,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     IndexMetaDataGenerations.EMPTY,
                     MISSING_UUID
                 );
-            }));
+            })));
         } catch (Exception e) {
             assert false;
             listener.onFailure(e);

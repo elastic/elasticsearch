@@ -9,18 +9,11 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.transport.TransportRequestOptions;
 
 public class SimulateBulkAction extends ActionType<BulkResponse> {
 
     public static final SimulateBulkAction INSTANCE = new SimulateBulkAction();
-    public static final String NAME = "indices:admin/simulate/bulk";
-
-    private static final TransportRequestOptions TRANSPORT_REQUEST_OPTIONS = TransportRequestOptions.of(
-        null,
-        TransportRequestOptions.Type.BULK
-    );
-
+    public static final String NAME = "indices:data/simulate/bulk";
     private SimulateBulkAction() {
         super(NAME, BulkResponse::new);
     }

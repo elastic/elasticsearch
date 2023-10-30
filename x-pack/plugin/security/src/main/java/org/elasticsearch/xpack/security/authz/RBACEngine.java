@@ -20,6 +20,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
@@ -251,6 +252,7 @@ public class RBACEngine implements AuthorizationEngine {
     private static boolean shouldAuthorizeIndexActionNameOnly(String action, TransportRequest request) {
         switch (action) {
             case BulkAction.NAME:
+            case SimulateBulkAction.NAME:
             case IndexAction.NAME:
             case DeleteAction.NAME:
             case INDEX_SUB_REQUEST_PRIMARY:

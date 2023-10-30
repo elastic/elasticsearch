@@ -1,5 +1,0 @@
-pr: 101521
-summary: Revert "Optimize `ContentPath#pathAsText"`
-area: Mapping
-type: regression
-issues: []

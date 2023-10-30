@@ -3,34 +3,6 @@ setup:
       version: ' - 8.10.99'
       reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
 
-  # Additional logging for issue: https://github.com/elastic/elasticsearch/issues/100502
-  - do:
-      cluster.put_settings:
-        body: >
-          {
-            "persistent": {
-              "logger.org.elasticsearch.index": "TRACE",
-              "logger.org.elasticsearch.action.admin.indices.mapping.get": "TRACE",
-              "logger.org.elasticsearch.cluster.service.ClusterApplierService": "TRACE"
-            }
-          }
-
----
-teardown:
-  - skip:
-      version: ' - 8.10.99'
-      reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
-
-  - do:
-      cluster.put_settings:
-          body: >
-            {
-              "persistent": {
-                "logger.org.elasticsearch.index": null,
-                "logger.org.elasticsearch.action.admin.indices.mapping.get": null,
-                "logger.org.elasticsearch.cluster.service.ClusterApplierService": null
-              }
-            }
 ---
 "Fields with float arrays below the threshold still map as float":
 

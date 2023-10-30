@@ -71,7 +71,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.INITIAL).get(driverContext),
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
-                new ResultPageSinkOperator(page -> results.add(page)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
@@ -93,7 +93,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
                 List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -119,7 +119,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.INTERMEDIATE).get(driverContext),
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)
                 ),
-                new ResultPageSinkOperator(page -> results.add(page)),
+                new TestResultPageSinkOperator(page -> results.add(page)),
                 () -> {}
             )
         ) {
@@ -148,7 +148,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
                 List.of(simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -255,7 +255,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(bigArrays, AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         );

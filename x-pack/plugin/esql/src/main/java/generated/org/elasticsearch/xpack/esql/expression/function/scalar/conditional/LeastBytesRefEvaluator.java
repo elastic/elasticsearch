@@ -39,11 +39,7 @@ public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEval
       BytesRefBlock[] valuesBlocks = new BytesRefBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        valuesBlocks[i] = (BytesRefBlock) block;
+        valuesBlocks[i] = (BytesRefBlock) valuesRefs[i].block();
       }
       BytesRefVector[] valuesVectors = new BytesRefVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -107,5 +103,24 @@ public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEval
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastBytesRefEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastBytesRefEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastBytesRefEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

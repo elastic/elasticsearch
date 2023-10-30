@@ -47,14 +47,8 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
       try (Block.Ref formatterRef = formatter.eval(page)) {
-        if (formatterRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
         BytesRefVector valVector = valBlock.asVector();
         if (valVector == null) {
@@ -118,5 +112,33 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, formatter);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory formatter;
+
+    private final ZoneId zoneId;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory formatter, ZoneId zoneId) {
+      this.source = source;
+      this.val = val;
+      this.formatter = formatter;
+      this.zoneId = zoneId;
+    }
+
+    @Override
+    public DateParseEvaluator get(DriverContext context) {
+      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateParseEvaluator[" + "val=" + val + ", formatter=" + formatter + ", zoneId=" + zoneId + "]";
+    }
   }
 }

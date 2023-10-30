@@ -49,14 +49,12 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
         );
 
         try {
-            client().prepareSearch("test")
-                .addAggregation(
-                    terms("terms").field("field0.keyword")
-                        .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
-                        .order(BucketOrder.aggregation("cardinality", randomBoolean()))
-                        .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
-                )
-                .get();
+            prepareSearch("test").addAggregation(
+                terms("terms").field("field0.keyword")
+                    .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
+                    .order(BucketOrder.aggregation("cardinality", randomBoolean()))
+                    .subAggregation(cardinality("cardinality").precisionThreshold(randomLongBetween(1, 40000)).field("field1.keyword"))
+            ).get();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;

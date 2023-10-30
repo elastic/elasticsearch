@@ -98,4 +98,25 @@ public final class ToStringFromDatetimeEvaluator extends AbstractConvertFunction
     long value = container.getLong(index);
     return ToString.fromDatetime(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromDatetimeEvaluator get(DriverContext context) {
+      return new ToStringFromDatetimeEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromDatetimeEvaluator[field=" + field + "]";
+    }
+  }
 }

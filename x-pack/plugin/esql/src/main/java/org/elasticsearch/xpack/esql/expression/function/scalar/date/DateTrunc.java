@@ -42,22 +42,9 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = argumentTypesAreSwapped(
-            left().dataType(),
-            right().dataType(),
-            EsqlDataTypes::isTemporalAmount,
-            sourceText()
+        return isDate(timestampField(), sourceText(), FIRST).and(
+            isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration")
         );
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        resolution = isDate(timestampField(), sourceText(), FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return isType(interval(), EsqlDataTypes::isTemporalAmount, sourceText(), SECOND, "dateperiod", "timeduration");
     }
 
     @Override
@@ -166,6 +153,6 @@ public class DateTrunc extends BinaryDateTimeFunction implements EvaluatorMapper
     }
 
     public static ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEvaluator, Rounding.Prepared rounding) {
-        return dvrCtx -> new DateTruncEvaluator(fieldEvaluator.get(dvrCtx), rounding, dvrCtx);
+        return new DateTruncEvaluator.Factory(fieldEvaluator, rounding);
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -31,12 +30,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
-        ExpressionEvaluator apply(
-            Source source,
-            ExpressionEvaluator expressionEvaluator,
-            TemporalAmount temporalAmount,
-            DriverContext driverContext
-        );
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory expressionEvaluator, TemporalAmount temporalAmount);
     }
 
     private final DatetimeArithmeticEvaluator datetimes;
@@ -149,12 +143,7 @@ abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
                 temporalAmountArgument = left();
             }
 
-            return dvrCtx -> datetimes.apply(
-                source(),
-                toEvaluator.apply(datetimeArgument).get(dvrCtx),
-                (TemporalAmount) temporalAmountArgument.fold(),
-                dvrCtx
-            );
+            return datetimes.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

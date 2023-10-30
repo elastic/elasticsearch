@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPriv
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -150,7 +149,15 @@ class AuthenticatorChain {
                 context.addAuthenticationToken(authenticationToken);
             }
 
-            final Consumer<Exception> onFailure = (e) -> {
+            authenticator.authenticate(context, ActionListener.wrap(result -> {
+                if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
+                    throw result.getException();
+                }
+                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
+                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
+                }
+                listener.onResponse(result);
+            }, e -> {
                 assert e != null : "exception cannot be null";
                 // Not adding additional metadata if the exception is not security related, e.g. server busy.
                 // Because (1) unlike security errors which are intentionally obscure, non-security errors are clear
@@ -163,18 +170,7 @@ class AuthenticatorChain {
                     }
                 }
                 listener.onFailure(e);
-            };
-
-            authenticator.authenticate(context, ActionListener.wrap(result -> {
-                if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                    onFailure.accept(result.getException());
-                    return;
-                }
-                if (result.getStatus() == AuthenticationResult.Status.CONTINUE && result.getMessage() != null) {
-                    context.addUnsuccessfulMessage(authenticator.name() + ": " + result.getMessage());
-                }
-                listener.onResponse(result);
-            }, onFailure));
+            }));
         };
     }
 

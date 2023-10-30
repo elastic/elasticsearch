@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -89,7 +88,11 @@ public interface Authenticator {
         private final boolean allowAnonymous;
         private final boolean extractCredentials;
         private final Realms realms;
-        private List<AuthenticationToken> authenticationTokens = new ArrayList<>();
+        // {@code Authenticator}s are consulted in order (see {@code AuthenticatorChain}),
+        // where each is given the chance to first extract some token, and then to verify it.
+        // If token verification fails in some particular way (i.e. {@code AuthenticationResult.Status.CONTINUE}),
+        // the next {@code Authenticator} is tried. The extracted tokens are appended to this list.
+        private final List<AuthenticationToken> authenticationTokens;
         private final List<String> unsuccessfulMessages = new ArrayList<>();
         private boolean handleNullToken = true;
         private SecureString bearerString = null;
@@ -101,19 +104,21 @@ public interface Authenticator {
          * This avoids extracting any tokens from the thread context, which is the regular way that authn works.
          * In this case, the authentication process will simply verify the provided token, and will never fall back to the null-token case
          * (i.e. in case the token CAN NOT be verified, the user IS NOT authenticated as the anonymous or the fallback user, and
-         * instead the authentication process fails, see {@link AuthenticatorChain#doAuthenticate}).
+         * instead the authentication process fails, see {@link AuthenticatorChain#doAuthenticate}). If a {@code null} token is provided
+         * the authentication will invariably fail.
+         *
          */
-        public Context(
+        Context(
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,
-            AuthenticationToken token,
-            Realms realms
+            Realms realms,
+            @Nullable AuthenticationToken token
         ) {
             this.threadContext = threadContext;
             this.request = request;
             this.realms = realms;
             // when a token is directly supplied for authn, don't extract other tokens, and don't handle the null-token case
-            this.authenticationTokens = Collections.singletonList(token); // no any other tokens should be added to this context
+            this.authenticationTokens = token != null ? List.of(token) : List.of(); // no other tokens should be added
             this.extractCredentials = false;
             this.handleNullToken = false;
             // if handleNullToken is false, fallbackUser and allowAnonymous are irrelevant
@@ -121,7 +126,7 @@ public interface Authenticator {
             this.allowAnonymous = false;
         }
 
-        public Context(
+        Context(
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,
             User fallbackUser,
@@ -142,10 +147,12 @@ public interface Authenticator {
         ) {
             this.threadContext = threadContext;
             this.request = request;
+            this.extractCredentials = extractCredentials;
+            // the extracted tokens, in order, for each {@code Authenticator}
+            this.authenticationTokens = new ArrayList<>();
             this.fallbackUser = fallbackUser;
             this.allowAnonymous = allowAnonymous;
             this.realms = realms;
-            this.extractCredentials = extractCredentials;
         }
 
         public ThreadContext getThreadContext() {

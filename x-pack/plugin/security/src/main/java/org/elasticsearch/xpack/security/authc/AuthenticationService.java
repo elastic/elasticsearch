@@ -215,8 +215,8 @@ public class AuthenticationService {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-            token,
-            realms
+            realms,
+            token
         );
         authenticatorChain.authenticate(context, listener);
     }
@@ -245,12 +245,16 @@ public class AuthenticationService {
         }
     }
 
+    /**
+     * Returns an authenticator context for verifying only the provided {@param authenticationToken} without trying
+     * to extract any other tokens from the thread context.
+     */
     Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
         return new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            authenticationToken,
-            realms
+            realms,
+            authenticationToken
         );
     }
 

@@ -96,8 +96,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> new Authenticator.Context(
                 threadContext,
                 auditableRequest,
-                (AuthenticationToken) invocationOnMock.getArguments()[2],
-                mock(Realms.class)
+                mock(Realms.class),
+                (AuthenticationToken) invocationOnMock.getArguments()[2]
         )).when(authenticationService).newContext(anyString(), any(), any());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
@@ -136,8 +136,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             return new Authenticator.Context(
                 threadContext,
                 auditableRequest,
-                (AuthenticationToken) invocationOnMock.getArguments()[2],
-                mock(Realms.class)
+                mock(Realms.class),
+                (AuthenticationToken) invocationOnMock.getArguments()[2]
             );
         }).when(authenticationService).newContext(anyString(), any(), any());
         @SuppressWarnings("unchecked")
@@ -182,8 +182,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             return new Authenticator.Context(
                 threadContext,
                 auditableRequest,
-                (AuthenticationToken) invocationOnMock.getArguments()[2],
-                mock(Realms.class)
+                mock(Realms.class),
+                (AuthenticationToken) invocationOnMock.getArguments()[2]
             );
         }).when(authenticationService).newContext(anyString(), any(), any());
         @SuppressWarnings("unchecked")
@@ -223,8 +223,8 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             return new Authenticator.Context(
                 threadContext,
                 auditableRequest,
-                (AuthenticationToken) invocationOnMock.getArguments()[2],
-                mock(Realms.class)
+                mock(Realms.class),
+                (AuthenticationToken) invocationOnMock.getArguments()[2]
             );
         }).when(authenticationService).newContext(anyString(), any(), any());
         @SuppressWarnings("unchecked")

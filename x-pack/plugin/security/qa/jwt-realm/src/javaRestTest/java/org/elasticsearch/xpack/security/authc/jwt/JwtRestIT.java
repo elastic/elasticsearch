@@ -139,7 +139,6 @@ public class JwtRestIT extends ESRestTestCase {
         settings.put("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id");
         settings.put("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0");
         settings.put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE");
-        settings.put("xpack.security.authc.realms.jwt.jwt1.files.role_mapping", "role_mapping.yml");
         // Use default value (RS256) for signature algorithm
         settings.put("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset");
 

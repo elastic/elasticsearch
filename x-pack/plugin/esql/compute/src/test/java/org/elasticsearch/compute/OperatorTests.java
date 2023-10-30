@@ -172,19 +172,23 @@ public class OperatorTests extends MapperServiceTestCase {
                     int positionCount = docVector.getPositionCount();
                     IntVector shards = docVector.shards();
                     if (randomBoolean()) {
-                        IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
-                        for (int i = 0; i < positionCount; i++) {
-                            builder.appendInt(shards.getInt(i));
+                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
+                            for (int i = 0; i < positionCount; i++) {
+                                builder.appendInt(shards.getInt(i));
+                            }
+                            shards.close();
+                            shards = builder.build();
                         }
-                        shards = builder.build();
                     }
                     IntVector segments = docVector.segments();
                     if (randomBoolean()) {
-                        IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
-                        for (int i = 0; i < positionCount; i++) {
-                            builder.appendInt(segments.getInt(i));
+                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
+                            for (int i = 0; i < positionCount; i++) {
+                                builder.appendInt(segments.getInt(i));
+                            }
+                            segments.close();
+                            segments = builder.build();
                         }
-                        segments = builder.build();
                     }
                     IntVector docs = docVector.docs();
                     if (randomBoolean()) {
@@ -193,6 +197,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             ids.add(docs.getInt(i));
                         }
                         Collections.shuffle(ids, random());
+                        docs.close();
                         docs = blockFactory.newIntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
                     }
                     Block[] blocks = new Block[page.getBlockCount()];

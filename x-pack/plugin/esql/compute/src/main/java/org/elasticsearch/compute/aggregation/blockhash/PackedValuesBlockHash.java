@@ -82,7 +82,9 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        new AddWork(page, addInput).add();
+        try (AddWork work = new AddWork(page, addInput)) {
+            work.add();
+        }
     }
 
     private static class Group {
@@ -102,7 +104,7 @@ final class PackedValuesBlockHash extends BlockHash {
         int position;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput) {
-            super(emitBatchSize, addInput);
+            super(blockFactory, emitBatchSize, addInput);
             for (Group group : groups) {
                 group.encoder = newEncoder(page.getBlock(group.spec.channel()));
             }
@@ -192,45 +194,54 @@ final class PackedValuesBlockHash extends BlockHash {
         int size = Math.toIntExact(bytesRefHash.size());
         Decoder[] decoders = new Decoder[groups.length];
         Block.Builder[] builders = new Block.Builder[groups.length];
-        for (int g = 0; g < builders.length; g++) {
-            ElementType elementType = groups[g].spec.elementType();
-            decoders[g] = newDecoder(elementType);
-            builders[g] = elementType.newBlockBuilder(size, blockFactory);
-        }
-
-        BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
-        BytesRef[] nulls = new BytesRef[values.length];
-        for (int offset = 0; offset < values.length; offset++) {
-            values[offset] = new BytesRef();
-            nulls[offset] = new BytesRef();
-            nulls[offset].length = nullTrackingBytes;
-        }
-        int offset = 0;
-        for (int i = 0; i < bytesRefHash.size(); i++) {
-            values[offset] = bytesRefHash.get(i, values[offset]);
-
-            // Reference the null bytes in the nulls array and values in the values
-            nulls[offset].bytes = values[offset].bytes;
-            nulls[offset].offset = values[offset].offset;
-            values[offset].offset += nullTrackingBytes;
-            values[offset].length -= nullTrackingBytes;
-
-            offset++;
-            if (offset == values.length) {
-                readKeys(decoders, builders, nulls, values, offset);
-                offset = 0;
+        try {
+            for (int g = 0; g < builders.length; g++) {
+                ElementType elementType = groups[g].spec.elementType();
+                decoders[g] = newDecoder(elementType);
+                builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
-        }
-        if (offset > 0) {
-            readKeys(decoders, builders, nulls, values, offset);
-        }
 
-        Block[] keyBlocks = new Block[groups.length];
-        for (int g = 0; g < keyBlocks.length; g++) {
-            keyBlocks[g] = builders[g].build();
+            BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
+            BytesRef[] nulls = new BytesRef[values.length];
+            for (int offset = 0; offset < values.length; offset++) {
+                values[offset] = new BytesRef();
+                nulls[offset] = new BytesRef();
+                nulls[offset].length = nullTrackingBytes;
+            }
+            int offset = 0;
+            for (int i = 0; i < bytesRefHash.size(); i++) {
+                values[offset] = bytesRefHash.get(i, values[offset]);
+
+                // Reference the null bytes in the nulls array and values in the values
+                nulls[offset].bytes = values[offset].bytes;
+                nulls[offset].offset = values[offset].offset;
+                values[offset].offset += nullTrackingBytes;
+                values[offset].length -= nullTrackingBytes;
+
+                offset++;
+                if (offset == values.length) {
+                    readKeys(decoders, builders, nulls, values, offset);
+                    offset = 0;
+                }
+            }
+            if (offset > 0) {
+                readKeys(decoders, builders, nulls, values, offset);
+            }
+
+            Block[] keyBlocks = new Block[groups.length];
+            try {
+                for (int g = 0; g < keyBlocks.length; g++) {
+                    keyBlocks[g] = builders[g].build();
+                }
+            } finally {
+                if (keyBlocks[keyBlocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(keyBlocks);
+                }
+            }
+            return keyBlocks;
+        } finally {
+            Releasables.closeExpectNoException(builders);
         }
-        Releasables.closeExpectNoException(builders);
-        return keyBlocks;
     }
 
     private void readKeys(Decoder[] decoders, Block.Builder[] builders, BytesRef[] nulls, BytesRef[] values, int count) {

@@ -97,8 +97,11 @@ public interface Authenticator {
         private List<Realm> unlicensedRealms = null;
 
         /**
-         * Provide a token directly into the context.
-         * Don't extract any other tokens and don't fall back to null token handling (i.e. no fallback or anonymous user).
+         * Constructor that provides the authentication token directly as an argument.
+         * This avoids extracting any tokens from the thread context, which is the regular way that authn works.
+         * In this case, the authentication process will simply verify the provided token, and will never fall back to the null-token case
+         * (i.e. in case the token CAN NOT be verified, the user IS NOT authenticated as the anonymous or the fallback user, and
+         * instead the authentication process fails, see {@link AuthenticatorChain#doAuthenticate}).
          */
         public Context(
             ThreadContext threadContext,
@@ -109,10 +112,11 @@ public interface Authenticator {
             this.threadContext = threadContext;
             this.request = request;
             this.realms = realms;
-            // when a token is provided for authn, don't extract other tokens, and don't handle the null token case
-            this.authenticationTokens = Collections.singletonList(token);
-            this.handleNullToken = false;
+            // when a token is directly supplied for authn, don't extract other tokens, and don't handle the null-token case
+            this.authenticationTokens = Collections.singletonList(token); // no any other tokens should be added to this context
             this.extractCredentials = false;
+            this.handleNullToken = false;
+            // if handleNullToken is false, fallbackUser and allowAnonymous are irrelevant
             this.fallbackUser = null;
             this.allowAnonymous = false;
         }

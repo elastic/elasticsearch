@@ -89,8 +89,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public Collection<?> createComponents(PluginServices pluginsService) {
-        return entSearchPlugin.createComponents(pluginsService);
+    public Collection<?> createComponents(PluginServices services) {
+        return entSearchPlugin.createComponents(services);
     }
 
     @Override

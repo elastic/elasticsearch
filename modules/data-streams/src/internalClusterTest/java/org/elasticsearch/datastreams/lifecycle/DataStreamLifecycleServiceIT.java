@@ -52,7 +52,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
@@ -288,16 +287,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         for (DiscoveryNode node : internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
             .state()
             .getNodes()) {
-            final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                node.getName()
-            );
-            transportService.addRequestHandlingBehavior(ForceMergeAction.NAME + "[n]", (handler, request, channel, task) -> {
-                String index = ((IndicesRequest) request).indices()[0];
-                forceMergedIndices.add(index);
-                logger.info("Force merging {}", index);
-                handler.messageReceived(request, channel, task);
-            });
+            MockTransportService.getInstance(node.getName())
+                .addRequestHandlingBehavior(ForceMergeAction.NAME + "[n]", (handler, request, channel, task) -> {
+                    String index = ((IndicesRequest) request).indices()[0];
+                    forceMergedIndices.add(index);
+                    logger.info("Force merging {}", index);
+                    handler.messageReceived(request, channel, task);
+                });
         }
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);

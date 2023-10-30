@@ -74,20 +74,17 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         logger.info("unlucky node: {}", unluckyNode.getNode());
         // create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
         for (NodeStats dataNode : nodeStats.getNodes()) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                dataNode.getNode().getName()
-            ));
-            mockTransportService.addSendBehavior(
-                internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                (connection, requestId, action, request, options) -> {
-                    connection.sendRequest(requestId, action, request, options);
-                    if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
-                        logger.debug("Throw ConnectTransportException");
-                        throw new ConnectTransportException(connection.getNode(), action);
+            MockTransportService.getInstance(dataNode.getNode().getName())
+                .addSendBehavior(
+                    internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+                    (connection, requestId, action, request, options) -> {
+                        connection.sendRequest(requestId, action, request, options);
+                        if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
+                            logger.debug("Throw ConnectTransportException");
+                            throw new ConnectTransportException(connection.getNode(), action);
+                        }
                     }
-                }
-            );
+                );
         }
 
         BulkRequestBuilder bulkBuilder = client.prepareBulk();

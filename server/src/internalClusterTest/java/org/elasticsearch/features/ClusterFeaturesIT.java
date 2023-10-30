@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,5 +40,9 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         assertThat(missing + " out of " + features.keySet() + " does not have the required feature", missing, empty());
+
+        // check that all nodes have the same features
+        var featureList = List.copyOf(response.getState().clusterFeatures().nodeFeatures().values());
+        assertEquals("Nodes do not have the same features", featureList.get(0), featureList.get(1));
     }
 }

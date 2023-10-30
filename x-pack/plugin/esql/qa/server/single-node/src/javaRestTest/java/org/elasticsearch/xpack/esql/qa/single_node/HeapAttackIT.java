@@ -290,7 +290,6 @@ public class HeapAttackIT extends ESRestTestCase {
         fetchManyBigFields(100);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testFetchTooManyBigFields() throws IOException {
         initManyBigFieldsIndex(500);
         assertCircuitBreaks(() -> fetchManyBigFields(500));

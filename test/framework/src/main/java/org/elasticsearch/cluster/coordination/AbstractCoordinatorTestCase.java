@@ -2255,7 +2255,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             try {
                 delegate.close();
             } catch (IOException e) {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
         }
 

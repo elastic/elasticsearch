@@ -1359,11 +1359,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
     }
 
-    @Override
-    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        return breakingDriverContext();
-    }
-
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private static void readAsRows(List<List<List<Object>>> values, Page page) {
         if (page.getBlockCount() == 0) {

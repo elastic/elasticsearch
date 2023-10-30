@@ -184,7 +184,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     }
 
     @Override
-    public Collection<Object> createComponents(PluginServices services) {
+    public Collection<?> createComponents(PluginServices services) {
         if (enabled == false) {
             return Collections.emptyList();
         }

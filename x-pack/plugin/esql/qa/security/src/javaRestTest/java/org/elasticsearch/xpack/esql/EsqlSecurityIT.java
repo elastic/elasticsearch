@@ -264,6 +264,9 @@ public class EsqlSecurityIT extends ESRestTestCase {
             if (randomBoolean()) {
                 settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
             }
+            if (randomBoolean()) {
+                settings.put("enrich_max_workers", between(1, 5));
+            }
             pragmas = settings.build();
         }
         XContentBuilder query = JsonXContent.contentBuilder();

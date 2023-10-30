@@ -113,7 +113,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(authenticationContextSerializer.readFromContext(any())).thenReturn(authentication);
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
         verifyNoMoreInteractions(serviceAccountAuthenticator);
         verifyNoMoreInteractions(oAuth2TokenAuthenticator);
@@ -131,7 +131,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         when(authenticationContextSerializer.readFromContext(any())).thenReturn(AuthenticationTestHelper.builder().build());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
     }
 
@@ -147,7 +147,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }).when(serviceAccountAuthenticator).authenticate(eq(context), any());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
         verifyNoMoreInteractions(oAuth2TokenAuthenticator);
         verifyNoMoreInteractions(apiKeyAuthenticator);
@@ -168,7 +168,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }).when(oAuth2TokenAuthenticator).authenticate(eq(context), any());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
@@ -205,7 +205,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }).when(apiKeyAuthenticator).authenticate(eq(context), any());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
 
         if (shouldExtractCredentials) {
@@ -237,7 +237,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }).when(realmsAuthenticator).authenticate(eq(context), any());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         assertThat(future.actionGet(), is(authentication));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
@@ -259,7 +259,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
 
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         final Authentication authentication = future.actionGet();
         assertThat(authentication.getEffectiveSubject().getUser(), is(hasFallbackUser ? fallbackUser : anonymousUser));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
@@ -303,7 +303,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         }
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        authenticatorChain.authenticateAsync(context, future);
+        authenticatorChain.authenticate(context, future);
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(
             e.getMessage(),

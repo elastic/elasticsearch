@@ -218,7 +218,7 @@ public class AuthenticationService {
             token,
             realms
         );
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     public void expire(String principal) {
@@ -255,7 +255,7 @@ public class AuthenticationService {
     }
 
     void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     // pkg private method for testing

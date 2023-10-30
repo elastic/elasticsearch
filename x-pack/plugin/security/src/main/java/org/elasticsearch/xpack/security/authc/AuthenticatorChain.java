@@ -68,7 +68,7 @@ class AuthenticatorChain {
         this.allAuthenticators = List.of(serviceAccountAuthenticator, oAuth2TokenAuthenticator, apiKeyAuthenticator, realmsAuthenticator);
     }
 
-    void authenticateAsync(Authenticator.Context context, ActionListener<Authentication> originalListener) {
+    void authenticate(Authenticator.Context context, ActionListener<Authentication> originalListener) {
         assert false == context.getDefaultOrderedRealmList().isEmpty() : "realm list must not be empty";
         // Check whether authentication is an operator user and mark the threadContext if necessary
         // before returning the authentication object

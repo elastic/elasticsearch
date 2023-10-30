@@ -30,6 +30,7 @@ public abstract class AbstractInstrument<T> implements Instrument {
     private final String description;
     private final String unit;
 
+    @SuppressWarnings("this-escape")
     public AbstractInstrument(Meter meter, String name, String description, String unit) {
         this.name = Objects.requireNonNull(name);
         this.description = Objects.requireNonNull(description);

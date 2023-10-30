@@ -138,21 +138,9 @@ public interface Authenticator {
             boolean allowAnonymous,
             Realms realms
         ) {
-            this(threadContext, request, fallbackUser, allowAnonymous, realms, true);
-        }
-
-        // to be used in tests only
-        Context(
-            ThreadContext threadContext,
-            AuthenticationService.AuditableRequest request,
-            User fallbackUser,
-            boolean allowAnonymous,
-            Realms realms,
-            boolean extractCredentials
-        ) {
             this.threadContext = threadContext;
             this.request = request;
-            this.extractCredentials = extractCredentials;
+            this.extractCredentials = true;
             // the extracted tokens, in order, for each {@code Authenticator}
             this.authenticationTokens = new ArrayList<>();
             this.fallbackUser = fallbackUser;

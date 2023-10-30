@@ -180,19 +180,16 @@ public class AuthenticatorChainTests extends ESTestCase {
 
     public void testAuthenticateWithApiKey() throws IOException {
         final boolean shouldExtractCredentials = randomBoolean();
-        final Authenticator.Context context = createAuthenticatorContext(
-            mock(AuthenticationService.AuditableRequest.class),
-            null,
-            shouldExtractCredentials
-        );
+        final Authenticator.Context context;
         final String apiKeyId = randomAlphaOfLength(20);
         final SecureString apiKeySecret = new SecureString(randomAlphaOfLength(22).toCharArray());
         if (shouldExtractCredentials) {
+            context = createAuthenticatorContext();
             when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
                 new ApiKeyCredentials(apiKeyId, apiKeySecret, ApiKey.Type.REST)
             );
         } else {
-            context.addAuthenticationToken(new ApiKeyCredentials(apiKeyId, apiKeySecret, randomFrom(ApiKey.Type.values())));
+            context = createAuthenticatorContext(new ApiKeyCredentials(apiKeyId, apiKeySecret, randomFrom(ApiKey.Type.values())));
             doCallRealMethod().when(serviceAccountAuthenticator).authenticate(eq(context), anyActionListener());
             doCallRealMethod().when(oAuth2TokenAuthenticator).authenticate(eq(context), anyActionListener());
         }
@@ -397,18 +394,14 @@ public class AuthenticatorChainTests extends ESTestCase {
     }
 
     private Authenticator.Context createAuthenticatorContext(AuthenticationService.AuditableRequest request) {
-        return createAuthenticatorContext(request, null, true);
+        return new Authenticator.Context(threadContext, request, null, true, realms);
     }
 
     private Authenticator.Context createAuthenticatorContext(User fallbackUser) {
         return new Authenticator.Context(threadContext, mock(AuthenticationService.AuditableRequest.class), fallbackUser, true, realms);
     }
 
-    private Authenticator.Context createAuthenticatorContext(
-        AuthenticationService.AuditableRequest request,
-        User fallbackUser,
-        boolean extractCredentials
-    ) {
-        return new Authenticator.Context(threadContext, request, fallbackUser, true, realms, extractCredentials);
+    private Authenticator.Context createAuthenticatorContext(AuthenticationToken token) {
+        return new Authenticator.Context(threadContext, mock(AuthenticationService.AuditableRequest.class), realms, token);
     }
 }

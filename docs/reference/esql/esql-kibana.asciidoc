@@ -6,7 +6,7 @@
 ++++
 
 You can use {esql} in {kib} to query and aggregate your data, create
-visualizations, and set up alerts. 
+visualizations, and set up alerts.
 
 This guide shows you how to use {esql} in Kibana. To follow along with the
 queries, load the "Sample web logs" sample data set by clicking *Try sample
@@ -72,7 +72,7 @@ following query is identical to the previous one:
 
 [source,esql]
 ----
-FROM kibana_sample_data_logs 
+FROM kibana_sample_data_logs
 | LIMIT 10
 ----
 
@@ -82,7 +82,7 @@ bar:
 
 image::images/esql/esql-expanded-query-bar.png[align="center"]
 
-To return to a compact query bar, click the minimize editor button 
+To return to a compact query bar, click the minimize editor button
 (image:images/esql/esql-icon-minimize-query-bar.svg[]).
 
 [discrete]
@@ -254,3 +254,8 @@ of rows that are retrieved by the query and displayed in Discover. Any query or
 aggregation runs on the full data set.
 * Discover shows no more than 50 columns. If a query returns
 more than 50 columns, Discover only shows the first 50.
+* Querying many many indices at once without any filters can cause an error in
+kibana which looks like `[esql] > Unexpected error from Elasticsearch: The
+content length (536885793) is bigger than the maximum allowed string (536870888)`.
+The response from ESQL is too long. Use `DROP` or `KEEP` to limit the number
+of fields returned.

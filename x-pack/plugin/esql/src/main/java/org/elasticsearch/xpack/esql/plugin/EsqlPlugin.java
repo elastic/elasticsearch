@@ -107,7 +107,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        return List.of(QUERY_RESULT_TRUNCATION_DEFAULT_SIZE, QUERY_RESULT_TRUNCATION_MAX_SIZE);
     }
 
     @Override

@@ -781,7 +781,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests) {
                 IndexRequest indexRequest = getIndexWriteRequest(docWriteRequest);
                 if (indexRequest != null) {
-                    needsProcessing |= preprocessor.needsProcessing(docWriteRequest, indexRequest, metadata);
+                    needsProcessing = needsProcessing || preprocessor.needsProcessing(docWriteRequest, indexRequest, metadata);
                 }
 
                 if (docWriteRequest instanceof IndexRequest ir) {

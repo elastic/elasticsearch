@@ -99,7 +99,7 @@ public class MockReadinessService extends ReadinessService {
         return mockedSocket != null && mockedSocket.isOpen();
     }
 
-    static void tcpReadinessProbeTrue(ReadinessService readinessService) throws InterruptedException {
+    public static void tcpReadinessProbeTrue(ReadinessService readinessService) throws InterruptedException {
         for (int i = 1; i <= RETRIES; ++i) {
             if (socketIsOpen(readinessService)) {
                 return;
@@ -110,7 +110,7 @@ public class MockReadinessService extends ReadinessService {
         throw new AssertionError("Readiness socket should be open");
     }
 
-    static void tcpReadinessProbeFalse(ReadinessService readinessService) throws InterruptedException {
+    public static void tcpReadinessProbeFalse(ReadinessService readinessService) throws InterruptedException {
         for (int i = 0; i < RETRIES; ++i) {
             if (socketIsOpen(readinessService) == false) {
                 return;

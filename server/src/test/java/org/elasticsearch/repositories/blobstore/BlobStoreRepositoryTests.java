@@ -75,7 +75,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.oneOf;
 
 /**
  * Tests for the {@link BlobStoreRepository} and its subclasses.
@@ -468,8 +467,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         forkedListeners.add(runnable);
                         resultsCountDown.countDown();
                     }, l.map(repositoryData -> {
-                        assertThat(Thread.currentThread(), oneOf(callingThread, testThread));
-                        resultsCountDown.countDown();
+                        final var currentThread = Thread.currentThread();
+                        if (currentThread == testThread) {
+                            assertEquals(0, resultsCountDown.getCount());
+                        } else {
+                            assertSame(callingThread, currentThread);
+                            resultsCountDown.countDown();
+                        }
                         return null;
                     }));
                 }));

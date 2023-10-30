@@ -32,9 +32,6 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock valBlock = (BytesRefBlock) valRef.block();
       BytesRefVector valVector = valBlock.asVector();
       if (valVector == null) {

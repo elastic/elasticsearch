@@ -281,7 +281,9 @@ public class AbstractSearchCancellationTestCase extends ESIntegTestCase {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
                 public void onNewReaderContext(ReaderContext c) {
-                    runOnNewReaderContext.get().accept(c);
+                    if (runOnNewReaderContext.get() != null) {
+                        runOnNewReaderContext.get().accept(c);
+                    }
                 }
             });
         }

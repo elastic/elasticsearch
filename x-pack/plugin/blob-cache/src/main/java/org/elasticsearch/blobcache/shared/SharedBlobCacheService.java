@@ -294,9 +294,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final LongHistogram cacheMissLoadTimes;
     LongCounter cacheMissCounter;
 
-
     public SharedBlobCacheService(
-        NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor, TelemetryProvider telemetryProvider
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        String ioExecutor,
+        TelemetryProvider telemetryProvider
     ) {
         this(environment, settings, threadPool, ioExecutor, ioExecutor, telemetryProvider);
     }
@@ -311,7 +314,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     // gradlew requires 'rawtypes' even if IntelliJ doesn't
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -1083,8 +1086,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 int channelPos,
                 int relativePos,
                 int length,
-                IntConsumer progressUpdater
-            ) -> {
+                IntConsumer progressUpdater) -> {
                 var startTime = threadPool.relativeTimeInMillis();
                 writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
                 var elapsedTime = threadPool.relativeTimeInMillis() - startTime;

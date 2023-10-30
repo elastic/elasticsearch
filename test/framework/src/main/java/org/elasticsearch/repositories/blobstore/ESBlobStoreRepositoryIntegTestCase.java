@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.IndexId;
@@ -32,6 +33,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -67,7 +69,7 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase {
 
     public static RepositoryData getRepositoryData(Repository repository) {
-        return PlainActionFuture.get(repository::getRepositoryData);
+        return AbstractSnapshotIntegTestCase.getRepositoryData(repository);
     }
 
     protected abstract String repositoryType();
@@ -474,7 +476,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         final PlainActionFuture<RepositoryData> repositoryData = PlainActionFuture.newFuture();
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             indicesBlobContainer.set(repository.blobStore().blobContainer(repository.basePath().add("indices")));
-            repository.getRepositoryData(repositoryData);
+            repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, repositoryData);
         });
 
         for (IndexId indexId : repositoryData.actionGet().getIndices().values()) {

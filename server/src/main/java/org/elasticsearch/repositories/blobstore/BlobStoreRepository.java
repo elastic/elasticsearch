@@ -1398,17 +1398,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         private Iterator<String> resolveFilesToDelete(Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
+            // Somewhat surprisingly we can construct the String representations of the blobs to delete with BlobPath#buildAsString even
+            // on Windows, because the JDK translates / to \ automatically (and all other blob stores use / as the path separator anyway)
             final String basePath = basePath().buildAsString();
             final int basePathLen = basePath.length();
-            final Map<IndexId, Collection<String>> indexMetaGenerations = originalRepositoryData
-                .indexMetaDataToRemoveAfterRemovingSnapshots(snapshotIds);
-            return Stream.concat(deleteResults.stream().flatMap(shardResult -> {
-                final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
-                return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
-            }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
-                final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
-                return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
-            })).map(absolutePath -> {
+            return Stream.concat(
+                // Unreferenced shard-level blobs
+                deleteResults.stream().flatMap(shardResult -> {
+                    final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
+                    return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
+                }),
+                // Unreferenced index metadata
+                originalRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(snapshotIds).entrySet().stream().flatMap(entry -> {
+                    final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
+                    return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
+                })
+            ).map(absolutePath -> {
                 assert absolutePath.startsWith(basePath);
                 return absolutePath.substring(basePathLen);
             }).iterator();

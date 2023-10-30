@@ -11,9 +11,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.SearchService;
@@ -187,6 +189,69 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         getResponse = clusterAdmin().prepareGetStoredScript("testTemplate").get();
         assertNull(getResponse.getSource());
+    }
+
+    public void testBadTemplate() {
+
+        // This template will produce badly formed json if given a multi-valued `text_fields` parameter,
+        // as it does not add commas between the entries. We test that it produces a 400 json parsing
+        // error both when used directly and when used in a render template request.
+
+        String script = """
+            {
+              "script": {
+                "lang": "mustache",
+                "source": ""\"
+                {
+                  "query": {
+                    "multi_match": {
+                      "query": "{{query_string}}",
+                      "fields": [{{#text_fields}}"{{name}}^{{boost}}"{{/text_fields}}]
+                    }
+                  },
+                  "from": "{{from}}",
+                  "size": "{{size}}"
+                }
+                ""\",
+                "params": {
+                  "query_string": "My query string"
+                }
+              }
+            }""";
+
+        Map<String, Object> params = Map.of(
+            "text_fields",
+            List.of(Map.of("name", "title", "boost", 10), Map.of("name", "description", "boost", 2)),
+            "from",
+            0,
+            "size",
+            0
+        );
+
+        {
+            ParsingException e = expectThrows(ParsingException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unknown key"));
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+
+        {
+            ParsingException e = expectThrows(ParsingException.class, () -> {
+                new SearchTemplateRequestBuilder(client()).setRequest(new SearchRequest())
+                    .setScript(script)
+                    .setScriptParams(params)
+                    .setScriptType(ScriptType.INLINE)
+                    .setSimulate(true)
+                    .get();
+            });
+            assertThat(e.getMessage(), containsString("Unknown key"));
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        }
     }
 
     public void testIndexedTemplate() throws Exception {

@@ -192,6 +192,11 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     }
 
     public void testBadTemplate() {
+
+        // This template will produce badly formed json if given a multi-valued `text_fields` parameter,
+        // as it does not add commas between the entries.  We test that it produces a 400 json parsing
+        // error both when used directly and when used in a render template request.
+        
         String script = """
             {
               "script": {

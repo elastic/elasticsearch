@@ -26,6 +26,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101527")
 public class GreatestTests extends AbstractFunctionTestCase {
     public GreatestTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

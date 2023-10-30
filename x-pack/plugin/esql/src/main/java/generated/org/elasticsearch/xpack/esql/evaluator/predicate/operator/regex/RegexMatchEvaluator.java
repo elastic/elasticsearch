@@ -39,9 +39,6 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref inputRef = input.eval(page)) {
-      if (inputRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock inputBlock = (BytesRefBlock) inputRef.block();
       BytesRefVector inputVector = inputBlock.asVector();
       if (inputVector == null) {

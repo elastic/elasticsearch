@@ -41,14 +41,8 @@ public final class ModIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       IntBlock lhsBlock = (IntBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         IntBlock rhsBlock = (IntBlock) rhsRef.block();
         IntVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {

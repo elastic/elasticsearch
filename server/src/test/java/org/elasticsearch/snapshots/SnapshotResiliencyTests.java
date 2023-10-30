@@ -1223,7 +1223,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private RepositoryData getRepositoryData(Repository repository) {
         final PlainActionFuture<RepositoryData> res = PlainActionFuture.newFuture();
-        repository.getRepositoryData(res);
+        repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(res.isDone());
         return res.actionGet();
@@ -2203,7 +2203,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new Reconfigurator(clusterService.getSettings(), clusterService.getClusterSettings()),
                     LeaderHeartbeatService.NO_OP,
                     StatefulPreVoteCollector::new,
-                    CompatibilityVersionsUtils.staticCurrent()
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of()
                 );
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();

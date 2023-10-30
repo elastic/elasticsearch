@@ -253,7 +253,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 

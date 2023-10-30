@@ -31,9 +31,6 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BooleanBlock vBlock = (BooleanBlock) vRef.block();
       BooleanVector vVector = vBlock.asVector();
       if (vVector == null) {

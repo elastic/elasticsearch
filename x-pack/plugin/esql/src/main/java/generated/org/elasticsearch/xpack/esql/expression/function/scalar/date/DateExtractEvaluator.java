@@ -48,14 +48,8 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
-      if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       try (Block.Ref chronoFieldRef = chronoField.eval(page)) {
-        if (chronoFieldRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldRef.block();
         LongVector valueVector = valueBlock.asVector();
         if (valueVector == null) {

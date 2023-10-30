@@ -451,7 +451,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     public void testGetRepositoryDataForking() {
-        final var forkedListeners = new ArrayList<Runnable>();
+        final var forkedListeners = Collections.synchronizedList(new ArrayList<Runnable>());
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
             final var repo = setupRepo();

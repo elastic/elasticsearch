@@ -86,6 +86,8 @@ public interface Authenticator {
         private final AuthenticationService.AuditableRequest request;
         private final User fallbackUser;
         private final boolean allowAnonymous;
+        // {@code true}, if {@code Authenticator}s should first be tried in order to extract the credentials token from the thread context
+        // otherwise, the tokens must explicitly be passed in, see {@code authenticationTokens}
         private final boolean extractCredentials;
         private final Realms realms;
         // {@code Authenticator}s are consulted in order (see {@code AuthenticatorChain}),
@@ -100,7 +102,7 @@ public interface Authenticator {
         private List<Realm> unlicensedRealms = null;
 
         /**
-         * Constructor that provides the authentication token directly as an argument.
+         * Context constructor that provides the authentication token directly as an argument.
          * This avoids extracting any tokens from the thread context, which is the regular way that authn works.
          * In this case, the authentication process will simply verify the provided token, and will never fall back to the null-token case
          * (i.e. in case the token CAN NOT be verified, the user IS NOT authenticated as the anonymous or the fallback user, and
@@ -126,6 +128,9 @@ public interface Authenticator {
             this.allowAnonymous = false;
         }
 
+        /**
+         * Context constructor where authentication looks for credentials in the thread context.
+         */
         Context(
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,

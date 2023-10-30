@@ -38,6 +38,10 @@ public class ParentTaskAssigningClient extends FilterClient {
         this(in, new TaskId(localNode.getId(), parentTask.getId()));
     }
 
+    public TaskId getParentTask() {
+        return parentTask;
+    }
+
     /**
      * Fetch the wrapped client. Use this to make calls that don't set {@link ActionRequest#setParentTask(TaskId)}.
      */

@@ -35,14 +35,8 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref yRef = y.eval(page)) {
-      if (yRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock yBlock = (DoubleBlock) yRef.block();
       try (Block.Ref xRef = x.eval(page)) {
-        if (xRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         DoubleBlock xBlock = (DoubleBlock) xRef.block();
         DoubleVector yVector = yBlock.asVector();
         if (yVector == null) {
@@ -91,5 +85,27 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(y, x);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory y;
+
+    private final EvalOperator.ExpressionEvaluator.Factory x;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory y,
+        EvalOperator.ExpressionEvaluator.Factory x) {
+      this.y = y;
+      this.x = x;
+    }
+
+    @Override
+    public Atan2Evaluator get(DriverContext context) {
+      return new Atan2Evaluator(y.get(context), x.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "Atan2Evaluator[" + "y=" + y + ", x=" + x + "]";
+    }
   }
 }

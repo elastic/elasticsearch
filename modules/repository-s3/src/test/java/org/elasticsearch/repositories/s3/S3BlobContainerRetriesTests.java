@@ -36,7 +36,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -158,7 +158,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 repositoryMetadata,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new DeterministicTaskQueue().getThreadPool(),
-                Meter.NOOP
+                MeterRegistry.NOOP
             )
         ) {
             @Override

@@ -185,8 +185,8 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 )
             ),
             new TestCaseSupplier("pow(integer, double)", () -> {
-                // Negative numbers to a non-integer power are NaN
-                int base = randomIntBetween(0, 1000);
+                // Positive numbers to a non-integer power
+                int base = randomIntBetween(1, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 double expected = Math.pow(base, exp);
                 TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
@@ -336,7 +336,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
             }),
             new TestCaseSupplier("pow(long, double)", () -> {
                 // Negative numbers to non-integer power are NaN
-                long base = randomLongBetween(0, 1000);
+                long base = randomLongBetween(1, 1000);
                 double exp = randomDoubleBetween(-10.0, 10.0, true);
                 double expected = Math.pow(base, exp);
                 TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(

@@ -21,7 +21,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
@@ -49,6 +48,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -1064,8 +1064,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             if (lastKnownCount >= numDocs) {
                 try {
-                    long count = client().prepareSearch()
-                        .setTrackTotalHits(true)
+                    long count = prepareSearch().setTrackTotalHits(true)
                         .setSize(0)
                         .setQuery(matchAllQuery())
                         .get()
@@ -1093,6 +1092,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    public static SearchRequestBuilder prepareSearch(String... indices) {
+        return client().prepareSearch(indices);
     }
 
     /**
@@ -1404,10 +1407,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected final DocWriteResponse index(String index, String id, Map<String, Object> source) {
         return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
-    }
-
-    protected final ActionFuture<DocWriteResponse> startIndex(String index, String id, BytesReference source, XContentType type) {
-        return client().prepareIndex(index).setId(id).setSource(source, type).execute();
     }
 
     /**
@@ -2076,8 +2075,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
-            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true);
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         return new NodeConfigurationSource() {
             @Override

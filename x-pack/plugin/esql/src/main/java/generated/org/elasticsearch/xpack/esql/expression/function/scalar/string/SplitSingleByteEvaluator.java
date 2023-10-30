@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -39,9 +40,6 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       BytesRefVector strVector = strBlock.asVector();
       if (strVector == null) {
@@ -83,5 +81,30 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(str);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final byte delim;
+
+    private final Function<DriverContext, BytesRef> scratch;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str, byte delim,
+        Function<DriverContext, BytesRef> scratch) {
+      this.str = str;
+      this.delim = delim;
+      this.scratch = scratch;
+    }
+
+    @Override
+    public SplitSingleByteEvaluator get(DriverContext context) {
+      return new SplitSingleByteEvaluator(str.get(context), delim, scratch.apply(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SplitSingleByteEvaluator[" + "str=" + str + ", delim=" + delim + "]";
+    }
   }
 }

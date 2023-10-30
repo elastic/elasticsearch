@@ -17,6 +17,6 @@ import java.util.Map;
 public class EnterpriseSearchFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(ConnectorTemplateRegistry.CONNECTOR_TEMPLATES_FEATURE, Version.V_8_11_0);
+        return Map.of(ConnectorTemplateRegistry.CONNECTOR_TEMPLATES_FEATURE, Version.V_8_10_0);
     }
 }

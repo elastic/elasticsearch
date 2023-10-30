@@ -230,7 +230,9 @@ public final class EvalMapper {
                     return Block.constantNullBlock(positions, blockFactory);
                 }
                 var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
-                wrapper.accept(multiValue);
+                for (int i = 0; i < positions; i++) {
+                    wrapper.accept(multiValue);
+                }
                 return wrapper.builder().build();
             }
             return BlockUtils.constantBlock(blockFactory, value, positions);

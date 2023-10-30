@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -106,19 +105,8 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
             return client(this.cluster.getMasterName());
         }
 
-        public MockTransportService masterMockTransportService() {
-            return (MockTransportService) internalCluster().getInstance(TransportService.class, internalCluster().getMasterName());
-        }
-
-        public MockTransportService coordinatorMockTransportService() {
-            assert this.coordinator != null;
-            return (MockTransportService) internalCluster().getInstance(TransportService.class, this.coordinator);
-        }
-
         public List<MockTransportService> allMockTransportServices() {
-            return Arrays.stream(cluster.getNodeNames())
-                .map(nodeName -> (MockTransportService) internalCluster().getInstance(TransportService.class, nodeName))
-                .collect(Collectors.toList());
+            return Arrays.stream(cluster.getNodeNames()).map(MockTransportService::getInstance).toList();
         }
 
         public String coordinatorName() {
@@ -301,7 +289,7 @@ public class DownsampleTransportFailureIT extends ESIntegTestCase {
 
     public void testDownsampleActionExceptionDisruption() {
         // GIVEN
-        final MockTransportService coordinator = testCluster.coordinatorMockTransportService();
+        final MockTransportService coordinator = MockTransportService.getInstance(testCluster.coordinator);
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
             SOURCE_INDEX_NAME,
             TARGET_INDEX_NAME,

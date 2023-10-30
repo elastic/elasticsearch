@@ -494,7 +494,7 @@ public class SubscribableListenerTests extends ESTestCase {
             try {
                 listener.rawResult();
             } catch (Exception e) {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
         } else {
             assertEquals(expectedFailureMessage, expectThrows(ElasticsearchException.class, listener::rawResult).getMessage());

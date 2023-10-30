@@ -58,6 +58,7 @@ dependencies {
   testImplementation project(path: ':modules:lang-mustache')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:rest-root')
+  testImplementation project(path: ':modules:health-shards-availability')
   testImplementation project(":client:rest-high-level")
   // Needed for Fips140ProviderVerificationTests
   testCompileOnly('org.bouncycastle:bc-fips:1.0.2')

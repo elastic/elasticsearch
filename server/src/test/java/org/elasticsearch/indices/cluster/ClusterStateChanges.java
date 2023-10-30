@@ -72,7 +72,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -409,9 +408,16 @@ public class ClusterStateChanges {
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
-                JoinTask.singleNode(discoveryNode, CompatibilityVersionsUtils.staticCurrent(), DUMMY_REASON, ActionListener.running(() -> {
-                    throw new AssertionError("should not complete publication");
-                }), clusterState.term())
+                JoinTask.singleNode(
+                    discoveryNode,
+                    new CompatibilityVersions(transportVersion, Map.of()),
+                    Set.of(),
+                    DUMMY_REASON,
+                    ActionListener.running(() -> {
+                        throw new AssertionError("should not complete publication");
+                    }),
+                    clusterState.term()
+                )
             )
         );
     }
@@ -427,6 +433,7 @@ public class ClusterStateChanges {
                             node -> new JoinTask.NodeJoinTask(
                                 node,
                                 new CompatibilityVersions(transportVersion, Map.of()),
+                                Set.of(),
                                 DUMMY_REASON,
                                 ActionListener.running(() -> {
                                     throw new AssertionError("should not complete publication");

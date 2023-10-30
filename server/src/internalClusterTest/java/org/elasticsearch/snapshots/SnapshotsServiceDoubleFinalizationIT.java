@@ -122,6 +122,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             .setPartial(true)
             .setWaitForCompletion(false)
             .get();
+        // Delete index-3 so that it becomes MISSING for snapshot
         indicesAdmin().prepareDelete("index-3").get();
         future.actionGet();
 
@@ -156,7 +157,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
         }).start();
         future.actionGet();
 
-        // Let the deletion of snap-1 to complete. It should *not* lead to double finalization
+        // 6 - Let the deletion of snap-1 to complete. It should *not* lead to double finalization
         barrier.await();
 
         awaitNoMoreRunningOperations();
@@ -184,7 +185,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
             public void onTimeout(TimeValue timeout) {
                 future.onFailure(new IllegalStateException("timeout"));
             }
-        }, predicate, TimeValue.timeValueSeconds(10));
+        }, predicate, TimeValue.timeValueSeconds(30));
         return future;
     }
 

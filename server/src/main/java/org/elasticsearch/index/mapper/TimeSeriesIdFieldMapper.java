@@ -11,13 +11,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -237,34 +240,55 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         public BytesReference similarityHash() throws IOException {
             // NOTE: hash all dimension field names
             int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
+            int tsidHashIndex = 0;
+            byte[] tsidHash = new byte[16 + 16 + 16 + 4 * numberOfDimensions];
 
+            tsidHasher.reset();
             for (final DimensionDataHolder dimension : dimensions) {
                 tsidHasher.update(dimension.name.bytes);
             }
+            tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
             // NOTE: hash all metric field names
+            tsidHasher.reset();
             for (final String metric : metrics) {
                 tsidHasher.update(metric.getBytes(StandardCharsets.UTF_8));
             }
+            tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
             // NOTE: concatenate all dimension value hashes up to a certain number of dimensions
-            int dimensionCounter = 0;
+            int tsidHashStartIndex = tsidHashIndex;
             for (final DimensionDataHolder dimension : dimensions) {
-                if (dimensionCounter > numberOfDimensions) break;
-                tsidHasher.update(dimension.value.bytes);
-                dimensionCounter++;
+                if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) break;
+                ByteUtils.writeIntLE(
+                    StringHelper.murmurhash3_x86_32(dimension.value.bytes, dimension.value.offset, dimension.value.length, 0),
+                    tsidHash,
+                    tsidHashIndex
+                );
+                tsidHashIndex += 4;
             }
 
             // NOTE: hash all dimension field allValues
+            tsidHasher.reset();
             for (final DimensionDataHolder dimension : dimensions) {
                 tsidHasher.update(dimension.value.bytes);
             }
+            tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
+            assert tsidHashIndex == tsidHash.length;
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.writeVInt(TSID_HASH_SENTINEL);
-                out.writeBytesRef(new BytesRef(tsidHasher.digest()));
+                out.writeBytesRef(new BytesRef(tsidHash, 0, tsidHash.length));
                 return out.bytes();
             }
+        }
+
+        private int writeHash128(final MurmurHash3.Hash128 hash128, byte[] buffer, int tsidHashIndex) {
+            ByteUtils.writeLongLE(hash128.h1, buffer, tsidHashIndex);
+            tsidHashIndex += 8;
+            ByteUtils.writeLongLE(hash128.h2, buffer, tsidHashIndex);
+            tsidHashIndex += 8;
+            return tsidHashIndex;
         }
 
         @Override

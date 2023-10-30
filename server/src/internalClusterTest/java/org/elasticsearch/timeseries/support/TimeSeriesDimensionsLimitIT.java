@@ -43,7 +43,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             () -> List.of("routing_field"),
             dimensionFieldLimit
         );
-        final IndexResponse response = client().prepareIndex("test")
+        final DocWriteResponse response = client().prepareIndex("test")
             .setSource(
                 "routing_field",
                 randomAlphaOfLength(10),
@@ -67,10 +67,10 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
             dimensionFieldLimit
         );
         long startTime = Instant.now().toEpochMilli();
-        final IndexResponse response1 = client().prepareIndex("test")
+        final DocWriteResponse response1 = client().prepareIndex("test")
             .setSource("field", randomAlphaOfLength(1024), "gauge", randomIntBetween(10, 20), "@timestamp", startTime)
             .get();
-        final IndexResponse response2 = client().prepareIndex("test")
+        final DocWriteResponse response2 = client().prepareIndex("test")
             .setSource("field", randomAlphaOfLength(1025), "gauge", randomIntBetween(10, 20), "@timestamp", startTime + 1)
             .get();
         assertEquals(RestStatus.CREATED.getStatus(), response1.status().getStatus());
@@ -156,7 +156,7 @@ public class TimeSeriesDimensionsLimitIT extends ESIntegTestCase {
         for (int i = 0; i < dimensionFieldLimit; i++) {
             source.put(dimensionFieldNames.get(i), randomAlphaOfLength(1024));
         }
-        final IndexResponse response = client().prepareIndex("test").setSource(source).get();
+        final DocWriteResponse response = client().prepareIndex("test").setSource(source).get();
         assertEquals(RestStatus.CREATED.getStatus(), response.status().getStatus());
     }
 

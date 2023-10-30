@@ -76,7 +76,7 @@ setup:
   - match: { hits.total.value: 1 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: { _tsid: "vD4dAfOH-KDNoywVO13gvAAAAAAAAAAAAAAAAAAAAACv9hou4__k9oZfeombF5dLPwkqUA" } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: "QxzdeAQNbMXbXqwEXmfHBQAAAAAAAAAAAAAAAAAAAACv9hou4__k9oZfeombF5dLPwkqUA" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }
 
 ---
@@ -126,7 +126,7 @@ setup:
                 size: 1
 
   - length: { aggregations.ts.buckets: 1 }
-  - match: { aggregations.ts.buckets.0.key: { _tsid: "vD4dAfOH-KDNoywVO13gvAAAAAAAAAAAAAAAAAAAAACKf_6WZzMy4zeMjdIBoQC3xHGkjg" } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: "QxzdeAQNbMXbXqwEXmfHBQAAAAAAAAAAAAAAAAAAAACKf_6WZzMy4zeMjdIBoQC3xHGkjg" } }
 
   - do:
       search:
@@ -144,9 +144,9 @@ setup:
                 size: 3
 
   - length: { aggregations.ts.buckets: 3 }
-  - match: { aggregations.ts.buckets.0.key: { _tsid: "vD4dAfOH-KDNoywVO13gvAAAAAAAAAAAAAAAAAAAAACKf_6WZzMy4zeMjdIBoQC3xHGkjg" } }
-  - match: { aggregations.ts.buckets.1.key: { _tsid: "vD4dAfOH-KDNoywVO13gvAAAAAAAAAAAAAAAAAAAAACv9hou4__k9oZfeombF5dLPwkqUA" } }
-  - match: { aggregations.ts.buckets.2.key: { _tsid: "vD4dAfOH-KDNoywVO13gvAAAAAAAAAAAAAAAAAAAAAC5AZB2-M4K_VYiHrKDjUNX3zHVkw" } }
+  - match: { aggregations.ts.buckets.0.key: { _tsid: "QxzdeAQNbMXbXqwEXmfHBQAAAAAAAAAAAAAAAAAAAACKf_6WZzMy4zeMjdIBoQC3xHGkjg" } }
+  - match: { aggregations.ts.buckets.1.key: { _tsid: "QxzdeAQNbMXbXqwEXmfHBQAAAAAAAAAAAAAAAAAAAACv9hou4__k9oZfeombF5dLPwkqUA" } }
+  - match: { aggregations.ts.buckets.2.key: { _tsid: "QxzdeAQNbMXbXqwEXmfHBQAAAAAAAAAAAAAAAAAAAAC5AZB2-M4K_VYiHrKDjUNX3zHVkw" } }
 
 ---
 "Score test filter some":
@@ -341,5 +341,5 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { aggregations: 1 }
 
-  - match: { aggregations.ts.buckets.0.key: { "key": "10" } }
+  - match: { aggregations.ts.buckets.0.key: { "_tsid": "QxzdeAQNbMXbXqwEXmfHBQAAAAAAAAAAAAAAAAAAAAC6KPQ_9D8hCF3DOnGNi7WMdDeQmw" } }
   - match: { aggregations.ts.buckets.0.doc_count: 1 }

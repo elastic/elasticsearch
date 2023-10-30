@@ -14,7 +14,7 @@ import org.elasticsearch.script.DoubleFieldScript;
  * {@link BlockDocValuesReader} implementation for {@code double} scripts.
  */
 public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static BlockLoader blockLoader(DoubleFieldScript.LeafFactory factory) {
+    public static DocValuesBlockLoader blockLoader(DoubleFieldScript.LeafFactory factory) {
         return context -> new DoubleScriptBlockDocValuesReader(factory.newInstance(context));
     }
 
@@ -31,12 +31,12 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.DoubleBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+    public BlockLoader.DoubleBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
         return factory.doubles(expectedCount);  // Note that we don't pre-sort our output so we can't use doublesFromDocValues
     }
 
     @Override
-    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
         try (BlockLoader.DoubleBuilder builder = builder(factory, docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);

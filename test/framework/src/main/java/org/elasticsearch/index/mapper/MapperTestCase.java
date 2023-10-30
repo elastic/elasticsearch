@@ -1289,7 +1289,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                TestBlock block = body.apply(loader.reader(reader.leaves().get(0)));
+                LeafReaderContext ctx = reader.leaves().get(0);
+                TestBlock block = switch (loader.method()) {
+                    case CONSTANT -> (TestBlock) loader.constant(TestBlock.FACTORY, ctx.reader().numDocs());
+                    case DOC_VALUES, STORED_FIELDS -> body.apply(loader.docValuesReader(ctx));
+                };
                 Object inBlock = block.get(0);
                 if (inBlock != null) {
                     if (inBlock instanceof List<?> l) {

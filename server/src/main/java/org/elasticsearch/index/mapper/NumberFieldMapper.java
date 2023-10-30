@@ -1657,7 +1657,7 @@ public class NumberFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
-                return BlockDocValuesReader.nulls();
+                return BlockLoader.constantNulls();
             }
             if (hasDocValues()) {
                 return type.blockLoaderFromDocValues(name());

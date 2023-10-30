@@ -18,6 +18,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -46,13 +47,13 @@ public final class BlockReaderFactories {
         for (SearchContext searchContext : searchContexts) {
             SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
             if (asUnsupportedSource) {
-                factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));
+                factories.add(loaderToFactory(ctx.getIndexReader(), BlockLoader.constantNulls()));
                 continue;
             }
             MappedFieldType fieldType = ctx.getFieldType(fieldName);
             if (fieldType == null) {
                 // the field does not exist in this context
-                factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));
+                factories.add(loaderToFactory(ctx.getIndexReader(), BlockLoader.constantNulls()));
                 continue;
             }
             BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
@@ -73,7 +74,7 @@ public final class BlockReaderFactories {
             });
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
-                factories.add(loaderToFactory(ctx.getIndexReader(), BlockDocValuesReader.nulls()));
+                factories.add(loaderToFactory(ctx.getIndexReader(), BlockLoader.constantNulls()));
                 continue;
             }
             factories.add(loaderToFactory(ctx.getIndexReader(), loader));
@@ -88,21 +89,40 @@ public final class BlockReaderFactories {
      * used inside ESQL.
      */
     public static BlockDocValuesReader.Factory loaderToFactory(IndexReader reader, BlockLoader loader) {
-        return new BlockDocValuesReader.Factory() {
-            @Override
-            public BlockDocValuesReader build(int segment) throws IOException {
-                return loader.reader(reader.leaves().get(segment));
-            }
+        // NOCOMMIT we can shim constants in here but we get no benefit. We need different Operators per search context
+        return switch (loader.method()) {
+            case CONSTANT -> new BlockDocValuesReader.Factory() {
+                @Override
+                public BlockDocValuesReader build(int segment) throws IOException {
+                    return loader.docValuesReader(reader.leaves().get(segment));
+                }
 
-            @Override
-            public boolean supportsOrdinals() {
-                return loader.supportsOrdinals();
-            }
+                @Override
+                public boolean supportsOrdinals() {
+                    return false;
+                }
 
-            @Override
-            public SortedSetDocValues ordinals(int segment) throws IOException {
-                return loader.ordinals(reader.leaves().get(segment));
-            }
+                @Override
+                public SortedSetDocValues ordinals(int segment) throws IOException {
+                    throw new UnsupportedEncodingException();
+                }
+            };
+            case DOC_VALUES -> new BlockDocValuesReader.Factory() {
+                @Override
+                public BlockDocValuesReader build(int segment) throws IOException {
+                    return loader.docValuesReader(reader.leaves().get(segment));
+                }
+
+                @Override
+                public boolean supportsOrdinals() {
+                    return loader.supportsOrdinals();
+                }
+
+                @Override
+                public SortedSetDocValues ordinals(int segment) throws IOException {
+                    return loader.ordinals(reader.leaves().get(segment));
+                }
+            };
         };
     }
 }

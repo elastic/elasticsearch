@@ -14,7 +14,7 @@ import org.elasticsearch.script.DateFieldScript;
  * {@link BlockDocValuesReader} implementation for date scripts.
  */
 public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static BlockLoader blockLoader(DateFieldScript.LeafFactory factory) {
+    public static DocValuesBlockLoader blockLoader(DateFieldScript.LeafFactory factory) {
         return context -> new DateScriptBlockDocValuesReader(factory.newInstance(context));
     }
 
@@ -31,12 +31,12 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.LongBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+    public BlockLoader.LongBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
         return factory.longs(expectedCount);  // Note that we don't pre-sort our output so we can't use longsFromDocValues
     }
 
     @Override
-    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
         try (BlockLoader.LongBuilder builder = builder(factory, docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);

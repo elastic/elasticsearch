@@ -28,7 +28,8 @@ import java.util.Set;
  * order.
  */
 public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
-    public static BlockLoader bytesRefsFromBytesRefs(String field) {
+    // NOCOMMIT use a stored field loader
+    public static DocValuesBlockLoader bytesRefsFromBytesRefs(String field) {
         StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(field));
         return context -> new Bytes(loader.getLoader(context, null), field) {
             @Override
@@ -38,7 +39,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         };
     }
 
-    public static BlockLoader bytesRefsFromStrings(String field) {
+    public static DocValuesBlockLoader bytesRefsFromStrings(String field) {
         StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(field));
         return context -> new Bytes(loader.getLoader(context, null), field) {
             private final BytesRef scratch = new BytesRef();
@@ -50,7 +51,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         };
     }
 
-    public static BlockLoader id() {
+    public static DocValuesBlockLoader id() {
         StoredFieldLoader loader = StoredFieldLoader.create(false, Set.of(IdFieldMapper.NAME));
         return context -> new Id(loader.getLoader(context, null));
     }
@@ -63,7 +64,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
     }
 
     @Override
-    public final BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
+    public final BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         try (BlockLoader.Builder builder = builder(factory, docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 readValuesFromSingleDoc(docs.get(i), builder);
@@ -98,7 +99,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+        public BytesRefBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
             return factory.bytesRefs(expectedCount);
         }
 
@@ -136,7 +137,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockLoader.BytesRefBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+        public BlockLoader.BytesRefBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
             return factory.bytesRefs(expectedCount);
         }
 

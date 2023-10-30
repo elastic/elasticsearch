@@ -90,7 +90,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     static Operator.OperatorFactory factory(IndexReader reader, MappedFieldType ft) {
-        return new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(
+        return new ValuesSourceReaderOperator.Factory(
             List.of(BlockReaderFactories.loaderToFactory(reader, ft.blockLoader(null))),
             0,
             ft.name()
@@ -148,7 +148,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
     @Override
     protected String expectedDescriptionOfSimple() {
-        return "ValuesSourceReaderOperator[field = long]";
+        return "DocValuesReaderOperator[field = long]";
     }
 
     @Override
@@ -308,7 +308,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         assertDriverContext(driverContext);
     }
 
-    public void testValuesSourceReaderOperatorWithNulls() throws IOException {
+    public void testWithNulls() throws IOException {
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("i", NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType longFt = new NumberFieldMapper.NumberFieldType("j", NumberFieldMapper.NumberType.LONG);
         MappedFieldType doubleFt = new NumberFieldMapper.NumberFieldType("d", NumberFieldMapper.NumberType.DOUBLE);

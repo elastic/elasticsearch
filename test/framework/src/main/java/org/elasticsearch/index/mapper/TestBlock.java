@@ -30,7 +30,7 @@ public class TestBlock
         BlockLoader.LongBuilder,
         BlockLoader.SingletonOrdinalsBuilder,
         BlockLoader.Block {
-    public static BlockLoader.BuilderFactory FACTORY = new BlockLoader.BuilderFactory() {
+    public static BlockLoader.BlockFactory FACTORY = new BlockLoader.BlockFactory() {
         @Override
         public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
             return new TestBlock(null);
@@ -82,8 +82,21 @@ public class TestBlock
         }
 
         @Override
-        public BlockLoader.Builder nulls(int expectedCount) {
-            return new TestBlock(null);
+        public BlockLoader.Block constantNulls(int size) {
+            TestBlock block = new TestBlock(null);
+            for (int i = 0; i < size; i++) {
+                block.add(null);
+            }
+            return block;
+        }
+
+        @Override
+        public BlockLoader.Block constantBytes(BytesRef value, int size) {
+            TestBlock block = new TestBlock(null);
+            for (int i = 0; i < size; i++) {
+                block.add(value);
+            }
+            return block;
         }
 
         @Override

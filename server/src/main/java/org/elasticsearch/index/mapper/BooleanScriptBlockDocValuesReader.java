@@ -14,7 +14,7 @@ import org.elasticsearch.script.BooleanFieldScript;
  * {@link BlockDocValuesReader} implementation for {@code boolean} scripts.
  */
 public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static BlockLoader blockLoader(BooleanFieldScript.LeafFactory factory) {
+    public static DocValuesBlockLoader blockLoader(BooleanFieldScript.LeafFactory factory) {
         return context -> new BooleanScriptBlockDocValuesReader(factory.newInstance(context));
     }
 
@@ -31,13 +31,13 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.BooleanBuilder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+    public BlockLoader.BooleanBuilder builder(BlockLoader.BlockFactory factory, int expectedCount) {
         // Note that we don't emit falses before trues so we conform to the doc values contract and can use booleansFromDocValues
         return factory.booleansFromDocValues(expectedCount);
     }
 
     @Override
-    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) {
+    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
         try (BlockLoader.BooleanBuilder builder = builder(factory, docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 read(docs.get(i), builder);

@@ -250,13 +250,13 @@ public class EnrichLookupService {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                var sources = BlockReaderFactories.factories(
+                var factories = BlockReaderFactories.factories(
                     List.of(searchContext),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
                     EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
                 intermediateOperators.add(
-                    new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), sources, 0, extractField.name())
+                    new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), factories, 0, extractField.name())
                 );
             }
             // drop docs block

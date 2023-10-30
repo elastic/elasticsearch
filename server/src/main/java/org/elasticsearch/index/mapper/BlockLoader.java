@@ -15,6 +15,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 
 /**
  * Interface for loading data in a block shape. Instances of this class
@@ -22,9 +23,29 @@ import java.io.IOException;
  */
 public interface BlockLoader {
     /**
-     * Build a {@link LeafReaderContext leaf} level reader.
+     * How blocks should be loaded.
      */
-    BlockDocValuesReader reader(LeafReaderContext context) throws IOException;
+    enum Method {
+        CONSTANT,
+        DOC_VALUES; // TODO add STORED_FIELDS
+    }
+
+    /**
+     * How blocks should be loaded.
+     */
+    Method method();
+
+    /**
+     * Build a {@link LeafReaderContext leaf} level reader for doc values.
+     * This is only supported if {@link #method} returns {@link Method#DOC_VALUES}.
+     */
+    BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException;
+
+    /**
+     * Build a constant block for this field with the specified size. This
+     * is only supported if {@link #method} returns {@link Method#CONSTANT}.
+     */
+    Block constant(BlockFactory factory, int size);
 
     /**
      * Does this loader support loading bytes via calling {@link #ordinals}.
@@ -41,6 +62,53 @@ public interface BlockLoader {
     }
 
     /**
+     * Load blocks with only null.
+     */
+    static BlockLoader constantNulls() {
+        return new BlockLoader() {
+            @Override public Method method() {
+                return Method.CONSTANT;
+            }
+
+            @Override public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+                throw new UnsupportedEncodingException();
+            }
+
+            @Override public Block constant(BlockFactory factory, int size) {
+                return factory.constantNulls(size);
+            }
+
+            @Override public String toString() {
+                return "ConstantNull";
+            }
+        };
+    }
+
+    /**
+     * Load blocks with only {@code value}.
+     */
+    static BlockLoader constantBytes(BytesRef value) {
+        return new BlockLoader() {
+            @Override public Method method() {
+                return Method.CONSTANT;
+            }
+
+            @Override public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+                throw new UnsupportedEncodingException();
+            }
+
+            @Override public Block constant(BlockFactory factory, int size) {
+                return factory.constantBytes(value, size);
+            }
+
+            @Override public String toString() {
+                return "ConstantBytes[" + value + "]";
+            }
+        };
+    }
+
+
+    /**
      * A list of documents to load.
      */
     interface Docs {
@@ -55,7 +123,7 @@ public interface BlockLoader {
      * production code. That implementation sits in the "compute" project. The is
      * also a test implementation, but there may be no more other implementations.
      */
-    interface BuilderFactory {
+    interface BlockFactory {
         /**
          * Build a builder to load booleans as loaded from doc values. Doc values
          * load booleans deduplicated and in sorted order.
@@ -112,10 +180,15 @@ public interface BlockLoader {
         LongBuilder longs(int expectedCount);
 
         /**
-         * Build a builder that can only load null values.
-         * TODO this should return a block directly instead of a builder
+         * Build a block that contains only {@code null}.
          */
-        Builder nulls(int expectedCount);
+        Block constantNulls(int size);
+
+        /**
+         * Build a block that contains {@code value} repeated
+         * {@code size} times.
+         */
+        Block constantBytes(BytesRef value, int size);
 
         /**
          * Build a reader for reading keyword ordinals.

@@ -8,15 +8,16 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
@@ -25,7 +26,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -37,28 +37,26 @@ import java.util.TreeMap;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
- * and outputs them to a new column. The operator leverages the {@link ValuesSource} infrastructure for extracting
- * field values. This allows for a more uniform way of extracting data compared to deciding the correct doc_values
- * loader for different field types.
+ * and outputs them to a new column.
  */
 public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     /**
-     * Creates a new extractor that uses ValuesSources load data
-     * @param sources the value source, type and index readers to use for extraction
+     * Creates a factory for {@link ValuesSourceReaderOperator}.
+     * @param factories the value source, type and index readers to use for extraction
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public record ValuesSourceReaderOperatorFactory(List<BlockDocValuesReader.Factory> sources, int docChannel, String field)
+    public record Factory(List<BlockDocValuesReader.Factory> factories, int docChannel, String field)
         implements
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), sources, docChannel, field);
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), factories, docChannel, field);
         }
 
         @Override
         public String describe() {
-            return "ValuesSourceReaderOperator[field = " + field + "]";
+            return "DocValuesReaderOperator[field = " + field + "]";
         }
     }
 
@@ -160,7 +158,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     @Override
     public String toString() {
-        return "ValuesSourceReaderOperator[field = " + field + "]";
+        return "DocValuesReaderOperator[field = " + field + "]";
     }
 
     @Override
@@ -171,7 +169,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     public static class Status extends AbstractPageMappingOperator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "values_source_reader",
+            "values_source_reader", // This is the old name for this class but it's not worth updating it in the binary protocol.
             Status::new
         );
 
@@ -233,7 +231,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private static class ComputeBlockLoaderFactory implements BlockLoader.BuilderFactory {
+    private static class ComputeBlockLoaderFactory implements BlockLoader.BlockFactory {
         private final BlockFactory factory;
 
         private ComputeBlockLoaderFactory(BlockFactory factory) {
@@ -291,8 +289,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         @Override
-        public BlockLoader.Builder nulls(int expectedCount) {
-            return ElementType.NULL.newBlockBuilder(expectedCount, factory);
+        public Block constantNulls(int size) {
+            return factory.newConstantNullBlock(size);
+        }
+
+        @Override
+        public BytesRefBlock constantBytes(BytesRef value, int size) {
+            return factory.newConstantBytesRefBlockWith(value, size);
         }
 
         @Override

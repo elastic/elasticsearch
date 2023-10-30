@@ -31,11 +31,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     /**
      * Read {@code boolean}s from {@code _source}.
      */
-    public static BlockLoader booleans(ValueFetcher fetcher) {
+    public static DocValuesBlockLoader booleans(ValueFetcher fetcher) {
         StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
         return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
             @Override
-            public BlockLoader.Builder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
                 return factory.booleans(expectedCount);
             }
 
@@ -54,13 +54,13 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     /**
      * Read {@link BytesRef}s from {@code _source}.
      */
-    public static BlockLoader bytesRefs(ValueFetcher fetcher) {
+    public static DocValuesBlockLoader bytesRefs(ValueFetcher fetcher) {
         StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
         return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
             BytesRef scratch = new BytesRef();
 
             @Override
-            public BlockLoader.Builder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
                 return factory.bytesRefs(expectedCount);
             }
 
@@ -79,11 +79,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     /**
      * Read {@code double}s from {@code _source}.
      */
-    public static BlockLoader doubles(ValueFetcher fetcher) {
+    public static DocValuesBlockLoader doubles(ValueFetcher fetcher) {
         StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
         return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
             @Override
-            public BlockLoader.Builder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
                 return factory.doubles(expectedCount);
             }
 
@@ -102,11 +102,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     /**
      * Read {@code int}s from {@code _source}.
      */
-    public static BlockLoader ints(ValueFetcher fetcher) {
+    public static DocValuesBlockLoader ints(ValueFetcher fetcher) {
         StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
         return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
             @Override
-            public BlockLoader.Builder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
                 return factory.ints(expectedCount);
             }
 
@@ -125,11 +125,11 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     /**
      * Read {@code long}s from {@code _source}.
      */
-    public static BlockLoader longs(ValueFetcher fetcher) {
+    public static DocValuesBlockLoader longs(ValueFetcher fetcher) {
         StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
         return context -> new BlockSourceReader(fetcher, loader.getLoader(context, null)) {
             @Override
-            public BlockLoader.Builder builder(BlockLoader.BuilderFactory factory, int expectedCount) {
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
                 return factory.longs(expectedCount);
             }
 
@@ -156,7 +156,7 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block readValues(BlockLoader.BuilderFactory factory, BlockLoader.Docs docs) throws IOException {
+    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         try (BlockLoader.Builder builder = builder(factory, docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
                 int doc = docs.get(i);

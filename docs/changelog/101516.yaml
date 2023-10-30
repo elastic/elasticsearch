@@ -1,0 +1,5 @@
+pr: 101516
+summary: "ESQL: Register default truncation setting"
+area: ES|QL
+type: bug
+issues: []

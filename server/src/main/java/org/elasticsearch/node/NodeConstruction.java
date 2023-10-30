@@ -81,6 +81,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
@@ -740,6 +742,8 @@ class NodeConstruction {
             threadPool
         );
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
@@ -755,6 +759,7 @@ class NodeConstruction {
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
             IndicesService indicesService,
+            FeatureService featureService,
             SystemIndices systemIndices
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
@@ -772,6 +777,7 @@ class NodeConstruction {
             telemetryProvider,
             clusterModule.getAllocationService(),
             indicesService,
+            featureService,
             systemIndices
         );
 
@@ -954,7 +960,8 @@ class NodeConstruction {
             rerouteService,
             fsHealthService,
             circuitBreakerService,
-            compatibilityVersions
+            compatibilityVersions,
+            featureService.getNodeFeatures()
         );
         this.nodeService = new NodeService(
             settings,
@@ -1093,6 +1100,7 @@ class NodeConstruction {
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
             b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
             b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
+            b.bind(FeatureService.class).toInstance(featureService);
             b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
             b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
             {

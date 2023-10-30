@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -24,6 +25,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101527")
 
 public class LeastTests extends AbstractFunctionTestCase {
     public LeastTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

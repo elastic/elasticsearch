@@ -37,14 +37,8 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       IntBlock valBlock = (IntBlock) valRef.block();
       try (Block.Ref decimalsRef = decimals.eval(page)) {
-        if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
         IntVector valVector = valBlock.asVector();
         if (valVector == null) {
@@ -93,5 +87,27 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, decimals);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory decimals;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory decimals) {
+      this.val = val;
+      this.decimals = decimals;
+    }
+
+    @Override
+    public RoundIntEvaluator get(DriverContext context) {
+      return new RoundIntEvaluator(val.get(context), decimals.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "RoundIntEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    }
   }
 }

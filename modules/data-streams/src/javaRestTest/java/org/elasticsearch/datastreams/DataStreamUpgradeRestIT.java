@@ -65,7 +65,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -103,7 +103,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -168,7 +168,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -205,7 +205,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
             {
               "index_patterns": [ "logs-mysql-*" ],
               "priority": 200,
-              "composed_of": [ "logs-mappings", "logs-settings" ],
+              "composed_of": [ "logs@mappings", "logs@settings" ],
               "data_stream": {},
               "template": {
                 "mappings": {
@@ -285,7 +285,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
     private void waitForLogsComponentTemplateInitialization() throws Exception {
         assertBusy(() -> {
             try {
-                Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs-*");
+                Request logsComponentTemplateRequest = new Request("GET", "/_component_template/logs@*");
                 Response response = client().performRequest(logsComponentTemplateRequest);
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
@@ -297,7 +297,7 @@ public class DataStreamUpgradeRestIT extends DisabledSecurityDataStreamTestCase 
                 List<?> componentTemplates = (List<?>) responseBody.get("component_templates");
                 assertThat(componentTemplates.size(), equalTo(2));
                 Set<String> names = componentTemplates.stream().map(m -> ((Map<String, String>) m).get("name")).collect(Collectors.toSet());
-                assertThat(names, containsInAnyOrder("logs-mappings", "logs-settings"));
+                assertThat(names, containsInAnyOrder("logs@mappings", "logs@settings"));
             } catch (ResponseException responseException) {
                 // Retry in case of a 404, maybe they haven't been initialized yet.
                 if (responseException.getResponse().getStatusLine().getStatusCode() == 404) {

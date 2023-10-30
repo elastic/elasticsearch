@@ -39,9 +39,6 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       IntBlock valBlock = (IntBlock) valRef.block();
       IntVector valVector = valBlock.asVector();
       if (valVector == null) {
@@ -91,5 +88,26 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public Log10IntEvaluator get(DriverContext context) {
+      return new Log10IntEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "Log10IntEvaluator[" + "val=" + val + "]";
+    }
   }
 }

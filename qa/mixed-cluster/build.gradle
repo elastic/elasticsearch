@@ -84,6 +84,8 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
         }
       }
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
       onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 

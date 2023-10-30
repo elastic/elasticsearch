@@ -147,7 +147,7 @@ public class RestoreServiceTests extends ESTestCase {
                     when(freshBlobStoreRepo.getMetadata()).thenReturn(
                         new RepositoryMetadata(repositoryName, randomAlphaOfLength(3), Settings.EMPTY).withUuid(UUIDs.randomBase64UUID())
                     );
-                    doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any());
+                    doThrow(new AssertionError("repo UUID already known")).when(freshBlobStoreRepo).getRepositoryData(any(), any());
                 }
                 case 3 -> {
                     final Repository staleBlobStoreRepo = mock(BlobStoreRepository.class);
@@ -158,16 +158,14 @@ public class RestoreServiceTests extends ESTestCase {
                     );
                     doAnswer(invocationOnMock -> {
                         assertTrue(pendingRefreshes.remove(repositoryName));
-                        @SuppressWarnings("unchecked")
-                        ActionListener<RepositoryData> repositoryDataListener = (ActionListener<RepositoryData>) invocationOnMock
-                            .getArguments()[0];
+                        final ActionListener<RepositoryData> repositoryDataListener = invocationOnMock.getArgument(1);
                         if (randomBoolean()) {
                             repositoryDataListener.onResponse(null);
                         } else {
                             repositoryDataListener.onFailure(new Exception("simulated"));
                         }
                         return null;
-                    }).when(staleBlobStoreRepo).getRepositoryData(any());
+                    }).when(staleBlobStoreRepo).getRepositoryData(any(), any());
                 }
             }
         }

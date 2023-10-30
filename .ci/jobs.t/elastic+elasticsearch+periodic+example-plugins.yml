@@ -3,7 +3,8 @@
     name: elastic+elasticsearch+%BRANCH%+periodic+example-plugins
     workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+example-plugins
     display-name: "elastic / elasticsearch # %BRANCH% - example plugin tests"
-    description: "Testing of Elasticsearch %BRANCH% example plugins.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

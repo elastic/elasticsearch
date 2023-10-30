@@ -31,9 +31,6 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock vBlock = (DoubleBlock) vRef.block();
       DoubleVector vVector = vBlock.asVector();
       if (vVector == null) {
@@ -73,5 +70,23 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public NegDoublesEvaluator get(DriverContext context) {
+      return new NegDoublesEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NegDoublesEvaluator[" + "v=" + v + "]";
+    }
   }
 }

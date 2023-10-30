@@ -8,7 +8,10 @@
 
 package org.elasticsearch.telemetry.apm.internal.metrics;
 
+import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.Meter;
+
+import org.elasticsearch.telemetry.apm.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;
@@ -16,16 +19,14 @@ import java.util.Objects;
 /**
  * LongCounterAdapter wraps an otel LongCounter
  */
-public class LongCounterAdapter extends AbstractInstrument<io.opentelemetry.api.metrics.LongCounter>
-    implements
-        org.elasticsearch.telemetry.metric.LongCounter {
+public class LongCounterAdapter extends AbstractInstrument<LongCounter> implements org.elasticsearch.telemetry.metric.LongCounter {
 
     public LongCounterAdapter(Meter meter, String name, String description, String unit) {
         super(meter, name, description, unit);
     }
 
     @Override
-    io.opentelemetry.api.metrics.LongCounter buildInstrument(Meter meter) {
+    protected io.opentelemetry.api.metrics.LongCounter buildInstrument(Meter meter) {
         var builder = Objects.requireNonNull(meter).counterBuilder(getName());
         return builder.setDescription(getDescription()).setUnit(getUnit()).build();
     }

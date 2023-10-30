@@ -38,9 +38,6 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {
@@ -80,5 +77,26 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final DateFormatter formatter;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val, DateFormatter formatter) {
+      this.val = val;
+      this.formatter = formatter;
+    }
+
+    @Override
+    public DateFormatConstantEvaluator get(DriverContext context) {
+      return new DateFormatConstantEvaluator(val.get(context), formatter, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateFormatConstantEvaluator[" + "val=" + val + ", formatter=" + formatter + "]";
+    }
   }
 }

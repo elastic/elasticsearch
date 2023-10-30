@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNa
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AllExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.AnyExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
-import org.elasticsearch.xpack.security.authc.support.FileBasedRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.ExpressionRoleMapper;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -90,7 +90,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     public void testRoleMapping() {
-        final var mapper = new FileBasedRoleMapper(ldapRealm, NamedXContentRegistry.EMPTY, null);
+        final var mapper = new ExpressionRoleMapper(ldapRealm, NamedXContentRegistry.EMPTY, null);
         final var user1a = new UserRoleMapper.UserData(
             "john.smith",
             "cn=john.smith,ou=sales,dc=example,dc=com",
@@ -105,7 +105,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
     }
 
     public void testRoleMappingWithTemplates() {
-        final var mapper = new FileBasedRoleMapper(
+        final var mapper = new ExpressionRoleMapper(
             samlRealm,
             NamedXContentRegistry.EMPTY,
             new MockScriptService(Settings.EMPTY, Map.of("mustache", new MustacheScriptEngine()), ScriptModule.CORE_CONTEXTS)
@@ -125,7 +125,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
 
     public void testFileParsing() throws IOException {
         final Path file = getDataPath(ROLE_MAPPING_FILE);
-        final List<ExpressionRoleMapping> actual = FileBasedRoleMapper.parseExpressionRoleMappings(file, NamedXContentRegistry.EMPTY);
+        final List<ExpressionRoleMapping> actual = ExpressionRoleMapper.parseExpressionRoleMappings(file, NamedXContentRegistry.EMPTY);
         assertThat(actual, notNullValue());
         assertThat(actual.size(), is(3));
     }

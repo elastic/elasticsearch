@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectRealm;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
-import org.elasticsearch.xpack.security.authc.support.FileBasedRoleMapper;
+import org.elasticsearch.xpack.security.authc.support.ExpressionRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.RoleMappingFileBootstrapCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -193,7 +193,10 @@ public final class InternalRealms {
             config -> new JwtRealm(
                 config,
                 sslService,
-                new CompositeRoleMapper(new FileBasedRoleMapper(config, NamedXContentRegistry.EMPTY, scriptService))
+                new CompositeRoleMapper(
+                    new ExpressionRoleMapper(config, NamedXContentRegistry.EMPTY, scriptService),
+                    nativeRoleMappingStore
+                )
             )
         );
     }

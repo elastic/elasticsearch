@@ -44,19 +44,18 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * This class loads and monitors the file defining the mappings of DNs to internal ES Roles.
  */
-public class FileBasedRoleMapper implements UserRoleMapper {
+public class ExpressionRoleMapper implements UserRoleMapper {
 
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
-    private static final Logger logger = LogManager.getLogger(FileBasedRoleMapper.class);
-    protected final RealmConfig config;
+    private static final Logger logger = LogManager.getLogger(ExpressionRoleMapper.class);
+
     private final NamedXContentRegistry xContentRegistry;
     private final Path file;
     private final List<ExpressionRoleMapping> expressionRoleMappings;
     private final ScriptService scriptService;
 
-    public FileBasedRoleMapper(RealmConfig config, NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
-        this.config = config;
+    public ExpressionRoleMapper(RealmConfig config, NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
         this.xContentRegistry = xContentRegistry;
         this.scriptService = scriptService;
         this.file = resolveFile(config);
@@ -111,13 +110,15 @@ public class FileBasedRoleMapper implements UserRoleMapper {
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         try {
             final ExpressionModel model = user.asModel();
-            final Set<String> roles = expressionRoleMappings.stream().filter(ExpressionRoleMapping::isEnabled).filter(m -> {
-                return m.getExpression().match(model);
-            }).flatMap(m -> {
-                final Set<String> roleNames = m.getRoleNames(scriptService, model);
-                logger.trace("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames);
-                return roleNames.stream();
-            }).collect(Collectors.toSet());
+            final Set<String> roles = expressionRoleMappings.stream()
+                .filter(ExpressionRoleMapping::isEnabled)
+                .filter(m -> m.getExpression().match(model))
+                .flatMap(m -> {
+                    final Set<String> roleNames = m.getRoleNames(scriptService, model);
+                    logger.trace("Applying role-mapping [{}] to user-model [{}] produced role-names [{}]", m.getName(), model, roleNames);
+                    return roleNames.stream();
+                })
+                .collect(Collectors.toSet());
             logger.debug("Mapping user [{}] to roles [{}]", user, roles);
             listener.onResponse(roles);
         } catch (Exception e) {

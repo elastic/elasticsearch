@@ -136,7 +136,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         history.respond(call2, 0); // 2: read returns 0
         history.respond(call1, 42); // 1: read returns 42
 
-        expectThrows(IllegalArgumentException.class, () -> LinearizabilityChecker.isLinearizable(registerSpec, history));
+        expectThrows(AssertionError.class, () -> LinearizabilityChecker.isLinearizable(registerSpec, history));
         assertTrue(LinearizabilityChecker.isLinearizable(registerSpec, history, i -> null));
 
         history.respond(call0, null); // 0: write returns
@@ -151,7 +151,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         int call2 = history.invoke(null); // 2: invoke read
         history.respond(call2, 0); // 2: read returns 0, not allowed
 
-        expectThrows(IllegalArgumentException.class, () -> LinearizabilityChecker.isLinearizable(registerSpec, history));
+        expectThrows(AssertionError.class, () -> LinearizabilityChecker.isLinearizable(registerSpec, history));
         assertFalse(LinearizabilityChecker.isLinearizable(registerSpec, history, i -> null));
 
         history.respond(call0, null); // 0: write returns
@@ -228,7 +228,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         history.respond(callY1, 42); // 1: read returns 42 on key y
         history.respond(callX1, 42); // 1: read returns 42 on key x
 
-        expectThrows(IllegalArgumentException.class, () -> LinearizabilityChecker.isLinearizable(multiRegisterSpec, history));
+        expectThrows(AssertionError.class, () -> LinearizabilityChecker.isLinearizable(multiRegisterSpec, history));
         assertTrue(LinearizabilityChecker.isLinearizable(multiRegisterSpec, history, i -> null));
 
         history.respond(callX0, null); // 0: write returns on key x
@@ -249,7 +249,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         history.respond(callY2, 0); // 2: read returns 0 on key y, not allowed
         history.respond(callX1, 42); // 1: read returns 42 on key x
 
-        expectThrows(IllegalArgumentException.class, () -> LinearizabilityChecker.isLinearizable(multiRegisterSpec, history));
+        expectThrows(AssertionError.class, () -> LinearizabilityChecker.isLinearizable(multiRegisterSpec, history));
         assertFalse(LinearizabilityChecker.isLinearizable(multiRegisterSpec, history, i -> null));
 
         history.respond(callX0, null); // 0: write returns on key x

@@ -942,7 +942,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), true, indices);
     }
 
-    protected ClusterHealthStatus ensureColor(
+    private ClusterHealthStatus ensureColor(
         ClusterHealthStatus clusterHealthStatus,
         TimeValue timeout,
         boolean waitForNoInitializingShards,

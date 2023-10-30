@@ -11,9 +11,22 @@ with substitute pipeline definitions.
 ////
 [source,console]
 ----
-PUT /_ingest/pipeline/my-pipeline-id
+PUT /_ingest/pipeline/my-pipeline
 {
   "description" : "example pipeline to simulate",
+      "processors": [
+      {
+        "set" : {
+          "field" : "field1",
+          "value" : "_value"
+        }
+      }
+    ]
+}
+
+PUT /_ingest/pipeline/my-final-pipeline
+{
+  "description" : "example final pipeline to simulate",
       "processors": [
       {
         "set" : {
@@ -22,6 +35,16 @@ PUT /_ingest/pipeline/my-pipeline-id
         }
       }
     ]
+}
+
+PUT /index
+{
+  "settings": {
+    "index": {
+      "default_pipeline": "my-pipeline",
+      "final_pipeline": "my-final-pipeline"
+    }
+  }
 }
 ----
 // TESTSETUP
@@ -48,11 +71,11 @@ POST /_ingest/_simulate
     }
   ],
   "pipeline_substitutions": {
-    "my-pipeline-id": {
+    "my-pipeline": {
       "processors": [
         {
           "set": {
-            "field": "field2",
+            "field": "field3",
             "value": "_value"
           }
         }
@@ -151,8 +174,11 @@ include::put-pipeline.asciidoc[tag=pipeline-object]
 ==== {api-examples-title}
 
 
-[[simulate-ingest-api-path-parm-ex]]
-===== Specify a pipeline as a path parameter
+[[simulate-ingest-api-pre-existing-pipelines-ex]]
+===== Use pre-existing pipeline definitions
+In this example the index `index` has a default pipeline called `my-pipeline` and a final
+pipeline called `my-final-pipeline`. Since both documents are being ingested into `index`,
+both pipelines are executed using the pipeline definitions that are already in the system.
 
 [source,console]
 ----
@@ -189,11 +215,13 @@ The API returns the following response:
             "_index": "index",
             "_version": "-3",
             "_source": {
+               "field1": "_value",
                "field2": "_value",
                "foo": "bar"
             },
             "executed_pipelines": {
-               "TODO"
+               "my-pipeline",
+               "my-final-pipeline"
             }
          }
       },
@@ -203,40 +231,32 @@ The API returns the following response:
             "_index": "index",
             "_version": "-3",
             "_source": {
+               "field1": "_value",
                "field2": "_value",
                "foo": "rab"
             },
             "executed_pipelines": {
-               "TODO"
+               "my-pipeline",
+               "my-final-pipeline"
             }
          }
       }
    ]
 }
 ----
-// TESTRESPONSE[s/"2017-05-04T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2017-05-04T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
-
 
 [[simulate-ingest-api-request-body-ex]]
-===== Specify a pipeline in the request body
+===== Specify a pipeline substitution in the request body
+In this example the index `index` has a default pipeline called `my-pipeline` and a final
+pipeline called `my-final-pipeline`. But a substitute definition of `my-pipeline` is
+provided in `pipeline_substitutions`. The substitute `my-pipeline` will be used in place of
+the `my-pipeline` that is in the system, and then the `my-final-pipeline` that is already
+defined in the system will be executed.
 
 [source,console]
 ----
-POST /_ingest/pipeline/_simulate
+POST /_ingest/_simulate
 {
-  "pipeline" :
-  {
-    "description": "_description",
-    "processors": [
-      {
-        "set" : {
-          "field" : "field2",
-          "value" : "_value"
-        }
-      }
-    ]
-  },
   "docs": [
     {
       "_index": "index",
@@ -252,7 +272,18 @@ POST /_ingest/pipeline/_simulate
         "foo": "rab"
       }
     }
-  ]
+  ],
+  "pipeline_substitutions": {
+    "my-pipeline": {
+      "processors": [
+        {
+          "uppercase": {
+            "field": "foo"
+          }
+        }
+      ]
+    }
+  }
 }
 ----
 
@@ -268,11 +299,12 @@ The API returns the following response:
             "_index": "index",
             "_version": "-3",
             "_source": {
-               "field2": "_value",
-               "foo": "bar"
+               "field3": "_value",
+               "foo": "BAR"
             },
-            "_ingest": {
-               "timestamp": "2017-05-04T22:30:03.187Z"
+            "executed_pipelines": {
+               "my-pipeline",
+               "my-final-pipeline"
             }
          }
       },
@@ -283,169 +315,31 @@ The API returns the following response:
             "_version": "-3",
             "_source": {
                "field2": "_value",
-               "foo": "rab"
+               "field3": "_value",
+               "foo": "RAB"
             },
-            "_ingest": {
-               "timestamp": "2017-05-04T22:30:03.188Z"
+            "executed_pipelines": {
+               "my-pipeline",
+               "my-final-pipeline"
             }
          }
       }
    ]
 }
 ----
-// TESTRESPONSE[s/"2017-05-04T22:30:03.187Z"/$body.docs.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2017-05-04T22:30:03.188Z"/$body.docs.1.doc._ingest.timestamp/]
-
-
-[[ingest-verbose-param]]
-===== View verbose results
-
-You can use the simulate pipeline API
-to see how each processor affects the ingest document
-as it passes through the pipeline.
-To see the intermediate results
-of each processor in the simulate request,
-you can add the `verbose` parameter to the request.
-
-[source,console]
-----
-POST /_ingest/pipeline/_simulate?verbose=true
-{
-  "pipeline" :
-  {
-    "description": "_description",
-    "processors": [
-      {
-        "set" : {
-          "field" : "field2",
-          "value" : "_value2"
-        }
-      },
-      {
-        "set" : {
-          "field" : "field3",
-          "value" : "_value3"
-        }
-      }
-    ]
-  },
-  "docs": [
-    {
-      "_index": "index",
-      "_id": "id",
-      "_source": {
-        "foo": "bar"
-      }
-    },
-    {
-      "_index": "index",
-      "_id": "id",
-      "_source": {
-        "foo": "rab"
-      }
-    }
-  ]
-}
-----
-
-The API returns the following response:
-
-[source,console-result]
-----
-{
-  "docs" : [
-    {
-      "processor_results" : [
-        {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_id" : "id",
-            "_version": "-3",
-            "_source" : {
-              "field2" : "_value2",
-              "foo" : "bar"
-            },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251836Z"
-            }
-          }
-        },
-        {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_id" : "id",
-            "_version": "-3",
-            "_source" : {
-              "field3" : "_value3",
-              "field2" : "_value2",
-              "foo" : "bar"
-            },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251836Z"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "processor_results" : [
-        {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_id" : "id",
-            "_version": "-3",
-            "_source" : {
-              "field2" : "_value2",
-              "foo" : "rab"
-            },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251863Z"
-            }
-          }
-        },
-        {
-          "processor_type" : "set",
-          "status" : "success",
-          "doc" : {
-            "_index" : "index",
-            "_id" : "id",
-            "_version": "-3",
-            "_source" : {
-              "field3" : "_value3",
-              "field2" : "_value2",
-              "foo" : "rab"
-            },
-            "_ingest" : {
-              "pipeline" : "_simulate_pipeline",
-              "timestamp" : "2020-07-30T01:21:24.251863Z"
-            }
-          }
-        }
-      ]
-    }
-  ]
-}
-----
-// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2020-07-30T01:21:24.251836Z"/$body.docs.0.processor_results.1.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/$body.docs.1.processor_results.0.doc._ingest.timestamp/]
-// TESTRESPONSE[s/"2020-07-30T01:21:24.251863Z"/$body.docs.1.processor_results.1.doc._ingest.timestamp/]
 
 ////
 [source,console]
 ----
+DELETE /_ingest/pipeline/*
+
+DELETE /index
 ----
 
 [source,console-result]
 ----
+{
+"acknowledged": true
+}
 ----
 ////

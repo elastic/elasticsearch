@@ -201,6 +201,6 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
     }
 }

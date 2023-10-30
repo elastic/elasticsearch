@@ -10,10 +10,6 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
-import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
-import java.util.concurrent.TimeUnit
-
-long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
 
 buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
@@ -99,10 +95,10 @@ buildScan {
       // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
       uploadInBackground = false
 
-      def branch = System.getenv('BUILDKITE_BRANCH')
+      def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
       def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
       def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
-      def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, '_').toLowerCase()
+      def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 
       tag 'CI'
       link 'CI Build', buildKiteUrl
@@ -113,6 +109,11 @@ buildScan {
 
       value 'Job Name', jobName
       tag jobName
+
+      if (branch) {
+        tag branch
+        value 'Git Branch', branch
+      }
 
       // Add SCM information
       def prId = System.getenv('BUILDKITE_PULL_REQUEST')
@@ -126,7 +127,6 @@ buildScan {
       } else {
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
-        tag branch
       }
 
       buildScanPublished { scan ->
@@ -146,23 +146,5 @@ buildScan {
     } else {
       tag 'LOCAL'
     }
-  }
-}
-
-subprojects {
-  project.getPlugins().withType(TestRerunPlugin) {
-    tasks.withType(Test).configureEach(new Action<Test>() {
-      @Override
-      void execute(Test test) {
-        test.doLast(new Action<Test>() {
-          @Override
-          void execute(Test t) {
-            if(t.rerun.didRerun.get() == true) {
-              buildScan.tag 'unexpected-test-jvm-exit'
-            }
-          }
-        })
-      }
-    })
   }
 }

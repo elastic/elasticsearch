@@ -34,9 +34,6 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock vBlock = (LongBlock) vRef.block();
       LongVector vVector = vBlock.asVector();
       if (vVector == null) {

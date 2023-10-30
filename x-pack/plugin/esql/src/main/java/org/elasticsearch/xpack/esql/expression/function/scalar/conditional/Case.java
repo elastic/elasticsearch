@@ -233,9 +233,6 @@ public class Case extends ScalarFunction implements EvaluatorMapper {
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {
                             try (Block.Ref conditionRef = condition.condition.eval(limited)) {
-                                if (conditionRef.block().areAllValuesNull()) {
-                                    continue;
-                                }
                                 BooleanBlock b = (BooleanBlock) conditionRef.block();
                                 if (b.isNull(0)) {
                                     continue;

@@ -38,14 +38,8 @@ public final class EqualsKeywordsEvaluator implements EvalOperator.ExpressionEva
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock lhsBlock = (BytesRefBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock rhsBlock = (BytesRefBlock) rhsRef.block();
         BytesRefVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {

@@ -43,9 +43,6 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref datetimeRef = datetime.eval(page)) {
-      if (datetimeRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock datetimeBlock = (LongBlock) datetimeRef.block();
       LongVector datetimeVector = datetimeBlock.asVector();
       if (datetimeVector == null) {

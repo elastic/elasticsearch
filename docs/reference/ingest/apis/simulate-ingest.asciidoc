@@ -187,14 +187,14 @@ POST /_ingest/_simulate
   "docs": [
     {
       "_index": "index",
-      "_id": "id",
+      "_id": "123",
       "_source": {
         "foo": "bar"
       }
     },
     {
       "_index": "index",
-      "_id": "id",
+      "_id": "456",
       "_source": {
         "foo": "rab"
       }
@@ -211,34 +211,34 @@ The API returns the following response:
    "docs": [
       {
          "doc": {
-            "_id": "id",
+            "_id": "123",
             "_index": "index",
-            "_version": "-3",
+            "_version": -3,
             "_source": {
                "field1": "_value",
                "field2": "_value",
                "foo": "bar"
             },
-            "executed_pipelines": {
+            "executed_pipelines": [
                "my-pipeline",
                "my-final-pipeline"
-            }
+            ]
          }
       },
       {
          "doc": {
-            "_id": "id",
+            "_id": "456",
             "_index": "index",
-            "_version": "-3",
+            "_version": -3,
             "_source": {
                "field1": "_value",
                "field2": "_value",
                "foo": "rab"
             },
-            "executed_pipelines": {
+            "executed_pipelines": [
                "my-pipeline",
                "my-final-pipeline"
-            }
+            ]
          }
       }
    ]
@@ -260,14 +260,14 @@ POST /_ingest/_simulate
   "docs": [
     {
       "_index": "index",
-      "_id": "id",
+      "_id": "123",
       "_source": {
         "foo": "bar"
       }
     },
     {
       "_index": "index",
-      "_id": "id",
+      "_id": "456",
       "_source": {
         "foo": "rab"
       }
@@ -295,33 +295,32 @@ The API returns the following response:
    "docs": [
       {
          "doc": {
-            "_id": "id",
+            "_id": "123",
             "_index": "index",
-            "_version": "-3",
+            "_version": -3,
             "_source": {
-               "field3": "_value",
+               "field2": "_value",
                "foo": "BAR"
             },
-            "executed_pipelines": {
+            "executed_pipelines": [
                "my-pipeline",
                "my-final-pipeline"
-            }
+            ]
          }
       },
       {
          "doc": {
-            "_id": "id",
+            "_id": "456",
             "_index": "index",
-            "_version": "-3",
+            "_version": -3,
             "_source": {
                "field2": "_value",
-               "field3": "_value",
                "foo": "RAB"
             },
-            "executed_pipelines": {
+            "executed_pipelines": [
                "my-pipeline",
                "my-final-pipeline"
-            }
+            ]
          }
       }
    ]
@@ -331,9 +330,9 @@ The API returns the following response:
 ////
 [source,console]
 ----
-DELETE /_ingest/pipeline/*
-
 DELETE /index
+
+DELETE /_ingest/pipeline/*
 ----
 
 [source,console-result]

@@ -207,7 +207,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
             try {
                 fileStore = super.getFileStore(path);
             } catch (IOException e) {
-                fail(e);
+                throw new AssertionError("unexpected", e);
             }
             assertNull(trackedPaths.put(path, new TestFileStore(fileStore, getScheme(), path)));
         }

@@ -151,6 +151,27 @@ setup:
   - match: { hits.hits.2.fields.my_name.0: v2 }
 
 ---
+"PRE_FILTER: pre-filter across multiple internal filters":
+- do:
+    search:
+      index: my_index
+      body:
+        size: 3
+        fields: [ my_name ]
+        query:
+          knn:
+            field: my_vector
+            query_vector: [ 1, 1, 1, 1 ]
+            num_candidates: 5
+            filter:
+              - term:
+                  my_name: v1
+              - term:
+                  my_name: v2
+- match: { hits.total.value: 0 }
+- length: { hits.hits: 0 }
+
+---
 "PRE_FILTER: pre-filter across multiple aliases":
   - do:
       search:

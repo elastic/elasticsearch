@@ -208,5 +208,6 @@ setup:
               inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
   # no hits because, regardless of num_candidates knn returns top 3 child vectors from distinct parents
   # and they don't pass the post-filter
-  # TODO: fix it on Lucene leve so nested knn respects num_candidates
+  # TODO: fix it on Lucene level so nested knn respects num_candidates
+  # or do pre-filtering
   - match: {hits.total.value: 0}

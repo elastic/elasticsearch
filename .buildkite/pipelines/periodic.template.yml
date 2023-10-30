@@ -8,7 +8,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       diskSizeGb: 350
-      machineType: custom-32-98304
+      machineType: n2-standard-16
   - label: encryption-at-rest
     command: .buildkite/scripts/encryption-at-rest.sh
     timeout_in_minutes: 420
@@ -16,14 +16,14 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       diskSizeGb: 350
-      machineType: custom-32-98304
+      machineType: n2-standard-16
   - label: eql-correctness
     command: .buildkite/scripts/eql-correctness.sh
     timeout_in_minutes: 300
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      machineType: custom-32-98304
+      machineType: n2-standard-16
       buildDirectory: /dev/shm/bk
   - label: example-plugins
     command: |-
@@ -34,7 +34,7 @@ steps:
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
-      machineType: custom-32-98304
+      machineType: n2-standard-16
       buildDirectory: /dev/shm/bk
   - group: java-fips-matrix
     steps:
@@ -54,7 +54,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: custom-32-98304
+          machineType: n2-standard-16
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
@@ -82,7 +82,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
-          machineType: custom-32-98304
+          machineType: n2-standard-16
           buildDirectory: /dev/shm/bk
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
@@ -94,7 +94,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       diskSizeGb: 350
-      machineType: custom-32-98304
+      machineType: n2-standard-16
   - label: single-processor-node-tests
     command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.configure_test_clusters_with_one_processor=true check
     timeout_in_minutes: 420
@@ -102,7 +102,7 @@ steps:
       provider: gcp
       image: family/elasticsearch-ubuntu-2004
       diskSizeGb: 350
-      machineType: custom-32-98304
+      machineType: n2-standard-16
   - group: third-party tests
     steps:
       - label: third-party / azure-sas

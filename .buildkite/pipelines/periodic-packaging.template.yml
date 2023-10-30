@@ -27,7 +27,7 @@ steps:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
-          machineType: custom-16-32768
+          machineType: n2-standard-8
         env: {}
   - group: packaging-tests-upgrade
     steps: $BWC_STEPS
@@ -46,7 +46,7 @@ steps:
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-32-98304
+          machineType: n2-standard-16
           diskType: pd-ssd
           diskSizeGb: 350
         env: {}

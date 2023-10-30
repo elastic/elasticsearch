@@ -9,7 +9,7 @@
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-16-32768
+          machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
         env:
           BWC_VERSION: $BWC_VERSION

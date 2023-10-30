@@ -2013,9 +2013,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2024,7 +2024,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2033,7 +2033,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 

@@ -29,6 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 
+import static org.elasticsearch.action.support.SubscribableListener.CompletionOrder.FirstAddedFirstCompleted;
+import static org.elasticsearch.action.support.SubscribableListener.CompletionOrder.FirstAddedLastCompleted;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -50,12 +52,36 @@ public class SubscribableListenerTests extends ESTestCase {
     }
 
     public void testSubscriptionOrder() {
-        var listener = new SubscribableListener<>();
+        var listener = randomBoolean() ? new SubscribableListener<>() : new SubscribableListener<>(FirstAddedFirstCompleted);
         var order = new AtomicInteger();
 
         var subscriberCount = between(0, 4);
         for (int i = 0; i < subscriberCount; i++) {
             listener.addListener(ActionListener.running(new OrderAssertingRunnable(i, order)));
+        }
+
+        assertEquals(0, order.get());
+
+        if (randomBoolean()) {
+            listener.onResponse(new Object());
+        } else {
+            listener.onFailure(new ElasticsearchException("test"));
+        }
+
+        assertEquals(subscriberCount, order.get());
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount, order)));
+        assertEquals(subscriberCount + 1, order.get());
+        listener.addListener(ActionListener.running(new OrderAssertingRunnable(subscriberCount + 1, order)));
+        assertEquals(subscriberCount + 2, order.get());
+    }
+
+    public void testSubscriptionReverseOrder() {
+        var listener = new SubscribableListener<>(FirstAddedLastCompleted);
+        var order = new AtomicInteger();
+
+        var subscriberCount = between(0, 4);
+        for (int i = subscriberCount; i > 0; i--) {
+            listener.addListener(ActionListener.running(new OrderAssertingRunnable(i - 1, order)));
         }
 
         assertEquals(0, order.get());

@@ -48,6 +48,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     /**
+     * Create a {@link SubscribableListener} which is incomplete.
+     */
+    public SubscribableListener(CompletionOrder completionOrder) {
+        this(EMPTY, completionOrder);
+    }
+
+    /**
      * Create a {@link SubscribableListener} which has already succeeded with the given result.
      */
     public static <T> SubscribableListener<T> newSucceeded(T result) {
@@ -72,7 +79,12 @@ public class SubscribableListener<T> implements ActionListener<T> {
     }
 
     private SubscribableListener(Object initialState) {
-        state = initialState;
+        this(initialState, DEFAULT_COMPLETION_ORDER);
+    }
+
+    private SubscribableListener(Object initialState, CompletionOrder completionOrder) {
+        this.state = initialState;
+        this.completionOrder = completionOrder;
     }
 
     /**
@@ -89,6 +101,31 @@ public class SubscribableListener<T> implements ActionListener<T> {
     @SuppressWarnings("FieldMayBeFinal") // updated via VH_STATE_FIELD (and _only_ via VH_STATE_FIELD)
     private volatile Object state;
 
+    public enum CompletionOrder {
+        /**
+         * Listener are completed in which their subscriptions were received
+         */
+        FirstAddedFirstCompleted,
+
+        /**
+         * Listener are completed in the reverse order in which their subscriptions were received
+         */
+        FirstAddedLastCompleted,
+    }
+
+    static final CompletionOrder DEFAULT_COMPLETION_ORDER = CompletionOrder.FirstAddedFirstCompleted;
+
+    /**
+     * Order in which the subscribing listeners will be completed. By default, the completion order is set to
+     * {@link CompletionOrder#FirstAddedFirstCompleted} and subscribing listeners will be completed in the order in which their
+     * subscriptions were received. When set to {@link CompletionOrder#FirstAddedLastCompleted} the subscribing listeners will be completed
+     * in the reverse order in which they subscribed to this listener.
+     * <p>
+     * The completion order only affects subscribing listeners added before this listener is completed. There are no guarantees about the
+     * ordering of the completions of listeners which are added concurrently with (or after) the completion of this listener.
+     */
+    private final CompletionOrder completionOrder;
+
     /**
      * Add a listener to this listener's collection of subscribers. If this listener is complete, this method completes the subscribing
      * listener immediately with the result with which this listener was completed. Otherwise, the subscribing listener is retained and
@@ -97,8 +134,8 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
      * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
      * <p>
-     * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
-     * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
+     * Listeners added strictly before this listener is completed will themselves be completed in the order defined by the completion order.
+     * However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
      * (or after) the completion of this listener.
      * <p>
      * If the subscribed listener is not completed immediately then it will be completed on the thread, and in the {@link ThreadContext}, of
@@ -116,8 +153,8 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * Subscribed listeners must not throw any exceptions. Use {@link ActionListener#wrap(ActionListener)} if you have a listener for which
      * exceptions from its {@link ActionListener#onResponse} method should be handled by its own {@link ActionListener#onFailure} method.
      * <p>
-     * Listeners added strictly before this listener is completed will themselves be completed in the order in which their subscriptions
-     * were received. However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
+     * Listeners added strictly before this listener is completed will themselves be completed in the order defined by the completion order.
+     * However, there are no guarantees about the ordering of the completions of listeners which are added concurrently with
      * (or after) the completion of this listener.
      *
      * @param executor      If not {@link EsExecutors#DIRECT_EXECUTOR_SERVICE}, and the subscribing listener is not completed immediately,
@@ -259,18 +296,21 @@ public class SubscribableListener<T> implements ActionListener<T> {
                     boolean completed = tryComplete(result, listener);
                     assert completed;
                 } else if (currentState instanceof Cell currCell) {
-                    // multiple subscribers, but they are currently in reverse order of subscription so reverse them back
-                    Cell prevCell = null;
-                    while (true) {
-                        final Cell nextCell = currCell.next;
-                        currCell.next = prevCell;
-                        if (nextCell == null) {
-                            break;
+                    // multiple subscribers - check the order of completion
+                    if (completionOrder == CompletionOrder.FirstAddedFirstCompleted) {
+                        // multiple subscribers currently in reverse order of subscription so reverse them back
+                        Cell prevCell = null;
+                        while (true) {
+                            final Cell nextCell = currCell.next;
+                            currCell.next = prevCell;
+                            if (nextCell == null) {
+                                break;
+                            }
+                            prevCell = currCell;
+                            currCell = nextCell;
                         }
-                        prevCell = currCell;
-                        currCell = nextCell;
                     }
-                    // now they are in subscription order, complete them
+                    // now complete them
                     while (currCell != null) {
                         boolean completed = tryComplete(result, (ActionListener<T>) currCell.listener);
                         assert completed;
@@ -378,6 +418,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
         @Nullable ThreadContext threadContext,
         CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep
     ) {
+        if (completionOrder != CompletionOrder.FirstAddedFirstCompleted) {
+            throw new IllegalArgumentException("Cannot compose a sequence of operations for this subscribable listener");
+        }
         return newForked(l -> addListener(l.delegateFailureAndWrap(nextStep), executor, threadContext));
     }
 

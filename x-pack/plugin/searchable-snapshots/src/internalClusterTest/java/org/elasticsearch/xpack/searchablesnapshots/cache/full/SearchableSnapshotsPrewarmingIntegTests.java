@@ -401,12 +401,11 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
     }
 
     private TrackingRepositoryPlugin getTrackingRepositoryPlugin() {
-        for (RepositoryPlugin plugin : getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)) {
-            if (plugin instanceof TrackingRepositoryPlugin) {
-                return ((TrackingRepositoryPlugin) plugin);
-            }
-        }
-        throw new IllegalStateException("tracking repository missing");
+        return getInstanceFromNode(PluginsService.class).filterPlugins(RepositoryPlugin.class)
+            .filter(p -> p instanceof TrackingRepositoryPlugin)
+            .map(p -> (TrackingRepositoryPlugin) p)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("tracking repository missing"));
     }
 
     /**

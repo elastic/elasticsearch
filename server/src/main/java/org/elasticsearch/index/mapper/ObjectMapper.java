@@ -523,6 +523,21 @@ public class ObjectMapper extends Mapper {
                 subObjects = existing.subobjects;
             }
             MapperBuilderContext objectBuilderContext = existing.createChildContext(parentBuilderContext, existing.simpleName());
+            Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWith, reason, objectBuilderContext);
+            return new MergeResult(
+                enabled,
+                subObjects,
+                mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
+                mergedMappers
+            );
+        }
+
+        private static Map<String, Mapper> buildMergedMappers(
+            ObjectMapper existing,
+            Mapper mergeWith,
+            MergeReason reason,
+            MapperBuilderContext objectBuilderContext
+        ) {
             Map<String, Mapper> mergedMappers = null;
             for (Mapper mergeWithMapper : mergeWith) {
                 Mapper mergeIntoMapper = (mergedMappers == null ? existing.mappers : mergedMappers).get(mergeWithMapper.simpleName());
@@ -558,12 +573,7 @@ public class ObjectMapper extends Mapper {
             } else {
                 mergedMappers = Map.copyOf(existing.mappers);
             }
-            return new MergeResult(
-                enabled,
-                subObjects,
-                mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
-                mergedMappers
-            );
+            return mergedMappers;
         }
     }
 

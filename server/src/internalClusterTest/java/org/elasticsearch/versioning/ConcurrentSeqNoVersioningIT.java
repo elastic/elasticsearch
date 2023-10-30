@@ -11,7 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
-import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizableCheckAborted;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -432,8 +432,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             boolean linearizable = false;
             try {
                 linearizable = LinearizabilityChecker.isLinearizable(spec, history, missingResponseGenerator());
-            } catch (LinearizableCheckAborted e) {
-                // ignore
+            } catch (LinearizabilityCheckAborted e) {
+                logger.warn("linearizability check check was aborted", e);
             } finally {
                 // implicitly test that we can serialize all histories.
                 String serializedHistory = base64Serialize(history);
@@ -672,7 +672,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException,
-        LinearizableCheckAborted {
+        LinearizabilityCheckAborted {
         StreamInput is = new InputStreamStreamInput(Base64.getDecoder().wrap(fileInputStream));
         is = new NamedWriteableAwareStreamInput(is, createNamedWriteableRegistry());
 

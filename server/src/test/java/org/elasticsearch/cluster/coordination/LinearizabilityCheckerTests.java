@@ -9,7 +9,7 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.KeyedSpec;
-import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizableCheckAborted;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +59,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertThat(lockSpec.nextState(true, null, true), equalTo(Optional.empty()));
     }
 
-    public void testLockWithLinearizableHistory1() throws LinearizableCheckAborted {
+    public void testLockWithLinearizableHistory1() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(null); // 0: acquire lock
         history.respond(call0, true); // 0: lock acquisition succeeded
@@ -68,7 +68,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(lockSpec, history));
     }
 
-    public void testLockWithLinearizableHistory2() throws LinearizableCheckAborted {
+    public void testLockWithLinearizableHistory2() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(null); // 0: acquire lock
         int call1 = history.invoke(null); // 1: acquire lock
@@ -77,7 +77,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(lockSpec, history));
     }
 
-    public void testLockWithLinearizableHistory3() throws LinearizableCheckAborted {
+    public void testLockWithLinearizableHistory3() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(null); // 0: acquire lock
         int call1 = history.invoke(null); // 1: acquire lock
@@ -86,7 +86,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(lockSpec, history));
     }
 
-    public void testLockWithNonLinearizableHistory() throws LinearizableCheckAborted {
+    public void testLockWithNonLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(null); // 0: acquire lock
         history.respond(call0, false); // 0: lock acquisition failed
@@ -128,7 +128,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertThat(registerSpec.nextState(7, null, 42), equalTo(Optional.empty()));
     }
 
-    public void testRegisterWithLinearizableHistory() throws LinearizableCheckAborted {
+    public void testRegisterWithLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(42); // 0: invoke write 42
         int call1 = history.invoke(null); // 1: invoke read
@@ -143,7 +143,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(registerSpec, history));
     }
 
-    public void testRegisterWithNonLinearizableHistory() throws LinearizableCheckAborted {
+    public void testRegisterWithNonLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(42); // 0: invoke write 42
         int call1 = history.invoke(null); // 1: invoke read
@@ -158,7 +158,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertFalse(LinearizabilityChecker.isLinearizable(registerSpec, history));
     }
 
-    public void testRegisterObservedSequenceOfUpdatesWitLinearizableHistory() throws LinearizableCheckAborted {
+    public void testRegisterObservedSequenceOfUpdatesWitLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(42); // 0: invoke write 42
         int call1 = history.invoke(43); // 1: invoke write 43
@@ -175,7 +175,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(registerSpec, history));
     }
 
-    public void testRegisterObservedSequenceOfUpdatesWithNonLinearizableHistory() throws LinearizableCheckAborted {
+    public void testRegisterObservedSequenceOfUpdatesWithNonLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int call0 = history.invoke(42); // 0: invoke write 42
         int call1 = history.invoke(43); // 1: invoke write 43
@@ -215,7 +215,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         }
     };
 
-    public void testMultiRegisterWithLinearizableHistory() throws LinearizableCheckAborted {
+    public void testMultiRegisterWithLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int callX0 = history.invoke(new Tuple<>("x", 42)); // 0: invoke write 42 on key x
         int callX1 = history.invoke(new Tuple<>("x", null)); // 1: invoke read on key x
@@ -236,7 +236,7 @@ public class LinearizabilityCheckerTests extends ESTestCase {
         assertTrue(LinearizabilityChecker.isLinearizable(multiRegisterSpec, history));
     }
 
-    public void testMultiRegisterWithNonLinearizableHistory() throws LinearizableCheckAborted {
+    public void testMultiRegisterWithNonLinearizableHistory() throws LinearizabilityCheckAborted {
         final History history = new History();
         int callX0 = history.invoke(new Tuple<>("x", 42)); // 0: invoke write 42 on key x
         int callX1 = history.invoke(new Tuple<>("x", null)); // 1: invoke read on key x

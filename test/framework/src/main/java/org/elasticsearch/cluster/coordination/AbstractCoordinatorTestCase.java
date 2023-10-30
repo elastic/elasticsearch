@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
-import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizableCheckAborted;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -747,10 +747,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             try {
                 final boolean linearizable = LinearizabilityChecker.isLinearizable(spec, history, i -> null);
                 assertTrue("history is not linearizable: " + history, linearizable);
-            } catch (LinearizableCheckAborted e) {
-                // ignore
+            } catch (LinearizabilityCheckAborted e) {
+                logger.warn("linearizability check check was aborted", e);
             }
-            logger.info("linearizability check completed");
         }
 
         void bootstrapIfNecessary() {

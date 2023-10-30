@@ -215,7 +215,7 @@ public class LinearizabilityChecker {
     /**
      * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
-    public static boolean isLinearizable(SequentialSpec spec, History history) throws LinearizableCheckAborted {
+    public static boolean isLinearizable(SequentialSpec spec, History history) throws LinearizabilityCheckAborted {
         return isLinearizable(spec, history, o -> { throw new AssertionError("history is not complete"); });
     }
 
@@ -228,7 +228,7 @@ public class LinearizabilityChecker {
      * @return true iff the history is linearizable w.r.t. the given spec
      */
     public static boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator)
-        throws LinearizableCheckAborted {
+        throws LinearizabilityCheckAborted {
         final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         final AtomicBoolean abort = new AtomicBoolean();
         try {
@@ -243,7 +243,7 @@ public class LinearizabilityChecker {
             }
             var allLinearizable = partitions.stream().allMatch(h -> isLinearizable(spec, h, abort::get));
             if (abort.get()) {
-                throw new LinearizableCheckAborted();
+                throw new LinearizabilityCheckAborted();
             }
             return allLinearizable;
         } finally {
@@ -254,7 +254,7 @@ public class LinearizabilityChecker {
     /**
      * This exception is thrown if the check could not be completed due to timeout or OOM (that could be caused by long event history)
      */
-    public static final class LinearizableCheckAborted extends Exception {}
+    public static final class LinearizabilityCheckAborted extends Exception {}
 
     private static boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
         logger.debug("Checking history of size: {}: {}", history.size(), history);

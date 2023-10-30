@@ -34,9 +34,6 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       IntBlock vBlock = (IntBlock) vRef.block();
       IntVector vVector = vBlock.asVector();
       if (vVector == null) {
@@ -76,5 +73,23 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public CastIntToUnsignedLongEvaluator get(DriverContext context) {
+      return new CastIntToUnsignedLongEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "CastIntToUnsignedLongEvaluator[" + "v=" + v + "]";
+    }
   }
 }

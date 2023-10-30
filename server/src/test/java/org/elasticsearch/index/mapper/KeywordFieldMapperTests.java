@@ -50,6 +50,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -649,6 +650,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((BytesRef) v).utf8ToString();
+    }
+
+    @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assertFalse("keyword doesn't support ignore_malformed", ignoreMalformed);
         return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2), true);
@@ -658,6 +664,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         private final Integer ignoreAbove = randomBoolean() ? null : between(10, 100);
         private final boolean allIgnored = ignoreAbove != null && rarely();
         private final boolean store;
+        private final boolean docValues;
         private final String nullValue;
         private final boolean exampleSortsUsingIgnoreAbove;
 
@@ -665,13 +672,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             this.store = store;
             this.nullValue = nullValue;
             this.exampleSortsUsingIgnoreAbove = exampleSortsUsingIgnoreAbove;
+            this.docValues = store ? randomBoolean() : true;
         }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
-                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                Object loadBlock = v.v2();
+                if (ignoreAbove != null && v.v2().length() > ignoreAbove) {
+                    loadBlock = null;
+                }
+                return new SyntheticSourceExample(v.v1(), v.v2(), loadBlock, this::mapping);
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
@@ -685,9 +697,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 }
             });
             List<String> outList = store ? outPrimary : new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList());
+            List<String> loadBlock = docValues
+                ? new HashSet<>(outPrimary).stream().sorted().collect(Collectors.toList())
+                : List.copyOf(outList);
+            Object loadBlockResult = loadBlock.size() == 1 ? loadBlock.get(0) : loadBlock;
             outList.addAll(outExtraValues);
             Object out = outList.size() == 1 ? outList.get(0) : outList;
-            return new SyntheticSourceExample(in, out, this::mapping);
+            return new SyntheticSourceExample(in, out, loadBlockResult, this::mapping);
         }
 
         private Tuple<String, String> generateValue() {
@@ -712,9 +728,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             if (store) {
                 b.field("store", true);
-                if (randomBoolean()) {
-                    b.field("doc_values", false);
-                }
+            }
+            if (docValues == false) {
+                b.field("doc_values", false);
             }
         }
 

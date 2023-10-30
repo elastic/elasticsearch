@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -30,12 +29,11 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction impleme
         super(source, field);
     }
 
-    protected abstract EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrDtx);
+    protected abstract EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field);
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var fieldEval = Cast.cast(field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field()));
-        return dvrCtx -> doubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+        return doubleEvaluator(Cast.cast(field().dataType(), DataTypes.DOUBLE, toEvaluator.apply(field())));
     }
 
     @Override

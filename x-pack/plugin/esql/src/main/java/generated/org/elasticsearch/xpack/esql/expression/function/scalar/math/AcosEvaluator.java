@@ -38,9 +38,6 @@ public final class AcosEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock valBlock = (DoubleBlock) valRef.block();
       DoubleVector valVector = valBlock.asVector();
       if (valVector == null) {
@@ -90,5 +87,26 @@ public final class AcosEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public AcosEvaluator get(DriverContext context) {
+      return new AcosEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "AcosEvaluator[" + "val=" + val + "]";
+    }
   }
 }

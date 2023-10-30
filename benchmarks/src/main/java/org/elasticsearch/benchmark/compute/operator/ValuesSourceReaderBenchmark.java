@@ -19,33 +19,25 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.field.KeywordDocValuesField;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -101,54 +93,18 @@ public class ValuesSourceReaderBenchmark {
         }
     }
 
-    private static ValueSourceInfo info(IndexReader reader, String name) {
+    private static BlockLoader blockLoader(String name) {
         return switch (name) {
-            case "long" -> numericInfo(reader, name, IndexNumericFieldData.NumericType.LONG, ElementType.LONG);
-            case "int" -> numericInfo(reader, name, IndexNumericFieldData.NumericType.INT, ElementType.INT);
-            case "double" -> {
-                SortedDoublesIndexFieldData fd = new SortedDoublesIndexFieldData(
-                    name,
-                    IndexNumericFieldData.NumericType.DOUBLE,
-                    CoreValuesSourceType.NUMERIC,
-                    null
-                );
-                FieldContext context = new FieldContext(name, fd, null);
-                yield new ValueSourceInfo(
-                    CoreValuesSourceType.NUMERIC,
-                    CoreValuesSourceType.NUMERIC.getField(context, null),
-                    ElementType.DOUBLE,
-                    reader
-                );
-            }
-            case "keyword" -> {
-                SortedSetOrdinalsIndexFieldData fd = new SortedSetOrdinalsIndexFieldData(
-                    new IndexFieldDataCache.None(),
-                    "keyword",
-                    CoreValuesSourceType.KEYWORD,
-                    new NoneCircuitBreakerService(),
-                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-                );
-                FieldContext context = new FieldContext(name, fd, null);
-                yield new ValueSourceInfo(
-                    CoreValuesSourceType.KEYWORD,
-                    CoreValuesSourceType.KEYWORD.getField(context, null),
-                    ElementType.BYTES_REF,
-                    reader
-                );
-            }
+            case "long" -> numericBlockLoader(name, NumberFieldMapper.NumberType.LONG);
+            case "int" -> numericBlockLoader(name, NumberFieldMapper.NumberType.INTEGER);
+            case "double" -> numericBlockLoader(name, NumberFieldMapper.NumberType.DOUBLE);
+            case "keyword" -> new KeywordFieldMapper.KeywordFieldType(name).blockLoader(null);
             default -> throw new IllegalArgumentException("can't read [" + name + "]");
         };
     }
 
-    private static ValueSourceInfo numericInfo(
-        IndexReader reader,
-        String name,
-        IndexNumericFieldData.NumericType numericType,
-        ElementType elementType
-    ) {
-        SortedNumericIndexFieldData fd = new SortedNumericIndexFieldData(name, numericType, CoreValuesSourceType.NUMERIC, null);
-        FieldContext context = new FieldContext(name, fd, null);
-        return new ValueSourceInfo(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.NUMERIC.getField(context, null), elementType, reader);
+    private static BlockLoader numericBlockLoader(String name, NumberFieldMapper.NumberType numberType) {
+        return new NumberFieldMapper.NumberFieldType(name, numberType).blockLoader(null);
     }
 
     /**
@@ -176,7 +132,12 @@ public class ValuesSourceReaderBenchmark {
     @Benchmark
     @OperationsPerInvocation(INDEX_SIZE)
     public void benchmark() {
-        ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(List.of(info(reader, name)), 0, name);
+        ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
+            BlockFactory.getNonBreakingInstance(),
+            List.of(BlockReaderFactories.loaderToFactory(reader, blockLoader(name))),
+            0,
+            name
+        );
         long sum = 0;
         for (Page page : pages) {
             op.addInput(page);
@@ -203,13 +164,24 @@ public class ValuesSourceReaderBenchmark {
                     BytesRef scratch = new BytesRef();
                     BytesRefVector values = op.getOutput().<BytesRefBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
-                        sum += Integer.parseInt(values.getBytesRef(p, scratch).utf8ToString());
+                        BytesRef r = values.getBytesRef(p, scratch);
+                        r.offset++;
+                        r.length--;
+                        sum += Integer.parseInt(r.utf8ToString());
                     }
                 }
             }
         }
-        long expected = INDEX_SIZE;
-        expected = expected * (expected - 1) / 2;
+        long expected;
+        if (name.equals("keyword")) {
+            expected = 0;
+            for (int i = 0; i < INDEX_SIZE; i++) {
+                expected += i % 1000;
+            }
+        } else {
+            expected = INDEX_SIZE;
+            expected = expected * (expected - 1) / 2;
+        }
         if (expected != sum) {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");
         }
@@ -225,16 +197,13 @@ public class ValuesSourceReaderBenchmark {
         directory = new ByteBuffersDirectory();
         try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
             for (int i = 0; i < INDEX_SIZE; i++) {
+                String c = Character.toString('a' - ((i % 1000) % 26) + 26);
                 iw.addDocument(
                     List.of(
                         new NumericDocValuesField("long", i),
                         new NumericDocValuesField("int", i),
                         new NumericDocValuesField("double", NumericUtils.doubleToSortableLong(i)),
-                        new KeywordFieldMapper.KeywordField(
-                            "keyword",
-                            new BytesRef(Integer.toString(i)),
-                            KeywordFieldMapper.Defaults.FIELD_TYPE
-                        )
+                        new KeywordFieldMapper.KeywordField("keyword", new BytesRef(c + i % 1000), KeywordFieldMapper.Defaults.FIELD_TYPE)
                     )
                 );
                 if (i % COMMIT_INTERVAL == 0) {

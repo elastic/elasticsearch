@@ -43,7 +43,8 @@ public class MvMaxTests extends AbstractMultivalueFunctionTestCase {
             "MvMax",
             (size, values) -> equalTo(NumericUtils.asLongUnsigned(values.reduce(BigInteger::max).get()))
         );
-        return parameterSuppliersFromTypedData(cases);
+        dateTimes(cases, "mv_max", "MvMax", (size, values) -> equalTo(values.max().getAsLong()));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, cases)));
     }
 
     @Override

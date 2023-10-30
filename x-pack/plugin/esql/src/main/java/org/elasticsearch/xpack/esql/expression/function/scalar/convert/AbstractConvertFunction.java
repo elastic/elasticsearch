@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
@@ -45,11 +44,11 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
      */
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         DataType sourceType = field().dataType();
-        var evaluator = evaluators().get(sourceType);
-        if (evaluator == null) {
+        var factory = factories().get(sourceType);
+        if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
-        return dvrCtx -> evaluator.apply(fieldEval.get(dvrCtx), source(), dvrCtx);
+        return factory.build(fieldEval, source());
     }
 
     @Override
@@ -59,14 +58,19 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
         }
         return isType(
             field(),
-            evaluators()::containsKey,
+            factories()::containsKey,
             sourceText(),
             null,
-            evaluators().keySet().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toArray(String[]::new)
+            factories().keySet().stream().map(dt -> dt.name().toLowerCase(Locale.ROOT)).sorted().toArray(String[]::new)
         );
     }
 
-    protected abstract Map<DataType, TriFunction<ExpressionEvaluator, Source, DriverContext, ExpressionEvaluator>> evaluators();
+    @FunctionalInterface
+    interface BuildFactory {
+        ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
+    }
+
+    protected abstract Map<DataType, BuildFactory> factories();
 
     @Override
     public final Object fold() {
@@ -106,9 +110,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         public Block.Ref eval(Page page) {
             try (Block.Ref ref = fieldEvaluator.eval(page)) {
-                if (ref.block().areAllValuesNull()) {
-                    return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-                }
                 Vector vector = ref.block().asVector();
                 return Block.Ref.floating(vector == null ? evalBlock(ref.block()) : evalVector(vector));
             }

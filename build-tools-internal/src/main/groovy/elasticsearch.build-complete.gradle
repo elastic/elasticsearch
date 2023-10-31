@@ -8,6 +8,7 @@
 
 import org.elasticsearch.gradle.util.GradleUtils
 
+import org.elasticsearch.gradle.internal.ElasticsearchBuildFinishedPlugin;
 import java.nio.file.Files
 
 gradle.getSharedServices().getRegistrations().configureEach {
@@ -19,6 +20,8 @@ String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
 Boolean isNested = System.getProperty("scan.tag.NESTED") != null
 
 if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false && isNested == false) {
+  project.getPlugins().apply(ElasticsearchBuildFinishedPlugin.class)
+
   def uploadFilePath = "build/${buildNumber}.tar.bz2"
   File uploadFile = file(uploadFilePath)
   project.gradle.buildFinished { result ->
@@ -31,7 +34,6 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
       ant.tar(destfile: uploadFile, compression: "bzip2", longfile: "gnu") {
         fileset(dir: projectDir) {
           Set<File> fileSet = fileTree(projectDir) {
-            followSymlinks = false
             include("**/*.hprof")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")

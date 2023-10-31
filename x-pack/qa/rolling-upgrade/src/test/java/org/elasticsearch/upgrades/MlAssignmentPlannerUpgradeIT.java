@@ -62,7 +62,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testMlAssignmentPlannerUpgrade() throws Exception {
-        assumeTrue("NLP model deployments added in 8.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
+        assumeTrue("NLP model deployments added in 8.0", isOriginalClusterVersionAtLeast(Version.V_8_0_0));
 
         logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);
 
@@ -76,7 +76,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_11_0)) {
+                if (isOriginalClusterVersionAtLeast(Version.V_8_11_0)) {
                     assertNewMemoryFormat("new_memory_format");
                 } else {
                     assertOldMemoryFormat("new_memory_format");
@@ -92,7 +92,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_11_0)) {
+                if (isOriginalClusterVersionAtLeast(Version.V_8_11_0)) {
                     assertNewMemoryFormat("new_memory_format");
                 } else {
                     assertOldMemoryFormat("new_memory_format");

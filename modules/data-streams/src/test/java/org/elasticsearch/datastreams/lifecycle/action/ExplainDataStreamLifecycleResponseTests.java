@@ -108,11 +108,11 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
                     assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
                     assertThat(
-                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_FIELD.getPreferredName()),
+                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_MILLIS_FIELD.getPreferredName()),
                         is(explainIndex.getError().firstOccurrenceTimestamp())
                     );
                     assertThat(
-                        errorObject.get(ErrorEntry.LAST_RECORDED_TIMESTAMP_FIELD.getPreferredName()),
+                        errorObject.get(ErrorEntry.LAST_RECORDED_MILLIS_FIELD.getPreferredName()),
                         is(explainIndex.getError().recordedTimestamp())
                     );
                     assertThat(errorObject.get(ErrorEntry.RETRY_COUNT_FIELD.getPreferredName()), is(explainIndex.getError().retryCount()));
@@ -174,11 +174,11 @@ public class ExplainDataStreamLifecycleResponseTests extends AbstractWireSeriali
                     Map<String, Object> errorObject = (Map<String, Object>) explainIndexMap.get("error");
                     assertThat(errorObject.get(ErrorEntry.MESSAGE_FIELD.getPreferredName()), is(explainIndex.getError().error()));
                     assertThat(
-                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_FIELD.getPreferredName()),
+                        errorObject.get(ErrorEntry.FIRST_OCCURRENCE_MILLIS_FIELD.getPreferredName()),
                         is(explainIndex.getError().firstOccurrenceTimestamp())
                     );
                     assertThat(
-                        errorObject.get(ErrorEntry.LAST_RECORDED_TIMESTAMP_FIELD.getPreferredName()),
+                        errorObject.get(ErrorEntry.LAST_RECORDED_MILLIS_FIELD.getPreferredName()),
                         is(explainIndex.getError().recordedTimestamp())
                     );
                     assertThat(errorObject.get(ErrorEntry.RETRY_COUNT_FIELD.getPreferredName()), is(explainIndex.getError().retryCount()));

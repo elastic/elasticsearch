@@ -76,7 +76,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if ( UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_11_0)) {
+                if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_11_0)) {
                     assertNewMemoryFormat("new_memory_format");
                 } else {
                     assertOldMemoryFormat("new_memory_format");

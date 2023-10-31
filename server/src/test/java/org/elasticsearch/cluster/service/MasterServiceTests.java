@@ -228,12 +228,6 @@ public class MasterServiceTests extends ESTestCase {
             public void onTaskRegistered(Task task) {
                 registeredActions.add(task.getAction());
             }
-
-            @Override
-            public void onTaskUnregistered(Task task) {}
-
-            @Override
-            public void waitForTaskCompletion(Task task) {}
         });
 
         final CountDownLatch latch = new CountDownLatch(1);

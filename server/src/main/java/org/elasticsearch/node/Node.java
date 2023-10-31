@@ -316,7 +316,7 @@ public class Node implements Closeable {
             injector.getInstance(IndexMetadataVerifier.class),
             injector.getInstance(MetadataUpgrader.class),
             injector.getInstance(PersistedClusterStateService.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             injector.getInstance(CompatibilityVersions.class)
         );
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
@@ -543,7 +543,7 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
             toClose.add(plugin);
         }
-        toClose.addAll(pluginsService.filterPlugins(Plugin.class));
+        pluginsService.filterPlugins(Plugin.class).forEach(toClose::add);
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));

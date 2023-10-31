@@ -92,4 +92,8 @@ public class LiveVersionMapTestUtils {
     public static boolean isSafeAccessRequired(LiveVersionMap map) {
         return map.isSafeAccessRequired();
     }
+
+    public static LiveVersionMapArchive getArchive(LiveVersionMap map) {
+        return map.getArchive();
+    }
 }

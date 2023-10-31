@@ -30,7 +30,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValueSources;
+import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -250,13 +250,14 @@ public class EnrichLookupService {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                var sources = ValueSources.sources(
+                var sources = BlockReaderFactories.factories(
                     List.of(searchContext),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType()),
-                    elementType
+                    EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                intermediateOperators.add(new ValuesSourceReaderOperator(sources, 0, extractField.name()));
+                intermediateOperators.add(
+                    new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), sources, 0, extractField.name())
+                );
             }
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));

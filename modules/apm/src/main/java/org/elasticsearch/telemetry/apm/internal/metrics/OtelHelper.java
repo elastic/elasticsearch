@@ -23,7 +23,15 @@ class OtelHelper {
                 builder.put(k, value);
             } else if (v instanceof Long value) {
                 builder.put(k, value);
+            } else if (v instanceof Integer value) {
+                builder.put(k, value);
+            } else if (v instanceof Byte value) {
+                builder.put(k, value);
+            } else if (v instanceof Short value) {
+                builder.put(k, value);
             } else if (v instanceof Double value) {
+                builder.put(k, value);
+            } else if (v instanceof Float value) {
                 builder.put(k, value);
             } else if (v instanceof Boolean value) {
                 builder.put(k, value);

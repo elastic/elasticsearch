@@ -6,7 +6,7 @@
  */
 
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
-
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 dependencies {
@@ -27,7 +27,7 @@ def localCluster = testClusters.register('local') {
     setting 'xpack.security.enabled', 'true'
     user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.other.seeds',
-      { "\"${remoteCluster.get().getAllTransportPortURI().join(",")}\"" }
+      { "\"${remoteCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
 }
 
 

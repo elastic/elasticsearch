@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -65,10 +64,7 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
         String indexNode = startIndexNode();
         ensureStableCluster(2);
 
-        final MockTransportService indexNodeTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            indexNode
-        );
+        final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNode);
 
         final ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNode);
         final PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
@@ -123,11 +119,6 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
         );
         ensureStableCluster(2);
 
-        final MockTransportService indexNodeTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            indexNode
-        );
-
         final ClusterService masterClusterService = internalCluster().getInstance(ClusterService.class, masterNode);
         final PlainActionFuture<Void> removedNode = new PlainActionFuture<>();
         final PlainActionFuture<Void> validationStarted = new PlainActionFuture<>();
@@ -138,16 +129,14 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
             }
         });
 
-        indexNodeTransportService.addRequestHandlingBehavior(
-            FollowersChecker.FOLLOWER_CHECK_ACTION_NAME,
-            (handler, request, channel, task) -> {
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
                 if (validationStarted.isDone() == false) {
                     channel.sendResponse(new ElasticsearchException("simulated check failure"));
                 } else {
                     handler.messageReceived(request, channel, task);
                 }
-            }
-        );
+            });
 
         removedNode.actionGet();
 

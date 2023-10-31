@@ -80,7 +80,7 @@ POST image-index/_search
 
 NOTE: `knn` query doesn't have a separate `k` parameter. `k` is defined by
 `size` parameter of a search request similar to other queries. `knn` query
-collects num_candidates` results from each shard, then merges them to get
+collects `num_candidates` results from each shard, then merges them to get
 the top `size` results.
 
 
@@ -119,7 +119,7 @@ The value can be a single query or a list of queries. If `filter` is not provide
 all documents are allowed to match.
 
 The filter is a pre-filter, meaning that it is applied **during** the approximate
-kNN search to ensure that `k` matching documents are returned.
+kNN search to ensure that `num_candidates` matching documents are returned.
 --
 
 `similarity`::
@@ -172,18 +172,16 @@ POST image-index/_search
 {
   "size" : 10,
   "query" : {
-    {
-      "bool" : {
-        "must" : {
-          "knn": {
-            "field": "image-vector",
-            "query_vector": [-5, 9, -12],
-            "num_candidates": 3
-          }
-        },
-        "filter" : {
-          "term" : { "file-type" : "png" }
+    "bool" : {
+      "must" : {
+        "knn": {
+          "field": "image-vector",
+          "query_vector": [-5, 9, -12],
+          "num_candidates": 3
         }
+      },
+      "filter" : {
+        "term" : { "file-type" : "png" }
       }
     }
   },
@@ -234,5 +232,5 @@ A sample query can look like below:
 Thus, the final results from aggregations contain
 `num_candidates * number_of_shards` documents. This is different from
 the <<knn-search,top level knn section>> where aggregations are
-calculated on the top k nearest documents.
+calculated on the global top k nearest documents.
 

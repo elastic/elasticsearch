@@ -56,7 +56,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -555,7 +554,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             BlobStoreRepository.class,
             internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName)
         );
-        final var indexId = PlainActionFuture.get(repo::getRepositoryData, 10, TimeUnit.SECONDS).resolveIndexId(indexName);
+        final var indexId = getRepositoryData(repo).resolveIndexId(indexName);
         final var shardContainer = repo.shardContainer(indexId, 0);
 
         // Create an extra dangling blob as if from an earlier snapshot that failed to clean up
@@ -591,9 +590,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
             .collect(Collectors.toSet());
 
         // Prepare to compute the expected blobs
-        final var shardGeneration = Objects.requireNonNull(
-            PlainActionFuture.get(repo::getRepositoryData, 10, TimeUnit.SECONDS).shardGenerations().getShardGen(indexId, 0)
-        );
+        final var shardGeneration = Objects.requireNonNull(getRepositoryData(repo).shardGenerations().getShardGen(indexId, 0));
         final var snapBlob = Strings.format(SNAPSHOT_NAME_FORMAT, snapshot2Info.snapshotId().getUUID());
         final var indexBlob = Strings.format(SNAPSHOT_INDEX_NAME_FORMAT, shardGeneration.toBlobNamePart());
 

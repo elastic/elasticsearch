@@ -154,6 +154,7 @@ setup:
   - match: { docs.0.doc._source.my-final-pipeline-2-ran: true }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline-1", "my-pipeline-2", "my-final-pipeline-2"] }
 
+---
 "Test ingest simulate with errors":
 
   - skip:
@@ -209,5 +210,5 @@ setup:
   - match: { docs.0.doc.error.type: "illegal_argument_exception" }
   - match: { docs.0.doc.executed_pipelines: null }
   - match: { docs.1.doc._index: "index" }
-  - match: { docs.1.doc._source.foo: "BAR" }
+  - match: { docs.1.doc._source.field1: "BAR" }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline"] }

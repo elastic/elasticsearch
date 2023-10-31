@@ -148,7 +148,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTimeSeriesSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.taskConcurrency(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit
             );

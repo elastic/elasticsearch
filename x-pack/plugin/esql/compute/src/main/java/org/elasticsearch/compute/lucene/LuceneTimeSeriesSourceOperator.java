@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopFieldCollector;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -52,8 +53,8 @@ public final class LuceneTimeSeriesSourceOperator extends LuceneOperator {
     private PerShardCollector perShardCollector;
     private final int limit;
 
-    public LuceneTimeSeriesSourceOperator(int maxPageSize, int limit, LuceneSliceQueue sliceQueue) {
-        super(maxPageSize, sliceQueue);
+    public LuceneTimeSeriesSourceOperator(BlockFactory blockFactory, int maxPageSize, int limit, LuceneSliceQueue sliceQueue) {
+        super(blockFactory, maxPageSize, sliceQueue);
         this.limit = limit;
     }
 
@@ -79,7 +80,7 @@ public final class LuceneTimeSeriesSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneTimeSeriesSourceOperator(maxPageSize, limit, sliceQueue);
+            return new LuceneTimeSeriesSourceOperator(driverContext.blockFactory(), maxPageSize, limit, sliceQueue);
         }
 
         @Override

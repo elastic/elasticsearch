@@ -172,7 +172,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
         Settings settings = secureSettings(securePassword1).build();
         PluginsService pluginsService = internalCluster().getInstances(PluginsService.class).iterator().next();
-        LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).iterator().next();
+        LocalStateMonitoring localStateMonitoring = pluginsService.filterPlugins(LocalStateMonitoring.class).findFirst().get();
         localStateMonitoring.getMonitoring().reload(settings);
 
         enqueueGetClusterVersionResponse(Version.CURRENT);

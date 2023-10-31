@@ -190,7 +190,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     private static TestPlugin getMasterNodePlugin() {
         return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("no plugin"));
     }

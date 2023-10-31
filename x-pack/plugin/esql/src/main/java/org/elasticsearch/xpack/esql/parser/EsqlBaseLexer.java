@@ -17,18 +17,18 @@ public class EsqlBaseLexer extends Lexer {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    DISSECT=1, DROP=2, ENRICH=3, EVAL=4, EXPLAIN=5, FROM=6, GROK=7, INLINESTATS=8,
-    KEEP=9, LIMIT=10, MV_EXPAND=11, PROJECT=12, RENAME=13, ROW=14, SHOW=15,
-    SORT=16, STATS=17, WHERE=18, UNKNOWN_CMD=19, LINE_COMMENT=20, MULTILINE_COMMENT=21,
-    WS=22, EXPLAIN_WS=23, EXPLAIN_LINE_COMMENT=24, EXPLAIN_MULTILINE_COMMENT=25,
-    PIPE=26, STRING=27, INTEGER_LITERAL=28, DECIMAL_LITERAL=29, BY=30, AND=31,
-    ASC=32, ASSIGN=33, COMMA=34, DESC=35, DOT=36, FALSE=37, FIRST=38, LAST=39,
-    LP=40, IN=41, IS=42, LIKE=43, NOT=44, NULL=45, NULLS=46, OR=47, PARAM=48,
-    RLIKE=49, RP=50, TRUE=51, INFO=52, FUNCTIONS=53, EQ=54, NEQ=55, LT=56,
-    LTE=57, GT=58, GTE=59, PLUS=60, MINUS=61, ASTERISK=62, SLASH=63, PERCENT=64,
-    OPENING_BRACKET=65, CLOSING_BRACKET=66, UNQUOTED_IDENTIFIER=67, QUOTED_IDENTIFIER=68,
-    EXPR_LINE_COMMENT=69, EXPR_MULTILINE_COMMENT=70, EXPR_WS=71, AS=72, METADATA=73,
-    ON=74, WITH=75, SRC_UNQUOTED_IDENTIFIER=76, SRC_QUOTED_IDENTIFIER=77,
+    DISSECT=1, DROP=2, ENRICH=3, EVAL=4, EXPLAIN=5, FROM=6, GROK=7, INLINESTATS=8, 
+    KEEP=9, LIMIT=10, MV_EXPAND=11, PROJECT=12, RENAME=13, ROW=14, SHOW=15, 
+    SORT=16, STATS=17, WHERE=18, UNKNOWN_CMD=19, LINE_COMMENT=20, MULTILINE_COMMENT=21, 
+    WS=22, EXPLAIN_WS=23, EXPLAIN_LINE_COMMENT=24, EXPLAIN_MULTILINE_COMMENT=25, 
+    PIPE=26, STRING=27, INTEGER_LITERAL=28, DECIMAL_LITERAL=29, BY=30, AND=31, 
+    ASC=32, ASSIGN=33, COMMA=34, DESC=35, DOT=36, FALSE=37, FIRST=38, LAST=39, 
+    LP=40, IN=41, IS=42, LIKE=43, NOT=44, NULL=45, NULLS=46, OR=47, PARAM=48, 
+    RLIKE=49, RP=50, TRUE=51, INFO=52, FUNCTIONS=53, EQ=54, NEQ=55, LT=56, 
+    LTE=57, GT=58, GTE=59, PLUS=60, MINUS=61, ASTERISK=62, SLASH=63, PERCENT=64, 
+    OPENING_BRACKET=65, CLOSING_BRACKET=66, UNQUOTED_IDENTIFIER=67, QUOTED_IDENTIFIER=68, 
+    EXPR_LINE_COMMENT=69, EXPR_MULTILINE_COMMENT=70, EXPR_WS=71, AS=72, METADATA=73, 
+    ON=74, WITH=75, SRC_UNQUOTED_IDENTIFIER=76, SRC_QUOTED_IDENTIFIER=77, 
     SRC_LINE_COMMENT=78, SRC_MULTILINE_COMMENT=79, SRC_WS=80, EXPLAIN_PIPE=81;
   public static final int
     EXPLAIN_MODE=1, EXPRESSION=2, SOURCE_IDENTIFIERS=3;
@@ -42,20 +42,20 @@ public class EsqlBaseLexer extends Lexer {
 
   private static String[] makeRuleNames() {
     return new String[] {
-      "DISSECT", "DROP", "ENRICH", "EVAL", "EXPLAIN", "FROM", "GROK", "INLINESTATS",
-      "KEEP", "LIMIT", "MV_EXPAND", "PROJECT", "RENAME", "ROW", "SHOW", "SORT",
-      "STATS", "WHERE", "UNKNOWN_CMD", "LINE_COMMENT", "MULTILINE_COMMENT",
-      "WS", "EXPLAIN_OPENING_BRACKET", "EXPLAIN_PIPE", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT",
-      "EXPLAIN_MULTILINE_COMMENT", "PIPE", "DIGIT", "LETTER", "ESCAPE_SEQUENCE",
-      "UNESCAPED_CHARS", "EXPONENT", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL",
-      "BY", "AND", "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST",
-      "LAST", "LP", "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM",
-      "RLIKE", "RP", "TRUE", "INFO", "FUNCTIONS", "EQ", "NEQ", "LT", "LTE",
-      "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET",
-      "CLOSING_BRACKET", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT",
-      "EXPR_MULTILINE_COMMENT", "EXPR_WS", "SRC_PIPE", "SRC_OPENING_BRACKET",
-      "SRC_CLOSING_BRACKET", "SRC_COMMA", "SRC_ASSIGN", "AS", "METADATA", "ON",
-      "WITH", "SRC_UNQUOTED_IDENTIFIER", "SRC_UNQUOTED_IDENTIFIER_PART", "SRC_QUOTED_IDENTIFIER",
+      "DISSECT", "DROP", "ENRICH", "EVAL", "EXPLAIN", "FROM", "GROK", "INLINESTATS", 
+      "KEEP", "LIMIT", "MV_EXPAND", "PROJECT", "RENAME", "ROW", "SHOW", "SORT", 
+      "STATS", "WHERE", "UNKNOWN_CMD", "LINE_COMMENT", "MULTILINE_COMMENT", 
+      "WS", "EXPLAIN_OPENING_BRACKET", "EXPLAIN_PIPE", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", 
+      "EXPLAIN_MULTILINE_COMMENT", "PIPE", "DIGIT", "LETTER", "ESCAPE_SEQUENCE", 
+      "UNESCAPED_CHARS", "EXPONENT", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", 
+      "BY", "AND", "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", 
+      "LAST", "LP", "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM", 
+      "RLIKE", "RP", "TRUE", "INFO", "FUNCTIONS", "EQ", "NEQ", "LT", "LTE", 
+      "GT", "GTE", "PLUS", "MINUS", "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", 
+      "CLOSING_BRACKET", "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", 
+      "EXPR_MULTILINE_COMMENT", "EXPR_WS", "SRC_PIPE", "SRC_OPENING_BRACKET", 
+      "SRC_CLOSING_BRACKET", "SRC_COMMA", "SRC_ASSIGN", "AS", "METADATA", "ON", 
+      "WITH", "SRC_UNQUOTED_IDENTIFIER", "SRC_UNQUOTED_IDENTIFIER_PART", "SRC_QUOTED_IDENTIFIER", 
       "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT", "SRC_WS"
     };
   }
@@ -63,32 +63,32 @@ public class EsqlBaseLexer extends Lexer {
 
   private static String[] makeLiteralNames() {
     return new String[] {
-      null, "'dissect'", "'drop'", "'enrich'", "'eval'", "'explain'", "'from'",
-      "'grok'", "'inlinestats'", "'keep'", "'limit'", "'mv_expand'", "'project'",
-      "'rename'", "'row'", "'show'", "'sort'", "'stats'", "'where'", null,
-      null, null, null, null, null, null, null, null, null, null, "'by'", "'and'",
-      "'asc'", null, null, "'desc'", "'.'", "'false'", "'first'", "'last'",
-      "'('", "'in'", "'is'", "'like'", "'not'", "'null'", "'nulls'", "'or'",
-      "'?'", "'rlike'", "')'", "'true'", "'info'", "'functions'", "'=='", "'!='",
-      "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null,
+      null, "'dissect'", "'drop'", "'enrich'", "'eval'", "'explain'", "'from'", 
+      "'grok'", "'inlinestats'", "'keep'", "'limit'", "'mv_expand'", "'project'", 
+      "'rename'", "'row'", "'show'", "'sort'", "'stats'", "'where'", null, 
+      null, null, null, null, null, null, null, null, null, null, "'by'", "'and'", 
+      "'asc'", null, null, "'desc'", "'.'", "'false'", "'first'", "'last'", 
+      "'('", "'in'", "'is'", "'like'", "'not'", "'null'", "'nulls'", "'or'", 
+      "'?'", "'rlike'", "')'", "'true'", "'info'", "'functions'", "'=='", "'!='", 
+      "'<'", "'<='", "'>'", "'>='", "'+'", "'-'", "'*'", "'/'", "'%'", null, 
       "']'", null, null, null, null, null, "'as'", "'metadata'", "'on'", "'with'"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
   private static String[] makeSymbolicNames() {
     return new String[] {
-      null, "DISSECT", "DROP", "ENRICH", "EVAL", "EXPLAIN", "FROM", "GROK",
-      "INLINESTATS", "KEEP", "LIMIT", "MV_EXPAND", "PROJECT", "RENAME", "ROW",
-      "SHOW", "SORT", "STATS", "WHERE", "UNKNOWN_CMD", "LINE_COMMENT", "MULTILINE_COMMENT",
-      "WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", "EXPLAIN_MULTILINE_COMMENT",
-      "PIPE", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "BY", "AND",
-      "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "LAST", "LP",
-      "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM", "RLIKE", "RP",
-      "TRUE", "INFO", "FUNCTIONS", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS",
-      "MINUS", "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET",
-      "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT",
-      "EXPR_WS", "AS", "METADATA", "ON", "WITH", "SRC_UNQUOTED_IDENTIFIER",
-      "SRC_QUOTED_IDENTIFIER", "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT",
+      null, "DISSECT", "DROP", "ENRICH", "EVAL", "EXPLAIN", "FROM", "GROK", 
+      "INLINESTATS", "KEEP", "LIMIT", "MV_EXPAND", "PROJECT", "RENAME", "ROW", 
+      "SHOW", "SORT", "STATS", "WHERE", "UNKNOWN_CMD", "LINE_COMMENT", "MULTILINE_COMMENT", 
+      "WS", "EXPLAIN_WS", "EXPLAIN_LINE_COMMENT", "EXPLAIN_MULTILINE_COMMENT", 
+      "PIPE", "STRING", "INTEGER_LITERAL", "DECIMAL_LITERAL", "BY", "AND", 
+      "ASC", "ASSIGN", "COMMA", "DESC", "DOT", "FALSE", "FIRST", "LAST", "LP", 
+      "IN", "IS", "LIKE", "NOT", "NULL", "NULLS", "OR", "PARAM", "RLIKE", "RP", 
+      "TRUE", "INFO", "FUNCTIONS", "EQ", "NEQ", "LT", "LTE", "GT", "GTE", "PLUS", 
+      "MINUS", "ASTERISK", "SLASH", "PERCENT", "OPENING_BRACKET", "CLOSING_BRACKET", 
+      "UNQUOTED_IDENTIFIER", "QUOTED_IDENTIFIER", "EXPR_LINE_COMMENT", "EXPR_MULTILINE_COMMENT", 
+      "EXPR_WS", "AS", "METADATA", "ON", "WITH", "SRC_UNQUOTED_IDENTIFIER", 
+      "SRC_QUOTED_IDENTIFIER", "SRC_LINE_COMMENT", "SRC_MULTILINE_COMMENT", 
       "SRC_WS", "EXPLAIN_PIPE"
     };
   }

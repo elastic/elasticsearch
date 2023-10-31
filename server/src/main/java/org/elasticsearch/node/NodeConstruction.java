@@ -1040,16 +1040,7 @@ class NodeConstruction {
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
 
         modules.add(
-            loadDiagnosticServices(
-                settings,
-                clusterModule,
-                discoveryModule.getCoordinator(),
-                clusterService,
-                transportService,
-                featureService,
-                systemIndices,
-                threadPool
-            )
+            loadDiagnosticServices(settings, discoveryModule.getCoordinator(), clusterService, transportService, featureService, threadPool)
         );
 
         modules.add(b -> {
@@ -1160,12 +1151,10 @@ class NodeConstruction {
 
     private Module loadDiagnosticServices(
         Settings settings,
-        ClusterModule clusterModule,
         Coordinator coordinator,
         ClusterService clusterService,
         TransportService transportService,
         FeatureService featureService,
-        SystemIndices systemIndices,
         ThreadPool threadPool
     ) {
 

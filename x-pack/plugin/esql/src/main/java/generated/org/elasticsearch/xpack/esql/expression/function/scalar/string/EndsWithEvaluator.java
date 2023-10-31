@@ -55,7 +55,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -75,7 +75,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

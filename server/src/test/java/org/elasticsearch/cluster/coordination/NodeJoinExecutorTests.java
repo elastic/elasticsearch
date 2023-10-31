@@ -182,24 +182,17 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(
-                    newNode,
-                    CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of("f1"),
-                    TEST_REASON,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {
-                            fail("Should have failed");
-                        }
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        fail("Should have failed");
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            assertThat(e.getMessage(), containsString("Node is missing required features [f2]"));
-                        }
-                    },
-                    0L
-                )
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e.getMessage(), containsString("Node is missing required features [f2]"));
+                    }
+                }, 0L)
             ),
             t -> {},
             (t, e) -> {}
@@ -230,22 +223,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(
-                    newNode,
-                    CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of("f1"),
-                    TEST_REASON,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {}
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new AssertionError("Joining should have succeeded", e);
-                        }
-                    },
-                    0L
-                )
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("Joining should have succeeded", e);
+                    }
+                }, 0L)
             ),
             t -> {},
             (t, e) -> {}
@@ -276,22 +262,15 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(
-                    newNode,
-                    CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of("f1"),
-                    TEST_REASON,
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void unused) {}
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            throw new AssertionError("Joining should have succeeded", e);
-                        }
-                    },
-                    0L
-                )
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("Joining should have succeeded", e);
+                    }
+                }, 0L)
             ),
             t -> {},
             (t, e) -> {}

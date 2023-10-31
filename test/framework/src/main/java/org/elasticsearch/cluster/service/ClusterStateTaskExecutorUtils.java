@@ -94,7 +94,7 @@ public class ClusterStateTaskExecutorUtils {
                 @Override
                 public void success(Runnable onPublishSuccess) {
                     super.success(onPublishSuccess);
-                    //onPublishSuccess.run();
+                    // onPublishSuccess.run();
                 }
             }
         ).toList();

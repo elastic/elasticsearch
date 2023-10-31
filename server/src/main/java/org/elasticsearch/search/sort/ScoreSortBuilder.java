@@ -170,4 +170,9 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         return this;
     }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        return true;
+    }
 }

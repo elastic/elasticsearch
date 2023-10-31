@@ -61,8 +61,23 @@ public class IndexShardSnapshotStatus {
      * where an abort could have occurred.
      */
     public enum AbortStatus {
-        NO_ABORT,
-        ABORTED
+        /** The shard snapshot was not aborted */
+        NOT_ABORTED,
+        /** The shard snapshot was aborted because the snapshot was aborted */
+        SNAPSHOT_ABORTED,
+        /** The shard snapshot was aborted because the snapshot was removed from the cluster state */
+        SNAPSHOT_REMOVED,
+        /** The shard snapshot was aborted because the shard closed */
+        SHARD_CLOSED,;
+
+        public String getDescription() {
+            return switch (this) {
+                case NOT_ABORTED -> "not aborted";
+                case SNAPSHOT_ABORTED -> "snapshot has been aborted";
+                case SNAPSHOT_REMOVED -> "snapshot has been removed in cluster state, aborting";
+                case SHARD_CLOSED -> "shard is closing, aborting";
+            };
+        }
     }
 
     private final AtomicReference<Stage> stage;
@@ -78,6 +93,7 @@ public class IndexShardSnapshotStatus {
     private long processedSize;
     private String failure;
     private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
+    private volatile AbortStatus abortStatus = AbortStatus.NOT_ABORTED;
 
     private IndexShardSnapshotStatus(
         final Stage stage,
@@ -134,7 +150,7 @@ public class IndexShardSnapshotStatus {
         final var prevStage = stage.compareAndExchange(Stage.STARTED, Stage.FINALIZE);
         return switch (prevStage) {
             case STARTED -> {
-                abortListeners.onResponse(AbortStatus.NO_ABORT);
+                abortListeners.onResponse(AbortStatus.NOT_ABORTED);
                 yield asCopy();
             }
             case ABORTED -> throw new AbortedSnapshotException();
@@ -168,19 +184,21 @@ public class IndexShardSnapshotStatus {
         abortListeners.addListener(listener);
     }
 
-    public synchronized void abortIfNotCompleted(final String failure, Consumer<ActionListener<Releasable>> notifyRunner) {
+    public synchronized void abortIfNotCompleted(final AbortStatus abortStatus, final Consumer<ActionListener<Releasable>> notifyRunner) {
+        assert abortStatus != AbortStatus.NOT_ABORTED;
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
-            this.failure = failure;
+            this.abortStatus = abortStatus;
+            this.failure = abortStatus.getDescription();
             notifyRunner.accept(abortListeners.map(r -> {
                 Releasables.closeExpectNoException(r);
-                return AbortStatus.ABORTED;
+                return abortStatus;
             }));
         }
     }
 
     public synchronized void moveToFailed(final long endTime, final String failure) {
         if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
-            abortListeners.onResponse(AbortStatus.NO_ABORT);
+            abortListeners.onResponse(AbortStatus.NOT_ABORTED);
             this.totalTime = Math.max(0L, endTime - startTime);
             this.failure = failure;
         }
@@ -203,6 +221,10 @@ public class IndexShardSnapshotStatus {
         if (isAborted()) {
             throw new AbortedSnapshotException();
         }
+    }
+
+    public AbortStatus getAbortStatus() {
+        return abortStatus;
     }
 
     /**

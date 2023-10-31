@@ -61,6 +61,10 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.AbortStatus.NOT_ABORTED;
+import static org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.AbortStatus.SHARD_CLOSED;
+import static org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.AbortStatus.SNAPSHOT_ABORTED;
+import static org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.AbortStatus.SNAPSHOT_REMOVED;
 
 /**
  * This service runs on data nodes and controls currently running shard snapshots on these nodes. It is responsible for
@@ -168,7 +172,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         shardId,
                         snapshotShards.getKey().getSnapshotId()
                     );
-                    indexShardSnapshotStatus.abortIfNotCompleted("shard is closing, aborting", notifyOnAbortTaskRunner::enqueueTask);
+                    indexShardSnapshotStatus.abortIfNotCompleted(SHARD_CLOSED, notifyOnAbortTaskRunner::enqueueTask);
                 }
             }
         }
@@ -203,10 +207,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 // state update, which is being processed here
                 it.remove();
                 for (IndexShardSnapshotStatus snapshotStatus : entry.getValue().values()) {
-                    snapshotStatus.abortIfNotCompleted(
-                        "snapshot has been removed in cluster state, aborting",
-                        notifyOnAbortTaskRunner::enqueueTask
-                    );
+                    snapshotStatus.abortIfNotCompleted(SNAPSHOT_REMOVED, notifyOnAbortTaskRunner::enqueueTask);
                 }
             }
         }
@@ -273,7 +274,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             notifyFailedSnapshotShard(snapshot, sid, shard.getValue().reason(), shard.getValue().generation());
                         }
                     } else {
-                        snapshotStatus.abortIfNotCompleted("snapshot has been aborted", notifyOnAbortTaskRunner::enqueueTask);
+                        snapshotStatus.abortIfNotCompleted(SNAPSHOT_ABORTED, notifyOnAbortTaskRunner::enqueueTask);
                     }
                 }
             }
@@ -313,8 +314,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             public void onFailure(Exception e) {
                 final String failure;
                 if (e instanceof AbortedSnapshotException) {
-                    failure = "aborted";
-                    logger.debug(() -> format("[%s][%s] aborted shard snapshot", shardId, snapshot), e);
+                    final var abortStatus = snapshotStatus.getAbortStatus();
+                    assert abortStatus != NOT_ABORTED;
+                    failure = abortStatus.getDescription();
+                    logger.debug(() -> format("[%s][%s] aborted shard snapshot: %s", shardId, snapshot, abortStatus), e);
                 } else {
                     failure = summarizeFailure(e);
                     logger.warn(() -> format("[%s][%s] failed to snapshot shard", shardId, snapshot), e);
@@ -426,7 +429,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         return new ActionListener<>() {
             @Override
             public void onResponse(IndexShardSnapshotStatus.AbortStatus abortStatus) {
-                if (abortStatus == IndexShardSnapshotStatus.AbortStatus.ABORTED) {
+                if (abortStatus != NOT_ABORTED) {
                     assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
                     snapshotIndexCommit.onAbort();
                 }

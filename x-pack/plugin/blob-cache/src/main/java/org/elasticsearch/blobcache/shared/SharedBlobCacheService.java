@@ -304,14 +304,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      */
     @Deprecated()
     public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
-        this(
-            environment,
-            settings,
-            threadPool,
-            ioExecutor,
-            ioExecutor,
-            BlobCacheMetrics.NOOP
-        );
+        this(environment, settings, threadPool, ioExecutor, ioExecutor, BlobCacheMetrics.NOOP);
     }
 
     // gradlew requires 'rawtypes' even if IntelliJ doesn't

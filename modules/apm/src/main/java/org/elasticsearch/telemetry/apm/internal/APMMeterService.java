@@ -42,6 +42,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
         this.otelMeterSupplier = otelMeterSupplier;
         this.noopMeterSupplier = noopMeterSupplier;
         this.meterRegistry = new APMMeterRegistry(enabled ? createOtelMeter() : createNoopMeter());
+        meterRegistry.registerLongCounter("a".repeat(256), "desc", "unit");
     }
 
     public APMMeterRegistry getMeterRegistry() {

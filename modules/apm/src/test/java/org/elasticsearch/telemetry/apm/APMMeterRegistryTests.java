@@ -16,6 +16,7 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.APMMeterService;
 import org.elasticsearch.telemetry.apm.internal.TestAPMMeterService;
 import org.elasticsearch.telemetry.metric.DoubleCounter;
+import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.sameInstance;
@@ -24,6 +25,7 @@ public class APMMeterRegistryTests extends ESTestCase {
     Meter testOtel = OpenTelemetry.noop().getMeter("test");
 
     Meter noopOtel = OpenTelemetry.noop().getMeter("noop");
+    private static final Settings TELEMETRY_ENABLED = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
 
     public void testMeterIsSetUponConstruction() {
         // test default
@@ -60,9 +62,7 @@ public class APMMeterRegistryTests extends ESTestCase {
     }
 
     public void testLookupByName() {
-        var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
-
-        var apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel).getMeterRegistry();
+        var apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel).getMeterRegistry();
 
         DoubleCounter registeredCounter = apmMeter.registerDoubleCounter("name", "desc", "unit");
         DoubleCounter lookedUpCounter = apmMeter.getDoubleCounter("name");
@@ -71,8 +71,7 @@ public class APMMeterRegistryTests extends ESTestCase {
     }
 
     public void testNoopIsSetOnStop() {
-        var settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
-        APMMeterService apmMeter = new APMMeterService(settings, () -> testOtel, () -> noopOtel);
+        APMMeterService apmMeter = new APMMeterService(TELEMETRY_ENABLED, () -> testOtel, () -> noopOtel);
         apmMeter.start();
 
         Meter meter = apmMeter.getMeterRegistry().getMeter();
@@ -84,4 +83,11 @@ public class APMMeterRegistryTests extends ESTestCase {
         assertThat(meter, sameInstance(noopOtel));
     }
 
+    public void testLongName() {
+        APMMeterService apm = new APMMeterService(TELEMETRY_ENABLED);
+        LongCounter counter = apm.getMeterRegistry().registerLongCounter("a".repeat(64), "desc", "count");
+        LongCounter counter2 = apm.getMeterRegistry().registerLongCounter("a".repeat(256), "desc", "count");
+        counter.increment();
+        counter2.increment();
+    }
 }

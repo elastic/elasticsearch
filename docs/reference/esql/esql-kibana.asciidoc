@@ -17,10 +17,12 @@ data* on the *Sample web logs* card.
 [[esql-kibana-get-started]]
 === Get started with {esql}
 
+// tag::esql-mode[]
 To get started with {esql} in Discover, open the main menu and select
 *Discover*. Next, from the Data views menu, select *Try ES|QL*.
 
 image::images/esql/esql-data-view-menu.png[align="center",width=33%]
+// end::esql-mode[]
 
 The ability to select {esql} from the Data views menu can be enabled and
 disabled using the `discover:enableESQL` setting from
@@ -48,10 +50,12 @@ limits the number of rows that are retrieved.
 TIP: Click the help icon (image:images/esql/esql-icon-help.svg[]) to open the
 in-product reference documentation for all commands and functions.
 
+// tag::autocomplete[]
 To make it easier to write queries, auto-complete offers suggestions with
 possible commands and functions:
 
 image::images/esql/esql-kibana-auto-complete.png[align="center"]
+// end::autocomplete[]
 
 [NOTE]
 ====

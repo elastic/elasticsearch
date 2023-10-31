@@ -1,12 +1,44 @@
 // tag::console[]
 
-Console
+To get started with {esql} in Console, open the main menu and select
+*Dev Tools*.
 
+The general structure of an <<esql-query-api,{esql} query API>> request is:
+
+[source,console]
+----
+POST /_query?format=txt
+{
+  "query": """
+
+  """
+}
+----
+// TEST[skip:not an actual query]
+
+Enter the actual {esql} query between the two sets of triple quotes. For
+example:
+
+[source,console]
+----
+POST /_query?format=txt
+{
+  "query": """
+FROM sample_data
+  """
+}
+----
+// TEST[skip:illustrative only]
 // end::console[]
 
 
 // tag::discover[]
 
-Discover
+include::../../esql/esql-kibana.asciidoc[tag=esql-mode]
+
+After switching to {esql} mode, the query bar shows a sample query. You can
+change that query into the queries in this getting started guide.
+
+include::../../esql/esql-kibana.asciidoc[tag=autocomplete]
 
 // end::discover[]

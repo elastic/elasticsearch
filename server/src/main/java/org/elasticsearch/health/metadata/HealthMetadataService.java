@@ -136,7 +136,7 @@ public class HealthMetadataService {
 
     private boolean canPostClusterStateUpdates(ClusterState state) {
         // Wait until every node in the cluster supports health checks
-        return isMaster && state.clusterProperlyFormed() && featureService.clusterHasFeature(state, HealthFeature.SUPPORTS_HEALTH);
+        return isMaster && state.clusterRecovered() && featureService.clusterHasFeature(state, HealthFeature.SUPPORTS_HEALTH);
     }
 
     private void updateOnClusterStateChange(ClusterChangedEvent event) {

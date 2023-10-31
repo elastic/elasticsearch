@@ -287,7 +287,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ? DiscoveryNodes.EMPTY_NODES : nodes;
     }
 
-    public boolean clusterProperlyFormed() {
+    public boolean clusterRecovered() {
         return blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
     }
 

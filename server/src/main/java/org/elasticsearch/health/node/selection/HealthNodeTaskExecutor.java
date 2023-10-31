@@ -156,7 +156,7 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
     // visible for testing
     void startTask(ClusterChangedEvent event) {
         // Wait until every node in the cluster supports health checks
-        if (event.state().clusterProperlyFormed() && featureService.clusterHasFeature(event.state(), HealthFeature.SUPPORTS_HEALTH)) {
+        if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeature.SUPPORTS_HEALTH)) {
             boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
             boolean isElectedMaster = event.localNodeMaster();
             if (isElectedMaster || healthNodeTaskExists) {

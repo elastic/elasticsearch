@@ -212,7 +212,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 );
             }
         }
-        prerequisitesFulfilled = event.state().clusterProperlyFormed()
+        prerequisitesFulfilled = event.state().clusterRecovered()
             && featureService.clusterHasFeature(event.state(), HealthFeature.SUPPORTS_HEALTH)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null

@@ -27,6 +27,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 public class FilterRepository implements Repository {
 
@@ -61,8 +62,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        in.getRepositoryData(listener);
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
+        in.getRepositoryData(responseExecutor, listener);
     }
 
     @Override

@@ -266,7 +266,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 .getStatsCollectors().collectors;
 
             final var plugins = internalCluster().getInstance(PluginsService.class, nodeName)
-                .filterPlugins(TestS3BlobTelemetryPlugin.class);
+                .filterPlugins(TestS3BlobTelemetryPlugin.class)
+                .toList();
             assertThat(plugins, hasSize(1));
             final List<Measurement> metrics = Measurement.combine(plugins.get(0).getLongCounterMeasurement(METRIC_REQUESTS_COUNT));
 

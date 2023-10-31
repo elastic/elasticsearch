@@ -278,6 +278,25 @@ public final class ExceptionsHelper {
         return uniqueFailures.toArray(new ShardOperationFailedException[0]);
     }
 
+    /**
+     * Utility method useful for determine whether to log an Exception or perhaps
+     * avoid logging a stacktrace if the caller/logger is not interested in these
+     * types of node/shard issues.
+     *
+     * @param t Throwable to inspect
+     * @return true if the Throwable is an instance of an Exception that indicates
+     *         that either a Node or shard is unavailable/disconnected.
+     */
+    public static boolean isNodeOrShardUnavailableTypeException(Throwable t) {
+        return (t instanceof org.elasticsearch.action.NoShardAvailableActionException
+            || t instanceof org.elasticsearch.action.UnavailableShardsException
+            || t instanceof org.elasticsearch.node.NodeClosedException
+            || t instanceof org.elasticsearch.transport.NodeDisconnectedException
+            || t instanceof org.elasticsearch.discovery.MasterNotDiscoveredException
+            || t instanceof org.elasticsearch.transport.NodeNotConnectedException
+            || t instanceof org.elasticsearch.cluster.block.ClusterBlockException);
+    }
+
     private static class GroupBy {
         final String reason;
         final String index;

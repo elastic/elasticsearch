@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
@@ -76,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -151,9 +151,7 @@ public class LocalExecutionPlanner {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
-            configuration.pragmas().taskConcurrency(),
-            configuration.pragmas().dataPartitioning(),
-            configuration.pragmas().pageSize(),
+            configuration.pragmas(),
             bigArrays,
             blockFactory
         );
@@ -256,8 +254,8 @@ public class LocalExecutionPlanner {
         final LuceneOperator.Factory luceneFactory = new LuceneCountOperator.Factory(
             esProvider.searchContexts(),
             querySupplier,
-            context.dataPartitioning(),
-            context.taskConcurrency(),
+            context.queryPragmas.dataPartitioning(),
+            context.queryPragmas.taskConcurrency(),
             limit
         );
 
@@ -529,7 +527,7 @@ public class LocalExecutionPlanner {
             new EnrichLookupOperator.Factory(
                 sessionId,
                 parentTask,
-                1, // TODO: Add a concurrent setting for enrich - also support unordered mode
+                context.queryPragmas().enrichMaxWorkers(),
                 source.layout.get(enrich.matchField().id()).channel(),
                 enrichLookupService,
                 enrichIndex,
@@ -731,9 +729,7 @@ public class LocalExecutionPlanner {
     public record LocalExecutionPlannerContext(
         List<DriverFactory> driverFactories,
         Holder<DriverParallelism> driverParallelism,
-        int taskConcurrency,
-        DataPartitioning dataPartitioning,
-        int configuredPageSize,
+        QueryPragmas queryPragmas,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
@@ -752,8 +748,8 @@ public class LocalExecutionPlanner {
             if (estimatedRowSize == 0) {
                 throw new IllegalStateException("estimated row size can't be 0");
             }
-            if (configuredPageSize != 0) {
-                return configuredPageSize;
+            if (queryPragmas.pageSize() != 0) {
+                return queryPragmas.pageSize();
             }
             return Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize);
         }

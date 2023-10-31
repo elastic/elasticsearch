@@ -152,7 +152,11 @@ public class TransportVersions {
     public static final TransportVersion TOO_MANY_SCROLL_CONTEXTS_EXCEPTION_ADDED = def(8_521_00_0);
     public static final TransportVersion UNCONTENDED_REGISTER_ANALYSIS_ADDED = def(8_522_00_0);
     public static final TransportVersion TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED = def(8_523_00_0);
-    public static final TransportVersion INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED = def(8_524_00_0);
+    public static final TransportVersion IP_ADDRESS_WRITEABLE = def(8_524_00_0);
+    public static final TransportVersion PRIMARY_TERM_ADDED = def(8_525_00_0);
+    public static final TransportVersion CLUSTER_FEATURES_ADDED = def(8_526_00_0);
+    public static final TransportVersion INVALID_BUCKET_PATH_EXCEPTION_INTRODUCED = def(8_527_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

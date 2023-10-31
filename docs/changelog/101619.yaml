@@ -1,0 +1,5 @@
+pr: 101619
+summary: Change terms aggregation default execution mode for tsdb
+area: Aggregations
+type: enhancement
+issues: []

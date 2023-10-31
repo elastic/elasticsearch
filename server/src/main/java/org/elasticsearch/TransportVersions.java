@@ -165,6 +165,7 @@ public class TransportVersions {
     public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
     public static final TransportVersion ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED = def(8_535_00_0);
     public static final TransportVersion COUNTED_KEYWORD_ADDED = def(8_536_00_0);
+    public static final TransportVersion TRANSFORM_GET_CHECKPOINT_QUERY_ADDED = def(8_537_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

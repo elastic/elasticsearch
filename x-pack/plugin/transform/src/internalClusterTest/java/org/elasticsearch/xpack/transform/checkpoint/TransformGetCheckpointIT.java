@@ -46,6 +46,8 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePrefix + "*" },
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.timeValueSeconds(5)
         );
 
@@ -111,6 +113,8 @@ public class TransformGetCheckpointIT extends TransformSingleNodeTestCase {
         final GetCheckpointAction.Request request = new GetCheckpointAction.Request(
             new String[] { indexNamePrefix + "*" },
             IndicesOptions.LENIENT_EXPAND_OPEN,
+            null,
+            null,
             TimeValue.ZERO
         );
 

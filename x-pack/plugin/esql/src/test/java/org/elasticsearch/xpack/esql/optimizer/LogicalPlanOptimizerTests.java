@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -2445,6 +2446,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(Expressions.names(aggs), contains("max(x)"));
         aggFieldName(aggs.get(0), Max.class, "salary");
         var source = as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expected
+     * Limit[2[INTEGER]]
+     * \_Filter[a{r}#6 > 2[INTEGER]]
+     *   \_MvExpand[a{r}#2,a{r}#6]
+     *     \_Row[[[1, 2, 3][INTEGER] AS a]]
+     */
+    public void testMvExpandFoldable() {
+        LogicalPlan plan = optimizedPlan("""
+            row a = [1, 2, 3]
+            | mv_expand a
+            | where a > 2
+            | limit 2""");
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var expand = as(filter.child(), MvExpand.class);
+        assertThat(filter.condition(), instanceOf(GreaterThan.class));
+        var filterProp = ((GreaterThan) filter.condition()).left();
+        assertTrue(expand.expanded().semanticEquals(filterProp));
+        assertFalse(expand.target().semanticEquals(filterProp));
+        var row = as(expand.child(), Row.class);
     }
 
     private <T> T aliased(Expression exp, Class<T> clazz) {

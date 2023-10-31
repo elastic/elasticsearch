@@ -37,14 +37,8 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       IntBlock valBlock = (IntBlock) valRef.block();
       try (Block.Ref decimalsRef = decimals.eval(page)) {
-        if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
         IntVector valVector = valBlock.asVector();
         if (valVector == null) {

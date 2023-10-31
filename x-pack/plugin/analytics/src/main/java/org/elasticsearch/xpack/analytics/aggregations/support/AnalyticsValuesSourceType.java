@@ -11,13 +11,13 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.util.Locale;
+import java.util.function.LongSupplier;
 
 public enum AnalyticsValuesSourceType implements ValuesSourceType {
     HISTOGRAM() {
@@ -49,7 +49,7 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
             ValuesSource valuesSource,
             Object rawMissing,
             DocValueFormat docValueFormat,
-            AggregationContext context
+            LongSupplier nowInMillis
         ) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }

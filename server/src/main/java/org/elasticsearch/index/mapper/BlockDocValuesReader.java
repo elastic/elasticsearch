@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
@@ -68,6 +69,14 @@ public abstract class BlockDocValuesReader {
         @Override
         public final Method method() {
             return Method.DOC_VALUES;
+        }
+
+        @Override public boolean loadSource() {
+            return false;
+        }
+
+        @Override public Set<String> loadFields() {
+            return Set.of();
         }
 
         @Override

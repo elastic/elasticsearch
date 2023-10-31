@@ -74,7 +74,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private final ComputeBlockLoaderFactory blockFactory;
 
     private BlockLoader lastLoader;
-    private Block lastConstant;
     private BlockDocValuesReader lastReader;
     private int lastShard = -1;
     private int lastSegment = -1;
@@ -117,22 +116,22 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private Block loadFromSingleLeaf(DocVector docVector) throws IOException {
         setupReader(docVector.shards().getInt(0), docVector.segments().getInt(0), docVector.docs().getInt(0));
-        if (lastLoader.method() == BlockLoader.Method.CONSTANT) {
-            return (Block) lastLoader.constant(blockFactory, docVector.docs().getPositionCount());
-        }
-        return ((Block) lastReader.readValues(blockFactory, new BlockLoader.Docs() {
-            private final IntVector docs = docVector.docs();
+        return switch (lastLoader.method()) {
+            case CONSTANT -> (Block) lastLoader.constant(blockFactory, docVector.docs().getPositionCount());
+            case DOC_VALUES -> ((Block) lastReader.readValues(blockFactory, new BlockLoader.Docs() {
+                private final IntVector docs = docVector.docs();
 
-            @Override
-            public int count() {
-                return docs.getPositionCount();
-            }
+                @Override
+                public int count() {
+                    return docs.getPositionCount();
+                }
 
-            @Override
-            public int get(int i) {
-                return docs.getInt(i);
-            }
-        }));
+                @Override
+                public int get(int i) {
+                    return docs.getInt(i);
+                }
+            }));
+        };
     }
 
     private Block loadFromManyLeaves(DocVector docVector) throws IOException {
@@ -142,9 +141,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         if (lastLoader.method() == BlockLoader.Method.CONSTANT && docVector.segments().isConstant()) {
             return (Block) lastLoader.constant(blockFactory, docVector.docs().getPositionCount());
         }
+        Block constant = null;
         try (Block.Builder builder = (Block.Builder) lastLoader.builder(blockFactory, forwards.length)) {
-            if (lastConstant != null) {
-                builder.copyFrom(lastConstant, 0, 1);
+            if (lastLoader.method() == BlockLoader.Method.CONSTANT) {
+                constant = (Block) lastLoader.constant(blockFactory, 1);
+                builder.copyFrom(constant, 0, 1);
             } else {
                 lastReader.readValuesFromSingleDoc(doc, builder);
             }
@@ -152,34 +153,39 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 int shard = docVector.shards().getInt(forwards[i]);
                 int segment = docVector.segments().getInt(forwards[i]);
                 doc = docVector.docs().getInt(forwards[i]);
-                if (segment != lastSegment || shard != lastShard) {
-                    setupReader(shard, segment, doc);
-                }
-                if (lastConstant != null) {
-                    builder.copyFrom(lastConstant, 0, 1);
+                if (setupReader(shard, segment, doc)) {
+                    if (lastLoader.method() == BlockLoader.Method.CONSTANT) {
+                        if (lastLoader.method() == BlockLoader.Method.CONSTANT) {
+                            constant = (Block) lastLoader.constant(blockFactory, 1);
+                            builder.copyFrom(constant, 0, 1);
+                        }
+                    } else {
+                        lastReader.readValuesFromSingleDoc(doc, builder);
+                    }
                 } else {
-                    lastReader.readValuesFromSingleDoc(doc, builder);
+                    if (lastLoader.method() == BlockLoader.Method.CONSTANT) {
+                        builder.copyFrom(constant, 0, 1);
+                    } else {
+                        lastReader.readValuesFromSingleDoc(doc, builder);
+                    }
                 }
             }
             try (Block orig = builder.build()) {
                 return orig.filter(docVector.shardSegmentDocMapBackwards());
             }
+        } finally {
+            Releasables.close(constant);
         }
     }
 
-    private void setupReader(int shard, int segment, int doc) throws IOException {
+    private boolean setupReader(int shard, int segment, int doc) throws IOException {
         if (lastSegment == segment && lastShard == shard && BlockDocValuesReader.canReuse(lastReader, doc)) {
-            return;
+            return false;
         }
-
-        Releasables.closeExpectNoException(lastConstant);
-        lastConstant = null;
 
         lastLoader = blockLoaders.get(shard);
         switch (lastLoader.method()) {
             case CONSTANT -> {
-                lastConstant = (Block) lastLoader.constant(blockFactory, 1);
-                readersBuilt.compute("constant[" + lastConstant + "]", (k, v) -> v == null ? 1 : v + 1);
             }
             case DOC_VALUES -> {
                 lastReader = lastLoader.docValuesReader(readers.get(shard).leaves().get(segment));
@@ -188,11 +194,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
         lastShard = shard;
         lastSegment = segment;
-    }
-
-    @Override
-    public void close() {
-        Releasables.close(super::close, lastConstant);
+        return true;
     }
 
     @Override

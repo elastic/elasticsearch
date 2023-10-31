@@ -1247,7 +1247,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testBlockLoader((loader, reader) -> (TestBlock) reader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
     }
 
-    @Repeat(iterations=1000)
+    @Repeat(iterations = 1000)
     public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
         testBlockLoader((loader, reader) -> {
             TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, 1);
@@ -1295,7 +1295,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext ctx = reader.leaves().get(0);
                 TestBlock block = switch (loader.method()) {
-                    case CONSTANT -> (TestBlock) loader.constant(TestBlock.FACTORY, ctx.reader().numDocs());
+                    case CONSTANT, STORED_FIELDS -> (TestBlock) loader.constant(TestBlock.FACTORY, ctx.reader().numDocs());
                     case DOC_VALUES -> body.apply(loader, loader.docValuesReader(ctx));
                 };
                 Object inBlock = block.get(0);

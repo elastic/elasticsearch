@@ -459,7 +459,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         if (missingFeatures.isEmpty() == false) {
             // check if the missing features are actually optional
-            // we should know about all of these - if all the other nodes have the feature, we have the feature
+            // we should know about all of these - if all the nodes have the feature, we have the feature
             for (var it = missingFeatures.iterator(); it.hasNext();) {
                 String feature = it.next();
                 var nf = featureService.getNodeFeatures().get(feature);

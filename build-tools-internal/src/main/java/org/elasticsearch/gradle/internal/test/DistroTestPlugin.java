@@ -67,15 +67,23 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        System.out.println(">DEBUG> DistroTestPlugin.apply" );
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        System.out.println(">DEBUG> Docker Support plugin applied");
         project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
+        System.out.println(">DEBUG> InternalDistributionDownloadPlugin applied");
         project.getPlugins().apply(JdkDownloadPlugin.class);
+        System.out.println(">DEBUG> JdkDownloadPlugin applied");
+
         project.getPluginManager().apply("elasticsearch.java");
 
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
         );
+
+        System.out.println(">DEBUG> Resolved docker support service");
+
 
         // TODO: it would be useful to also have the SYSTEM_JAVA_HOME setup in the root project, so that running from GCP only needs
         // a java for gradle to run, and the tests are self sufficient and consistent with the java they use
@@ -92,6 +100,8 @@ public class DistroTestPlugin implements Plugin<Project> {
         Map<ElasticsearchDistributionType, List<TaskProvider<Test>>> linuxTestTasks = new HashMap<>();
 
         for (ElasticsearchDistribution distribution : testDistributions) {
+            System.out.println(">DEBUG> Configuring test distribution " + distribution.getName());
+
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(
@@ -138,6 +148,8 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
             }
         }
+        System.out.println(">DEBUG> Test distributions configured");
+
     }
 
     private static Map<ElasticsearchDistributionType, TaskProvider<?>> lifecycleTasks(Project project, String taskPrefix) {

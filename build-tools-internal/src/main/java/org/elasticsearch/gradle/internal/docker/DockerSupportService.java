@@ -85,7 +85,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 dockerPath = dockerBinary.get();
 
                 // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
+                System.out.println(">DEBUG>  = Resolving docker version");
                 lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
+                System.out.println(">DEBUG>  = Resolving docker version DONE");
+
 
                 var lastResultOutput = lastResult.stdout.trim();
                 // docker returns 0/success if the daemon is not running, so we need to check the
@@ -98,7 +101,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
                     if (isVersionHighEnough) {
                         // Check that we can execute a privileged command
+                        System.out.println(">DEBUG>  = Check privileged docker command");
                         lastResult = runCommand(dockerPath, "images");
+                        System.out.println(">DEBUG>  = Check privileged docker command DONE");
 
                         // If docker all checks out, see if docker-compose is available and working
                         Optional<String> composePath = getDockerComposePath();
@@ -109,7 +114,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
                         // Now let's check if buildx is available and what supported platforms exist
                         if (lastResult.isSuccess()) {
+                            System.out.println(">DEBUG>  = Check docker buildx availability");
                             Result buildxResult = runCommand(dockerPath, "buildx", "inspect", "--bootstrap");
+                            System.out.println(">DEBUG>  = Check docker buildx availability DONE");
                             if (buildxResult.isSuccess()) {
                                 supportedArchitectures = buildxResult.stdout()
                                     .lines()

@@ -1010,6 +1010,7 @@ class NodeConstruction {
         final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
             clusterService,
             persistentTasksService,
+            featureService,
             settings,
             clusterService.getClusterSettings()
         );
@@ -1053,8 +1054,15 @@ class NodeConstruction {
         final HealthService healthService = createHealthService(clusterService, coordinationDiagnosticsService, threadPool);
         HealthPeriodicLogger healthPeriodicLogger = createHealthPeriodicLogger(clusterService, settings, client, healthService);
         healthPeriodicLogger.init();
-        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
-        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
+        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
+            settings,
+            clusterService,
+            nodeService,
+            threadPool,
+            client,
+            featureService
+        );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
         HealthApiStats healthApiStats = new HealthApiStats();
 

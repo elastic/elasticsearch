@@ -94,7 +94,7 @@ public class ClusterStateTaskExecutorUtils {
                 @Override
                 public void success(Runnable onPublishSuccess) {
                     super.success(onPublishSuccess);
-                    onPublishSuccess.run();
+                    //onPublishSuccess.run();
                 }
             }
         ).toList();
@@ -155,6 +155,7 @@ public class ClusterStateTaskExecutorUtils {
             assert clusterStateAckListener != null;
             assert task == clusterStateAckListener || (task instanceof ClusterStateAckListener == false);
             this.succeeded = true;
+            onPublishSuccess.run();
         }
 
         @Override
@@ -163,6 +164,7 @@ public class ClusterStateTaskExecutorUtils {
             assert onPublishSuccess != null;
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
+            onPublishSuccess.run();
         }
 
         @Override

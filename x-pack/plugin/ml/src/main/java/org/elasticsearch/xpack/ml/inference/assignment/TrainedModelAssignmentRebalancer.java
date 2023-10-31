@@ -52,18 +52,22 @@ class TrainedModelAssignmentRebalancer {
     private final Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd;
     private final int allocatedProcessorsScale;
 
+    private final boolean useNewMemoryFields;
+
     TrainedModelAssignmentRebalancer(
         TrainedModelAssignmentMetadata currentMetadata,
         Map<DiscoveryNode, NodeLoad> nodeLoads,
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByZone,
         Optional<StartTrainedModelDeploymentAction.TaskParams> deploymentToAdd,
-        int allocatedProcessorsScale
+        int allocatedProcessorsScale,
+        boolean useNewMemoryFields
     ) {
         this.currentMetadata = Objects.requireNonNull(currentMetadata);
         this.nodeLoads = Objects.requireNonNull(nodeLoads);
         this.mlNodesByZone = Objects.requireNonNull(mlNodesByZone);
         this.deploymentToAdd = Objects.requireNonNull(deploymentToAdd);
         this.allocatedProcessorsScale = allocatedProcessorsScale;
+        this.useNewMemoryFields = useNewMemoryFields;
     }
 
     TrainedModelAssignmentMetadata.Builder rebalance() {
@@ -174,8 +178,9 @@ class TrainedModelAssignmentRebalancer {
                     assignment.getTaskParams().getThreadsPerAllocation(),
                     currentAssignments,
                     assignment.getMaxAssignedAllocations(),
-                    assignment.getTaskParams().getPerDeploymentMemoryBytes(),
-                    assignment.getTaskParams().getPerAllocationMemoryBytes()
+                    // in the mixed cluster state use old memory fields to avoid unstable assignment plans
+                    useNewMemoryFields ? assignment.getTaskParams().getPerDeploymentMemoryBytes() : 0,
+                    useNewMemoryFields ? assignment.getTaskParams().getPerAllocationMemoryBytes() : 0
                 );
             })
             .forEach(planDeployments::add);
@@ -189,8 +194,9 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.getThreadsPerAllocation(),
                     Map.of(),
                     0,
-                    taskParams.getPerDeploymentMemoryBytes(),
-                    taskParams.getPerAllocationMemoryBytes()
+                    // in the mixed cluster state use old memory fields to avoid unstable assignment plans
+                    useNewMemoryFields ? taskParams.getPerDeploymentMemoryBytes() : 0,
+                    useNewMemoryFields ? taskParams.getPerAllocationMemoryBytes() : 0
                 )
             );
         }
@@ -228,8 +234,8 @@ class TrainedModelAssignmentRebalancer {
                     findFittingAssignments(assignment, assignableNodeIds, remainingNodeMemory),
                     assignment.getMaxAssignedAllocations(),
                     Priority.LOW,
-                    assignment.getTaskParams().getPerDeploymentMemoryBytes(),
-                    assignment.getTaskParams().getPerAllocationMemoryBytes()
+                    (useNewMemoryFields == false) ? assignment.getTaskParams().getPerDeploymentMemoryBytes() : 0,
+                    (useNewMemoryFields == false) ? assignment.getTaskParams().getPerAllocationMemoryBytes() : 0
                 )
             )
             .forEach(planDeployments::add);
@@ -244,8 +250,8 @@ class TrainedModelAssignmentRebalancer {
                     Map.of(),
                     0,
                     Priority.LOW,
-                    taskParams.getPerDeploymentMemoryBytes(),
-                    taskParams.getPerAllocationMemoryBytes()
+                    (useNewMemoryFields == false) ? taskParams.getPerDeploymentMemoryBytes() : 0,
+                    (useNewMemoryFields == false) ? taskParams.getPerAllocationMemoryBytes() : 0
                 )
             );
         }

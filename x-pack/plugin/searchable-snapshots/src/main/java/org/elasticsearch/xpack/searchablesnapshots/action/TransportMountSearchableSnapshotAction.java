@@ -225,15 +225,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
                 .put(DataTier.TIER_PREFERENCE, request.storage().defaultDataTiersPreference())
                 .put(request.indexSettings())
-                .put(
-                    buildIndexSettings(
-                        repoData.getUuid(),
-                        request.repositoryName(),
-                        snapshotId,
-                        indexId,
-                        request.storage()
-                    )
-                )
+                .put(buildIndexSettings(repoData.getUuid(), request.repositoryName(), snapshotId, indexId, request.storage()))
                 .build();
 
             // todo: restore archives bad settings, for now we verify just the data tiers, since we know their dependencies are available

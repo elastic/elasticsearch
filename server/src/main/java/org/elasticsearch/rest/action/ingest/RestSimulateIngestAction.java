@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.SimulateBulkAction;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -152,15 +154,19 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             builder.startObject();
             builder.startArray("docs");
             for (BulkItemResponse item : response) {
+                builder.startObject();
+                builder.startObject("doc");
                 if (item.isFailed()) {
-                    item.toXContent(builder, params);
+                    builder.field("_id", item.getFailure().getId());
+                    builder.field("_index", item.getFailure().getIndex());
+                    builder.startObject("error");
+                    ElasticsearchException.generateThrowableXContent(builder, params, item.getFailure().getCause());
+                    builder.endObject();
                 } else {
-                    builder.startObject();
-                    builder.startObject("doc");
                     item.getResponse().innerToXContent(builder, params);
-                    builder.endObject();
-                    builder.endObject();
                 }
+                builder.endObject();
+                builder.endObject();
             }
             builder.endArray();
             builder.endObject();

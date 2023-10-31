@@ -1,3 +1,8 @@
+setup:
+  - skip:
+      version: ' - 8.11.99'
+      reason: 'ingest simulate added in 8.12'
+
 ---
 "Test no pipelines":
 
@@ -181,3 +186,65 @@
   - match: { docs.1.doc._index: "index-1" }
   - match: { docs.1.doc._source.foo: "rab" }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+
+---
+"Test bad pipeline substitution":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_template:
+        name: my-template
+        body:
+          index_patterns: index-*
+          settings:
+            default_pipeline: "my-pipeline"
+
+  - do:
+      catch: "request"
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                  {
+                    "non-existent-processor": {
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { status: 500 }

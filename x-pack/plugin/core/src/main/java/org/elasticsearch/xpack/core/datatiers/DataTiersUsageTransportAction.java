@@ -8,26 +8,15 @@
 package org.elasticsearch.xpack.core.datatiers;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.tasks.Task;
@@ -42,7 +31,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.StreamSupport;
 
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -77,41 +65,14 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     ) {
         new ParentTaskAssigningClient(client, clusterService.localNode(), task).admin()
             .cluster()
-            .prepareNodesStats()
-            .all()
-            .setIndices(CommonStatsFlags.ALL)
-            .execute(listener.delegateFailureAndWrap((delegate, nodesStatsResponse) -> {
-                final RoutingNodes routingNodes = state.getRoutingNodes();
-                final Map<String, IndexMetadata> indices = state.getMetadata().getIndices();
-
-                // Determine which tiers each index would prefer to be within
-                Map<String, String> indicesToTiers = tierIndices(indices);
-
-                // Generate tier specific stats for the nodes and indices
-                Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = calculateStats(
-                    nodesStatsResponse.getNodes(),
-                    indicesToTiers,
-                    routingNodes
-                );
-
-                delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
-            }));
-    }
-
-    // Visible for testing
-    // Takes a registry of indices and returns a mapping of index name to which tier it most prefers. Always 1 to 1, some may filter out.
-    static Map<String, String> tierIndices(Map<String, IndexMetadata> indices) {
-        Map<String, String> indexByTier = new HashMap<>();
-        indices.entrySet().forEach(entry -> {
-            String tierPref = entry.getValue().getSettings().get(DataTier.TIER_PREFERENCE);
-            if (Strings.hasText(tierPref)) {
-                String[] tiers = tierPref.split(",");
-                if (tiers.length > 0) {
-                    indexByTier.put(entry.getKey(), tiers[0]);
-                }
-            }
-        });
-        return indexByTier;
+            .execute(
+                NodesDataTiersUsageTransportAction.TYPE,
+                new NodesDataTiersUsageTransportAction.NodesRequest(),
+                listener.delegateFailureAndWrap((delegate, response) -> {
+                    // Generate tier specific stats for the nodes and indices
+                    delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(aggregateStats(response.getNodes()))));
+                })
+            );
     }
 
     /**
@@ -129,27 +90,24 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     // Visible for testing
-    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(
-        List<NodeStats> nodesStats,
-        Map<String, String> indexByTier,
-        RoutingNodes routingNodes
-    ) {
+    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> aggregateStats(List<NodeDataTiersUsage> nodeDataTiersUsages) {
         Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
-        for (NodeStats nodeStats : nodesStats) {
-            aggregateDataTierNodeCounts(nodeStats, statsAccumulators);
-            aggregateDataTierIndexStats(nodeStats, routingNodes, indexByTier, statsAccumulators);
+        for (NodeDataTiersUsage nodeDataTiersUsage : nodeDataTiersUsages) {
+            // This ensures we only count the nodes that responded
+            aggregateDataTierNodeCounts(nodeDataTiersUsage, statsAccumulators);
+            aggregateDataTierIndexStats(nodeDataTiersUsage, statsAccumulators);
         }
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> results = new HashMap<>();
         for (Map.Entry<String, TierStatsAccumulator> entry : statsAccumulators.entrySet()) {
-            results.put(entry.getKey(), calculateFinalTierStats(entry.getValue()));
+            results.put(entry.getKey(), aggregateFinalTierStats(entry.getValue()));
         }
         return results;
     }
 
     /**
-     * Determine which data tiers this node belongs to (if any), and increment the node counts for those tiers.
+     * Determine which data tiers each node belongs to (if any), and increment the node counts for those tiers.
      */
-    private static void aggregateDataTierNodeCounts(NodeStats nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
+    private static void aggregateDataTierNodeCounts(NodeDataTiersUsage nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
         nodeStats.getNode()
             .getRoles()
             .stream()
@@ -159,73 +117,28 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     /**
-     * Locate which indices are hosted on the node specified by the NodeStats, then group and aggregate the available index stats by tier.
+     * Iterate the preferred tiers of the indices for a node and aggregate their stats.
      */
-    private static void aggregateDataTierIndexStats(
-        NodeStats nodeStats,
-        RoutingNodes routingNodes,
-        Map<String, String> indexByTier,
-        Map<String, TierStatsAccumulator> accumulators
-    ) {
-        final RoutingNode node = routingNodes.node(nodeStats.getNode().getId());
-        if (node != null) {
-            StreamSupport.stream(node.spliterator(), false)
-                .map(ShardRouting::index)
-                .distinct()
-                .forEach(index -> classifyIndexAndCollectStats(index, nodeStats, indexByTier, node, accumulators));
-        }
-    }
-
-    /**
-     * Determine which tier an index belongs in, then accumulate its stats into that tier's stats.
-     */
-    private static void classifyIndexAndCollectStats(
-        Index index,
-        NodeStats nodeStats,
-        Map<String, String> indexByTier,
-        RoutingNode node,
-        Map<String, TierStatsAccumulator> accumulators
-    ) {
-        // Look up which tier this index belongs to (its most preferred)
-        String indexTier = indexByTier.get(index.getName());
-        if (indexTier != null) {
-            final TierStatsAccumulator accumulator = accumulators.computeIfAbsent(indexTier, k -> new TierStatsAccumulator());
-            accumulator.indexNames.add(index.getName());
-            aggregateDataTierShardStats(nodeStats, index, node, accumulator);
-        }
-    }
-
-    /**
-     * Collect shard-level data tier stats from shard stats contained in the node stats response.
-     */
-    private static void aggregateDataTierShardStats(NodeStats nodeStats, Index index, RoutingNode node, TierStatsAccumulator accumulator) {
-        // Shard based stats
-        final List<IndexShardStats> allShardStats = nodeStats.getIndices().getShardStats(index);
-        if (allShardStats != null) {
-            for (IndexShardStats shardStat : allShardStats) {
-                accumulator.totalByteCount += shardStat.getTotal().getStore().totalDataSetSizeInBytes();
-                accumulator.docCount += shardStat.getTotal().getDocs().getCount();
-
-                // Accumulate stats about started shards
-                ShardRouting shardRouting = node.getByShardId(shardStat.getShardId());
-                if (shardRouting != null && shardRouting.state() == ShardRoutingState.STARTED) {
-                    accumulator.totalShardCount += 1;
-
-                    // Accumulate stats about started primary shards
-                    StoreStats primaryStoreStats = shardStat.getPrimary().getStore();
-                    if (primaryStoreStats != null) {
-                        // if primaryStoreStats is null, it means there is no primary on the node in question
-                        accumulator.primaryShardCount++;
-                        long primarySize = primaryStoreStats.totalDataSetSizeInBytes();
-                        accumulator.primaryByteCount += primarySize;
-                        accumulator.valueSketch.add(primarySize);
-                    }
+    private static void aggregateDataTierIndexStats(NodeDataTiersUsage nodeDataTiersUsage, Map<String, TierStatsAccumulator> accumulators) {
+        for (Map.Entry<String, NodeDataTiersUsage.UsageStats> entry : nodeDataTiersUsage.getUsageStatsByTier().entrySet()) {
+            String tier = entry.getKey();
+            NodeDataTiersUsage.UsageStats usage = entry.getValue();
+            if (DataTier.validTierName(tier)) {
+                TierStatsAccumulator accumulator = accumulators.computeIfAbsent(tier, k -> new TierStatsAccumulator());
+                accumulator.indexNames.addAll(usage.getIndices());
+                accumulator.docCount += usage.getDocCount();
+                accumulator.totalByteCount += usage.getTotalSize();
+                accumulator.totalShardCount += usage.getTotalShardCount();
+                for (Long primaryShardSize : usage.getPrimaryShardSizes()) {
+                    accumulator.primaryShardCount += 1;
+                    accumulator.primaryByteCount += primaryShardSize;
+                    accumulator.valueSketch.add(primaryShardSize);
                 }
             }
         }
     }
 
-    private static DataTiersFeatureSetUsage.TierSpecificStats calculateFinalTierStats(TierStatsAccumulator accumulator) {
+    private static DataTiersFeatureSetUsage.TierSpecificStats aggregateFinalTierStats(TierStatsAccumulator accumulator) {
         long primaryShardSizeMedian = (long) accumulator.valueSketch.quantile(0.5);
         long primaryShardSizeMAD = computeMedianAbsoluteDeviation(accumulator.valueSketch);
         return new DataTiersFeatureSetUsage.TierSpecificStats(

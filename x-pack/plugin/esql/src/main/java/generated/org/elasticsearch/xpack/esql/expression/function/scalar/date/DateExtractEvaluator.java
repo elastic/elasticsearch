@@ -65,7 +65,7 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
@@ -89,7 +89,7 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {

@@ -39,19 +39,20 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
         return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0), positionCount);
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendInt(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendInt(evalValue(vector, p));
+        } catch (Exception e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static int evalValue(BooleanVector container, int index) {
@@ -63,7 +64,7 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
   public Block evalBlock(Block b) {
     BooleanBlock block = (BooleanBlock) b;
     int positionCount = block.getPositionCount();
-    try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);

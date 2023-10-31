@@ -28,7 +28,7 @@ public class TransportDeleteSamlServiceProviderAction extends HandledTransportAc
     DeleteSamlServiceProviderRequest,
     DeleteSamlServiceProviderResponse> {
 
-    private final Logger logger = LogManager.getLogger(TransportDeleteSamlServiceProviderAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportDeleteSamlServiceProviderAction.class);
     private final SamlServiceProviderIndex index;
 
     @Inject

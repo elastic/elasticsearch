@@ -158,7 +158,7 @@ public class Node implements Closeable {
      * in InternalSettingsPreparer#finalizeSettings, which runs when creating the Environment, before logging is
      * initialized.
      */
-    private final Logger logger = LogManager.getLogger(Node.class);
+    private static final Logger logger = LogManager.getLogger(Node.class);
     private final Injector injector;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;

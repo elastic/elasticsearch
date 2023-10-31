@@ -161,7 +161,7 @@ public final class NodeEnvironment implements Closeable {
 
     }
 
-    private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
+    private static final Logger logger = LogManager.getLogger(NodeEnvironment.class);
     private final DataPath[] dataPaths;
     private final Path sharedDataPath;
     private final Lock[] locks;

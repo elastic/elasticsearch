@@ -79,10 +79,10 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
             if (version == null) {
                 version = n.getVersion();
             } else if (version.equals(n.getVersion()) == false) {
-                return false;
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     @Override

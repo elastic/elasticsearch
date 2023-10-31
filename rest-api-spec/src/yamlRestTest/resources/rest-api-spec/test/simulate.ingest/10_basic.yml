@@ -1,0 +1,183 @@
+---
+"Test no pipelines":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: [] }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: [] }
+
+---
+"Test existing index with pipelines":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.create:
+        index:  index
+        body:
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+
+---
+"Test index templates with pipelines":
+
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Content-Type: application/json
+      ingest.put_pipeline:
+        id: "my-final-pipeline"
+        body:  >
+          {
+            "processors": [
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      indices.put_template:
+        name: my-template
+        body:
+          index_patterns: index-*
+          settings:
+            default_pipeline: "my-pipeline"
+            final_pipeline: "my-final-pipeline"
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              },
+              {
+                "_index": "index-1",
+                "_id": "id",
+                "_source": {
+                  "foo": "rab"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "my-pipeline": {
+                "processors": [
+                ]
+              }
+            }
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.doc._index: "index-1" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
+  - match: { docs.1.doc._index: "index-1" }
+  - match: { docs.1.doc._source.foo: "rab" }
+  - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }

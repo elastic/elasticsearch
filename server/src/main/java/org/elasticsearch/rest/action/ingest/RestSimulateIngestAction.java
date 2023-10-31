@@ -134,16 +134,6 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         return BytesReference.fromByteBuffers(buffers);
     }
 
-    @Override
-    public boolean supportsContentStream() {
-        return true;
-    }
-
-    @Override
-    public boolean allowsUnsafeBuffers() {
-        return true;
-    }
-
     private class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
 
         SimulateIngestRestToXContentListener(RestChannel channel) {

@@ -32,8 +32,6 @@ steps:
           image: family/elasticsearch-{{matrix.image}}
           diskSizeGb: 350
           machineType: custom-16-32768
-        env:
-          PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"
       - label: "{{matrix.image}} / packages / packaging-tests-unix"
         key: "packaging-tests-unix-packages"
         command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.packages
@@ -58,6 +56,11 @@ steps:
               - rhel-8
               - rhel-9
               - almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768
       - label: "{{matrix.image}} / archives / packaging-tests-unix"
         key: "packaging-tests-unix-archives"
         command: ./.ci/scripts/packaging-test.sh destructiveDistroTest.archives
@@ -82,3 +85,8 @@ steps:
               - rhel-8
               - rhel-9
               - almalinux-8
+        agents:
+          provider: gcp
+          image: family/elasticsearch-{{matrix.image}}
+          diskSizeGb: 350
+          machineType: custom-16-32768

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.IndexId;
@@ -122,8 +120,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         String repoName,
         SnapshotId snapshotId,
         IndexId indexId,
-        MountSearchableSnapshotRequest.Storage storage,
-        Version minNodeVersion
+        MountSearchableSnapshotRequest.Storage storage
     ) {
         final Settings.Builder settings = Settings.builder();
 
@@ -142,16 +139,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             .put(INDEX_RECOVERY_TYPE_SETTING.getKey(), SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY);
 
         if (storage == MountSearchableSnapshotRequest.Storage.SHARED_CACHE) {
-            if (minNodeVersion.before(Version.V_7_12_0)) {
-                throw new IllegalArgumentException("shared cache searchable snapshots require minimum node version " + Version.V_7_12_0);
-            }
             settings.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                 .put(DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.getKey(), true);
-
-            // we cannot apply this setting during rolling upgrade.
-            if (minNodeVersion.onOrAfter(Version.V_7_13_0)) {
-                settings.put(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP);
-            }
         }
 
         return settings.build();
@@ -242,8 +231,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         request.repositoryName(),
                         snapshotId,
                         indexId,
-                        request.storage(),
-                        state.nodes().getMinNodeVersion()
+                        request.storage()
                     )
                 )
                 .build();

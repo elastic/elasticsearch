@@ -5,7 +5,7 @@ To get started with {esql} in Console, open the main menu and select
 
 The general structure of an <<esql-query-api,{esql} query API>> request is:
 
-[source,console]
+[source,txt]
 ----
 POST /_query?format=txt
 {
@@ -14,12 +14,11 @@ POST /_query?format=txt
   """
 }
 ----
-// TEST[skip:not an actual query]
 
 Enter the actual {esql} query between the two sets of triple quotes. For
 example:
 
-[source,console]
+[source,txt]
 ----
 POST /_query?format=txt
 {
@@ -28,7 +27,6 @@ FROM sample_data
   """
 }
 ----
-// TEST[skip:illustrative only]
 // end::console[]
 
 

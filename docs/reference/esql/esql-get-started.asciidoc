@@ -338,6 +338,14 @@ PUT /_enrich/policy/clientip_policy
 PUT /_enrich/policy/clientip_policy/_execute
 ----
 
+////
+[source,console]
+----
+DELETE /_enrich/policy/clientip_policy
+----
+// TEST[continued]
+////
+
 After creating and executing a policy, you can use it with the `ENRICH`
 command:
 

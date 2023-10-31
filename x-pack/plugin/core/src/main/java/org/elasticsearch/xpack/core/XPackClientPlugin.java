@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
+import org.elasticsearch.xpack.core.datatiers.DataTiersFeatureSetUsage;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardStatus;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;

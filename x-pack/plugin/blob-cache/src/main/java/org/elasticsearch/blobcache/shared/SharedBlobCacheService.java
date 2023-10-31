@@ -299,8 +299,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     /**
-     * @deprecated A NOOP telemetry provider is used here in order to maintain backward compatibility. This constructor will be removed in
-     * the future.
+     * @deprecated This constructor will be removed in the future, but is kept here for backward compatibility until all callers are
+     * updated.
      */
     @Deprecated()
     public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {

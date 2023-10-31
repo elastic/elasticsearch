@@ -90,6 +90,10 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
         return INDICES_OPTIONS;
     }
 
+    public ShardId getInternalShardId() {
+        return internalShardId;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

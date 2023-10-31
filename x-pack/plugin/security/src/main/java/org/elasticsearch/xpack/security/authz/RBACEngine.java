@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
@@ -396,7 +397,16 @@ public class RBACEngine implements AuthorizationEngine {
                                 .stream()
                                 .allMatch(IndicesAliasesRequest.AliasActions::expandAliasesWildcards))
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
-                    delegateListener.onResponse(buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup));
+
+                    IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup);
+                    if (request instanceof SingleShardRequest<?> ssr && ssr.getInternalShardId() != null) {
+                        var shardId = ssr.getInternalShardId();
+                        var shardIdAccessPermissions = result.getIndicesAccessControl().getIndexPermissions(shardId.getIndexName());
+                        if (shardIdAccessPermissions == null) {
+                            throw new IllegalArgumentException("this is unauthorized");
+                        }
+                    }
+                    delegateListener.onResponse(result);
                 }
             }));
         } else {

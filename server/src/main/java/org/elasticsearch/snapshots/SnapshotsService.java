@@ -278,6 +278,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoryMetadata initialRepositoryMetadata
     ) {
         repository.getRepositoryData(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, // Listener is lightweight, only submits a cluster state update task, no need to fork
             listener.delegateFailure(
                 (l, repositoryData) -> masterServiceTaskQueue.submitTask(
                     "create_snapshot [" + snapshot.getSnapshotId().getName() + ']',
@@ -462,14 +463,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
             // 2. step, load the number of shards we have in each index to be cloned from the index metadata.
-            repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-                for (IndexId index : indices) {
-                    executor.execute(ActionRunnable.supply(shardCountListener, () -> {
-                        final IndexMetadata metadata = repository.getSnapshotIndexMetaData(repositoryData, sourceSnapshot, index);
-                        return Tuple.tuple(index, metadata.getNumberOfShards());
-                    }));
-                }
-            }, onFailure));
+            repository.getRepositoryData(
+                EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+                ActionListener.wrap(repositoryData -> {
+                    for (IndexId index : indices) {
+                        executor.execute(ActionRunnable.supply(shardCountListener, () -> {
+                            final IndexMetadata metadata = repository.getSnapshotIndexMetaData(repositoryData, sourceSnapshot, index);
+                            return Tuple.tuple(index, metadata.getNumberOfShards());
+                        }));
+                    }
+                }, onFailure)
+            );
         }, onFailure));
 
         // 3. step, we have all the shard counts, now update the cluster state to have clone jobs in the snap entry
@@ -1268,19 +1272,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String repoName = snapshot.getRepository();
         if (tryEnterRepoLoop(repoName)) {
             if (repositoryData == null) {
-                repositoriesService.repository(repoName).getRepositoryData(new ActionListener<>() {
-                    @Override
-                    public void onResponse(RepositoryData repositoryData) {
-                        finalizeSnapshotEntry(snapshot, metadata, repositoryData);
-                    }
+                repositoriesService.repository(repoName)
+                    .getRepositoryData(
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading here, do we need to fork, see #101445?
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(RepositoryData repositoryData) {
+                                if (newFinalization) {
+                                    finalizeSnapshotEntry(snapshot, metadata, repositoryData);
+                                } else {
+                                    runNextQueuedOperation(repositoryData, repoName, false);
+                                }
+                            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        submitUnbatchedTask("fail repo tasks for [" + repoName + "]", new FailPendingRepoTasksTask(repoName, e));
-                    }
-                });
+                            @Override
+                            public void onFailure(Exception e) {
+                                submitUnbatchedTask("fail repo tasks for [" + repoName + "]", new FailPendingRepoTasksTask(repoName, e));
+                            }
+                        }
+                    );
             } else {
-                finalizeSnapshotEntry(snapshot, metadata, repositoryData);
+                if (newFinalization) {
+                    finalizeSnapshotEntry(snapshot, metadata, repositoryData);
+                } else {
+                    runNextQueuedOperation(repositoryData, repoName, false);
+                }
             }
         } else {
             if (newFinalization) {
@@ -1312,6 +1328,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private void finalizeSnapshotEntry(Snapshot snapshot, Metadata metadata, RepositoryData repositoryData) {
         assert currentlyFinalizing.contains(snapshot.getRepository());
+        assert repositoryOperations.assertNotQueued(snapshot);
         try {
             SnapshotsInProgress.Entry entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
             final String failure = entry.failure();
@@ -2262,48 +2279,52 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         Consumer<Exception> onFailure
     ) {
         final RepositoryMetadata repositoryMetadataStart = repository.getMetadata();
-        repository.getRepositoryData(ActionListener.wrap(repositoryData -> {
-            final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
-            submitUnbatchedTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
+        repository.getRepositoryData(
+            // Listener is lightweight, only submits a cluster state update task, no need to fork
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ActionListener.wrap(repositoryData -> {
+                final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
+                submitUnbatchedTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
 
-                private boolean executedTask = false;
+                    private boolean executedTask = false;
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
-                    // If the safe generation has changed, then we have to reload repository data and start over.
-                    // If the pending generation has changed we are in the midst of a write operation and might pick up the
-                    // updated repository data and state on the retry. We don't want to wait for the write to finish though
-                    // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
-                    // to change in any form.
-                    if (repositoryMetadataStart.equals(
-                        RepositoriesMetadata.get(currentState).repository(repository.getMetadata().name())
-                    )) {
-                        executedTask = true;
-                        return updateTask.execute(currentState);
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
+                        // If the safe generation has changed, then we have to reload repository data and start over.
+                        // If the pending generation has changed we are in the midst of a write operation and might pick up the
+                        // updated repository data and state on the retry. We don't want to wait for the write to finish though
+                        // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
+                        // to change in any form.
+                        if (repositoryMetadataStart.equals(
+                            RepositoriesMetadata.get(currentState).repository(repository.getMetadata().name())
+                        )) {
+                            executedTask = true;
+                            return updateTask.execute(currentState);
+                        }
+                        return currentState;
                     }
-                    return currentState;
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (executedTask) {
-                        updateTask.onFailure(e);
-                    } else {
-                        onFailure.accept(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (executedTask) {
+                            updateTask.onFailure(e);
+                        } else {
+                            onFailure.accept(e);
+                        }
                     }
-                }
 
-                @Override
-                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    if (executedTask) {
-                        updateTask.clusterStateProcessed(oldState, newState);
-                    } else {
-                        executeConsistentStateUpdate(repository, createUpdateTask, source, onFailure);
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        if (executedTask) {
+                            updateTask.clusterStateProcessed(oldState, newState);
+                        } else {
+                            executeConsistentStateUpdate(repository, createUpdateTask, source, onFailure);
+                        }
                     }
-                }
-            });
-        }, onFailure));
+                });
+            }, onFailure)
+        );
     }
 
     /** Deletes snapshot from repository

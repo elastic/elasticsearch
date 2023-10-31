@@ -21,7 +21,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,11 +37,7 @@ public class ExchangeBufferTests extends ESTestCase {
         AtomicInteger addedPages = new AtomicInteger();
         for (int t = 0; t < producers.length; t++) {
             producers[t] = new Thread(() -> {
-                try {
-                    latch.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 while (stopped.get() == false && addedPages.incrementAndGet() < 10_000) {
                     buffer.addPage(randomPage(blockFactory));
                 }

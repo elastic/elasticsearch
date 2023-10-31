@@ -83,6 +83,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.GatewayModule;
@@ -325,7 +327,7 @@ class NodeConstruction {
     }
 
     private <T> Optional<T> getSinglePlugin(Class<T> pluginClass) {
-        return getSinglePlugin(pluginsService.filterPlugins(pluginClass).stream(), pluginClass);
+        return getSinglePlugin(pluginsService.filterPlugins(pluginClass), pluginClass);
     }
 
     private <T> Optional<T> getSinglePlugin(Stream<T> plugins, Class<T> pluginClass) {
@@ -437,7 +439,7 @@ class NodeConstruction {
         resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
 
         final Set<String> taskHeaders = Stream.concat(
-            pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
+            pluginsService.filterPlugins(ActionPlugin.class).flatMap(p -> p.getTaskHeaders().stream()),
             Task.HEADERS_TO_COPY.stream()
         ).collect(Collectors.toSet());
 
@@ -456,7 +458,7 @@ class NodeConstruction {
         SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
         client = new NodeClient(settings, threadPool);
 
-        final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class));
+        final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class).toList());
         final ScriptService scriptService = serviceProvider.newScriptService(
             pluginsService,
             settings,
@@ -466,7 +468,7 @@ class NodeConstruction {
         );
         AnalysisModule analysisModule = new AnalysisModule(
             environment,
-            pluginsService.filterPlugins(AnalysisPlugin.class),
+            pluginsService.filterPlugins(AnalysisPlugin.class).toList(),
             pluginsService.getStablePluginRegistry()
         );
         // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
@@ -497,13 +499,12 @@ class NodeConstruction {
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
         final NetworkService networkService = new NetworkService(
             pluginsService.filterPlugins(DiscoveryPlugin.class)
-                .stream()
                 .map(d -> d.getCustomNameResolver(environment.settings()))
                 .filter(Objects::nonNull)
                 .toList()
         );
 
-        List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class);
+        List<ClusterPlugin> clusterPlugins = pluginsService.filterPlugins(ClusterPlugin.class).toList();
         final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
         resourcesToClose.add(clusterService);
@@ -519,7 +520,7 @@ class NodeConstruction {
 
         var factoryContext = new InferenceServicePlugin.InferenceServiceFactoryContext(client);
         final InferenceServiceRegistry inferenceServiceRegistry = new InferenceServiceRegistry(
-            pluginsService.filterPlugins(InferenceServicePlugin.class),
+            pluginsService.filterPlugins(InferenceServicePlugin.class).toList(),
             factoryContext
         );
 
@@ -529,7 +530,7 @@ class NodeConstruction {
             environment,
             scriptService,
             analysisModule.getAnalysisRegistry(),
-            pluginsService.filterPlugins(IngestPlugin.class),
+            pluginsService.filterPlugins(IngestPlugin.class).toList(),
             client,
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             documentParsingObserverSupplier
@@ -544,7 +545,7 @@ class NodeConstruction {
         );
         final UsageService usageService = new UsageService();
 
-        SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
+        SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList());
         IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
         namedWriteableRegistry = new NamedWriteableRegistry(
             Stream.of(
@@ -568,7 +569,7 @@ class NodeConstruction {
                 HealthNodeTaskExecutor.getNamedXContentParsers().stream()
             ).flatMap(Function.identity()).toList()
         );
-        final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
+        final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).map(plugin -> {
             SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName());
             return SystemIndices.Feature.fromSystemIndexPlugin(plugin, settings);
         }).toList();
@@ -602,11 +603,10 @@ class NodeConstruction {
             writeLoadForecaster
         );
         modules.add(clusterModule);
-        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
         List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
-            .stream()
             .map(plugin -> plugin.getCircuitBreaker(settings))
             .toList();
         final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
@@ -637,13 +637,11 @@ class NodeConstruction {
         );
 
         // collect engine factory providers from plugins
-        final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
-        final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = enginePlugins.stream()
-            .<Function<IndexSettings, Optional<EngineFactory>>>map(plugin -> plugin::getEngineFactory)
-            .toList();
+        final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = pluginsService.filterPlugins(
+            EnginePlugin.class
+        ).<Function<IndexSettings, Optional<EngineFactory>>>map(plugin -> plugin::getEngineFactory).toList();
 
         final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
-            .stream()
             .map(IndexStorePlugin::getDirectoryFactories)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -651,19 +649,17 @@ class NodeConstruction {
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
             IndexStorePlugin.class
         )
-            .stream()
             .map(IndexStorePlugin::getRecoveryStateFactories)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners = pluginsService.filterPlugins(
             IndexStorePlugin.class
-        ).stream().map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).toList();
+        ).map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).toList();
 
         final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = pluginsService.filterPlugins(
             IndexStorePlugin.class
         )
-            .stream()
             .map(IndexStorePlugin::getSnapshotCommitSuppliers)
             .flatMap(m -> m.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -741,6 +737,8 @@ class NodeConstruction {
             threadPool
         );
 
+        FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
@@ -755,7 +753,9 @@ class NodeConstruction {
             Supplier<RepositoriesService> repositoriesServiceSupplier,
             TelemetryProvider telemetryProvider,
             AllocationService allocationService,
-            IndicesService indicesService
+            IndicesService indicesService,
+            FeatureService featureService,
+            SystemIndices systemIndices
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -771,7 +771,9 @@ class NodeConstruction {
             repositoriesServiceReference::get,
             telemetryProvider,
             clusterModule.getAllocationService(),
-            indicesService
+            indicesService,
+            featureService,
+            systemIndices
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
@@ -809,7 +811,7 @@ class NodeConstruction {
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
             threadPool,
-            pluginsService.filterPlugins(ActionPlugin.class),
+            pluginsService.filterPlugins(ActionPlugin.class).toList(),
             client,
             circuitBreakerService,
             usageService,
@@ -824,7 +826,7 @@ class NodeConstruction {
         final RestController restController = actionModule.getRestController();
         final NetworkModule networkModule = new NetworkModule(
             settings,
-            pluginsService.filterPlugins(NetworkPlugin.class),
+            pluginsService.filterPlugins(NetworkPlugin.class).toList(),
             threadPool,
             bigArrays,
             pageCacheRecycler,
@@ -878,7 +880,7 @@ class NodeConstruction {
         final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
         RepositoriesModule repositoriesModule = new RepositoriesModule(
             environment,
-            pluginsService.filterPlugins(RepositoryPlugin.class),
+            pluginsService.filterPlugins(RepositoryPlugin.class).toList(),
             transportService,
             clusterService,
             bigArrays,
@@ -945,15 +947,16 @@ class NodeConstruction {
             clusterService.getMasterService(),
             clusterService.getClusterApplierService(),
             clusterService.getClusterSettings(),
-            pluginsService.filterPlugins(DiscoveryPlugin.class),
-            pluginsService.filterPlugins(ClusterCoordinationPlugin.class),
+            pluginsService.filterPlugins(DiscoveryPlugin.class).toList(),
+            pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             clusterModule.getAllocationService(),
             environment.configFile(),
             gatewayMetaState,
             rerouteService,
             fsHealthService,
             circuitBreakerService,
-            compatibilityVersions
+            compatibilityVersions,
+            featureService.getNodeFeatures()
         );
         this.nodeService = new NodeService(
             settings,
@@ -1002,12 +1005,12 @@ class NodeConstruction {
         final HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
             clusterService,
             persistentTasksService,
+            featureService,
             settings,
             clusterService.getClusterSettings()
         );
         final Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(systemIndexMigrationExecutor, healthNodeTaskExecutor);
         final Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
-            .stream()
             .map(
                 p -> p.getPersistentTasksExecutor(
                     clusterService,
@@ -1029,10 +1032,12 @@ class NodeConstruction {
         );
         resourcesToClose.add(persistentTasksClusterService);
 
-        PluginShutdownService pluginShutdownService = new PluginShutdownService(pluginsService.filterPlugins(ShutdownAwarePlugin.class));
+        PluginShutdownService pluginShutdownService = new PluginShutdownService(
+            pluginsService.filterPlugins(ShutdownAwarePlugin.class).toList()
+        );
         clusterService.addListener(pluginShutdownService);
 
-        List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class);
+        List<ReloadablePlugin> reloadablePlugins = pluginsService.filterPlugins(ReloadablePlugin.class).toList();
         pluginsService.filterPlugins(ReloadAwarePlugin.class).forEach(p -> p.setReloadCallback(wrapPlugins(reloadablePlugins)));
 
         modules.add(
@@ -1042,6 +1047,7 @@ class NodeConstruction {
                 discoveryModule.getCoordinator(),
                 clusterService,
                 transportService,
+                featureService,
                 systemIndices,
                 threadPool
             )
@@ -1114,6 +1120,7 @@ class NodeConstruction {
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
             b.bind(SnapshotsInfoService.class).toInstance(snapshotsInfoService);
             b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);
+            b.bind(FeatureService.class).toInstance(featureService);
             b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
             b.bind(Reconfigurator.class).toInstance(discoveryModule.getReconfigurator());
             b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
@@ -1158,6 +1165,7 @@ class NodeConstruction {
         Coordinator coordinator,
         ClusterService clusterService,
         TransportService transportService,
+        FeatureService featureService,
         SystemIndices systemIndices,
         ThreadPool threadPool
     ) {
@@ -1178,7 +1186,6 @@ class NodeConstruction {
             new ShardsCapacityHealthIndicatorService(clusterService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
-            .stream()
             .flatMap(plugin -> plugin.getHealthIndicatorServices().stream());
 
         HealthService healthService = new HealthService(
@@ -1186,8 +1193,15 @@ class NodeConstruction {
             threadPool
         );
         HealthPeriodicLogger healthPeriodicLogger = HealthPeriodicLogger.create(settings, clusterService, client, healthService);
-        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
-        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(settings, clusterService, nodeService, threadPool, client);
+        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+        LocalHealthMonitor localHealthMonitor = LocalHealthMonitor.create(
+            settings,
+            clusterService,
+            nodeService,
+            threadPool,
+            client,
+            featureService
+        );
         HealthInfoCache nodeHealthOverview = HealthInfoCache.create(clusterService);
 
         return b -> {
@@ -1305,7 +1319,6 @@ class NodeConstruction {
         RepositoriesService repositoryService
     ) {
         var recoveryPlannerServices = pluginsService.filterPlugins(RecoveryPlannerPlugin.class)
-            .stream()
             .map(
                 plugin -> plugin.createRecoveryPlannerService(
                     new ShardSnapshotsService(client, repositoryService, threadPool, clusterService)
@@ -1317,7 +1330,6 @@ class NodeConstruction {
 
     private WriteLoadForecaster getWriteLoadForecaster(ThreadPool threadPool, Settings settings, ClusterSettings clusterSettings) {
         var writeLoadForecasters = pluginsService.filterPlugins(ClusterPlugin.class)
-            .stream()
             .flatMap(clusterPlugin -> clusterPlugin.createWriteLoadForecasters(threadPool, settings, clusterSettings).stream());
 
         return getSinglePlugin(writeLoadForecasters, WriteLoadForecaster.class).orElse(WriteLoadForecaster.DEFAULT);
@@ -1330,7 +1342,6 @@ class NodeConstruction {
         CompatibilityVersions compatibilityVersions
     ) {
         var persistedClusterStateServiceFactories = pluginsService.filterPlugins(ClusterCoordinationPlugin.class)
-            .stream()
             .map(ClusterCoordinationPlugin::getPersistedClusterStateServiceFactory)
             .flatMap(Optional::stream);
 

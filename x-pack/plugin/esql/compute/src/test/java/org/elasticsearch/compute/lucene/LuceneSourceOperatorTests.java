@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -24,7 +25,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
@@ -46,6 +48,7 @@ import java.util.List;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -133,21 +136,53 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     public void testShardDataPartitioning() {
         int size = between(1_000, 20_000);
         int limit = between(10, size);
-        testSimple(size, limit);
+        testSimple(driverContext(), size, limit);
     }
 
     public void testEmpty() {
-        testSimple(0, between(10, 10_000));
+        testSimple(driverContext(), 0, between(10, 10_000));
     }
 
-    private void testSimple(int size, int limit) {
-        DriverContext ctx = driverContext();
-        LuceneSourceOperator.Factory factory = simple(nonBreakingBigArrays(), DataPartitioning.SHARD, size, limit);
+    public void testWithCranky() {
+        try {
+            testSimple(crankyDriverContext(), between(1, 10_000), 100);
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    public void testEmptyWithCranky() {
+        try {
+            testSimple(crankyDriverContext(), 0, between(10, 10_000));
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    public void testShardDataPartitioningWithCranky() {
+        int size = between(1_000, 20_000);
+        int limit = between(10, size);
+        try {
+            testSimple(crankyDriverContext(), size, limit);
+            logger.info("cranky didn't break");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testSimple(DriverContext ctx, int size, int limit) {
+        LuceneSourceOperator.Factory factory = simple(ctx.bigArrays(), DataPartitioning.SHARD, size, limit);
         Operator.OperatorFactory readS = ValuesSourceReaderOperatorTests.factory(reader, S_FIELD);
 
         List<Page> results = new ArrayList<>();
+
         OperatorTestCase.runDriver(
-            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new PageConsumerOperator(page -> results.add(page)), () -> {})
+            new Driver(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
         );
         OperatorTestCase.assertDriverContext(ctx);
 

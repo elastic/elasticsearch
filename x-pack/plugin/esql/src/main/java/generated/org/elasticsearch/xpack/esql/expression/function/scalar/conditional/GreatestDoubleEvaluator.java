@@ -38,11 +38,7 @@ public final class GreatestDoubleEvaluator implements EvalOperator.ExpressionEva
       DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        valuesBlocks[i] = (DoubleBlock) block;
+        valuesBlocks[i] = (DoubleBlock) valuesRefs[i].block();
       }
       DoubleVector[] valuesVectors = new DoubleVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {

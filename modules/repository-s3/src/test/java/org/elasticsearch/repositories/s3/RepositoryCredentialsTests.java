@@ -161,7 +161,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             final Settings newSettings = Settings.builder().setSecureSettings(newSecureSettings).build();
             // reload S3 plugin settings
             final PluginsService plugins = getInstanceFromNode(PluginsService.class);
-            final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).get(0);
+            final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).findFirst().get();
             plugin.reload(newSettings);
 
             // check the not-yet-closed client reference still has the same credentials

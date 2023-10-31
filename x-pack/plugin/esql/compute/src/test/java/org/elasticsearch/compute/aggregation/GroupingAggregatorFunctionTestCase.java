@@ -48,12 +48,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
@@ -309,7 +303,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullGroup() {
+    public void testMulitvaluedNullGroup() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert

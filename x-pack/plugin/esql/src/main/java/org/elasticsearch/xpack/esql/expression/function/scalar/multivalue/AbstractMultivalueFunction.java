@@ -78,9 +78,6 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         @Override
         public final Block.Ref eval(Page page) {
             Block.Ref ref = field.eval(page);
-            if (ref.block().areAllValuesNull()) {
-                return ref;
-            }
             if (ref.block().mayHaveMultivaluedFields() == false) {
                 if (ref.block().mayHaveNulls()) {
                     return evalSingleValuedNullable(ref);
@@ -122,9 +119,6 @@ public abstract class AbstractMultivalueFunction extends UnaryScalarFunction imp
         @Override
         public Block.Ref eval(Page page) {
             Block.Ref ref = field.eval(page);
-            if (ref.block().areAllValuesNull()) {
-                return ref;
-            }
             return ref.block().mayHaveMultivaluedFields() ? evalNullable(ref) : evalSingleValuedNullable(ref);
         }
 

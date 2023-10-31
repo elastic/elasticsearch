@@ -138,7 +138,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
-            String.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),
+            Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),
             actualMemoryUsage,
             equalTo(expectedMemoryUsage.intValue())
         );

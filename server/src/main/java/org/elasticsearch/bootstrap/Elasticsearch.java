@@ -376,7 +376,7 @@ class Elasticsearch {
                     Bootstrap.exit(1);
                 }
             }
-        }).start();
+        }, "elasticsearch-cli-monitor-thread").start();
     }
 
     /**

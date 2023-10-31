@@ -15,7 +15,7 @@ expert cases, where there is a need to combine this query with other queries.
 
 [source,console]
 ----
-PUT image-index
+PUT my-image-index
 {
   "mappings": {
     "properties": {
@@ -24,15 +24,6 @@ PUT image-index
         "dims": 3,
         "index": true,
         "similarity": "l2_norm"
-      },
-      "title-vector": {
-        "type": "dense_vector",
-        "dims": 5,
-        "index": true,
-        "similarity": "l2_norm"
-      },
-      "title": {
-        "type": "text"
       },
       "file-type": {
         "type": "keyword"
@@ -47,23 +38,21 @@ PUT image-index
 +
 [source,console]
 ----
-POST image-index/_bulk?refresh=true
+POST my-image-index/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "image-vector": [1, 5, -20], "title-vector": [12, 50, -10, 0, 1], "title": "moose family", "file-type": "jpg" }
+{ "image-vector": [1, 5, -20], "file-type": "jpg" }
 { "index": { "_id": "2" } }
-{ "image-vector": [42, 8, -15], "title-vector": [25, 1, 4, -12, 2], "title": "alpine lake", "file-type": "png" }
+{ "image-vector": [42, 8, -15], "file-type": "png" }
 { "index": { "_id": "3" } }
-{ "image-vector": [15, 11, 23], "title-vector": [1, 5, 25, 50, 20], "title": "full moon", "file-type": "jpg" }
-...
+{ "image-vector": [15, 11, 23], "file-type": "jpg" }
 ----
 //TEST[continued]
-//TEST[s/\.\.\.//]
 
 . Run the search using the `knn` query, asking for the top 3 nearest vectors.
 +
 [source,console]
 ----
-POST image-index/_search
+POST my-image-index/_search
 {
   "size" : 3,
   "query" : {
@@ -72,8 +61,7 @@ POST image-index/_search
       "query_vector": [-5, 9, -12],
       "num_candidates": 10
     }
-  },
-  "fields": [ "title", "file-type" ]
+  }
 }
 ----
 //TEST[continued]
@@ -168,7 +156,7 @@ that passes the post-filter.
 
 [source,console]
 ----
-POST image-index/_search
+POST my-image-index/_search
 {
   "size" : 10,
   "query" : {
@@ -184,8 +172,7 @@ POST image-index/_search
         "term" : { "file-type" : "png" }
       }
     }
-  },
-  "fields": [ "title", "file-type" ]
+  }
 }
 ----
 //TEST[continued]

@@ -314,6 +314,60 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testAllReplicasUnassigned() {
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(index("myindex", new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(randomNodeId(), AVAILABLE))),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(index("myindex", new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
+                    new ShardAllocation(randomNodeId(), AVAILABLE))),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(index("myindex", new ShardAllocation(randomNodeId(), AVAILABLE),
+                    new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
+                    new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)))),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+    }
+
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndNoReplicas() {
         var clusterState = createClusterStateWith(List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE))), List.of());
         var service = createShardsAvailabilityIndicatorService(clusterState);

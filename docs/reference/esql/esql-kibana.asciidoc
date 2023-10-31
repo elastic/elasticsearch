@@ -257,5 +257,5 @@ more than 50 columns, Discover only shows the first 50.
 * Querying many many indices at once without any filters can cause an error in
 kibana which looks like `[esql] > Unexpected error from Elasticsearch: The
 content length (536885793) is bigger than the maximum allowed string (536870888)`.
-The response from ESQL is too long. Use `DROP` or `KEEP` to limit the number
+The response from {esql} is too long. Use <<esql-drop>> or <<esql-keep>> to limit the number
 of fields returned.

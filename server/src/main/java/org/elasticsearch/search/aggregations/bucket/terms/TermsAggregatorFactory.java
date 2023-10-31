@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -111,7 +112,16 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                execution = ExecutionMode.GLOBAL_ORDINALS;
+                boolean isTsdbIndex = context.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
+                boolean currentTime = context.nowInMillis() <= context.getIndexSettings().getTimestampBounds().endTime();
+                if (isTsdbIndex && currentTime ) {
+                    // The current tsdb backing index may still receive active writes and
+                    // if global ordinals is built then it may be invalidated on the next search request.
+                    // So it isn't worth to build it. Depending on the cardinality of a field this may be very expensive.
+                    execution = ExecutionMode.MAP;
+                } else {
+                    execution = ExecutionMode.GLOBAL_ORDINALS;
+                }
             }
             final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
             if (subAggCollectMode == null) {

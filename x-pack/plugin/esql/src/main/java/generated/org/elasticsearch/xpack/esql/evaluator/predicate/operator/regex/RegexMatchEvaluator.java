@@ -39,9 +39,6 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref inputRef = input.eval(page)) {
-      if (inputRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock inputBlock = (BytesRefBlock) inputRef.block();
       BytesRefVector inputVector = inputBlock.asVector();
       if (inputVector == null) {
@@ -83,5 +80,26 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(input);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory input;
+
+    private final CharacterRunAutomaton pattern;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory input, CharacterRunAutomaton pattern) {
+      this.input = input;
+      this.pattern = pattern;
+    }
+
+    @Override
+    public RegexMatchEvaluator get(DriverContext context) {
+      return new RegexMatchEvaluator(input.get(context), pattern, context);
+    }
+
+    @Override
+    public String toString() {
+      return "RegexMatchEvaluator[" + "input=" + input + ", pattern=" + pattern + "]";
+    }
   }
 }

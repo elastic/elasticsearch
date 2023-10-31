@@ -40,9 +40,6 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
-      if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
@@ -82,5 +79,30 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final ChronoField chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory value, ChronoField chronoField,
+        ZoneId zone) {
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractConstantEvaluator get(DriverContext context) {
+      return new DateExtractConstantEvaluator(value.get(context), chronoField, zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractConstantEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
   }
 }

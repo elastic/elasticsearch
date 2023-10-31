@@ -199,3 +199,19 @@ Parto.         |Parto.Bamford    |Parto.BamfordParto.        |Parto
 Chirstian.     |Chirstian.Koblick|Chirstian.KoblickChirstian.|Chirstian      
 Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakKyoichi.   |Kyoichi
 ;
+
+roundArrays
+row a = [1.2], b = [2.4, 7.9] | eval c = round(a), d = round(b), e = round([1.2]), f = round([1.2, 4.6]), g = round([1.14], 1), h = round([1.14], [1, 2]);
+
+a:double | b:double   | c:double | d: double | e:double  | f:double  | g:double  | h:double 
+1.2      | [2.4, 7.9] | 1.0      | null      | 1.0       | null      | 1.1       | null
+;
+
+
+evalSplitFoldable
+from employees | sort emp_no | eval foldable = "foo,bar" | eval folded_mv = split(foldable, ",") | keep emp_no, foldable, folded_mv | limit 2;
+
+emp_no:integer  | foldable:keyword | folded_mv:keyword
+10001           | "foo,bar"        | [foo, bar]
+10002           | "foo,bar"        | [foo, bar]
+;

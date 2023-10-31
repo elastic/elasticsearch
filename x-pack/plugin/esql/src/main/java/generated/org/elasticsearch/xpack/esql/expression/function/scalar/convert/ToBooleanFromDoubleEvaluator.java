@@ -97,4 +97,25 @@ public final class ToBooleanFromDoubleEvaluator extends AbstractConvertFunction.
     double value = container.getDouble(index);
     return ToBoolean.fromDouble(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToBooleanFromDoubleEvaluator get(DriverContext context) {
+      return new ToBooleanFromDoubleEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToBooleanFromDoubleEvaluator[field=" + field + "]";
+    }
+  }
 }

@@ -1912,7 +1912,7 @@ public final class InternalTestCluster extends TestCluster {
                         new AddVotingConfigExclusionsRequest(excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
                 } catch (InterruptedException | ExecutionException e) {
-                    throw new AssertionError("unexpected", e);
+                    ESTestCase.fail(e);
                 }
             }
         }
@@ -1927,7 +1927,7 @@ public final class InternalTestCluster extends TestCluster {
                 Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
                 client.execute(ClearVotingConfigExclusionsAction.INSTANCE, new ClearVotingConfigExclusionsRequest()).get();
             } catch (InterruptedException | ExecutionException e) {
-                throw new AssertionError("unexpected", e);
+                ESTestCase.fail(e);
             }
         }
     }
@@ -2446,6 +2446,7 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
                     false,
                     false,
                     false,

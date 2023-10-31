@@ -9,7 +9,6 @@
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -78,8 +78,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
 
     private static final TestStep TEST_STEP = TestStep.parse(System.getProperty("tests.rest.suite"));
 
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
-
     @Override
     protected boolean preserveSnapshotsUponCompletion() {
         return true;
@@ -96,11 +94,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testCreateAndRestoreSnapshot() throws IOException {
-        assumeTrue(
-            "test does not work for downgrades before 8.10.0, see https://github.com/elastic/elasticsearch/issues/98454",
-            OLD_CLUSTER_VERSION.onOrAfter(Version.V_8_10_0)
-        );
-
         final String repoName = getTestName();
         try {
             final int shards = 3;
@@ -147,11 +140,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     public void testReadOnlyRepo() throws IOException {
-        assumeTrue(
-            "test does not fully work for downgrades before 8.10.0, see https://github.com/elastic/elasticsearch/issues/98454",
-            OLD_CLUSTER_VERSION.onOrAfter(Version.V_8_10_0) || TEST_STEP != TestStep.STEP3_OLD_CLUSTER
-        );
-
         final String repoName = getTestName();
         final int shards = 3;
         final boolean readOnly = TEST_STEP.ordinal() > 1; // only restore from read-only repo in steps 3 and 4
@@ -185,11 +173,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     );
 
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
-        assumeTrue(
-            "test does not work for downgrades before 8.10.0, see https://github.com/elastic/elasticsearch/issues/98454",
-            OLD_CLUSTER_VERSION.onOrAfter(Version.V_8_10_0)
-        );
-
         final String repoName = getTestName();
         try {
             final int shards = 3;
@@ -201,7 +184,7 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
             // to check behavior on other operations below.
             final boolean verify = TEST_STEP != TestStep.STEP3_OLD_CLUSTER
                 || SnapshotsService.includesUUIDs(minNodeVersion)
-                || minNodeVersion.before(IndexVersion.V_7_12_0);
+                || minNodeVersion.before(IndexVersions.V_7_12_0);
             if (verify == false) {
                 expectThrowsAnyOf(EXPECTED_BWC_EXCEPTIONS, () -> createRepository(repoName, false, true));
             }

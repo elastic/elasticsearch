@@ -1,0 +1,28 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: [metrics-apm.transaction.1m-*]
+priority: 140
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: Index template for metrics-apm.transaction.1m-*
+  managed: true
+composed_of:
+- metrics@mappings
+- apm@mappings
+- apm@settings
+- apm-90d@lifecycle
+- metrics-apm@mappings
+- metrics-apm@settings
+- metrics-apm.transaction@mappings
+- apm@custom
+- metrics-apm.transaction@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- apm@custom
+- metrics-apm.transaction@custom
+template:
+  settings:
+    index:
+      default_pipeline: apm@default-pipeline
+      final_pipeline: metrics-apm@pipeline

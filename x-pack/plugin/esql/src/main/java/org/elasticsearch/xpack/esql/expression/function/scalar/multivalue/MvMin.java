@@ -12,6 +12,8 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -26,7 +28,14 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvMin extends AbstractMultivalueFunction {
-    public MvMin(Source source, Expression field) {
+    @FunctionInfo(returnType = "?", description = "Reduce a multivalued field to a single valued field containing the minimum value.")
+    public MvMin(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -38,12 +47,12 @@ public class MvMin extends AbstractMultivalueFunction {
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> dvrCtx -> new MvMinBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case BYTES_REF -> dvrCtx -> new MvMinBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case DOUBLE -> dvrCtx -> new MvMinDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvMinIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case LONG -> dvrCtx -> new MvMinLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+            case BOOLEAN -> new MvMinBooleanEvaluator.Factory(fieldEval);
+            case BYTES_REF -> new MvMinBytesRefEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMinIntEvaluator.Factory(fieldEval);
+            case LONG -> new MvMinLongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

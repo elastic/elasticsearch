@@ -12,20 +12,19 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.ValueSources;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperat
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +48,6 @@ import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
-    private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
 
     private final List<SearchContext> searchContexts;
 
@@ -74,17 +73,18 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             layout.append(attr);
             Layout previousLayout = op.layout;
 
-            var sources = ValueSources.sources(
+            DataType dataType = attr.dataType();
+            String fieldName = attr.name();
+            List<BlockDocValuesReader.Factory> factories = BlockReaderFactories.factories(
                 searchContexts,
-                attr.name(),
-                EsqlDataTypes.isUnsupported(attr.dataType()),
-                LocalExecutionPlanner.toElementType(attr.dataType())
+                fieldName,
+                EsqlDataTypes.isUnsupported(dataType)
             );
 
             int docChannel = previousLayout.get(sourceAttr.id()).channel();
 
             op = op.with(
-                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(sources, docChannel, attr.name()),
+                new ValuesSourceReaderOperator.ValuesSourceReaderOperatorFactory(factories, docChannel, fieldName),
                 layout.build()
             );
         }
@@ -136,8 +136,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneTopNSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.dataPartitioning(),
-                context.taskConcurrency(),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit,
                 fieldSorts
@@ -146,8 +146,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             luceneFactory = new LuceneSourceOperator.Factory(
                 searchContexts,
                 querySupplier,
-                context.dataPartitioning(),
-                context.taskConcurrency(),
+                context.queryPragmas().dataPartitioning(),
+                context.queryPragmas().taskConcurrency(),
                 context.pageSize(rowEstimatedSize),
                 limit
             );
@@ -173,12 +173,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         // The grouping-by values are ready, let's group on them directly.
         // Costin: why are they ready and not already exposed in the layout?
         return new OrdinalsGroupingOperator.OrdinalsGroupingOperatorFactory(
-            ValueSources.sources(
-                searchContexts,
-                attrSource.name(),
-                EsqlDataTypes.isUnsupported(attrSource.dataType()),
-                LocalExecutionPlanner.toElementType(attrSource.dataType())
-            ),
+            BlockReaderFactories.factories(searchContexts, attrSource.name(), EsqlDataTypes.isUnsupported(attrSource.dataType())),
+            groupElementType,
             docChannel,
             attrSource.name(),
             aggregatorFactories,

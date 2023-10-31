@@ -1,5 +1,0 @@
-pr: 99914
-summary: Let `_stats` internally timeout if checkpoint information can not be retrieved
-area: Transform
-type: bug
-issues: []

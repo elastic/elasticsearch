@@ -35,14 +35,8 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref lhsRef = lhs.eval(page)) {
-      if (lhsRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock lhsBlock = (DoubleBlock) lhsRef.block();
       try (Block.Ref rhsRef = rhs.eval(page)) {
-        if (rhsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         DoubleBlock rhsBlock = (DoubleBlock) rhsRef.block();
         DoubleVector lhsVector = lhsBlock.asVector();
         if (lhsVector == null) {
@@ -91,5 +85,27 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public void close() {
     Releasables.closeExpectNoException(lhs, rhs);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory lhs;
+
+    private final EvalOperator.ExpressionEvaluator.Factory rhs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory lhs,
+        EvalOperator.ExpressionEvaluator.Factory rhs) {
+      this.lhs = lhs;
+      this.rhs = rhs;
+    }
+
+    @Override
+    public ModDoublesEvaluator get(DriverContext context) {
+      return new ModDoublesEvaluator(lhs.get(context), rhs.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ModDoublesEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + "]";
+    }
   }
 }

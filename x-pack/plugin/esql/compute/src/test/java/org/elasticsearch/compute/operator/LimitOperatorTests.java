@@ -24,11 +24,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
     @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
-    @Override
     protected LimitOperator.Factory simple(BigArrays bigArrays) {
         return new LimitOperator.Factory(100);
     }
@@ -95,13 +90,6 @@ public class LimitOperatorTests extends OperatorTestCase {
             op.finish();
             assertFalse(op.needsInput());
         }
-    }
-
-    // TODO: remove this once possible
-    // https://github.com/elastic/elasticsearch/issues/99826
-    @Override
-    protected boolean canLeak() {
-        return true;
     }
 
     public void testBlockBiggerThanRemaining() {

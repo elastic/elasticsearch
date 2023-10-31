@@ -96,4 +96,25 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     double value = container.getDouble(index);
     return ToDegrees.process(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToDegreesEvaluator get(DriverContext context) {
+      return new ToDegreesEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDegreesEvaluator[field=" + field + "]";
+    }
+  }
 }

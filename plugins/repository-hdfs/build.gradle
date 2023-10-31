@@ -281,7 +281,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
         if (disabledIntegTestTaskNames.contains(name) == false) {
             nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
             nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-            jvmArgs "-Djava.security.krb5.conf=${project.configurations.krb5Config.getSingleFile().getPath()}"
+            nonInputProperties.systemProperty "java.security.krb5.conf", "${project.configurations.krb5Config.getSingleFile().getPath()}"
             nonInputProperties.systemProperty(
                     "test.krb5.keytab.hdfs",
                     new File(project.configurations.krb5Keytabs.singleFile, "hdfs_hdfs.build.elastic.co.keytab").getPath()
@@ -291,7 +291,7 @@ tasks.withType(RestIntegTestTask).configureEach { testTask ->
 
     testClusters.matching { it.name == testTask.name }.configureEach {
         if (testTask.name.contains("Secure")) {
-            systemProperty "java.security.krb5.conf", configurations.krb5Config.singleFile.getPath()
+            systemProperty "java.security.krb5.conf", { configurations.krb5Config.singleFile.getPath() }, IGNORE_VALUE
             extraConfigFile(
                     "repository-hdfs/krb5.keytab",
                     new File(project.configurations.krb5Keytabs.singleFile, "elasticsearch.keytab"),

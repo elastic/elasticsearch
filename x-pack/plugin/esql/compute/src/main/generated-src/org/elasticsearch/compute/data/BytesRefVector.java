@@ -17,7 +17,7 @@ import java.io.IOException;
  * Vector that stores BytesRef values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, FilterBytesRefVector, BytesRefArrayVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector {
     BytesRef getBytesRef(int position, BytesRef dest);
 
     @Override
@@ -101,15 +101,21 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
         }
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance nonbreaking block factory}.
+     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize) {
         return newVectorBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
     /**
      * Creates a builder that grows as needed.
+     * @deprecated use {@link BlockFactory#newBytesRefVectorBuilder}
      */
+    @Deprecated
     static Builder newVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newBytesRefVectorBuilder(estimatedSize);
     }

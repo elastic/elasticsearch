@@ -114,6 +114,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -322,6 +323,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         // Enable Netty leak detection and monitor logger for logged leak errors
         System.setProperty("io.netty.leakDetection.level", "paranoid");
+        if (System.getProperty("es.use_unpooled_allocator") == null) {
+            // unless explicitly forced to unpooled, always test with the pooled allocator to get the best possible coverage from Netty's
+            // leak detection which does not cover simple unpooled heap buffers
+            System.setProperty("es.use_unpooled_allocator", "false");
+        }
 
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -2007,9 +2013,9 @@ public abstract class ESTestCase extends LuceneTestCase {
             barrier.await(10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         } catch (Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2018,7 +2024,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             assertTrue(countDownLatch.await(10, TimeUnit.SECONDS));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2027,7 +2033,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -2036,7 +2042,17 @@ public abstract class ESTestCase extends LuceneTestCase {
             || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
-    public static void fail(Throwable t, String msg, Object... args) {
+    public static <T> T fail(Throwable t, String msg, Object... args) {
         throw new AssertionError(org.elasticsearch.common.Strings.format(msg, args), t);
+    }
+
+    public static <T> T fail(Throwable t) {
+        return fail(t, "unexpected");
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T asInstanceOf(Class<T> clazz, Object o) {
+        assertThat(o, Matchers.instanceOf(clazz));
+        return (T) o;
     }
 }

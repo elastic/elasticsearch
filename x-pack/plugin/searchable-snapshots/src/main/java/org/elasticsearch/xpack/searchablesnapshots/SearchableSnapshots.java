@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -347,7 +348,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 settings,
                 threadPool,
                 SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-                telemetryProvider
+                new BlobCacheMetrics(telemetryProvider.getMeterRegistry())
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);

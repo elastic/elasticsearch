@@ -10,6 +10,7 @@ package org.elasticsearch.blobcache.shared;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -72,7 +73,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -138,7 +139,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -182,7 +183,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -216,7 +217,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -249,7 +250,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             final var cacheKey1 = generateCacheKey();
@@ -320,7 +321,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 threadPool,
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             CyclicBarrier ready = new CyclicBarrier(threads);
@@ -407,7 +408,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             {
@@ -468,7 +469,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 threadPool,
                 ThreadPool.Names.GENERIC,
                 "bulk",
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
 
@@ -672,7 +673,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             assertEquals(val1.getBytes(), cacheService.getStats().size());
@@ -690,7 +691,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 ThreadPool.Names.GENERIC,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             )
         ) {
             assertEquals(val2.getBytes(), cacheService.getStats().size());

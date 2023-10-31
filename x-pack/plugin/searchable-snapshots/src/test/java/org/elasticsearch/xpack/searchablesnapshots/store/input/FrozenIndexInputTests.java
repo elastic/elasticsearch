@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.settings.Settings;
@@ -110,7 +111,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
                 settings,
                 threadPool,
                 SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-                TelemetryProvider.NOOP
+                BlobCacheMetrics.NOOP
             );
             CacheService cacheService = randomCacheService();
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(

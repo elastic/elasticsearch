@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.common.SparseFileTracker;
@@ -35,9 +36,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -61,9 +59,6 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.metrics.APMMetricUtils.getOrRegisterLongCounter;
-import static org.elasticsearch.common.metrics.APMMetricUtils.getOrRegisterLongHistogram;
 
 public class SharedBlobCacheService<KeyType> implements Releasable {
 
@@ -291,17 +286,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final LongAdder evictCount = new LongAdder();
 
-    private final LongHistogram cacheMissLoadTimes;
-    LongCounter cacheMissCounter;
+    private final BlobCacheMetrics blobCacheMetrics;
 
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
         String ioExecutor,
-        TelemetryProvider telemetryProvider
+        BlobCacheMetrics blobCacheMetrics
     ) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor, telemetryProvider);
+        this(environment, settings, threadPool, ioExecutor, ioExecutor, blobCacheMetrics);
     }
 
     /**
@@ -310,7 +304,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
      */
     @Deprecated()
     public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor, TelemetryProvider.NOOP);
+        this(
+            environment,
+            settings,
+            threadPool,
+            ioExecutor,
+            ioExecutor,
+            BlobCacheMetrics.NOOP
+        );
     }
 
     // gradlew requires 'rawtypes' even if IntelliJ doesn't
@@ -321,7 +322,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         ThreadPool threadPool,
         String ioExecutor,
         String bulkExecutor,
-        TelemetryProvider telemetryProvider
+        BlobCacheMetrics blobCacheMetrics
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
@@ -366,18 +367,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
 
-        this.cacheMissLoadTimes = getOrRegisterLongHistogram(
-            telemetryProvider.getMeterRegistry(),
-            "elasticsearch.blob_cache.miss_that_triggered_read_from_blob_store",
-            "The number of times there was a cache miss that triggered a read from the blob store",
-            "count"
-        );
-        this.cacheMissCounter = getOrRegisterLongCounter(
-            telemetryProvider.getMeterRegistry(),
-            "elasticsearch.blob_cache.cache_miss_load_times",
-            "The timing data for populating entries in the blob store resulting from a cache miss.",
-            "count"
-        );
+        this.blobCacheMetrics = blobCacheMetrics;
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -1090,8 +1080,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 var startTime = threadPool.relativeTimeInMillis();
                 writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
                 var elapsedTime = threadPool.relativeTimeInMillis() - startTime;
-                SharedBlobCacheService.this.cacheMissLoadTimes.record(elapsedTime);
-                SharedBlobCacheService.this.cacheMissCounter.increment();
+                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
+                SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
             };
             if (rangeToRead.isEmpty()) {
                 // nothing to read, skip

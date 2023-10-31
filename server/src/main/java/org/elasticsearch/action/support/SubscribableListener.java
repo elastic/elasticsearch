@@ -259,18 +259,6 @@ public class SubscribableListener<T> implements ActionListener<T> {
                     boolean completed = tryComplete(result, listener);
                     assert completed;
                 } else if (currentState instanceof Cell currCell) {
-                    // multiple subscribers, but they are currently in reverse order of subscription so reverse them back
-                    Cell prevCell = null;
-                    while (true) {
-                        final Cell nextCell = currCell.next;
-                        currCell.next = prevCell;
-                        if (nextCell == null) {
-                            break;
-                        }
-                        prevCell = currCell;
-                        currCell = nextCell;
-                    }
-                    // now they are in subscription order, complete them
                     while (currCell != null) {
                         boolean completed = tryComplete(result, (ActionListener<T>) currCell.listener);
                         assert completed;

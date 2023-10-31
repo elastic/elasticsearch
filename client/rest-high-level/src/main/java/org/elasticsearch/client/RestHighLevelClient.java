@@ -257,7 +257,7 @@ public class RestHighLevelClient implements Closeable {
      * The consumer argument allows to control what needs to be done when the {@link #close()} method is called.
      * Also subclasses can provide parsers for custom response sections added to Elasticsearch through plugins.
      */
-    protected RestHighLevelClient(
+    private RestHighLevelClient(
         RestClient restClient,
         CheckedConsumer<RestClient, IOException> doClose,
         List<NamedXContentRegistry.Entry> namedXContentEntries,
@@ -402,7 +402,7 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
+    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -417,7 +417,7 @@ public class RestHighLevelClient implements Closeable {
      * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Resp performRequest(
+    private <Req extends ActionRequest, Resp> Resp performRequest(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -474,7 +474,7 @@ public class RestHighLevelClient implements Closeable {
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(
+    private <Req extends ActionRequest, Resp> Cancellable performRequestAsyncAndParseEntity(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -498,7 +498,7 @@ public class RestHighLevelClient implements Closeable {
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
-    protected final <Req extends ActionRequest, Resp> Cancellable performRequestAsync(
+    private <Req extends ActionRequest, Resp> Cancellable performRequestAsync(
         Req request,
         CheckedFunction<Req, Request, IOException> requestConverter,
         RequestOptions options,
@@ -539,7 +539,7 @@ public class RestHighLevelClient implements Closeable {
         return performClientRequestAsync(req, responseListener);
     }
 
-    final <Resp> ResponseListener wrapResponseListener(
+    private <Resp> ResponseListener wrapResponseListener(
         CheckedFunction<Response, Resp, IOException> responseConverter,
         ActionListener<Resp> actionListener,
         Set<Integer> ignores
@@ -586,7 +586,7 @@ public class RestHighLevelClient implements Closeable {
      * that wraps the original {@link ResponseException}. The potential exception obtained while parsing is added to the returned
      * exception as a suppressed exception. This method is guaranteed to not throw any exception eventually thrown while parsing.
      */
-    protected final ElasticsearchStatusException parseResponseException(ResponseException responseException) {
+    private ElasticsearchStatusException parseResponseException(ResponseException responseException) {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
@@ -606,7 +606,7 @@ public class RestHighLevelClient implements Closeable {
         return elasticsearchException;
     }
 
-    protected final <Resp> Resp parseEntity(final HttpEntity entity, final CheckedFunction<XContentParser, Resp, IOException> entityParser)
+    private <Resp> Resp parseEntity(final HttpEntity entity, final CheckedFunction<XContentParser, Resp, IOException> entityParser)
         throws IOException {
         if (entity == null) {
             throw new IllegalStateException("Response body expected but not returned");
@@ -760,7 +760,7 @@ public class RestHighLevelClient implements Closeable {
      * Go through all the request's existing headers, looking for {@code headerName} headers and if they exist,
      * changing them to use version compatibility. If no request headers are changed, modify the entity type header if appropriate
      */
-    boolean addCompatibilityFor(RequestOptions.Builder newOptions, Header entityHeader, String headerName) {
+    private boolean addCompatibilityFor(RequestOptions.Builder newOptions, Header entityHeader, String headerName) {
         // Modify any existing "Content-Type" headers on the request to use the version compatibility, if available
         boolean contentTypeModified = false;
         for (Header header : new ArrayList<>(newOptions.getHeaders())) {
@@ -782,7 +782,7 @@ public class RestHighLevelClient implements Closeable {
      * Modify the given header to be version compatible, if necessary.
      * Returns true if a modification was made, false otherwise.
      */
-    boolean modifyHeader(RequestOptions.Builder newOptions, Header header, String headerName) {
+    private boolean modifyHeader(RequestOptions.Builder newOptions, Header header, String headerName) {
         for (EntityType type : EntityType.values()) {
             final String headerValue = header.getValue();
             if (headerValue.startsWith(type.header())) {
@@ -800,7 +800,7 @@ public class RestHighLevelClient implements Closeable {
      * modifying the "Content-Type" and "Accept" headers if present, or modifying the header based
      * on the request's entity type.
      */
-    void modifyRequestForCompatibility(Request request) {
+    private void modifyRequestForCompatibility(Request request) {
         final Header entityHeader = request.getEntity() == null ? null : request.getEntity().getContentType();
         final RequestOptions.Builder newOptions = request.getOptions().toBuilder();
 
@@ -957,7 +957,7 @@ public class RestHighLevelClient implements Closeable {
         return Optional.empty();
     }
 
-    static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
+    private static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();
         map.put(CardinalityAggregationBuilder.NAME, (p, c) -> ParsedCardinality.fromXContent(p, (String) c));
         map.put(InternalHDRPercentiles.NAME, (p, c) -> ParsedHDRPercentiles.fromXContent(p, (String) c));
@@ -1043,7 +1043,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Loads and returns the {@link NamedXContentRegistry.Entry} parsers provided by plugins.
      */
-    static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
+    private static List<NamedXContentRegistry.Entry> getProvidedNamedXContents() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
         for (NamedXContentProvider service : ServiceLoader.load(NamedXContentProvider.class)) {
             entries.addAll(service.getNamedXContentParsers());

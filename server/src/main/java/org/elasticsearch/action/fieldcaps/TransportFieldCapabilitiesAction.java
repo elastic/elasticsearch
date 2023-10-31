@@ -189,8 +189,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 mergeIndexResponses(request, fieldCapTask, indexResponses, indexFailures, listener);
             }
         })) {
+            if (remoteClusterIndices.isEmpty() == false) {
+                dispatchToRemoteClusters(request, remoteClusterIndices, nowInMillis, handleIndexResponse, handleIndexFailure, refs);
+            }
             // local cluster
-            final RequestDispatcher requestDispatcher = new RequestDispatcher(
+            new RequestDispatcher(
                 clusterService,
                 transportService,
                 task,
@@ -202,37 +205,45 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 handleIndexResponse,
                 handleIndexFailure,
                 refs.acquire()::close
-            );
-            requestDispatcher.execute();
+            ).execute();
+        }
+    }
 
-            // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
-            // send us back all individual index results.
-            for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
-                String clusterAlias = remoteIndices.getKey();
-                OriginalIndices originalIndices = remoteIndices.getValue();
-                Client remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(threadPool, clusterAlias, searchCoordinationExecutor);
-                FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
-                ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
-                    for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
-                        String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                        handleIndexResponse.accept(
-                            new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
-                        );
-                    }
-                    for (FieldCapabilitiesFailure failure : response.getFailures()) {
-                        Exception ex = failure.getException();
-                        for (String index : failure.getIndices()) {
-                            handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
-                        }
-                    }
-                }, ex -> {
-                    for (String index : originalIndices.indices()) {
+    private void dispatchToRemoteClusters(
+        FieldCapabilitiesRequest request,
+        Map<String, OriginalIndices> remoteClusterIndices,
+        long nowInMillis,
+        Consumer<FieldCapabilitiesIndexResponse> handleIndexResponse,
+        BiConsumer<String, Exception> handleIndexFailure,
+        RefCountingRunnable refs
+    ) {
+        // this is the cross cluster part of this API - we force the other cluster to not merge the results but instead
+        // send us back all individual index results.
+        for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
+            String clusterAlias = remoteIndices.getKey();
+            OriginalIndices originalIndices = remoteIndices.getValue();
+            Client remoteClusterClient = transportService.getRemoteClusterService()
+                .getRemoteClusterClient(threadPool, clusterAlias, searchCoordinationExecutor);
+            FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
+            ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
+                for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
+                    String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
+                    handleIndexResponse.accept(
+                        new FieldCapabilitiesIndexResponse(indexName, resp.getIndexMappingHash(), resp.get(), resp.canMatch())
+                    );
+                }
+                for (FieldCapabilitiesFailure failure : response.getFailures()) {
+                    Exception ex = failure.getException();
+                    for (String index : failure.getIndices()) {
                         handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
                     }
-                });
-                remoteClusterClient.fieldCaps(remoteRequest, ActionListener.releaseAfter(remoteListener, refs.acquire()));
-            }
+                }
+            }, ex -> {
+                for (String index : originalIndices.indices()) {
+                    handleIndexFailure.accept(RemoteClusterAware.buildRemoteIndexName(clusterAlias, index), ex);
+                }
+            });
+            remoteClusterClient.fieldCaps(remoteRequest, ActionListener.releaseAfter(remoteListener, refs.acquire()));
         }
     }
 

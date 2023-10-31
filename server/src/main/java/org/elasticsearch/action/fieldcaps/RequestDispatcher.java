@@ -21,12 +21,12 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -104,24 +104,23 @@ final class RequestDispatcher {
     }
 
     void execute() {
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                // If we get rejected, mark pending indices as failed and complete
-                final List<String> failedIndices = new ArrayList<>(indexSelectors.keySet());
-                for (String failedIndex : failedIndices) {
-                    final IndexSelector removed = indexSelectors.remove(failedIndex);
-                    assert removed != null;
-                    onIndexFailure.accept(failedIndex, e);
-                }
-                onComplete.run();
-            }
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
+        try {
+            innerExecute();
+        } catch (Exception e) {
+            handleException(e);
+        }
+    }
 
-            @Override
-            protected void doRun() {
-                innerExecute();
-            }
-        });
+    private void handleException(Exception e) {
+        // If we get rejected, mark pending indices as failed and complete
+        final List<String> failedIndices = new ArrayList<>(indexSelectors.keySet());
+        for (String failedIndex : failedIndices) {
+            final IndexSelector removed = indexSelectors.remove(failedIndex);
+            assert removed != null;
+            onIndexFailure.accept(failedIndex, e);
+        }
+        onComplete.run();
     }
 
     private void innerExecute() {

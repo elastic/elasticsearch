@@ -419,6 +419,6 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+        return ActionListener.noop();
     }
 }

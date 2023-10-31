@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -55,19 +56,22 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
+    private final FeatureService featureService;
     private final Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection;
 
-    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService) {
-        this(allocationService, rerouteService, Function.identity());
+    public NodeJoinExecutor(AllocationService allocationService, RerouteService rerouteService, FeatureService featureService) {
+        this(allocationService, rerouteService, featureService, Function.identity());
     }
 
     public NodeJoinExecutor(
         AllocationService allocationService,
         RerouteService rerouteService,
+        FeatureService featureService,
         Function<ClusterState, ClusterState> maybeReconfigureAfterMasterElection
     ) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
+        this.featureService = featureService;
         this.maybeReconfigureAfterMasterElection = maybeReconfigureAfterMasterElection;
     }
 

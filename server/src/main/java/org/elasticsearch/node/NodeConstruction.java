@@ -955,7 +955,7 @@ class NodeConstruction {
             fsHealthService,
             circuitBreakerService,
             compatibilityVersions,
-            featureService.getNodeFeatures()
+            featureService
         );
         this.nodeService = new NodeService(
             settings,

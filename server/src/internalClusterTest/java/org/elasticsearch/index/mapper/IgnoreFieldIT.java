@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -82,6 +83,15 @@ public class IgnoreFieldIT extends ESIntegTestCase {
         ignoredField = hit.field(IgnoredFieldMapper.NAME);
         assertNotNull(ignoredField);
         assertEquals(NUMERIC_FIELD_NAME, ignoredField.getValue());
+    }
+
+    public void testExistsQuery() {
+        SearchResponse searchResponse = prepareSearch().setQuery(new ExistsQueryBuilder(IgnoredFieldMapper.NAME))
+            .addFetchField(NUMERIC_FIELD_NAME)
+            .get();
+        assertHitCount(searchResponse, 1);
+        SearchHit hit = searchResponse.getHits().getAt(0);
+        assertEquals(WRONG_FIELD_TYPE_DOC_ID, hit.getId());
     }
 
     public void testIgnoreFieldAggregation() {

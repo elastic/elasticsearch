@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
@@ -66,11 +67,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            // This query is not performance sensitive, it only helps assess
-            // quality of the data, so we may use a slow query. It shouldn't
-            // be too slow in practice since the number of unique terms in this
-            // field is bounded by the number of fields in the mappings.
-            return new TermRangeQuery(name(), null, null, true, true);
+            if (hasDocValues()) {
+                return new FieldExistsQuery(name());
+            } else {
+                return new TermRangeQuery(name(), null, null, true, true);
+            }
         }
 
         @Override

@@ -45,7 +45,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
@@ -357,14 +356,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         Set<TranslogReplicator.BlobTranslogFile> activeTranslogFiles = translogReplicator.getActiveTranslogFiles();
         assertThat(activeTranslogFiles.size(), greaterThan(0));
 
-        MockTransportService indexNodeTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            indexNodeA
-        );
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalCluster().getMasterName()
-        );
+        final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNodeA);
+        final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
         ObjectStoreService indexNodeAObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeA);
         ObjectStoreService indexNodeBObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeB);
         MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(indexNodeBObjectStoreService);
@@ -613,11 +606,11 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         assertThat(blobsBeforeReleasingScroll.containsAll(blobsUsedForScroll), is(true));
 
         AtomicInteger countNewCommitNotifications = new AtomicInteger();
-        var searchTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
-        searchTransport.addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-            countNewCommitNotifications.incrementAndGet();
-            handler.messageReceived(request, channel, task);
-        });
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                countNewCommitNotifications.incrementAndGet();
+                handler.messageReceived(request, channel, task);
+            });
 
         switch (testCase) {
             case COMMITS_RETAINED_UNTIL_SCROLL_CLOSES:
@@ -751,14 +744,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // We need to disregard the first empty commit that's deleted right away
         var blobsBeforeTriggeringForceMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
 
-        MockTransportService indexNodeTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            indexNodeA
-        );
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalCluster().getMasterName()
-        );
+        final MockTransportService indexNodeTransportService = MockTransportService.getInstance(indexNodeA);
+        final MockTransportService masterTransportService = MockTransportService.getInstance(internalCluster().getMasterName());
 
         var primaryShardNodeRemoved = new PlainActionFuture<>();
         var shardRelocated = new PlainActionFuture<>();
@@ -829,8 +816,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         }
         CountDownLatch commitRegistrationStarted = new CountDownLatch(1);
         CountDownLatch newCommitCreated = new CountDownLatch(1);
-        var searchNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode2);
-        searchNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+        MockTransportService.getInstance(searchNode2).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
                 commitRegistrationStarted.countDown();
                 safeAwait(newCommitCreated);

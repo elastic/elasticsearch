@@ -432,7 +432,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, between(1, 100));
         refresh(indexName);
 
-        final var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodes.get(0));
+        final var transportService = MockTransportService.getInstance(indexNodes.get(0));
         final var delayedRequestFuture = new PlainActionFuture<Runnable>();
         final var delayedRequestFutureOnce = ActionListener.assertOnce(delayedRequestFuture);
         transportService.addRequestHandlingBehavior(
@@ -487,7 +487,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, between(1, 100));
         refresh(indexName);
 
-        final var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodes.get(0));
+        final var transportService = MockTransportService.getInstance(indexNodes.get(0));
         final var allAttemptsFuture = new PlainActionFuture<Void>();
         final var attemptListener = new CountDownActionListener(
             MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY),
@@ -523,7 +523,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, between(1, 100));
         refresh(indexName);
 
-        final var transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodes.get(0));
+        final var transportService = MockTransportService.getInstance(indexNodes.get(0));
         final var allAttemptsFuture = new PlainActionFuture<Void>();
         final var attemptListener = new CountDownActionListener(1, allAttemptsFuture); // to assert that there's only one attempt
         transportService.addRequestHandlingBehavior(
@@ -608,15 +608,11 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         ensureGreen(indexName);
 
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            firstIndexingShard
-        );
-
-        transportService.addRequestHandlingBehavior(
-            TransportShardBulkAction.ACTION_NAME,
-            (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.noop()), task)
-        );
+        MockTransportService.getInstance(firstIndexingShard)
+            .addRequestHandlingBehavior(
+                TransportShardBulkAction.ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TestTransportChannel(ActionListener.noop()), task)
+            );
 
         String coordinatingNode = startIndexNode();
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", coordinatingNode), indexName);
@@ -1129,14 +1125,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             }
         }
 
-        MockTransportService nodeATransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            indexNodeA
-        );
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            masterName
-        );
+        final MockTransportService nodeATransportService = MockTransportService.getInstance(indexNodeA);
+        final MockTransportService masterTransportService = MockTransportService.getInstance(masterName);
 
         String indexNodeB = startIndexNode();
 
@@ -1558,7 +1548,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final long initialClusterStateVersion = clusterService().state().version();
 
         try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
-            final var sourceNodeTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, sourceNode);
+            final var sourceNodeTransportService = MockTransportService.getInstance(sourceNode);
             sourceNodeTransportService.addRequestHandlingBehavior(
                 Coordinator.COMMIT_STATE_ACTION_NAME,
                 (handler, request, channel, task) -> {
@@ -1689,16 +1679,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     private CountDownLatch startBreakingActions(String nodeA, String nodeB, String recoveryActionToBlock) throws Exception {
         logger.info("--> will break requests between node [{}] & node [{}] for actions [{}]", nodeA, nodeB, recoveryActionToBlock);
 
-        MockTransportService nodeAMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeA
-        );
-        MockTransportService nodeBMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeB
-        );
-        TransportService nodeATransportService = internalCluster().getInstance(TransportService.class, nodeA);
-        TransportService nodeBTransportService = internalCluster().getInstance(TransportService.class, nodeB);
+        final MockTransportService nodeAMockTransportService = MockTransportService.getInstance(nodeA);
+        final MockTransportService nodeBMockTransportService = MockTransportService.getInstance(nodeB);
         final CountDownLatch requestFailed = new CountDownLatch(1);
 
         if (randomBoolean()) {
@@ -1711,8 +1693,8 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
             // Fail on the sending side
-            nodeAMockTransportService.addSendBehavior(nodeBTransportService, sendRequestBehavior);
-            nodeBMockTransportService.addSendBehavior(nodeATransportService, sendRequestBehavior);
+            nodeAMockTransportService.addSendBehavior(nodeBMockTransportService, sendRequestBehavior);
+            nodeBMockTransportService.addSendBehavior(nodeAMockTransportService, sendRequestBehavior);
         } else {
             // Fail on the receiving side.
             nodeAMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
@@ -1734,8 +1716,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
     private void stopBreakingActions(String... nodes) throws Exception {
         for (String node : nodes) {
-            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            mockTransportService.clearAllRules();
+            MockTransportService.getInstance(node).clearAllRules();
         }
         logger.info("--> stopped breaking requests on nodes [{}]", Strings.collectionToCommaDelimitedString(Arrays.stream(nodes).toList()));
     }
@@ -1753,7 +1734,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final boolean blockSourceNode = randomBoolean(); // else block target node
 
         final String nodeToBlock = blockSourceNode ? indexNodeA : indexNodeB;
-        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeToBlock);
+        final MockTransportService transport = MockTransportService.getInstance(nodeToBlock);
         final SubscribableListener<Void> blockedListeners = new SubscribableListener<>();
         CountDownLatch relocationStartReadyBlocked = new CountDownLatch(1);
         transport.addSendBehavior((connection, requestId, action, request, options) -> {
@@ -1821,8 +1802,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             refresh(indexName);
         }
         AtomicInteger registerCommitRequestsSent = new AtomicInteger();
-        var searchNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
-        searchNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+        MockTransportService.getInstance(searchNode).addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportRegisterCommitForRecoveryAction.NAME)) {
                 registerCommitRequestsSent.incrementAndGet();
             }
@@ -1857,21 +1837,21 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         final var toFailCount = maxRetries + 1;
         AtomicInteger failed = new AtomicInteger();
         AtomicInteger receivedRegistration = new AtomicInteger();
-        var indexNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
-        indexNodeTransport.addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
-            receivedRegistration.incrementAndGet();
-            if (failed.get() < toFailCount) {
-                failed.incrementAndGet();
-                channel.sendResponse(
-                    randomFrom(
-                        new ShardNotFoundException(shardId, "cannot register"),
-                        new RecoveryCommitTooNewException(shardId, "cannot register")
-                    )
-                );
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
+                receivedRegistration.incrementAndGet();
+                if (failed.get() < toFailCount) {
+                    failed.incrementAndGet();
+                    channel.sendResponse(
+                        randomFrom(
+                            new ShardNotFoundException(shardId, "cannot register"),
+                            new RecoveryCommitTooNewException(shardId, "cannot register")
+                        )
+                    );
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         // Trigger enough cluster state updates to see the reties succeed.
         for (int i = 0; i < toFailCount + 1; i++) {
@@ -1904,14 +1884,14 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         var indexNodeB = startIndexNode();
 
         var nodeAReceivedRegistration = new CountDownLatch(1);
-        var indexNodeATransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodeA);
+        var indexNodeATransport = MockTransportService.getInstance(indexNodeA);
         indexNodeATransport.addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
             logger.info("--> NodeA received commit registration with request {}", request);
             nodeAReceivedRegistration.countDown();
             handler.messageReceived(request, channel, task);
         });
         var nodeBReceivedRegistration = new CountDownLatch(1);
-        var indexNodeBTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNodeB);
+        var indexNodeBTransport = MockTransportService.getInstance(indexNodeB);
         indexNodeBTransport.addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
             logger.info("--> NodeB received commit registration with request {}", request);
             nodeBReceivedRegistration.countDown();

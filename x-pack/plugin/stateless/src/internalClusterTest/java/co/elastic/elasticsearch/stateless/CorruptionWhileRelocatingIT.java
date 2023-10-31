@@ -37,7 +37,6 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -103,10 +102,8 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         final var finalGeneration = generation + 1L /* flush before handoff on source */ + 1L /* flush after handoff on target */;
 
         final var receivedNotifications = new AtomicInteger(0);
-        var searchNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
-        searchNodeTransport.addRequestHandlingBehavior(
-            TransportNewCommitNotificationAction.NAME + "[u]",
-            (handler, request, channel, task) -> {
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 assertThat(request, instanceOf(NewCommitNotificationRequest.class));
                 var notification = (NewCommitNotificationRequest) request;
                 if (notification.getTerm() == primaryTerm && notification.getGeneration() == finalGeneration) {
@@ -120,8 +117,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
                     );
                 }
                 handler.messageReceived(request, channel, task);
-            }
-        );
+            });
 
         final var finalCommitBlobName = StatelessCompoundCommit.blobNameFromGeneration(finalGeneration);
 
@@ -129,41 +125,41 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         var newIndexNode = startIndexNode();
         final var pauseHandoff = new CountDownLatch(1);
         final var resumeHandoff = new CountDownLatch(1);
-        var newIndexNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, newIndexNode);
-        newIndexNodeTransport.addRequestHandlingBehavior(
-            PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
-            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+        MockTransportService.getInstance(newIndexNode)
+            .addRequestHandlingBehavior(
+                PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
 
-                private void await() {
-                    pauseHandoff.countDown();
-                    logger.info("--> relocation handoff paused");
-                    safeAwait(resumeHandoff);
-                    logger.info("--> relocation handoff resumed");
-                }
+                    private void await() {
+                        pauseHandoff.countDown();
+                        logger.info("--> relocation handoff paused");
+                        safeAwait(resumeHandoff);
+                        logger.info("--> relocation handoff resumed");
+                    }
 
-                @Override
-                public void sendResponse(TransportResponse response) throws IOException {
-                    await();
-                    channel.sendResponse(response);
-                }
+                    @Override
+                    public void sendResponse(TransportResponse response) throws IOException {
+                        await();
+                        channel.sendResponse(response);
+                    }
 
-                @Override
-                public void sendResponse(Exception exception) throws IOException {
-                    await();
-                    channel.sendResponse(exception);
-                }
+                    @Override
+                    public void sendResponse(Exception exception) throws IOException {
+                        await();
+                        channel.sendResponse(exception);
+                    }
 
-                @Override
-                public String getProfileName() {
-                    return channel.getProfileName();
-                }
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
 
-                @Override
-                public String getChannelType() {
-                    return channel.getChannelType();
-                }
-            }, task)
-        );
+                    @Override
+                    public String getChannelType() {
+                        return channel.getChannelType();
+                    }
+                }, task)
+            );
 
         logger.info("--> move index shard from: {} to: {}", indexNode, newIndexNode);
         clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNode, newIndexNode)).execute().actionGet();
@@ -220,38 +216,38 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         // We want more commits to be made by the source shard while the relocation handoff is executing, so we block the handoff here
         var newIndexNode = startIndexNode();
         final var pauseHandoff = new CountDownLatch(1);
-        var newIndexNodeTransport = (MockTransportService) internalCluster().getInstance(TransportService.class, newIndexNode);
-        newIndexNodeTransport.addRequestHandlingBehavior(
-            PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
-            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+        MockTransportService.getInstance(newIndexNode)
+            .addRequestHandlingBehavior(
+                PRIMARY_CONTEXT_HANDOFF_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
 
-                private void await() {
-                    pauseHandoff.countDown();
-                }
+                    private void await() {
+                        pauseHandoff.countDown();
+                    }
 
-                @Override
-                public void sendResponse(TransportResponse response) {
-                    await();
-                    // Swallow response as we want to kill the node before relocation succeeds
-                }
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        await();
+                        // Swallow response as we want to kill the node before relocation succeeds
+                    }
 
-                @Override
-                public void sendResponse(Exception exception) throws IOException {
-                    await();
-                    channel.sendResponse(exception);
-                }
+                    @Override
+                    public void sendResponse(Exception exception) throws IOException {
+                        await();
+                        channel.sendResponse(exception);
+                    }
 
-                @Override
-                public String getProfileName() {
-                    return channel.getProfileName();
-                }
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
 
-                @Override
-                public String getChannelType() {
-                    return channel.getChannelType();
-                }
-            }, task)
-        );
+                    @Override
+                    public String getChannelType() {
+                        return channel.getChannelType();
+                    }
+                }, task)
+            );
 
         // Async index another 1000 documents during the relocation.
         Thread thread = new Thread(() -> {

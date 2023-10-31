@@ -635,10 +635,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         String beforeShardSearchNode = shardSearchNodeName(indexName);
         String beforeShardAllocationId = shardAllocationId(indexName);
 
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            indexNodes.get(0)
-        );
+        final MockTransportService transportService = MockTransportService.getInstance(indexNodes.get(0));
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             connection.sendRequest(requestId, action, request, options);
             if (action.equals("indices:admin/refresh/unpromotable[u]")) {
@@ -819,10 +816,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         int bulk1DocsToIndex = randomIntBetween(100, 200);
         indexDocsAndRefresh(indexName, bulk1DocsToIndex);
         // Index more docs in between the QUERY and the FETCH phase of the search
-        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            coordinatingSearchNode
-        );
+        final MockTransportService transportService = MockTransportService.getInstance(coordinatingSearchNode);
         CountDownLatch fetchStarted = new CountDownLatch(1);
         CountDownLatch secondBulkIndexed = new CountDownLatch(1);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {

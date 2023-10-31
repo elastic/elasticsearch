@@ -440,23 +440,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Defines a helper method for performing a request.
-     */
-    protected final <Req extends Validatable, Resp> Resp performRequest(
-        Req request,
-        CheckedFunction<Req, Request, IOException> requestConverter,
-        RequestOptions options,
-        CheckedFunction<Response, Resp, IOException> responseConverter,
-        Set<Integer> ignores
-    ) throws IOException {
-        Optional<ValidationException> validationException = request.validate();
-        if (validationException != null && validationException.isPresent()) {
-            throw validationException.get();
-        }
-        return internalPerformRequest(request, requestConverter, options, responseConverter, ignores);
-    }
-
-    /**
      * Provides common functionality for performing a request.
      */
     private <Req, Resp> Resp internalPerformRequest(

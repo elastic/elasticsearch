@@ -82,6 +82,38 @@ public class ClusterStateTaskExecutorUtils {
         return resultingState;
     }
 
+    public static <T extends ClusterStateTaskListener> ClusterState executeExecutingResults(
+        ClusterState originalState,
+        ClusterStateTaskExecutor<T> executor,
+        Iterable<T> tasks,
+        CheckedConsumer<T, Exception> onTaskSuccess,
+        CheckedBiConsumer<T, Exception, Exception> onTaskFailure
+    ) throws Exception {
+        final var taskContexts = StreamSupport.stream(tasks.spliterator(), false).<ClusterStateTaskExecutor.TaskContext<T>>map(
+            t -> new TestTaskContext<>(t) {
+                @Override
+                public void success(Runnable onPublishSuccess) {
+                    super.success(onPublishSuccess);
+                    onPublishSuccess.run();
+                }
+            }
+        ).toList();
+        final var resultingState = executor.execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(originalState, taskContexts, () -> null)
+        );
+        assertNotNull(resultingState);
+        for (final var taskContext : taskContexts) {
+            final var testTaskContext = (TestTaskContext<T>) taskContext;
+            assertFalse(taskContext + " should have completed", testTaskContext.incomplete());
+            if (testTaskContext.succeeded()) {
+                onTaskSuccess.accept(testTaskContext.getTask());
+            } else {
+                onTaskFailure.accept(testTaskContext.getTask(), testTaskContext.getFailure());
+            }
+        }
+        return resultingState;
+    }
+
     private static class TestTaskContext<T extends ClusterStateTaskListener> implements ClusterStateTaskExecutor.TaskContext<T> {
         private final T task;
         private Exception failure;

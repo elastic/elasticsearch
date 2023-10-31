@@ -116,7 +116,7 @@ public class JoinHelper {
         this.joinReasonService = joinReasonService;
         this.latestStoredStateSupplier = latestStoredStateSupplier;
         this.compatibilityVersions = compatibilityVersions;
-        this.features = featureService.getNodeFeatures();
+        this.features = featureService.getNodeFeatures().keySet();
 
         transportService.registerRequestHandler(
             JOIN_ACTION_NAME,

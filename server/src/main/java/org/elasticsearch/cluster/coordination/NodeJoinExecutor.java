@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
@@ -35,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -127,6 +129,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
         Map<String, CompatibilityVersions> compatibilityVersionsMap = new HashMap<>(newState.compatibilityVersions());
         Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures());
+        Set<String> allNodesFeatures = ClusterFeatures.calculateAllNodeFeatures(nodeFeatures.values());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -159,16 +162,17 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                             CompatibilityVersions.ensureVersionsCompatibility(compatibilityVersions, compatibilityVersionsMap.values());
-                            // TODO: enforce feature ratchet barrier
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
+                        enforceNodeFeatureBarrier(node.getId(), allNodesFeatures, features);
                         // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                         // we have to reject nodes that don't support all indices we have in this cluster
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
                         nodeFeatures.put(node.getId(), features);
+                        allNodesFeatures.retainAll(features);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -445,6 +449,31 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     + minClusterNodeVersion
                     + "] or greater"
             );
+        }
+    }
+
+    private void enforceNodeFeatureBarrier(String nodeId, Set<String> existingNodesFeatures, Set<String> nodeFeatures) {
+        // prevent join if it does not have one or more features that all other nodes have
+        Set<String> missingFeatures = new HashSet<>(existingNodesFeatures);
+        missingFeatures.removeAll(nodeFeatures);
+
+        if (missingFeatures.isEmpty() == false) {
+            // check if the missing features are actually optional
+            // we should know about all of these - if all the other nodes have the feature, we have the feature
+            for (var it = missingFeatures.iterator(); it.hasNext();) {
+                String feature = it.next();
+                var nf = featureService.getNodeFeatures().get(feature);
+                assert nf != null : "NodeFeature not found for feature [" + feature + "] this node allegedly supports";
+                if (nf.optional()) {
+                    // ok for this feature to be missing
+                    logger.debug("Allowing node {} to join cluster missing optional feature {}", nodeId, feature);
+                    it.remove();
+                }
+            }
+
+            if (missingFeatures.isEmpty() == false) {
+                throw new IllegalStateException("Node is missing required features " + missingFeatures);
+            }
         }
     }
 

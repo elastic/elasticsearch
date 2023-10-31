@@ -93,7 +93,7 @@ public class FeatureServiceTests extends ESTestCase {
         );
 
         FeatureService service = new FeatureService(specs);
-        assertThat(service.getNodeFeatures(), containsInAnyOrder("f1", "f2", "f3", "f4", "f5"));
+        assertThat(service.getNodeFeatures().keySet(), containsInAnyOrder("f1", "f2", "f3", "f4", "f5"));
     }
 
     public void testStateHasFeatures() {

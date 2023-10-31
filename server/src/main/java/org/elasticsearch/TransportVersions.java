@@ -149,6 +149,7 @@ public class TransportVersions {
     public static final TransportVersion IP_ADDRESS_WRITEABLE = def(8_524_00_0);
     public static final TransportVersion PRIMARY_TERM_ADDED = def(8_525_00_0);
     public static final TransportVersion CLUSTER_FEATURES_ADDED = def(8_526_00_0);
+    public static final TransportVersion DSL_ERROR_STORE_INFORMATION_ENHANCED = def(8_527_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

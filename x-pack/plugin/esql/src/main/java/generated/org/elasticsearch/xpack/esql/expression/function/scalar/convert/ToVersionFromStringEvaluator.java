@@ -99,4 +99,25 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToVersion.fromKeyword(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToVersionFromStringEvaluator get(DriverContext context) {
+      return new ToVersionFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToVersionFromStringEvaluator[field=" + field + "]";
+    }
+  }
 }

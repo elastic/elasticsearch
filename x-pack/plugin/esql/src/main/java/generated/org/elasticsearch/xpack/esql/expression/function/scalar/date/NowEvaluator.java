@@ -48,4 +48,22 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
   }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final long now;
+
+    public Factory(long now) {
+      this.now = now;
+    }
+
+    @Override
+    public NowEvaluator get(DriverContext context) {
+      return new NowEvaluator(now, context);
+    }
+
+    @Override
+    public String toString() {
+      return "NowEvaluator[" + "now=" + now + "]";
+    }
+  }
 }

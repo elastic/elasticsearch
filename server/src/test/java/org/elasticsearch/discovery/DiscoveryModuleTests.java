@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -115,7 +116,8 @@ public class DiscoveryModuleTests extends ESTestCase {
             mock(RerouteService.class),
             null,
             new NoneCircuitBreakerService(),
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            Set.of()
         );
     }
 

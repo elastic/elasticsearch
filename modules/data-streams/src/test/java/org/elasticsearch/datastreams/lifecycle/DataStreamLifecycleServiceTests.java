@@ -98,6 +98,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.SUCCESS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.UNKNOWN;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.createDataStream;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING;
@@ -291,6 +292,84 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(deleteIndexRequest, instanceOf(DeleteIndexRequest.class));
         // only the first generation index should be eligible for retention
         assertThat(((DeleteIndexRequest) deleteIndexRequest).indices(), is(new String[] { dataStream.getIndices().get(0).getName() }));
+    }
+
+    public void testRetentionSkippedWhilstDownsamplingInProgress() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueMillis(0)).build(),
+            now
+        );
+        builder.put(dataStream);
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        {
+            Metadata metadata = state.metadata();
+            Metadata.Builder metaBuilder = Metadata.builder(metadata);
+
+            String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            IndexMetadata indexMetadata = metadata.index(firstBackingIndex);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
+            indexMetaBuilder.settings(
+                Settings.builder()
+                    .put(indexMetadata.getSettings())
+                    .put(
+                        IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY,
+                        randomValueOtherThan(UNKNOWN, () -> randomFrom(IndexMetadata.DownsampleTaskStatus.values()))
+                    )
+            );
+            indexMetaBuilder.putCustom(
+                LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                Map.of(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY, String.valueOf(System.currentTimeMillis()))
+            );
+            metaBuilder.put(indexMetaBuilder);
+            state = ClusterState.builder(ClusterName.DEFAULT).metadata(metaBuilder).build();
+
+            dataStreamLifecycleService.run(state);
+            assertThat(clientSeenRequests.size(), is(2)); // rollover the write index and delete the second generation
+            assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+            assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+            assertThat(
+                ((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0],
+                is(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+            );
+        }
+
+        {
+            // a lack of downsample status (i.e. the default `UNKNOWN`) must not prevent retention
+            Metadata metadata = state.metadata();
+            Metadata.Builder metaBuilder = Metadata.builder(metadata);
+
+            String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            IndexMetadata indexMetadata = metadata.index(firstBackingIndex);
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
+            indexMetaBuilder.settings(
+                Settings.builder().put(indexMetadata.getSettings()).putNull(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY)
+            );
+            metaBuilder.put(indexMetaBuilder);
+            state = ClusterState.builder(ClusterName.DEFAULT).metadata(metaBuilder).build();
+
+            dataStreamLifecycleService.run(state);
+            assertThat(clientSeenRequests.size(), is(3)); // rollover the write index and delete the other two generations
+            assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+            assertThat(clientSeenRequests.get(1), instanceOf(DeleteIndexRequest.class));
+            assertThat(
+                ((DeleteIndexRequest) clientSeenRequests.get(1)).indices()[0],
+                is(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+            );
+            assertThat(clientSeenRequests.get(2), instanceOf(DeleteIndexRequest.class));
+            assertThat(
+                ((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0],
+                is(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            );
+        }
     }
 
     public void testIlmManagedIndicesAreSkipped() {

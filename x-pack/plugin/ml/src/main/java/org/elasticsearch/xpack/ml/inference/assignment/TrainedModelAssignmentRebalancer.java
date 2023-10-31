@@ -142,6 +142,7 @@ class TrainedModelAssignmentRebalancer {
                 AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
                 dest.assignModelToNode(m, originalNode, assignment.getValue());
                 if (m.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
                     // As the node has all its available memory we need to manually account memory of models with
                     // current allocations.
                     long requiredMemory = m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId().get(originalNode.id()));

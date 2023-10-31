@@ -303,7 +303,6 @@ class LinearProgrammingPlanSolver {
         for (Node n : nodes) {
             // Allocations should not use more cores than the node has.
             // We multiply the allocation variables with the threads per allocation for each model to find the total number of cores used.
-            // L683: pulp.lpSum([thread_vars[m][n] for m in Models]) <= NodeCores[n]
             model.addExpression("threads_on_node_" + n.id() + "_not_more_than_cores")
                 .upper(coresPerNode.get(n))
                 .setLinearFactors(varsForNode(n, allocationVars), Access1D.wrap(threadsPerAllocationPerModel));

@@ -184,10 +184,9 @@ public class ZoneAwareAssignmentPlanner {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
                 planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
                 if (originalDeployment.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
                     // As the node has all its available memory we need to manually account memory of models with
                     // current allocations.
-                    // TODO maybe more elegantly?
-                    // originalNode.availableMemoryBytes = plan.getRemainingNodeMemory(originalNode.id());
                     long requiredMemory = originalDeployment.estimateMemoryUsageBytes(
                         originalDeployment.currentAllocationsByNodeId().get(originalNode.id())
                     );

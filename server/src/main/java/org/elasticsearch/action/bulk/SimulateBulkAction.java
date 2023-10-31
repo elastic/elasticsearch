@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionType;
 public class SimulateBulkAction extends ActionType<BulkResponse> {
 
     public static final SimulateBulkAction INSTANCE = new SimulateBulkAction();
-    public static final String NAME = "indices:data/simulate/bulk";
+    public static final String NAME = "cluster:admin/simulate/bulk";
     private SimulateBulkAction() {
         super(NAME, BulkResponse::new);
     }

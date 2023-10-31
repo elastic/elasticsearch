@@ -68,7 +68,9 @@ public class IndexShardSnapshotStatus {
         /** The shard snapshot was aborted because the snapshot was removed from the cluster state */
         SNAPSHOT_REMOVED,
         /** The shard snapshot was aborted because the shard closed */
-        SHARD_CLOSED,;
+        SHARD_CLOSED,
+        //
+        ;
 
         public String getDescription() {
             return switch (this) {

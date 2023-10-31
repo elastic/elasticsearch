@@ -735,7 +735,7 @@ public class RestHighLevelClient implements Closeable {
         ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
 
         // Create a future that tracks cancellation of this method's result and forwards cancellation to the actual LLRC request.
-        CompletableFuture<Void> cancellationForwarder = new CompletableFuture<Void>();
+        CompletableFuture<Void> cancellationForwarder = new CompletableFuture<>();
         Cancellable result = new Cancellable() {
             @Override
             public void cancel() {
@@ -754,7 +754,7 @@ public class RestHighLevelClient implements Closeable {
 
         // Send the request after we have done the version compatibility check. Note that if it has already happened, the listener will
         // be called immediately on the same thread with no asynchronous scheduling overhead.
-        versionCheck.addListener(new ActionListener<Optional<String>>() {
+        versionCheck.addListener(new ActionListener<>() {
             @Override
             public void onResponse(Optional<String> validation) {
                 if (validation.isPresent() == false) {
@@ -779,7 +779,7 @@ public class RestHighLevelClient implements Closeable {
         });
 
         return result;
-    };
+    }
 
     /**
      * Go through all the request's existing headers, looking for {@code headerName} headers and if they exist,

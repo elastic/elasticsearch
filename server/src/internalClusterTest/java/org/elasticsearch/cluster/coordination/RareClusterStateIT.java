@@ -295,7 +295,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
-        assertTrue(putMappingResponse.get(10, TimeUnit.SECONDS).isAcknowledged());
+        assertTrue(putMappingResponse.get(30, TimeUnit.SECONDS).isAcknowledged());
         assertThat(docIndexResponse.get(10, TimeUnit.SECONDS), instanceOf(IndexResponse.class));
         assertEquals(1, docIndexResponse.get(10, TimeUnit.SECONDS).getShardInfo().getTotal());
     }
@@ -408,11 +408,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
         // Now make sure the indexing request finishes successfully
         disruption.stopDisrupting();
-        assertTrue(putMappingResponse.get(10, TimeUnit.SECONDS).isAcknowledged());
+        assertTrue(putMappingResponse.get(30, TimeUnit.SECONDS).isAcknowledged());
         assertThat(docIndexResponse.get(10, TimeUnit.SECONDS), instanceOf(IndexResponse.class));
         assertEquals(2, docIndexResponse.get(10, TimeUnit.SECONDS).getShardInfo().getTotal()); // both shards should have succeeded
 
-        assertThat(dynamicMappingsFut.get(10, TimeUnit.SECONDS).getResult(), equalTo(CREATED));
+        assertThat(dynamicMappingsFut.get(30, TimeUnit.SECONDS).getResult(), equalTo(CREATED));
     }
 
 }

@@ -413,9 +413,7 @@ public class ClusterStateChanges {
                     new CompatibilityVersions(transportVersion, Map.of()),
                     Set.of(),
                     DUMMY_REASON,
-                    ActionListener.running(() -> {
-                        throw new AssertionError("should not complete publication");
-                    }),
+                    createTestListener(),
                     clusterState.term()
                 )
             )
@@ -435,9 +433,7 @@ public class ClusterStateChanges {
                                 new CompatibilityVersions(transportVersion, Map.of()),
                                 Set.of(),
                                 DUMMY_REASON,
-                                ActionListener.running(() -> {
-                                    throw new AssertionError("should not complete publication");
-                                })
+                                createTestListener()
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -552,7 +548,15 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<Void> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+    private static ActionListener<Void> createTestListener() {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 }

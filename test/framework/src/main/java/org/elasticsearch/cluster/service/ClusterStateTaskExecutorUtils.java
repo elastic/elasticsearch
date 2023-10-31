@@ -123,6 +123,7 @@ public class ClusterStateTaskExecutorUtils {
             assert clusterStateAckListener != null;
             assert task == clusterStateAckListener || (task instanceof ClusterStateAckListener == false);
             this.succeeded = true;
+            onPublishSuccess.run();
         }
 
         @Override
@@ -131,6 +132,7 @@ public class ClusterStateTaskExecutorUtils {
             assert onPublishSuccess != null;
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
+            onPublishSuccess.run();
         }
 
         @Override

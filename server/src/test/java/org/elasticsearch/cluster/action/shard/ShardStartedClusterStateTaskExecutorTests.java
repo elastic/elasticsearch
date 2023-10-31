@@ -408,6 +408,14 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T t) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 }

@@ -2664,7 +2664,7 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {
-        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
+        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(createTestListener(), request));
     }
 
     private static ClusterState executeDelete(DeletePipelineRequest request, ClusterState clusterState) {
@@ -2680,7 +2680,19 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
-        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionListener.running(() -> fail("not called")), request));
+        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(createTestListener(), request));
+    }
+
+    private static <T> ActionListener<T> createTestListener() {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(T t) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        };
     }
 
     private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {

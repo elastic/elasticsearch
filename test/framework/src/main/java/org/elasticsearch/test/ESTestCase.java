@@ -39,6 +39,8 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
@@ -2026,6 +2028,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             Thread.currentThread().interrupt();
             fail(e);
         }
+    }
+
+    public static <T> T safeAwait(SubscribableListener<T> listener) {
+        return PlainActionFuture.get(listener::addListener, 10, TimeUnit.SECONDS);
     }
 
     public static void safeSleep(long millis) {

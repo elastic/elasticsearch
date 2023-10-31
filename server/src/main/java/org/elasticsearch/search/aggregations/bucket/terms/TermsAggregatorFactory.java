@@ -112,9 +112,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                boolean isTsdbIndex = context.getIndexSettings().getMode() == IndexMode.TIME_SERIES;
-                boolean currentTime = context.nowInMillis() <= context.getIndexSettings().getTimestampBounds().endTime();
-                if (isTsdbIndex && currentTime ) {
+                var indexSettings = context.getIndexSettings();
+                boolean isTsdbIndex = indexSettings.getMode() == IndexMode.TIME_SERIES;
+                boolean receivesWrites = isTsdbIndex && context.nowInMillis() <= indexSettings.getTimestampBounds().endTime();
+                if (isTsdbIndex && receivesWrites) {
                     // The current tsdb backing index may still receive active writes and
                     // if global ordinals is built then it may be invalidated on the next search request.
                     // So it isn't worth to build it. Depending on the cardinality of a field this may be very expensive.

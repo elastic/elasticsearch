@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -169,7 +170,10 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
             List<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {
-                indicesAndErrors.put(index, errorStore.getError(index));
+                ErrorEntry error = errorStore.getError(index);
+                if (error != null) {
+                    indicesAndErrors.put(index, error.error());
+                }
             }
         }
         return indicesAndErrors;

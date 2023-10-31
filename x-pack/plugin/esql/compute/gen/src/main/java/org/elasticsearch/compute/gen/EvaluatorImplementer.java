@@ -33,6 +33,7 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
+import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.BLOCK_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
@@ -45,6 +46,7 @@ import static org.elasticsearch.compute.gen.Types.RELEASABLES;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.builderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class EvaluatorImplementer {
@@ -158,11 +160,11 @@ public class EvaluatorImplementer {
                 builder.addParameter(a.dataType(blockStyle), a.paramName(blockStyle));
             }
         });
+        TypeName builderType = builderType(resultDataType);
         builder.beginControlFlow(
-            "try($T.Builder result = $T.$L(positionCount, driverContext.blockFactory()))",
-            resultDataType,
-            resultDataType,
-            resultDataType.simpleName().endsWith("Vector") ? "newVectorBuilder" : "newBlockBuilder"
+            "try($T result = driverContext.blockFactory().$L(positionCount))",
+            builderType,
+            buildFromFactory(builderType)
         );
         {
             processFunction.args.stream().forEach(a -> a.createScratch(builder));

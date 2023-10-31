@@ -7,3 +7,4 @@
 #
 
 org.elasticsearch.features.FeaturesSupportedSpecification
+org.elasticsearch.health.HealthFeature

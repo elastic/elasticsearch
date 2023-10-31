@@ -339,7 +339,7 @@ public class NodeTests extends ESTestCase {
             CircuitBreakerService service = node.injector().getInstance(CircuitBreakerService.class);
             assertThat(service.getBreaker("test_breaker"), is(not(nullValue())));
             assertThat(service.getBreaker("test_breaker").getLimit(), equalTo(50L));
-            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
+            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).findFirst().get();
             assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
             assertSame(
                 "plugin circuit breaker instance is not the same as breaker service's instance",
@@ -585,7 +585,7 @@ public class NodeTests extends ESTestCase {
         plugins.add(MockPluginWithAltImpl.class);
         try (Node node = new MockNode(baseSettings().build(), plugins)) {
             MockPluginWithAltImpl.MyInterface myInterface = node.injector().getInstance(MockPluginWithAltImpl.MyInterface.class);
-            MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).get(0);
+            MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).findFirst().get();
             if (plugin.getRandomBool()) {
                 assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Foo.class));
                 assertThat(myInterface.get(), equalTo("foo"));
@@ -652,7 +652,7 @@ public class NodeTests extends ESTestCase {
 
         try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
 
-            for (final var plugin : node.getPluginsService().filterPlugins(BaseTestClusterCoordinationPlugin.class)) {
+            for (final var plugin : node.getPluginsService().filterPlugins(BaseTestClusterCoordinationPlugin.class).toList()) {
                 assertSame(
                     Objects.requireNonNull(plugin.persistedClusterStateService),
                     node.injector().getInstance(PersistedClusterStateService.class)

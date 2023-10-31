@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
@@ -58,10 +58,8 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        assertThat(
-            ((DoubleBlock) result).getDouble(position),
-            equalTo(medianAbsoluteDeviation(input.stream().flatMapToDouble(p -> allDoubles(p, group))))
-        );
+        double medianAbsoluteDeviation = medianAbsoluteDeviation(input.stream().flatMapToDouble(p -> allDoubles(p, group)));
+        assertThat(((DoubleBlock) result).getDouble(position), closeTo(medianAbsoluteDeviation, medianAbsoluteDeviation * .000001));
     }
 
     static double medianAbsoluteDeviation(DoubleStream s) {
@@ -78,10 +76,5 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
         }
         int c = data.length / 2;
         return data.length % 2 == 0 ? (data[c - 1] + data[c]) / 2 : data[c];
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101569")
-    public void testMulitvaluedNullGroup() {
-        // only here for muting it
     }
 }

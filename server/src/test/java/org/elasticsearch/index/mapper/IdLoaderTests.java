@@ -234,7 +234,7 @@ public class IdLoaderTests extends ESTestCase {
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
-        BytesRef tsid = builder.build().toBytesRef();
+        BytesRef tsid = builder.withoutHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         iw.addDocument(fields);
     }
@@ -252,7 +252,7 @@ public class IdLoaderTests extends ESTestCase {
         return TsidExtractingIdFieldMapper.createId(
             false,
             routingBuilder,
-            timeSeriesIdBuilder.build().toBytesRef(),
+            timeSeriesIdBuilder.withoutHash().toBytesRef(),
             doc.timestamp,
             new byte[16]
         );

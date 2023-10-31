@@ -23,6 +23,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -136,9 +138,15 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         assert fieldType().isIndexed() == false;
 
         final TimeSeriesIdBuilder timeSeriesIdBuilder = (TimeSeriesIdBuilder) context.getDocumentFields();
-        final BytesRef timeSeriesId = timeSeriesIdBuilder.build().toBytesRef();
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesIdBuilder.similarityHash().toBytesRef()));
+        final BytesRef timeSeriesId = getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)
+            ? timeSeriesIdBuilder.withoutHash().toBytesRef()
+            : timeSeriesIdBuilder.withHash().toBytesRef();
+        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
         TsidExtractingIdFieldMapper.createField(context, timeSeriesIdBuilder.routingBuilder, timeSeriesId);
+    }
+
+    private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {
+        return context.indexSettings().getIndexVersionCreated();
     }
 
     @Override
@@ -210,7 +218,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             this.routingBuilder = routingBuilder;
         }
 
-        public BytesReference build() throws IOException {
+        public BytesReference withoutHash() throws IOException {
             if (dimensions.isEmpty()) {
                 throw new IllegalArgumentException("Dimension fields are missing.");
             }
@@ -237,7 +245,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
          * The idea is to be able to place 'similar' time series close to each other. Two time series
          * are considered 'similar' if they share the same dimensions (names and values).
          */
-        public BytesReference similarityHash() throws IOException {
+        public BytesReference withHash() throws IOException {
             // NOTE: hash all dimension field names
             int numberOfDimensions = Math.min(MAX_DIMENSIONS, dimensions.size());
             int tsidHashIndex = 0;

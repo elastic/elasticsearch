@@ -1246,19 +1246,40 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
             logger.error(logMessage, e);
         } else {
-            if (currentError != null && currentError.retryCount() % signallingErrorRetryThreshold == 0) {
-                logger.error(
+            if (currentError != null) {
+                if (currentError.retryCount() % signallingErrorRetryThreshold == 0) {
+                    logger.error(
+                        String.format(
+                            Locale.ROOT,
+                            "%s\nFailing since [%d], operation retried [%d] times",
+                            logMessage,
+                            currentError.firstOccurrenceTimestamp(),
+                            currentError.retryCount()
+                        ),
+                        e
+                    );
+                } else {
+                    logger.trace(
+                        String.format(
+                            Locale.ROOT,
+                            "%s\nFailing since [%d], operation retried [%d] times",
+                            logMessage,
+                            currentError.firstOccurrenceTimestamp(),
+                            currentError.retryCount()
+                        ),
+                        e
+                    );
+                }
+            } else {
+                logger.trace(
                     String.format(
                         Locale.ROOT,
-                        "%s\nFailing since [%d], operation retried [%d] times",
-                        logMessage,
-                        currentError.firstOccurrenceTimestamp(),
-                        currentError.retryCount()
+                        "Index [%s] encountered error [%s] but there's no record in the error store anymore",
+                        targetIndex,
+                        logMessage
                     ),
                     e
                 );
-            } else {
-                logger.trace(logMessage, e);
             }
         }
     }

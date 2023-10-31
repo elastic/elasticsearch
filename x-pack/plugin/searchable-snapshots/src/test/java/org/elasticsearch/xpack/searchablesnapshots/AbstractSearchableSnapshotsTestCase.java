@@ -43,6 +43,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -143,7 +144,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             nodeEnvironment,
             Settings.EMPTY,
             threadPool,
-            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            TelemetryProvider.NOOP
         );
     }
 
@@ -165,7 +167,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             singlePathNodeEnvironment,
             cacheSettings.build(),
             threadPool,
-            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            TelemetryProvider.NOOP
         );
     }
 
@@ -189,7 +192,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool,
-            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            TelemetryProvider.NOOP
         );
     }
 

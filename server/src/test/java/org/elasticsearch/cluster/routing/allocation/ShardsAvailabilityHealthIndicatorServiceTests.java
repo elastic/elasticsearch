@@ -317,9 +317,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testAllReplicasUnassigned() {
         {
             ClusterState clusterState = createClusterStateWith(
-                List.of(index("myindex", new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(randomNodeId(), AVAILABLE))),
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), AVAILABLE)
+                    )
+                ),
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(clusterState);
@@ -334,9 +339,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
         {
             ClusterState clusterState = createClusterStateWith(
-                List.of(index("myindex", new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
-                    new ShardAllocation(randomNodeId(), AVAILABLE))),
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
+                        new ShardAllocation(randomNodeId(), AVAILABLE)
+                    )
+                ),
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(clusterState);
@@ -351,9 +361,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
         {
             ClusterState clusterState = createClusterStateWith(
-                List.of(index("myindex", new ShardAllocation(randomNodeId(), AVAILABLE),
-                    new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
-                    new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)))),
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING))
+                    )
+                ),
                 List.of()
             );
             var service = createShardsAvailabilityIndicatorService(clusterState);

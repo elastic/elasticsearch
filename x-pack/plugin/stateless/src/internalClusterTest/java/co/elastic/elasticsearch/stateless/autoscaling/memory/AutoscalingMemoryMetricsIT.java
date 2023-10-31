@@ -402,13 +402,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         var indexNode1 = startIndexNode(INDEX_NODE_SETTINGS);
         var indexNode2 = startIndexNode(INDEX_NODE_SETTINGS);
 
-        var indexName = randomIdentifier();
-        assertAcked(
-            prepareCreate(indexName).setMapping(createIndexMapping(randomIntBetween(10, 100)))
-                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build())
-                .get()
-        );
-
         var primaryShardRelocated = new AtomicBoolean();
         var transportService = (MockTransportService) internalCluster().getCurrentMasterNodeInstance(TransportService.class);
         transportService.addRequestHandlingBehavior(PublishHeapMemoryMetricsAction.NAME, (handler, request, channel, task) -> {
@@ -417,6 +410,13 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
                 handler.messageReceived(request, channel, task);
             }
         });
+
+        var indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(indexName).setMapping(createIndexMapping(randomIntBetween(10, 100)))
+                .setSettings(indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build())
+                .get()
+        );
 
         assertBusy(() -> {
             final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(

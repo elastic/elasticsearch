@@ -49,6 +49,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Bounda
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockKeywordPlugin;
@@ -111,6 +112,52 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, MockKeywordPlugin.class, MockAnalysisPlugin.class);
+    }
+
+    public void testHighlightWithHybridVector() throws IOException {
+        assertAcked(
+            prepareCreate("test-with-vector").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("vectors")
+                    .field("type", "dense_vector")
+                    .field("dims", 2)
+                    .field("index", true)
+                    .field("similarity", "l2_norm")
+                    .endObject()
+                    .startObject("text")
+                    .field("type", "text")
+                    .startObject("fields")
+                    .startObject("fvh")
+                    .field("type", "text")
+                    .field("term_vector", "with_positions_offsets")
+                    .endObject()
+                    .startObject("postings")
+                    .field("type", "text")
+                    .field("index_options", "offsets")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).get()
+        );
+        client().prepareIndex("test-with-vector")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("vectors", new float[] { 1, 2 })
+                    .field("text", "The quick brown fox is brown.")
+                    .endObject()
+            )
+            .setId("1")
+            .get();
+        client().prepareSearch("test-with-vector")
+            .setQuery(multiMatchQuery("quick brown fox", "text*").type(MultiMatchQueryBuilder.Type.PHRASE))
+            .setKnnSearch(List.of(new KnnSearchBuilder("vectors", new float[] { 1, 2 }, 10, 10, null)))
+            .highlighter(new HighlightBuilder().field(new Field("*")).highlighterType("unified"))
+            .setAllowPartialSearchResults(false)
+            .get();
     }
 
     public void testHighlightingWithKeywordIgnoreBoundaryScanner() throws IOException {

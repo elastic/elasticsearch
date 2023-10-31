@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.TransportVersion;
@@ -88,8 +90,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         }
 
         IndexReader reader = context.getIndexReader();
-        int[] segmentStarts = findSegmentStarts(reader, docs);
-        return new KnnScoreDocQuery(docs, scores, segmentStarts, reader.getContext().id());
+        Object[] segmentIds = new Object[reader.leaves().size()];
+        int[] segmentStarts = findSegmentStarts(reader, docs, segmentIds);
+        return new KnnScoreDocQuery(docs, scores, segmentStarts, segmentIds, reader.getContext().id());
     }
 
     @Override
@@ -100,14 +103,18 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
         return super.doRewrite(queryRewriteContext);
     }
 
-    private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
+    private static int[] findSegmentStarts(IndexReader reader, int[] docs, Object[] segmentIds) {
         int[] starts = new int[reader.leaves().size() + 1];
         starts[starts.length - 1] = docs.length;
+        LeafReader lastLeaf = reader.leaves().get(reader.leaves().size() - 1).reader();
+        lastLeaf = FilterLeafReader.unwrap(lastLeaf);
+        segmentIds[reader.leaves().size() - 1] = lastLeaf.getContext().id();
         if (starts.length == 2) {
             return starts;
         }
         int resultIndex = 0;
         for (int i = 1; i < starts.length - 1; i++) {
+            segmentIds[i - 1] = FilterLeafReader.unwrap(reader.leaves().get(i - 1).reader()).getContext().id();
             int upper = reader.leaves().get(i).docBase;
             resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper);
             if (resultIndex < 0) {

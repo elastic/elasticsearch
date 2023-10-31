@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -36,6 +38,7 @@ public class KnnScoreDocQuery extends Query {
     private final int[] docs;
     private final float[] scores;
     private final int[] segmentStarts;
+    private final Object[] segmentIdentites;
     private final Object contextIdentity;
 
     /**
@@ -50,11 +53,12 @@ public class KnnScoreDocQuery extends Query {
      * @param contextIdentity an object identifying the reader context that was used to build this
      *     query
      */
-    KnnScoreDocQuery(int[] docs, float[] scores, int[] segmentStarts, Object contextIdentity) {
+    KnnScoreDocQuery(int[] docs, float[] scores, int[] segmentStarts, Object[] segmentIdentities, Object contextIdentity) {
         this.docs = docs;
         this.scores = scores;
         this.segmentStarts = segmentStarts;
         this.contextIdentity = contextIdentity;
+        this.segmentIdentites = segmentIdentities;
     }
 
     @Override
@@ -68,7 +72,20 @@ public class KnnScoreDocQuery extends Query {
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         if (searcher.getIndexReader().getContext().id() != contextIdentity) {
-            throw new IllegalStateException("This KnnScoreDocQuery was created by a different reader");
+            if (searcher.getLeafContexts().size() == 1) {
+                boolean found = false;
+                LeafReader reader = FilterLeafReader.unwrap(searcher.getLeafContexts().get(0).reader());
+                for (Object id : segmentIdentites) {
+                    if (id == reader.getContext().id()) {
+                        found = true;
+                    }
+                }
+                if (found == false) {
+                    throw new IllegalStateException("This KnnScoreDocQuery was created by a different reader");
+                }
+            } else {
+                throw new IllegalStateException("This KnnScoreDocQuery was created by a different reader");
+            }
         }
         return new Weight(this) {
 

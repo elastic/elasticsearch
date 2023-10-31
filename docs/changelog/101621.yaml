@@ -1,0 +1,5 @@
+pr: 101621
+summary: Fix hybrid search and unified highlighting
+area: "Highlighting, Vector Search"
+type: bug
+issues: []

@@ -172,8 +172,18 @@ public final class EvalMapper {
                 @Override
                 public void close() {}
             }
-            int channel = layout.get(attr.id()).channel();
-            return driverContext -> new Attribute(channel);
+            record AttributeFactory(int channel) implements ExpressionEvaluator.Factory {
+                @Override
+                public ExpressionEvaluator get(DriverContext driverContext) {
+                    return new Attribute(channel);
+                }
+
+                @Override
+                public String toString() {
+                    return "Attribute[channel=" + channel + "]";
+                }
+            }
+            return new AttributeFactory(layout.get(attr.id()).channel());
         }
     }
 
@@ -195,7 +205,18 @@ public final class EvalMapper {
                 @Override
                 public void close() {}
             }
-            return context -> new LiteralsEvaluator(context, lit);
+            record LiteralsEvaluatorFactory(Literal lit) implements ExpressionEvaluator.Factory {
+                @Override
+                public ExpressionEvaluator get(DriverContext driverContext) {
+                    return new LiteralsEvaluator(driverContext, lit);
+                }
+
+                @Override
+                public String toString() {
+                    return "LiteralsEvaluator[lit=" + lit + "]";
+                }
+            }
+            return new LiteralsEvaluatorFactory(lit);
         }
 
         private static Block block(Literal lit, BlockFactory blockFactory, int positions) {
@@ -209,7 +230,9 @@ public final class EvalMapper {
                     return Block.constantNullBlock(positions, blockFactory);
                 }
                 var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
-                wrapper.accept(multiValue);
+                for (int i = 0; i < positions; i++) {
+                    wrapper.accept(multiValue);
+                }
                 return wrapper.builder().build();
             }
             return BlockUtils.constantBlock(blockFactory, value, positions);
@@ -221,12 +244,22 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(IsNull isNull, Layout layout) {
             var field = toEvaluator(isNull.field(), layout);
-            return driverContext -> new IsNullEvaluator(driverContext, field.get(driverContext));
+            return new IsNullEvaluatorFactory(field);
         }
 
-        record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
-            implements
-                EvalOperator.ExpressionEvaluator {
+        record IsNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new IsNullEvaluator(context, field.get(context));
+            }
+
+            @Override
+            public String toString() {
+                return "IsNullEvaluator[field=" + field + ']';
+            }
+        }
+
+        record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) implements ExpressionEvaluator {
             @Override
             public Block.Ref eval(Page page) {
                 try (Block.Ref fieldBlock = field.eval(page)) {
@@ -256,7 +289,7 @@ public final class EvalMapper {
 
             @Override
             public String toString() {
-                return "IsNullEvaluator[" + "field=" + field + ']';
+                return "IsNullEvaluator[field=" + field + ']';
             }
         }
     }
@@ -265,8 +298,19 @@ public final class EvalMapper {
 
         @Override
         public ExpressionEvaluator.Factory map(IsNotNull isNotNull, Layout layout) {
-            var field = toEvaluator(isNotNull.field(), layout);
-            return driverContext -> new IsNotNullEvaluator(driverContext, field.get(driverContext));
+            return new IsNotNullEvaluatorFactory(toEvaluator(isNotNull.field(), layout));
+        }
+
+        record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new IsNotNullEvaluator(context, field.get(context));
+            }
+
+            @Override
+            public String toString() {
+                return "IsNotNullEvaluator[field=" + field + ']';
+            }
         }
 
         record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
@@ -301,7 +345,7 @@ public final class EvalMapper {
 
             @Override
             public String toString() {
-                return "IsNotNullEvaluator[" + "field=" + field + ']';
+                return "IsNotNullEvaluator[field=" + field + ']';
             }
         }
     }

@@ -114,7 +114,9 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect.Parser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -257,9 +259,11 @@ public final class PlanNamedTypes {
             of(LogicalPlan.class, EsRelation.class, PlanNamedTypes::writeEsRelation, PlanNamedTypes::readEsRelation),
             of(LogicalPlan.class, Eval.class, PlanNamedTypes::writeEval, PlanNamedTypes::readEval),
             of(LogicalPlan.class, Enrich.class, PlanNamedTypes::writeEnrich, PlanNamedTypes::readEnrich),
+            of(LogicalPlan.class, EsqlProject.class, PlanNamedTypes::writeEsqlProject, PlanNamedTypes::readEsqlProject),
             of(LogicalPlan.class, Filter.class, PlanNamedTypes::writeFilter, PlanNamedTypes::readFilter),
             of(LogicalPlan.class, Grok.class, PlanNamedTypes::writeGrok, PlanNamedTypes::readGrok),
             of(LogicalPlan.class, Limit.class, PlanNamedTypes::writeLimit, PlanNamedTypes::readLimit),
+            of(LogicalPlan.class, MvExpand.class, PlanNamedTypes::writeMvExpand, PlanNamedTypes::readMvExpand),
             of(LogicalPlan.class, OrderBy.class, PlanNamedTypes::writeOrderBy, PlanNamedTypes::readOrderBy),
             of(LogicalPlan.class, Project.class, PlanNamedTypes::writeProject, PlanNamedTypes::readProject),
             of(LogicalPlan.class, TopN.class, PlanNamedTypes::writeTopN, PlanNamedTypes::readTopN),
@@ -585,13 +589,14 @@ public final class PlanNamedTypes {
     }
 
     static MvExpandExec readMvExpandExec(PlanStreamInput in) throws IOException {
-        return new MvExpandExec(in.readSource(), in.readPhysicalPlanNode(), in.readNamedExpression());
+        return new MvExpandExec(in.readSource(), in.readPhysicalPlanNode(), in.readNamedExpression(), in.readAttribute());
     }
 
     static void writeMvExpandExec(PlanStreamOutput out, MvExpandExec mvExpandExec) throws IOException {
         out.writeNoSource();
         out.writePhysicalPlanNode(mvExpandExec.child());
         out.writeNamedExpression(mvExpandExec.target());
+        out.writeAttribute(mvExpandExec.expanded());
     }
 
     static OrderExec readOrderExec(PlanStreamInput in) throws IOException {
@@ -687,7 +692,7 @@ public final class PlanNamedTypes {
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
-        return new EsRelation(in.readSource(), readEsIndex(in), readAttributes(in));
+        return new EsRelation(in.readSource(), readEsIndex(in), readAttributes(in), in.readBoolean());
     }
 
     static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
@@ -695,6 +700,7 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         writeEsIndex(out, relation.index());
         writeAttributes(out, relation.output());
+        out.writeBoolean(relation.frozen());
     }
 
     static Eval readEval(PlanStreamInput in) throws IOException {
@@ -727,6 +733,16 @@ public final class PlanNamedTypes {
         enrich.policy().policy().writeTo(out);
         writeEsIndex(out, enrich.policy().index().get());
         writeNamedExpressions(out, enrich.enrichFields());
+    }
+
+    static EsqlProject readEsqlProject(PlanStreamInput in) throws IOException {
+        return new EsqlProject(in.readSource(), in.readLogicalPlanNode(), readNamedExpressions(in));
+    }
+
+    static void writeEsqlProject(PlanStreamOutput out, EsqlProject project) throws IOException {
+        out.writeNoSource();
+        out.writeLogicalPlanNode(project.child());
+        writeNamedExpressions(out, project.projections());
     }
 
     static Filter readFilter(PlanStreamInput in) throws IOException {
@@ -766,6 +782,17 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         out.writeExpression(limit.limit());
         out.writeLogicalPlanNode(limit.child());
+    }
+
+    static MvExpand readMvExpand(PlanStreamInput in) throws IOException {
+        return new MvExpand(in.readSource(), in.readLogicalPlanNode(), in.readNamedExpression(), in.readAttribute());
+    }
+
+    static void writeMvExpand(PlanStreamOutput out, MvExpand mvExpand) throws IOException {
+        out.writeNoSource();
+        out.writeLogicalPlanNode(mvExpand.child());
+        out.writeNamedExpression(mvExpand.target());
+        out.writeAttribute(mvExpand.expanded());
     }
 
     static OrderBy readOrderBy(PlanStreamInput in) throws IOException {

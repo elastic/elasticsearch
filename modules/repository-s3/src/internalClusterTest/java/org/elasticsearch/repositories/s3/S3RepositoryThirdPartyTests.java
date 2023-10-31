@@ -29,7 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.telemetry.metric.Meter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -65,6 +65,26 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         secureSettings.setString("s3.client.default.access_key", System.getProperty("test.s3.account"));
         secureSettings.setString("s3.client.default.secret_key", System.getProperty("test.s3.key"));
         return secureSettings;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        final var settings = Settings.builder().put(super.nodeSettings());
+        if (randomBoolean()) {
+            final var defaultMillis = S3Service.REPOSITORY_S3_CAS_TTL_SETTING.get(Settings.EMPTY).millis();
+            settings.put(
+                S3Service.REPOSITORY_S3_CAS_TTL_SETTING.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
+            );
+        }
+        if (randomBoolean()) {
+            final var defaultMillis = S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(Settings.EMPTY).millis();
+            settings.put(
+                S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.getKey(),
+                TimeValue.timeValueMillis(randomLongBetween(defaultMillis, defaultMillis * 2))
+            );
+        }
+        return settings.build();
     }
 
     @Override
@@ -113,7 +133,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                Meter.NOOP
+                MeterRegistry.NOOP
             )
         ) {
             repository.start();

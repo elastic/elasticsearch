@@ -98,4 +98,25 @@ public final class ToStringFromLongEvaluator extends AbstractConvertFunction.Abs
     long value = container.getLong(index);
     return ToString.fromDouble(value);
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToStringFromLongEvaluator get(DriverContext context) {
+      return new ToStringFromLongEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToStringFromLongEvaluator[field=" + field + "]";
+    }
+  }
 }

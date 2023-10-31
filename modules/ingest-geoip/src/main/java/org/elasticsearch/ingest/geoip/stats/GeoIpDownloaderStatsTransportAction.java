@@ -45,7 +45,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
         GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor
     ) {
         super(
-            GeoIpDownloaderStatsAction.NAME,
+            GeoIpDownloaderStatsAction.INSTANCE.name(),
             clusterService,
             transportService,
             actionFilters,

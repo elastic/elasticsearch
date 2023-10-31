@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.JsonIngestPipelineConfig;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -79,7 +80,7 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(
-            new IngestPipelineConfig(
+            new JsonIngestPipelineConfig(
                 EVENT_DATA_STREAM_INGEST_PIPELINE_NAME,
                 ROOT_RESOURCE_PATH + EVENT_DATA_STREAM_INGEST_PIPELINE_NAME + ".json",
                 REGISTRY_VERSION,

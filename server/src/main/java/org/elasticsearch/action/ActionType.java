@@ -39,7 +39,7 @@ public class ActionType<Response extends ActionResponse> {
     }
 
     /**
-     * Get a reader that can create a new instance of the class from a {@link org.elasticsearch.common.io.stream.StreamInput}
+     * Get a reader that can read a response from a {@link org.elasticsearch.common.io.stream.StreamInput}.
      */
     public Writeable.Reader<Response> getResponseReader() {
         return responseReader;
@@ -47,7 +47,7 @@ public class ActionType<Response extends ActionResponse> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof ActionType && name.equals(((ActionType<?>) o).name());
+        return o instanceof ActionType<?> actionType && name.equals(actionType.name);
     }
 
     @Override

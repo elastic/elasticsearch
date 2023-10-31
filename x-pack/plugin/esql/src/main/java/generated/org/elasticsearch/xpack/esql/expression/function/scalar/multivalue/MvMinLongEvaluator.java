@@ -134,4 +134,22 @@ public final class MvMinLongEvaluator extends AbstractMultivalueFunction.Abstrac
       }
     }
   }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMinLongEvaluator get(DriverContext context) {
+      return new MvMinLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMin[field=" + field + "]";
+    }
+  }
 }

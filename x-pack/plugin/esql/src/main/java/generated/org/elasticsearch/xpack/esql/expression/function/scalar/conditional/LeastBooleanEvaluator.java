@@ -38,11 +38,7 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
       BooleanBlock[] valuesBlocks = new BooleanBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        valuesBlocks[i] = (BooleanBlock) block;
+        valuesBlocks[i] = (BooleanBlock) valuesRefs[i].block();
       }
       BooleanVector[] valuesVectors = new BooleanVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -98,5 +94,24 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastBooleanEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastBooleanEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastBooleanEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

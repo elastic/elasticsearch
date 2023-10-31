@@ -194,7 +194,17 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.Singl
     @Override
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         if (field() == null && script() == null) {
-            return new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, true, null, null, 1.0, null, DocValueFormat.RAW, context);
+            return new ValuesSourceConfig(
+                CoreValuesSourceType.NUMERIC,
+                null,
+                true,
+                null,
+                null,
+                1.0,
+                null,
+                DocValueFormat.RAW,
+                context::nowInMillis
+            );
         } else {
             return super.resolveConfig(context);
         }

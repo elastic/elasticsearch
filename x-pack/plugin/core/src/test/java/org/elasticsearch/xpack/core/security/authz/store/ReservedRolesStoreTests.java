@@ -65,7 +65,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.rest.root.MainAction;
+import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -1489,7 +1489,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 )
             )
         );
-        assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
+        assertThat(monitoringUserRole.cluster().check(MainRestPlugin.MAIN_ACTION.name(), request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(TransportRemoteInfoAction.TYPE.name(), request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));

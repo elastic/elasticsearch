@@ -150,7 +150,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(numIndexNodes + 1);
 
         var plugins = StreamSupport.stream(internalCluster().getInstances(PluginsService.class).spliterator(), false)
-            .flatMap(ps -> ps.filterPlugins(Stateless.class).stream())
+            .flatMap(ps -> ps.filterPlugins(Stateless.class))
             .toList();
         assertThat(plugins.size(), greaterThan(0));
     }

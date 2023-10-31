@@ -179,9 +179,16 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             request.targetAllocationId()
         );
 
-        final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        final var indexShard = indexService.getShard(request.shardId().id());
-        final var engine = ensureIndexEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+        final IndexShard indexShard;
+        final IndexEngine engine;
+        try {
+            final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            indexShard = indexService.getShard(request.shardId().id());
+            engine = ensureIndexEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+        } catch (Exception e) {
+            listener.onFailure(e);
+            return;
+        }
         indexShard.recoveryStats().incCurrentAsSource();
 
         // Flushing before blocking operations because we expect this to reduce the amount of work done by the flush that happens while

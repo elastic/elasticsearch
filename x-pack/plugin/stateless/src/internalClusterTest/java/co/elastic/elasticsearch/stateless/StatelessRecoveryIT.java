@@ -1961,10 +1961,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         indexDocs(indexName, randomIntBetween(10, 50));
 
         final var indexNodeB = startIndexNode();
-        final var indexNodeATransportService = asInstanceOf(
-            MockTransportService.class,
-            internalCluster().getInstance(TransportService.class, indexNodeA)
-        );
+        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
 
         final var countDownLatch = new CountDownLatch(1);
 
@@ -2007,6 +2004,68 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             );
 
             safeAwait(countDownLatch);
+            ensureGreen(indexName);
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            indexNodeATransportService.clearAllRules();
+        }
+    }
+
+    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
+    public void testPrimaryRelocationWhileLocallyFailedLogging() {
+        final var indexNodeA = startIndexNode();
+        startSearchNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, 1, 0);
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(10, 50));
+
+        startIndexNode();
+        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
+
+        final var countDownLatch = new CountDownLatch(1);
+
+        indexNodeATransportService.addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+            for (final var indexService : internalCluster().getInstance(IndicesService.class, indexNodeA)) {
+                if (indexService.index().getName().equals(indexName)) {
+                    for (final var indexShard : indexService) {
+                        indexShard.failShard("simulated", null);
+                    }
+                }
+            }
+            handler.messageReceived(
+                request,
+                new TestTransportChannel(ActionListener.runAfter(new ChannelActionListener<>(channel), countDownLatch::countDown)),
+                task
+            );
+        });
+
+        final var mockLogAppender = new MockLogAppender();
+
+        try (var ignored = mockLogAppender.capturing(IndicesClusterStateService.class)) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "warnings",
+                    IndicesClusterStateService.class.getCanonicalName(),
+                    Level.WARN,
+                    "marking and sending shard failed due to [failed recovery]"
+                )
+            );
+
+            assertAcked(
+                admin().indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexNodeA))
+            );
+
+            safeAwait(countDownLatch);
+
+            assertAcked(
+                admin().indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"))
+            );
+
             ensureGreen(indexName);
             mockLogAppender.assertAllExpectationsMatched();
         } finally {

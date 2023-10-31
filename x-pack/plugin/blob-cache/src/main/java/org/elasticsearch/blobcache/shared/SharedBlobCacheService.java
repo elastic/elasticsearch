@@ -780,11 +780,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             } else {
                 fileRegion = cache.get(cacheKey, length, startRegion);
             }
-            final var region = fileRegion;
-            if (region.chunk.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
+            final var region = fileRegion.chunk;
+            if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
                 return false;
             }
-            boolean res = region.chunk.tryRead(buf, offset);
+            boolean res = region.tryRead(buf, offset);
             lastAccessedRegion = res ? fileRegion : null;
             return res;
         }

@@ -2296,7 +2296,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             }
 
@@ -2391,7 +2391,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    throw new AssertionError("unexpected", e);
+                    fail(e);
                 }
             }
 
@@ -2468,7 +2468,7 @@ public class MasterServiceTests extends ESTestCase {
 
                     @Override
                     public void onFailure(Exception e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 });
             }

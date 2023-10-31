@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasable;
 import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
@@ -36,7 +37,7 @@ public class ClusterStateTaskExecutorUtils {
         ClusterStateTaskExecutor<T> executor,
         Iterable<T> tasks
     ) throws Exception {
-        return executeHandlingResults(originalState, executor, tasks, task -> {}, (task, e) -> { throw new AssertionError(e); });
+        return executeHandlingResults(originalState, executor, tasks, task -> {}, (task, e) -> fail(e));
     }
 
     public static <T extends ClusterStateTaskListener> ClusterState executeAndThrowFirstFailure(

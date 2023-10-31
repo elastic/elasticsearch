@@ -1882,6 +1882,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
             return true;
         }
+        if (name.startsWith("apm@")
+            || name.startsWith("apm-")
+            || name.startsWith("traces-apm")
+            || name.startsWith("metrics-apm")
+            || name.startsWith("logs-apm")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":

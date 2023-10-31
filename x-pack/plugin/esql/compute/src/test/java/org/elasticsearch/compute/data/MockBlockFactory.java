@@ -146,7 +146,8 @@ public class MockBlockFactory extends BlockFactory {
         return b;
     }
 
-    BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+    @Override
+    public BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
         var b = super.newBooleanVectorFixedBuilder(size);
         track(b, trackDetail());
         return b;

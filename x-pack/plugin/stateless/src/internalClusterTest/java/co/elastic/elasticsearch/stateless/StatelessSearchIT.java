@@ -161,7 +161,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     private static int getNumberOfCreatedCommits() {
         int numberOfCreatedCommits = 0;
         for (String node : internalCluster().getNodeNames()) {
-            var plugin = internalCluster().getInstance(PluginsService.class, node).filterPlugins(TestStateless.class).get(0);
+            var plugin = internalCluster().getInstance(PluginsService.class, node).filterPlugins(TestStateless.class).findFirst().get();
             numberOfCreatedCommits += plugin.getCreatedCommits();
         }
         return numberOfCreatedCommits;

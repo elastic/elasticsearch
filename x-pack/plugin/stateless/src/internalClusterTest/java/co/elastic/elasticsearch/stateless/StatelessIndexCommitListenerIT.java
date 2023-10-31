@@ -319,7 +319,7 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
     }
 
     private TestStateless getStatelessPluginInstance() {
-        var plugin = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).get(0);
+        var plugin = internalCluster().getInstance(PluginsService.class, indexNode).filterPlugins(TestStateless.class).findFirst().get();
         assertThat("TestStateless plugin not found on node " + indexNode, plugin, notNullValue());
         return plugin;
     }

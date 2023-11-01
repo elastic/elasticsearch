@@ -2,4 +2,5 @@ pr: 101599
 summary: Move the calculation of data tier usage stats to individual nodes
 area: ILM+SLM
 type: bug
-issues: []
+issues:
+  - 100230

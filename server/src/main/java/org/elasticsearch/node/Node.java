@@ -153,8 +153,8 @@ public class Node implements Closeable {
     );
 
     public static final Setting<TimeValue> SHUTDOWN_SEARCH_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "node.async_search_grace_period",
-        TimeValue.timeValueMinutes(1),
+        "async_search.shutdown_grace_period",
+        TimeValue.timeValueMillis(0),
         Setting.Property.NodeScope
     );
 
@@ -605,21 +605,35 @@ public class Node implements Closeable {
         }
 
         // Wait for async search tasks to finish. Since the HTTP server is closed, none of these tasks should be for synchronous searches
-        // even though the action name is the same.
+        // even though the action name is the same. This is a stopgap solution (read: dirty hack), we should figure out a way to
+        // manage Tasks at shutdown time more generally.
         var taskManager = injector.getInstance(TransportService.class).getTaskManager();
+        TimeValue asyncSearchTimeout = SHUTDOWN_SEARCH_TIMEOUT_SETTING.get(this.settings());
         FutureTask<Void> searchAwaiter = new FutureTask<>(() -> {
-            boolean searchTasksFinished = true;
-            while (searchTasksFinished) {
-                searchTasksFinished = taskManager.getTasks()
+            boolean searchTasksRemaining = true;
+            while (searchTasksRemaining) {
+                searchTasksRemaining = taskManager.getTasks()
                     .values()
                     .stream()
                     .anyMatch(task -> SearchAction.INSTANCE.name().equals(task.getAction())) == false;
+                if (searchTasksRemaining) {
+                    // Let the system work on those searches for a while. We're on a dedicated thread to manage app shutdown, so we
+                    // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
+                    // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
+                    // be spending on finishing those searches.
+                    final int pollPeriod = 500;
+                    Thread.sleep(Math.min(pollPeriod, asyncSearchTimeout.millis()));
+                }
             }
             return null;
         });
-        TimeValue asyncSearchTimeout = SHUTDOWN_SEARCH_TIMEOUT_SETTING.get(this.settings());
         try {
-            FutureUtils.get(searchAwaiter, asyncSearchTimeout.millis(), TimeUnit.MILLISECONDS);
+            if (asyncSearchTimeout.millis() == 0) {
+                FutureUtils.get(searchAwaiter);
+            } else {
+                FutureUtils.get(searchAwaiter, asyncSearchTimeout.millis(), TimeUnit.MILLISECONDS);
+            }
+
         } catch (ElasticsearchTimeoutException t) {
             logger.warn(
                 format(

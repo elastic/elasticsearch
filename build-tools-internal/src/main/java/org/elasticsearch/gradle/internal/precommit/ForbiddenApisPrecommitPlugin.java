@@ -56,7 +56,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
                 t.getOutputs().upToDateWhen(Specs.SATISFIES_ALL);
                 t.setClassesDirs(sourceSet.getOutput().getClassesDirs());
                 t.dependsOn(resourcesTask);
-                t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()).plus(sourceSet.getOutput()));
+                t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()));
                 t.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion().getMajorVersion());
                 t.getBundledSignatures().set(BUNDLED_SIGNATURE_DEFAULTS);
                 t.setSignaturesFiles(

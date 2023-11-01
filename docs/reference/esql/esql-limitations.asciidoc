@@ -5,36 +5,88 @@
 <titleabbrev>Limitations</titleabbrev>
 ++++
 
-This is work in progress.
+[discrete]
+[[esql-max-rows]]
+=== Result set size limit
+
+By default, an {esql} query returns up to 500 rows. You can increase the number
+of rows up to 10,000 using the <<esql-limit>> command. A query will not return
+more than 10,000 rows, regardless of the `LIMIT` command's value.
+
+This limit only applies to the number of rows that are retrieved by the query
+and displayed in Discover. Query or aggregations run on the full data set.
+
+To overcome this limitation:
+
+* Reduce the result set size by modifying the query to only return interesting
+data. Use <<esql-where>> to select a smaller subset of the data.
 
 [discrete]
 [[esql-supported-types]]
-=== Supported types
+=== Field types
+
+[discrete]
+==== Supported types
 
 {esql} currently supports the following <<mapping-types,field types>>:
 
-** `alias`
-** `boolean`
-** `date`
-** `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
-** `ip`
-** `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
-** `int` (`short` and `byte` are represented as `int`)
-** `long`
-** `null`
-** `text`
-** `unsigned_long`
-** `version`
+* `alias`
+* `boolean`
+* `date`
+* `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
+* `ip`
+* `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+* `int` (`short` and `byte` are represented as `int`)
+* `long`
+* `null`
+* `text`
+* `unsigned_long`
+* `version`
+
+[discrete]
+==== Unsupported types
+
+{esql} does not yet support the following field types:
+
+* TSDB metrics
+** `counter`
+** `position`
+** `aggregate_metric_double`
+* Geo/spatial
+** `geo_point`
+** `geo_shape`
+** `point`
+** `shape`
+* Date/time
+** `date_nanos`
+** `date_range`
+* Other types
+** `binary`
+** `completion`
+** `dense_vector`
+** `double_range`
+** `float_range`
+** `histogram`
+** `integer_range`
+** `ip_range`
+** `long_range`
+** `nested`
+** `rank_feature`
+** `rank_features`
+** `search_as_you_type`
+
+Columns with unsupported field types are returned with `null` values, with the
+exception of nested fields. Nested fields are not returned at all.
+
 
 [discrete]
 [[esql-tsdb]]
-=== {esql} and time series data
+=== Time series data streams are not supported
 
-{esql} does not support time series data (TSDS).
+{esql} does not support querying time series data streams (TSDS).
 
 [discrete]
-[[esql-max-rows]]
-=== 10,000 row maximum
+[[esql-limitations-kibana]]
+=== Kibana limitation
 
-A single query will not return more than 10,000 rows, regardless of the
-`LIMIT` command's value.
+include::esql-kibana.asciidoc[tag=limitations]

@@ -32,7 +32,6 @@ PUT my-image-index
   }
 }
 ----
---
 
 . Index your data.
 +

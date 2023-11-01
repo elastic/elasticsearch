@@ -83,7 +83,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
@@ -497,7 +496,7 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             mock(ClusterService.class),
-            new FeatureService(List.of(new SecurityFeatures())),
+            mock(FeatureService.class),
             domainName -> new DomainConfig(domainName, Set.of(), true, "suffix")
         );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
@@ -659,7 +658,7 @@ public class ProfileServiceTests extends ESTestCase {
                 client,
                 profileIndex,
                 mock(ClusterService.class),
-                new FeatureService(List.of(new SecurityFeatures())),
+                mock(FeatureService.class),
                 domainName -> {
                     if (domainName.startsWith("hash")) {
                         return new DomainConfig(domainName, Set.of(), false, null);

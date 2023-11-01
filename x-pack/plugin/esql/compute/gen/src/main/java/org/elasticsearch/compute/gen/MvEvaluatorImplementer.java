@@ -39,6 +39,8 @@ import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class MvEvaluatorImplementer {
@@ -196,28 +198,19 @@ public class MvEvaluatorImplementer {
         builder.beginControlFlow("try (ref)");
         builder.addStatement("$T v = ($T) ref.block()", blockType, blockType);
         builder.addStatement("int positionCount = v.getPositionCount()");
+        TypeName builderType;
         if (nullable) {
-            TypeName resultBlockType = blockType(resultType);
-            builder.beginControlFlow(
-                "try ($T.Builder builder = $T.newBlockBuilder(positionCount, driverContext.blockFactory()))",
-                resultBlockType,
-                resultBlockType
-            );
+            builderType = builderType(blockType(resultType));
         } else if (resultType.equals(BYTES_REF)) {
-            TypeName resultVectorType = vectorType(resultType);
-            builder.beginControlFlow(
-                "try ($T.Builder builder = $T.newVectorBuilder(positionCount, driverContext.blockFactory()))",
-                resultVectorType,
-                resultVectorType
-            );
+            builderType = builderType(vectorType(resultType));
         } else {
-            TypeName resultVectorType = vectorType(resultType);
-            builder.beginControlFlow(
-                "try ($T.FixedBuilder builder = $T.newVectorFixedBuilder(positionCount, driverContext.blockFactory()))",
-                resultVectorType,
-                resultVectorType
-            );
+            builderType = vectorFixedBuilderType(resultType);
         }
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            builderType,
+            Methods.buildFromFactory(builderType)
+        );
 
         if (false == workType.equals(fieldType) && workType.isPrimitive() == false) {
             builder.addStatement("$T work = new $T()", workType, workType);

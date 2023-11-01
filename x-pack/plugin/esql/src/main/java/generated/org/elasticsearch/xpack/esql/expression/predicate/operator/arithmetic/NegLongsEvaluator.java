@@ -48,7 +48,7 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public LongBlock eval(int positionCount, LongBlock vBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -66,7 +66,7 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public LongBlock eval(int positionCount, LongVector vVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Neg.processLongs(vVector.getLong(p)));

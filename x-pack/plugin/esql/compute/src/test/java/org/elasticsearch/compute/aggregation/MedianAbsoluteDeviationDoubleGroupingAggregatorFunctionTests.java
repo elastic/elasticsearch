@@ -77,4 +77,9 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
         int c = data.length / 2;
         return data.length % 2 == 0 ? (data[c - 1] + data[c]) / 2 : data[c];
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101569")
+    public void testMulitvaluedNullGroup() {
+        // only here for muting it
+    }
 }

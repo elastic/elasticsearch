@@ -43,7 +43,7 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {

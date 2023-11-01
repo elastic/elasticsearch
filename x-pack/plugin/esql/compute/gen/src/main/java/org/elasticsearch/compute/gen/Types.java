@@ -58,6 +58,17 @@ public class Types {
     static final ClassName LONG_VECTOR = ClassName.get(DATA_PACKAGE, "LongVector");
     static final ClassName DOUBLE_VECTOR = ClassName.get(DATA_PACKAGE, "DoubleVector");
 
+    static final ClassName BOOLEAN_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "Builder");
+    static final ClassName BYTES_REF_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "BytesRefVector", "Builder");
+    static final ClassName INT_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "Builder");
+    static final ClassName LONG_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "Builder");
+    static final ClassName DOUBLE_VECTOR_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "Builder");
+
+    static final ClassName BOOLEAN_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "BooleanVector", "FixedBuilder");
+    static final ClassName INT_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "IntVector", "FixedBuilder");
+    static final ClassName LONG_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "LongVector", "FixedBuilder");
+    static final ClassName DOUBLE_VECTOR_FIXED_BUILDER = ClassName.get(DATA_PACKAGE, "DoubleVector", "FixedBuilder");
+
     static final ClassName BOOLEAN_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BooleanArrayVector");
     static final ClassName BYTES_REF_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "BytesRefArrayVector");
     static final ClassName INT_ARRAY_VECTOR = ClassName.get(DATA_PACKAGE, "IntArrayVector");
@@ -196,6 +207,56 @@ public class Types {
             return DOUBLE_VECTOR;
         }
         throw new IllegalArgumentException("unknown vector type for [" + elementType + "]");
+    }
+
+    static ClassName builderType(TypeName resultType) {
+        if (resultType.equals(BOOLEAN_BLOCK)) {
+            return BOOLEAN_BLOCK_BUILDER;
+        }
+        if (resultType.equals(BOOLEAN_VECTOR)) {
+            return BOOLEAN_VECTOR_BUILDER;
+        }
+        if (resultType.equals(BYTES_REF_BLOCK)) {
+            return BYTES_REF_BLOCK_BUILDER;
+        }
+        if (resultType.equals(BYTES_REF_VECTOR)) {
+            return BYTES_REF_VECTOR_BUILDER;
+        }
+        if (resultType.equals(INT_BLOCK)) {
+            return INT_BLOCK_BUILDER;
+        }
+        if (resultType.equals(INT_VECTOR)) {
+            return INT_VECTOR_BUILDER;
+        }
+        if (resultType.equals(LONG_BLOCK)) {
+            return LONG_BLOCK_BUILDER;
+        }
+        if (resultType.equals(LONG_VECTOR)) {
+            return LONG_VECTOR_BUILDER;
+        }
+        if (resultType.equals(DOUBLE_BLOCK)) {
+            return DOUBLE_BLOCK_BUILDER;
+        }
+        if (resultType.equals(DOUBLE_VECTOR)) {
+            return DOUBLE_VECTOR_BUILDER;
+        }
+        throw new IllegalArgumentException("unknown builder type for [" + resultType + "]");
+    }
+
+    static ClassName vectorFixedBuilderType(TypeName elementType) {
+        if (elementType.equals(TypeName.BOOLEAN)) {
+            return BOOLEAN_VECTOR_FIXED_BUILDER;
+        }
+        if (elementType.equals(TypeName.INT)) {
+            return INT_VECTOR_FIXED_BUILDER;
+        }
+        if (elementType.equals(TypeName.LONG)) {
+            return LONG_VECTOR_FIXED_BUILDER;
+        }
+        if (elementType.equals(TypeName.DOUBLE)) {
+            return DOUBLE_VECTOR_FIXED_BUILDER;
+        }
+        throw new IllegalArgumentException("unknown vector fixed builder type for [" + elementType + "]");
     }
 
     static ClassName arrayVectorType(TypeName elementType) {

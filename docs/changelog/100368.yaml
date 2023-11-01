@@ -1,0 +1,5 @@
+pr: 100368
+summary: "Status codes for Aggregation errors, part 2"
+area: Aggregations
+type: enhancement
+issues: []

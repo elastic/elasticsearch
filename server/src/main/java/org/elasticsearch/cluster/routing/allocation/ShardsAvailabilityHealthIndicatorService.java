@@ -122,7 +122,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     /**
      * Creates a new {@link ShardAllocationStatus} that will be used to track
-     * rimary and replica availability, providing the color, diagnosis, and
+     * primary and replica availability, providing the color, diagnosis, and
      * messages about the available or unavailable shards in the cluster.
      * @param metadata Metadata for the cluster
      * @return A new ShardAllocationStatus that has not yet been filled.

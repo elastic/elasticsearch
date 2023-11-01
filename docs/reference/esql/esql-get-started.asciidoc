@@ -186,7 +186,7 @@ FROM sample_data
 ----
 
 NOTE: The order of processing commands is important. First limiting the result
-set to 3 rows before sorting those 3 rows would most like return 3 different
+set to 3 rows before sorting those 3 rows would most likely return 3 different
 rows.
 
 [discrete]

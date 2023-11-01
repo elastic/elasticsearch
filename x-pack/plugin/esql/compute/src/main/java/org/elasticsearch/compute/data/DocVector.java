@@ -48,6 +48,7 @@ public class DocVector extends AbstractVector implements Vector {
 
     final DocBlock block;
 
+    @SuppressWarnings("this-escape")
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
         super(shards.getPositionCount(), null);
         this.shards = shards;

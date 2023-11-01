@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -73,7 +74,7 @@ import static org.mockito.Mockito.when;
 
 public class NodeJoinExecutorTests extends ESTestCase {
 
-    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionListener.noop();
+    private static final ActionListener<Void> NO_FAILURE_LISTENER = ActionTestUtils.assertNoFailureListener(t -> {});
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
@@ -178,24 +179,22 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
 
         DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        ClusterStateTaskExecutorUtils.executeExecutingResults(
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        fail("Should have failed");
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assertThat(e.getMessage(), containsString("Node is missing required features [f2]"));
-                    }
-                }, 0L)
-            ),
-            t -> {},
-            (t, e) -> {}
+                JoinTask.singleNode(
+                    newNode,
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of("f1"),
+                    TEST_REASON,
+                    ActionListener.wrap(
+                        o -> fail("Should have failed"),
+                        t -> assertThat(t.getMessage(), containsString("Node is missing required features [f2]"))
+                    ),
+                    0L
+                )
+            )
         );
     }
 
@@ -219,22 +218,12 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
 
         DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        ClusterStateTaskExecutorUtils.executeExecutingResults(
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {}
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError("Joining should have succeeded", e);
-                    }
-                }, 0L)
-            ),
-            t -> {},
-            (t, e) -> {}
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+            )
         );
     }
 
@@ -258,22 +247,12 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .build();
 
         DiscoveryNode newNode = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-        ClusterStateTaskExecutorUtils.executeExecutingResults(
+        ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {}
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        throw new AssertionError("Joining should have succeeded", e);
-                    }
-                }, 0L)
-            ),
-            t -> {},
-            (t, e) -> {}
+                JoinTask.singleNode(newNode, CompatibilityVersionsUtils.staticCurrent(), Set.of("f1"), TEST_REASON, NO_FAILURE_LISTENER, 0L)
+            )
         );
     }
 
@@ -346,14 +325,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             clusterState,
             executor,
             List.of(
-                JoinTask.singleNode(
-                    actualNode,
-                    CompatibilityVersionsUtils.staticCurrent(),
-                    Set.of(),
-                    TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
-                    0L
-                )
+                JoinTask.singleNode(actualNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER, 0L)
             )
         );
 
@@ -390,7 +362,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER,
+                                NO_FAILURE_LISTENER,
                                 executorTerm
                             )
                         )
@@ -402,7 +374,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                         CompatibilityVersionsUtils.staticCurrent(),
                                         Set.of(),
                                         TEST_REASON,
-                                        NOT_COMPLETED_LISTENER
+                                        NO_FAILURE_LISTENER
                                     )
                                 ),
                                 executorTerm
@@ -454,7 +426,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER,
+                                NO_FAILURE_LISTENER,
                                 executorTerm
                             )
                         )
@@ -466,7 +438,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                         CompatibilityVersionsUtils.staticCurrent(),
                                         Set.of(),
                                         TEST_REASON,
-                                        NOT_COMPLETED_LISTENER
+                                        NO_FAILURE_LISTENER
                                     )
                                 ),
                                 executorTerm
@@ -509,7 +481,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER,
+                            NO_FAILURE_LISTENER,
                             executorTerm
                         )
                     ),
@@ -558,14 +530,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER
+                            NO_FAILURE_LISTENER
                         ),
                         new JoinTask.NodeJoinTask(
                             otherNodeNew,
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER
+                            NO_FAILURE_LISTENER
                         )
                     ),
                     executorTerm
@@ -592,7 +564,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
+                        NO_FAILURE_LISTENER,
                         executorTerm
                     ),
                     JoinTask.singleNode(
@@ -600,7 +572,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
+                        ActionListener.wrap(
+                            r -> fail("Task should have failed"),
+                            e -> assertThat(e.getMessage(), containsString("found existing node"))
+                        ),
                         executorTerm
                     )
                 )
@@ -657,14 +632,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER
+                                NO_FAILURE_LISTENER
                             ),
                             new JoinTask.NodeJoinTask(
                                 otherNode,
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER
+                                NO_FAILURE_LISTENER
                             )
                         ),
                         executorTerm
@@ -683,7 +658,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                                 CompatibilityVersionsUtils.staticCurrent(),
                                 Set.of(),
                                 TEST_REASON,
-                                NOT_COMPLETED_LISTENER
+                                NO_FAILURE_LISTENER
                             )
                         ),
                         executorTerm
@@ -699,7 +674,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
+                        NO_FAILURE_LISTENER,
                         executorTerm
                     )
                 )
@@ -773,7 +748,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     CompatibilityVersionsUtils.staticCurrent(),
                     Set.of(),
                     TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
+                    NO_FAILURE_LISTENER,
                     0L
                 )
             )
@@ -818,7 +793,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER
+                        NO_FAILURE_LISTENER
                     )
                 ),
             1L
@@ -952,7 +927,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                             CompatibilityVersionsUtils.staticCurrent(),
                             Set.of(),
                             TEST_REASON,
-                            NOT_COMPLETED_LISTENER
+                            NO_FAILURE_LISTENER
                         )
                     ),
                     randomLongBetween(term + 1, Long.MAX_VALUE)
@@ -992,7 +967,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     CompatibilityVersionsUtils.staticCurrent(),
                     Set.of("f1", "f2"),
                     TEST_REASON,
-                    NOT_COMPLETED_LISTENER,
+                    NO_FAILURE_LISTENER,
                     0L
                 )
             )
@@ -1012,16 +987,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     private static JoinTask createRandomTask(DiscoveryNode node, long term) {
         return randomBoolean()
-            ? JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NOT_COMPLETED_LISTENER, term)
+            ? JoinTask.singleNode(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER, term)
             : JoinTask.completingElection(
                 Stream.of(
-                    new JoinTask.NodeJoinTask(
-                        node,
-                        CompatibilityVersionsUtils.staticCurrent(),
-                        Set.of(),
-                        TEST_REASON,
-                        NOT_COMPLETED_LISTENER
-                    )
+                    new JoinTask.NodeJoinTask(node, CompatibilityVersionsUtils.staticCurrent(), Set.of(), TEST_REASON, NO_FAILURE_LISTENER)
                 ),
                 term
             );

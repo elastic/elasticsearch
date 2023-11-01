@@ -1644,6 +1644,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         }
                     }
                 );
+                clusterService.setRerouteService((reason, priority, listener) -> listener.onResponse(null));
                 recoverySettings = new RecoverySettings(settings, clusterSettings);
                 mockTransport = new DisruptableMockTransport(node, deterministicTaskQueue) {
                     @Override

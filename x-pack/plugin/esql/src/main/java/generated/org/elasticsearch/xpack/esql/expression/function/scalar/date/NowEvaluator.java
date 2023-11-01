@@ -32,7 +32,7 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public LongVector eval(int positionCount) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Now.process(now));
       }

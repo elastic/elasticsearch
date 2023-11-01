@@ -223,7 +223,7 @@ public final class DateFieldMapper extends FieldMapper {
         return (DateFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -253,7 +253,6 @@ public final class DateFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final ScriptCompiler scriptCompiler;
 
-        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             Resolution resolution,

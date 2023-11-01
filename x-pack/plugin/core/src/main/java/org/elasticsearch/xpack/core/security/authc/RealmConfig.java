@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class RealmConfig {
+public final class RealmConfig {
 
     final RealmIdentifier identifier;
     final boolean enabled;
@@ -34,7 +34,6 @@ public class RealmConfig {
     private final Settings settings;
     private final ThreadContext threadContext;
 
-    @SuppressWarnings("this-escape")
     public RealmConfig(RealmIdentifier identifier, Settings settings, Environment env, ThreadContext threadContext) {
         this.identifier = identifier;
         this.settings = settings;

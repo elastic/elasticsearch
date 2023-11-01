@@ -76,7 +76,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         return (UnsignedLongFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
@@ -102,7 +102,6 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             this(name, IGNORE_MALFORMED_SETTING.get(settings), mode);
         }
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, boolean ignoreMalformedByDefault, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.explicitBoolParam(

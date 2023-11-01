@@ -23,7 +23,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class WriteField implements Field<Object> {
+public final class WriteField implements Field<Object> {
     protected String path;
     protected Supplier<Map<String, Object>> rootSupplier;
 
@@ -32,7 +32,6 @@ public class WriteField implements Field<Object> {
 
     private static final Object MISSING = new Object();
 
-    @SuppressWarnings("this-escape")
     public WriteField(String path, Supplier<Map<String, Object>> rootSupplier) {
         this.path = path;
         this.rootSupplier = rootSupplier;

@@ -28,18 +28,16 @@ import java.util.Map;
  * means a unique combination of values of the attributes listed in the cluster setting
  * cluster.routing.allocation.awareness.attributes.
  */
-public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZoneMapper {
+public final class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZoneMapper {
 
     private static final Logger logger = LogManager.getLogger(NodeRealAvailabilityZoneMapper.class);
 
     private volatile List<String> awarenessAttributes;
 
-    @SuppressWarnings("this-escape")
     public NodeRealAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
         this(settings, clusterSettings, null);
     }
 
-    @SuppressWarnings("this-escape")
     public NodeRealAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         super(settings, clusterSettings, discoveryNodes);
         awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);

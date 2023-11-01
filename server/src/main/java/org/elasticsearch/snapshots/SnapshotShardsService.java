@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
@@ -183,10 +184,18 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshot  snapshot
      * @return map of shard id to snapshot status
      */
-    public Map<ShardId, IndexShardSnapshotStatus> currentSnapshotShards(Snapshot snapshot) {
+    public Map<ShardId, IndexShardSnapshotStatus.Copy> currentSnapshotShards(Snapshot snapshot) {
         synchronized (shardSnapshots) {
-            final Map<ShardId, IndexShardSnapshotStatus> current = shardSnapshots.get(snapshot);
-            return current == null ? null : new HashMap<>(current);
+            final var current = shardSnapshots.get(snapshot);
+            if (current == null) {
+                return null;
+            }
+
+            final Map<ShardId, IndexShardSnapshotStatus.Copy> result = Maps.newMapWithExpectedSize(current.size());
+            for (final var entry : current.entrySet()) {
+                result.put(entry.getKey(), entry.getValue().asCopy());
+            }
+            return result;
         }
     }
 
@@ -483,44 +492,50 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private void syncShardStatsOnNewMaster(List<SnapshotsInProgress.Entry> entries) {
         for (SnapshotsInProgress.Entry snapshot : entries) {
             if (snapshot.state() == State.STARTED || snapshot.state() == State.ABORTED) {
-                Map<ShardId, IndexShardSnapshotStatus> localShards = currentSnapshotShards(snapshot.snapshot());
-                if (localShards != null) {
-                    Map<ShardId, ShardSnapshotStatus> masterShards = snapshot.shards();
-                    for (Map.Entry<ShardId, IndexShardSnapshotStatus> localShard : localShards.entrySet()) {
-                        ShardId shardId = localShard.getKey();
-                        ShardSnapshotStatus masterShard = masterShards.get(shardId);
-                        if (masterShard != null && masterShard.state().completed() == false) {
-                            final IndexShardSnapshotStatus.Copy indexShardSnapshotStatus = localShard.getValue().asCopy();
-                            final Stage stage = indexShardSnapshotStatus.getStage();
-                            // Master knows about the shard and thinks it has not completed
-                            if (stage == Stage.DONE) {
-                                // but we think the shard is done - we need to make new master know that the shard is done
-                                logger.debug(
-                                    "[{}] new master thinks the shard [{}] is not completed but the shard is done locally, "
-                                        + "updating status on the master",
-                                    snapshot.snapshot(),
-                                    shardId
-                                );
-                                notifySuccessfulSnapshotShard(snapshot.snapshot(), shardId, localShard.getValue().getShardSnapshotResult());
+                final Map<ShardId, IndexShardSnapshotStatus> localShards;
+                synchronized (shardSnapshots) {
+                    final var currentLocalShards = shardSnapshots.get(snapshot.snapshot());
+                    if (currentLocalShards == null) {
+                        return;
+                    }
+                    localShards = Map.copyOf(currentLocalShards);
+                }
+                Map<ShardId, ShardSnapshotStatus> masterShards = snapshot.shards();
+                for (Map.Entry<ShardId, IndexShardSnapshotStatus> localShard : localShards.entrySet()) {
+                    ShardId shardId = localShard.getKey();
+                    ShardSnapshotStatus masterShard = masterShards.get(shardId);
+                    if (masterShard != null && masterShard.state().completed() == false) {
+                        final IndexShardSnapshotStatus.Copy indexShardSnapshotStatus = localShard.getValue().asCopy();
+                        final Stage stage = indexShardSnapshotStatus.getStage();
+                        // Master knows about the shard and thinks it has not completed
+                        if (stage == Stage.DONE) {
+                            // but we think the shard is done - we need to make new master know that the shard is done
+                            logger.debug(
+                                "[{}] new master thinks the shard [{}] is not completed but the shard is done locally, "
+                                    + "updating status on the master",
+                                snapshot.snapshot(),
+                                shardId
+                            );
+                            notifySuccessfulSnapshotShard(snapshot.snapshot(), shardId, localShard.getValue().getShardSnapshotResult());
 
-                            } else if (stage == Stage.FAILURE) {
-                                // but we think the shard failed - we need to make new master know that the shard failed
-                                logger.debug(
-                                    "[{}] new master thinks the shard [{}] is not completed but the shard failed locally, "
-                                        + "updating status on master",
-                                    snapshot.snapshot(),
-                                    shardId
-                                );
-                                notifyFailedSnapshotShard(
-                                    snapshot.snapshot(),
-                                    shardId,
-                                    indexShardSnapshotStatus.getFailure(),
-                                    localShard.getValue().generation()
-                                );
-                            }
+                        } else if (stage == Stage.FAILURE) {
+                            // but we think the shard failed - we need to make new master know that the shard failed
+                            logger.debug(
+                                "[{}] new master thinks the shard [{}] is not completed but the shard failed locally, "
+                                    + "updating status on master",
+                                snapshot.snapshot(),
+                                shardId
+                            );
+                            notifyFailedSnapshotShard(
+                                snapshot.snapshot(),
+                                shardId,
+                                indexShardSnapshotStatus.getFailure(),
+                                localShard.getValue().generation()
+                            );
                         }
                     }
                 }
+
             }
         }
     }

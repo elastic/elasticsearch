@@ -220,7 +220,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
                 snapshotShard.snapshot().getSnapshotId(),
                 snapshotShard.index(),
                 snapshotShard.shardId()
-            ).asCopy().getTotalSize();
+            ).getTotalSize();
 
             logger.debug("snapshot shard size for {}: {} bytes", snapshotShard, snapshotShardSize);
 

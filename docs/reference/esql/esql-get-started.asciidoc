@@ -66,6 +66,7 @@ image::images/esql/source-command.svg[A source command producing a table from {e
 
 The <<esql-from>> source command returns a table with documents from a data
 stream, index, or alias. Each row in the resulting table represents a document.
+This query returns up to 500 documents from the `sample_data` index:
 
 [source,esql]
 ----
@@ -99,7 +100,7 @@ aggregation, and more.
 image::images/esql/esql-limit.png[A processing command changing an input table,align="center",width="60%"]
 
 For example, you can use the <<esql-limit>> command to limit the number of rows
-that are returned, to a maximum of 10,000 rows:
+that are returned, up to a maximum of 10,000 rows:
 
 [source,esql]
 ----
@@ -174,7 +175,7 @@ of a query is the table produced by the final processing command.
 
 image::images/esql/esql-sort-limit.png[Processing commands can be chained,align="center"]
 
-The following example first sorts the rows on `@timestamp`, and next limits the
+The following example first sorts the table on `@timestamp`, and next limits the
 result set to 3 rows:
 
 [source,esql]
@@ -185,8 +186,8 @@ FROM sample_data
 ----
 
 NOTE: The order of processing commands is important. First limiting the result
-set to 3 rows before sorting those 3 rows could result in 3 different rows being
-returned.
+set to 3 rows before sorting those 3 rows would most like return 3 different
+rows.
 
 [discrete]
 [[esql-getting-started-eval]]
@@ -294,9 +295,9 @@ image::images/esql/esql-enrich.png[align="center"]
 
 Before you can use `ENRICH`, you first need to
 <<esql-create-enrich-policy,create>> and <<esql-execute-enrich-policy,execute>>
-an <<esql-enrich-policy,enrich policy>>. The following requests create a policy
-that links an IP address to an environment ("Development", "QA", or
-"Production"):
+an <<esql-enrich-policy,enrich policy>>. The following requests create and
+execute a policy that links an IP address to an environment ("Development",
+"QA", or "Production"):
 
 [source,console]
 ----
@@ -385,8 +386,8 @@ analyze the data. For example, the sample data contains log messages like:
 "Connected to 10.1.0.3"
 ----
 
-By extracting the IP address from messages like this, you can determine which IP
-has accepted the most client connections.
+By extracting the IP address from these messages, you can determine which IP has
+accepted the most client connections.
 
 To structure unstructured strings at query time, you can use the {esql}
 <<esql-dissect>> and <<esql-grok>> commands. `DISSECT` works by breaking up a
@@ -425,4 +426,4 @@ For more about data processing with {esql}, refer to
 [[esql-getting-learn-more]]
 === Learn more
 
-To learn more about {esql}, refer to <<esql-language>>.
+To learn more about {esql}, refer to <<esql-language>> and <<esql-using>>.

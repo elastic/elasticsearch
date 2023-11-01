@@ -35,8 +35,10 @@ FROM sample_data
 include::../../esql/esql-kibana.asciidoc[tag=esql-mode]
 
 After switching to {esql} mode, the query bar shows a sample query. You can
-change that query into the queries in this getting started guide.
+replace this query with the queries in this getting started guide.
 
 include::../../esql/esql-kibana.asciidoc[tag=autocomplete]
+
+include::../../esql/esql-kibana.asciidoc[tag=compact]
 
 // end::discover[]

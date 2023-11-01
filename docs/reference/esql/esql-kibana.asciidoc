@@ -80,6 +80,7 @@ FROM kibana_sample_data_logs
 | LIMIT 10
 ----
 
+// tag::compact[]
 To make it easier to write multi-line queries, click the double-headed arrow
 button (image:images/esql/esql-icon-expand-query-bar.svg[]) to expand the query
 bar:
@@ -88,6 +89,7 @@ image::images/esql/esql-expanded-query-bar.png[align="center"]
 
 To return to a compact query bar, click the minimize editor button 
 (image:images/esql/esql-icon-minimize-query-bar.svg[]).
+// end::compact[]
 
 [discrete]
 ==== Warnings

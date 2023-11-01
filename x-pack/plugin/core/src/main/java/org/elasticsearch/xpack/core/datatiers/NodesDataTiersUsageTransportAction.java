@@ -57,6 +57,9 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     NodeDataTiersUsage> {
 
     public static final ActionType<NodesResponse> TYPE = ActionType.localOnly("cluster:monitor/nodes/data_tier_usage");
+    private static final CommonStatsFlags STATS_FLAGS = new CommonStatsFlags().clear()
+        .set(CommonStatsFlags.Flag.Docs, true)
+        .set(CommonStatsFlags.Flag.Store, true);
 
     private final IndicesService indicesService;
 
@@ -99,8 +102,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         assert task instanceof CancellableTask;
 
         DiscoveryNode localNode = clusterService.localNode();
-        CommonStatsFlags flags = CommonStatsFlags.NONE.set(CommonStatsFlags.Flag.Docs, true).set(CommonStatsFlags.Flag.Store, true);
-        NodeIndicesStats nodeIndicesStats = indicesService.stats(flags, true);
+        NodeIndicesStats nodeIndicesStats = indicesService.stats(STATS_FLAGS, true);
         ClusterState state = clusterService.state();
         RoutingNode routingNode = state.getRoutingNodes().node(localNode.getId());
         Map<String, NodeDataTiersUsage.UsageStats> usageStatsByTier = aggregateStats(routingNode, state.metadata(), nodeIndicesStats);

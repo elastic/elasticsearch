@@ -496,6 +496,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             false
         )
             .flatMap(shardIter -> shardIter.getShardRoutings().stream())
+            .filter(sr -> sr.shardId().equals(routing.shardId()))
             .filter(sr -> sr.primary() == routing.primary())
             .allMatch(ShardRouting::unassigned);
     }

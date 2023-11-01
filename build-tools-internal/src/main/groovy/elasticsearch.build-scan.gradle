@@ -139,7 +139,7 @@ buildScan {
         // Add a build annotation
         // See: https://buildkite.com/docs/agent/v3/cli-annotate
         buildFinished { BuildResult result ->
-          def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: build ran: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+          def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failure ? 'failed': 'succesful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
           new ProcessBuilder('buildkite-agent', 'annotate', '--context', 'gradle-build-scans', '--append', '--style', result.failure ? 'error': 'info', body)
             .start()
             .waitFor()

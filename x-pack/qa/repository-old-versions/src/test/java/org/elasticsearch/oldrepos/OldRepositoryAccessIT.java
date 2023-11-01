@@ -454,8 +454,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             logger.info(searchResponse);
             // check sort order
             assertEquals(
-                expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).collect(Collectors.toList()),
-                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
+                expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).toList(),
+                Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).toList()
             );
 
             // look up postings

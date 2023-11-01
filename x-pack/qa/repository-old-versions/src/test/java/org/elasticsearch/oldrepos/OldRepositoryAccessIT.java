@@ -11,14 +11,12 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -26,6 +24,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -42,7 +41,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -72,12 +70,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @SuppressWarnings("removal")
-    protected static RestHighLevelClient highLevelClient(RestClient client) {
-        return new RestHighLevelClient(client, ignore -> {}, Collections.emptyList()) {
-        };
     }
 
     public void testOldRepoAccess() throws IOException {
@@ -112,10 +104,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         int numDocs = 10;
         int extraDocs = 1;
         final Set<String> expectedIds = new HashSet<>();
-        try (
-            RestHighLevelClient client = highLevelClient(adminClient());
-            RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()
-        ) {
+        try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             if (afterRestart == false) {
                 beforeRestart(
                     sourceOnlyRepository,
@@ -125,7 +114,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     numDocs,
                     extraDocs,
                     expectedIds,
-                    client,
                     oldEs,
                     indexName
                 );
@@ -150,7 +138,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         int numDocs,
         int extraDocs,
         Set<String> expectedIds,
-        RestHighLevelClient client,
         RestClient oldEs,
         String indexName
     ) throws IOException {
@@ -261,17 +248,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat(getResp.evaluate("snapshots.0.stats.total.file_count"), greaterThan(0));
 
         // restore / mount and check whether searches work
-        restoreMountAndVerify(
-            numDocs,
-            expectedIds,
-            client,
-            numberOfShards,
-            sourceOnlyRepository,
-            oldVersion,
-            indexName,
-            repoName,
-            snapshotName
-        );
+        restoreMountAndVerify(numDocs, expectedIds, numberOfShards, sourceOnlyRepository, oldVersion, indexName, repoName, snapshotName);
 
         // close indices
         closeIndex(client(), "restored_" + indexName);
@@ -279,17 +256,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         closeIndex(client(), "mounted_shared_cache_" + indexName);
 
         // restore / mount again
-        restoreMountAndVerify(
-            numDocs,
-            expectedIds,
-            client,
-            numberOfShards,
-            sourceOnlyRepository,
-            oldVersion,
-            indexName,
-            repoName,
-            snapshotName
-        );
+        restoreMountAndVerify(numDocs, expectedIds, numberOfShards, sourceOnlyRepository, oldVersion, indexName, repoName, snapshotName);
     }
 
     private String getType(Version oldVersion, String id) {
@@ -304,7 +271,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     private void restoreMountAndVerify(
         int numDocs,
         Set<String> expectedIds,
-        RestHighLevelClient client,
         int numberOfShards,
         boolean sourceOnlyRepository,
         Version oldVersion,
@@ -357,7 +323,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
 
         // run a search against the index
-        assertDocs("restored_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
+        assertDocs("restored_" + indexName, numDocs, expectedIds, sourceOnlyRepository, oldVersion, numberOfShards);
 
         // mount as full copy searchable snapshot
         Request mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
@@ -377,7 +343,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         ensureGreen("mounted_full_copy_" + indexName);
 
         // run a search against the index
-        assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
+        assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, sourceOnlyRepository, oldVersion, numberOfShards);
 
         // mount as shared cache searchable snapshot
         mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
@@ -390,7 +356,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.successful"));
 
         // run a search against the index
-        assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
+        assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, sourceOnlyRepository, oldVersion, numberOfShards);
     }
 
     @SuppressWarnings("removal")
@@ -398,7 +364,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         String index,
         int numDocs,
         Set<String> expectedIds,
-        RestHighLevelClient client,
         boolean sourceOnlyRepository,
         Version oldVersion,
         int numberOfShards
@@ -409,8 +374,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             .build();
         RequestOptions randomRequestOptions = randomBoolean() ? RequestOptions.DEFAULT : v7RequestOptions;
 
+        SearchResponse searchResponse;
+
         // run a search against the index
-        SearchResponse searchResponse = client.search(new SearchRequest(index), randomRequestOptions);
+        searchResponse = search(index, null, randomRequestOptions);
         logger.info(searchResponse);
         // check hit count
         assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
@@ -428,12 +395,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         String id = randomFrom(expectedIds);
         int num = getIdAsNumeric(id);
         // run a search using runtime fields against the index
-        searchResponse = client.search(
-            new SearchRequest(index).source(
-                SearchSourceBuilder.searchSource()
-                    .query(QueryBuilders.matchQuery("val", num))
-                    .runtimeMappings(Map.of("val", Map.of("type", "long")))
-            ),
+        searchResponse = search(
+            index,
+            SearchSourceBuilder.searchSource()
+                .query(QueryBuilders.matchQuery("val", num))
+                .runtimeMappings(Map.of("val", Map.of("type", "long"))),
             randomRequestOptions
         );
         logger.info(searchResponse);
@@ -443,12 +409,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         if (sourceOnlyRepository == false) {
             // search using reverse sort on val
-            searchResponse = client.search(
-                new SearchRequest(index).source(
-                    SearchSourceBuilder.searchSource()
-                        .query(QueryBuilders.matchAllQuery())
-                        .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC))
-                ),
+            searchResponse = search(
+                index,
+                SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery())
+                    .sort(SortBuilders.fieldSort("val").order(SortOrder.DESC)),
                 randomRequestOptions
             );
             logger.info(searchResponse);
@@ -459,8 +424,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             );
 
             // look up postings
-            searchResponse = client.search(
-                new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num))),
+            searchResponse = search(
+                index,
+                SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num)),
                 randomRequestOptions
             );
             logger.info(searchResponse);
@@ -471,8 +437,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 // search on _type and check that results contain _type information
                 String randomType = getType(oldVersion, randomFrom(expectedIds));
                 long typeCount = expectedIds.stream().filter(idd -> getType(oldVersion, idd).equals(randomType)).count();
-                searchResponse = client.search(
-                    new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType))),
+                searchResponse = search(
+                    index,
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("_type", randomType)),
                     randomRequestOptions
                 );
                 logger.info(searchResponse);
@@ -492,10 +459,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             );
 
             // check that shards are skipped based on non-matching date
-            searchResponse = client.search(
-                new SearchRequest(index).source(
-                    SearchSourceBuilder.searchSource().query(QueryBuilders.rangeQuery("create_date").from("2020-02-01"))
-                ),
+            searchResponse = search(
+                index,
+                SearchSourceBuilder.searchSource().query(QueryBuilders.rangeQuery("create_date").from("2020-02-01")),
                 randomRequestOptions
             );
             logger.info(searchResponse);
@@ -504,6 +470,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             // When all shards are skipped, at least one of them is queried in order to provide a proper search response.
             assertEquals(numberOfShards - 1, searchResponse.getSkippedShards());
         }
+    }
+
+    private static SearchResponse search(String index, @Nullable SearchSourceBuilder builder, RequestOptions options) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_search");
+        if (builder != null) {
+            request.setJsonEntity(builder.toString());
+        }
+        request.setOptions(options);
+        return SearchResponse.fromXContent(responseAsParser(client().performRequest(request)));
     }
 
     private int getIdAsNumeric(String id) {

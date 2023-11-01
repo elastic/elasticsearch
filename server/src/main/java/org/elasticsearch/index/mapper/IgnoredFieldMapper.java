@@ -83,8 +83,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (hasDocValues() == false) {
                 throw new IllegalArgumentException(
-                    "aggregations on the '" + typeName() + "' field are supported for indices created by stack version "
-                        + AGGS_SUPPORT_VERSION + " or higher"
+                    "aggregations on the '"
+                        + typeName()
+                        + "' field are supported for indices created by stack version "
+                        + AGGS_SUPPORT_VERSION
+                        + " or higher"
                 );
             }
             return new SortedSetOrdinalsIndexFieldData.Builder(

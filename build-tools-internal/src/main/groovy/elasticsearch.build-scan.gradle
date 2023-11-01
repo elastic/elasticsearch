@@ -129,7 +129,7 @@ buildScan {
         link 'Source', "https://github.com/${repository}/tree/${BuildParams.gitRevision}"
       }
 
-      buildFinished { BuildResult result ->
+      buildFinished { result ->
         buildScanPublished { scan ->
           // Attach build scan link as build metadata
           // See: https://buildkite.com/docs/pipelines/build-meta-data

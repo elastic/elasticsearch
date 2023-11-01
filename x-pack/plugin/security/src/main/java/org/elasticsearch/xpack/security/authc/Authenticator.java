@@ -82,6 +82,10 @@ public interface Authenticator {
         return extractCredentialFromAuthorizationHeader(threadContext, "Bearer");
     }
 
+    static SecureString extractApiKeyFromHeader(ThreadContext threadContext) {
+        return extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+    }
+
     /**
      * This class is a container to encapsulate the current request and other necessary information (mostly configuration related)
      * required for authentication.
@@ -98,6 +102,7 @@ public interface Authenticator {
         private final List<String> unsuccessfulMessages = new ArrayList<>();
         private boolean handleNullToken = true;
         private SecureString bearerString = null;
+        private SecureString apiKeyString = null;
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
 
@@ -157,6 +162,13 @@ public interface Authenticator {
                 bearerString = extractBearerTokenFromHeader(threadContext);
             }
             return bearerString;
+        }
+
+        public SecureString getApiKeyString() {
+            if (apiKeyString == null) {
+                apiKeyString = extractApiKeyFromHeader(threadContext);
+            }
+            return apiKeyString;
         }
 
         public List<Realm> getDefaultOrderedRealmList() {

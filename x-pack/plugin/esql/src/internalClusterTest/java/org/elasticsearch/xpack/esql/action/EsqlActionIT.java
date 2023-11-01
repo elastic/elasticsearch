@@ -72,7 +72,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class EsqlActionIT extends AbstractEsqlIntegTestCase {
-
     long epoch = System.currentTimeMillis();
 
     @Before

@@ -46,15 +46,12 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("name", "test3", "number", 3).get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(
-                boolQuery().must(matchAllQuery())
-                    .filter(
-                        boolQuery().should(rangeQuery("number").lt(2).queryName("test1"))
-                            .should(rangeQuery("number").gte(2).queryName("test2"))
-                    )
-            )
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(
+            boolQuery().must(matchAllQuery())
+                .filter(
+                    boolQuery().should(rangeQuery("number").lt(2).queryName("test1")).should(rangeQuery("number").gte(2).queryName("test2"))
+                )
+        ).get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("3") || hit.getId().equals("2")) {
@@ -70,11 +67,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             }
         }
 
-        searchResponse = client().prepareSearch()
-            .setQuery(
-                boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))
-            )
-            .get();
+        searchResponse = prepareSearch().setQuery(
+            boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))
+        ).get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2")) {
@@ -100,8 +95,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("name", "test").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setPostFilter(
                 boolQuery().should(termQuery("name", "test").queryName("name")).should(termQuery("title", "title1").queryName("title"))
             )
@@ -123,8 +117,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             }
         }
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setPostFilter(
                 boolQuery().should(termQuery("name", "test").queryName("name")).should(termQuery("title", "title1").queryName("title"))
             )
@@ -157,10 +150,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("name", "test", "title", "title3").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title")))
-            .setPostFilter(termQuery("name", "test").queryName("name"))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(
+            boolQuery().must(matchAllQuery()).filter(termsQuery("title", "title1", "title2", "title3").queryName("title"))
+        ).setPostFilter(termQuery("name", "test").queryName("name")).get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.getId().equals("1") || hit.getId().equals("2") || hit.getId().equals("3")) {
@@ -174,8 +166,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             }
         }
 
-        searchResponse = client().prepareSearch()
-            .setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
+        searchResponse = prepareSearch().setQuery(termsQuery("title", "title1", "title2", "title3").queryName("title"))
             .setPostFilter(matchQuery("name", "test").queryName("name"))
             .get();
         assertHitCount(searchResponse, 3L);
@@ -199,9 +190,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex"))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.regexpQuery("title", "title1").queryName("regex")).get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -222,9 +211,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix"))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.prefixQuery("title", "title").queryName("prefix")).get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -245,9 +232,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy"))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.fuzzyQuery("title", "titel1").queryName("fuzzy")).get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -268,9 +253,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test1").setId("1").setSource("title", "title1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard"))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.wildcardQuery("title", "titl*").queryName("wildcard")).get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -291,9 +274,9 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test1").setId("1").setSource("title", "title1 title2").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span"))
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(
+            QueryBuilders.spanFirstQuery(QueryBuilders.spanTermQuery("title", "title1"), 10).queryName("span")
+        ).get();
         assertHitCount(searchResponse, 1L);
 
         for (SearchHit hit : searchResponse.getHits()) {
@@ -321,13 +304,11 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         // Execute search at least two times to load it in cache
         int iter = scaledRandomIntBetween(2, 10);
         for (int i = 0; i < iter; i++) {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(
-                    boolQuery().minimumShouldMatch(1)
-                        .should(queryStringQuery("dolor").queryName("dolor"))
-                        .should(queryStringQuery("elit").queryName("elit"))
-                )
-                .get();
+            SearchResponse searchResponse = prepareSearch().setQuery(
+                boolQuery().minimumShouldMatch(1)
+                    .should(queryStringQuery("dolor").queryName("dolor"))
+                    .should(queryStringQuery("elit").queryName("elit"))
+            ).get();
 
             assertHitCount(searchResponse, 2L);
             for (SearchHit hit : searchResponse.getHits()) {
@@ -359,7 +340,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         BytesReference termBytes = XContentHelper.toXContent(termQueryBuilder, XContentType.JSON, false);
         QueryBuilder[] queries = new QueryBuilder[] { wrapperQuery(matchBytes), constantScoreQuery(wrapperQuery(termBytes)) };
         for (QueryBuilder query : queries) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(query).get();
+            SearchResponse searchResponse = prepareSearch().setQuery(query).get();
             assertHitCount(searchResponse, 1L);
             SearchHit hit = searchResponse.getHits().getAt(0);
             assertThat(hit.getMatchedQueriesAndScores().size(), equalTo(1));
@@ -376,8 +357,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("content", "hello you").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(new MatchAllQueryBuilder().queryName("all"))
+        SearchResponse searchResponse = prepareSearch().setQuery(new MatchAllQueryBuilder().queryName("all"))
             .setRescorer(
                 new QueryRescorerBuilder(new MatchPhraseQueryBuilder("content", "hello you").boost(10).queryName("rescore_phrase"))
             )

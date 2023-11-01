@@ -42,19 +42,10 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref startRef = start.eval(page)) {
-        if (startRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         IntBlock startBlock = (IntBlock) startRef.block();
         try (Block.Ref lengthRef = length.eval(page)) {
-          if (lengthRef.block().areAllValuesNull()) {
-            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-          }
           IntBlock lengthBlock = (IntBlock) lengthRef.block();
           BytesRefVector strVector = strBlock.asVector();
           if (strVector == null) {
@@ -76,7 +67,7 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, IntBlock startBlock,
       IntBlock lengthBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (strBlock.isNull(p) || strBlock.getValueCount(p) != 1) {
@@ -99,7 +90,7 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BytesRefVector eval(int positionCount, BytesRefVector strVector, IntVector startVector,
       IntVector lengthVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p), lengthVector.getInt(p)));
@@ -116,5 +107,31 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, start, length);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory start;
+
+    private final EvalOperator.ExpressionEvaluator.Factory length;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory start,
+        EvalOperator.ExpressionEvaluator.Factory length) {
+      this.str = str;
+      this.start = start;
+      this.length = length;
+    }
+
+    @Override
+    public SubstringEvaluator get(DriverContext context) {
+      return new SubstringEvaluator(str.get(context), start.get(context), length.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubstringEvaluator[" + "str=" + str + ", start=" + start + ", length=" + length + "]";
+    }
   }
 }

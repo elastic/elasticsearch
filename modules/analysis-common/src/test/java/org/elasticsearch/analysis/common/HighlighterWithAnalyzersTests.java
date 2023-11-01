@@ -114,8 +114,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("name", "ARCOTEL Hotels Deutschland").get();
         refresh();
-        SearchResponse search = client().prepareSearch("test")
-            .setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
+        SearchResponse search = prepareSearch("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
             .highlighter(new HighlightBuilder().field("name.autocomplete"))
             .get();
         assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
@@ -159,26 +158,21 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
             )
             .get();
         refresh();
-        SearchResponse search = client().prepareSearch()
-            .setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
+        SearchResponse search = prepareSearch().setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
             .highlighter(new HighlightBuilder().field("body").highlighterType("fvh"))
             .get();
         assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
-        search = client().prepareSearch()
-            .setQuery(
-                matchPhraseQuery(
-                    "body",
-                    "Test: http://www.facebook.com "
-                        + "http://elasticsearch.org http://xing.com http://cnn.com "
-                        + "http://quora.com http://twitter.com this is a test for highlighting "
-                        + "feature Test: http://www.facebook.com http://elasticsearch.org "
-                        + "http://xing.com http://cnn.com http://quora.com http://twitter.com this "
-                        + "is a test for highlighting feature"
-                )
+        search = prepareSearch().setQuery(
+            matchPhraseQuery(
+                "body",
+                "Test: http://www.facebook.com "
+                    + "http://elasticsearch.org http://xing.com http://cnn.com "
+                    + "http://quora.com http://twitter.com this is a test for highlighting "
+                    + "feature Test: http://www.facebook.com http://elasticsearch.org "
+                    + "http://xing.com http://cnn.com http://quora.com http://twitter.com this "
+                    + "is a test for highlighting feature"
             )
-            .highlighter(new HighlightBuilder().field("body").highlighterType("fvh"))
-            .execute()
-            .actionGet();
+        ).highlighter(new HighlightBuilder().field("body").highlighterType("fvh")).execute().actionGet();
         assertHighlight(
             search,
             0,

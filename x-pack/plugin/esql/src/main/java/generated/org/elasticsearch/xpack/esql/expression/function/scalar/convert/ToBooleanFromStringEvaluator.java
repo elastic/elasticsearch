@@ -41,19 +41,20 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
         return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0, scratchPad), positionCount);
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendBoolean(evalValue(vector, p, scratchPad));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendBoolean(evalValue(vector, p, scratchPad));
+        } catch (Exception e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static boolean evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
@@ -65,7 +66,7 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     BytesRefBlock block = (BytesRefBlock) b;
     int positionCount = block.getPositionCount();
-    try (BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef scratchPad = new BytesRef();
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
@@ -99,5 +100,26 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
   private static boolean evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToBoolean.fromKeyword(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToBooleanFromStringEvaluator get(DriverContext context) {
+      return new ToBooleanFromStringEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToBooleanFromStringEvaluator[field=" + field + "]";
+    }
   }
 }

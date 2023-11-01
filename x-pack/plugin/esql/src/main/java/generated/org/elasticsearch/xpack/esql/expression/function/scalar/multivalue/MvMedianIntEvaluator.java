@@ -40,7 +40,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
         MvMedian.Ints work = new MvMedian.Ints();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -73,7 +73,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
         MvMedian.Ints work = new MvMedian.Ints();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -98,7 +98,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
         MvMedian.Ints work = new MvMedian.Ints();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -122,7 +122,7 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (IntVector.FixedBuilder builder = IntVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (IntVector.FixedBuilder builder = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
         MvMedian.Ints work = new MvMedian.Ints();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -132,6 +132,24 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianIntEvaluator get(DriverContext context) {
+      return new MvMedianIntEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
     }
   }
 }

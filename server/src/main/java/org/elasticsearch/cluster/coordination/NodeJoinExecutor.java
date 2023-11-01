@@ -25,8 +25,8 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.ArrayList;
@@ -122,6 +122,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
         Map<String, CompatibilityVersions> compatibilityVersionsMap = new HashMap<>(newState.compatibilityVersions());
+        Map<String, Set<String>> nodeFeatures = new HashMap<>(newState.nodeFeatures());
 
         assert nodesBuilder.isLocalNodeElectedMaster();
 
@@ -138,12 +139,23 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 final DiscoveryNode node = nodeJoinTask.node();
                 if (currentNodes.nodeExistsWithSameRoles(node)) {
                     logger.debug("received a join request for an existing node [{}]", node);
+
+                    // update the node's feature set if it has one
+                    // this can happen if the master has just moved from a pre-features version to a post-features version
+                    assert Version.V_8_12_0.onOrBefore(Version.CURRENT) : "This can be removed once 8.12.0 is no longer a valid version";
+                    if (Objects.equals(nodeFeatures.get(node.getId()), nodeJoinTask.features()) == false) {
+                        logger.debug("updating node [{}] features {}", node.getId(), nodeJoinTask.features());
+                        nodeFeatures.put(node.getId(), nodeJoinTask.features());
+                        nodesChanged = true;
+                    }
                 } else {
                     try {
                         CompatibilityVersions compatibilityVersions = nodeJoinTask.compatibilityVersions();
+                        Set<String> features = nodeJoinTask.features();
                         if (enforceVersionBarrier) {
                             ensureVersionBarrier(node.getVersion(), minClusterNodeVersion);
                             CompatibilityVersions.ensureVersionsCompatibility(compatibilityVersions, compatibilityVersionsMap.values());
+                            // TODO: enforce feature ratchet barrier
                         }
                         blockForbiddenVersions(compatibilityVersions.transportVersion());
                         ensureNodesCompatibility(node.getVersion(), minClusterNodeVersion, maxClusterNodeVersion);
@@ -152,6 +164,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureIndexCompatibility(node.getMinIndexVersion(), node.getMaxIndexVersion(), initialState.getMetadata());
                         nodesBuilder.add(node);
                         compatibilityVersionsMap.put(node.getId(), compatibilityVersions);
+                        nodeFeatures.put(node.getId(), features);
                         nodesChanged = true;
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
@@ -222,7 +235,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             }
 
             final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
-                newState.nodes(nodesBuilder).nodeIdsToCompatibilityVersions(compatibilityVersionsMap).build()
+                newState.nodes(nodesBuilder).nodeIdsToCompatibilityVersions(compatibilityVersionsMap).nodeFeatures(nodeFeatures).build()
             );
             final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
@@ -238,11 +251,6 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // for the joining node to finalize its join and set us as a master
             return newState.build();
         }
-    }
-
-    @SuppressForbidden(reason = "maintaining ClusterState#compatibilityVersions requires reading them")
-    private static Map<String, CompatibilityVersions> getCompatibilityVersions(ClusterState clusterState) {
-        return clusterState.compatibilityVersions();
     }
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
@@ -264,9 +272,13 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;
-        DiscoveryNodes currentNodes = currentState.nodes();
+
+        ClusterState.Builder builder = ClusterState.builder(currentState);
+
+        DiscoveryNodes currentNodes = builder.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-        Map<String, CompatibilityVersions> compatibilityVersions = new HashMap<>(getCompatibilityVersions(currentState));
+        Map<String, CompatibilityVersions> compatibilityVersions = new HashMap<>(builder.compatibilityVersions());
+        Map<String, Set<String>> nodeFeatures = new HashMap<>(builder.nodeFeatures());
         nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
         nodesBuilder.resetNodeLeftGeneration();
 
@@ -277,6 +289,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
                     nodesBuilder.remove(nodeWithSameId.getId());
                     compatibilityVersions.remove(nodeWithSameId.getId());
+                    nodeFeatures.remove(nodeWithSameId.getId());
                 }
                 final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
                 if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
@@ -287,15 +300,16 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
                     );
                     nodesBuilder.remove(nodeWithSameAddress.getId());
                     compatibilityVersions.remove(nodeWithSameAddress.getId());
+                    nodeFeatures.remove(nodeWithSameAddress.getId());
                 }
             }
         }
 
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above
-        ClusterState tmpState = ClusterState.builder(currentState)
-            .nodes(nodesBuilder)
+        ClusterState tmpState = builder.nodes(nodesBuilder)
             .nodeIdsToCompatibilityVersions(compatibilityVersions)
+            .nodeFeatures(nodeFeatures)
             .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
             .metadata(
                 Metadata.builder(currentState.metadata())
@@ -328,7 +342,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * Ensures that all indices are compatible with the given index version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of elasticsearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see IndexVersion#MINIMUM_COMPATIBLE
+     * @see IndexVersions#MINIMUM_COMPATIBLE
      * @throws IllegalStateException if any index is incompatible with the given version
      */
     public static void ensureIndexCompatibility(IndexVersion minSupportedVersion, IndexVersion maxSupportedVersion, Metadata metadata) {

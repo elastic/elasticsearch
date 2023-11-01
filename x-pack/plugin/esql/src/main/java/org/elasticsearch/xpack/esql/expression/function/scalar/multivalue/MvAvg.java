@@ -46,12 +46,12 @@ public class MvAvg extends AbstractMultivalueFunction {
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> dvrCtx -> new MvAvgDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvAvgIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case DOUBLE -> new MvAvgDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvAvgIntEvaluator.Factory(fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? dvrCtx -> new MvAvgUnsignedLongEvaluator(fieldEval.get(dvrCtx), dvrCtx)
-                : dvrCtx -> new MvAvgLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+                ? new MvAvgUnsignedLongEvaluator.Factory(fieldEval)
+                : new MvAvgLongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

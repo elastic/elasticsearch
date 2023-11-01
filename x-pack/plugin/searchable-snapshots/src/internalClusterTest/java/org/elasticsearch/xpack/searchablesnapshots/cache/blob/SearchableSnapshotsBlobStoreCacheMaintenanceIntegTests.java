@@ -335,7 +335,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             assertThat(refreshResponse.getSuccessfulShards(), failIfNotExist ? greaterThan(0) : greaterThanOrEqualTo(0));
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
         } catch (IndexNotFoundException indexNotFoundException) {
-            throw new AssertionError("unexpected", indexNotFoundException);
+            fail(indexNotFoundException);
         }
     }
 

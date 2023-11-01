@@ -48,7 +48,10 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             CircuitBreakerService breakerService = internalCluster().getInstance(CircuitBreakerService.class, node);
             CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
             try {
-                assertBusy(() -> assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L)));
+                assertBusy(() -> {
+                    logger.info("running tasks: {}", client().admin().cluster().prepareListTasks().get());
+                    assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
+                });
             } catch (Exception e) {
                 assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
             }

@@ -244,7 +244,7 @@ public interface Repository extends LifecycleComponent {
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
     /**
      * Check if this instances {@link Settings} can be changed to the provided updated settings without recreating the repository.

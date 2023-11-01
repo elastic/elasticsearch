@@ -49,7 +49,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock inputBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (inputBlock.isNull(p) || inputBlock.getValueCount(p) != 1) {
@@ -63,7 +63,7 @@ public final class RegexMatchEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BooleanVector eval(int positionCount, BytesRefVector inputVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef inputScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(RegexMatch.process(inputVector.getBytesRef(p, inputScratch), pattern));

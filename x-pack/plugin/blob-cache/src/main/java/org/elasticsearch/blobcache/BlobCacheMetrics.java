@@ -19,7 +19,7 @@ public class BlobCacheMetrics {
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
         this(
             meterRegistry.registerLongCounter(
-                "elasticsearch.blob_cache.miss_that_triggered_read_from_blob_store",
+                "elasticsearch.blob_cache.miss_that_triggered_read",
                 "The number of times there was a cache miss that triggered a read from the blob store",
                 "count"
             ),

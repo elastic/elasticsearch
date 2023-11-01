@@ -164,6 +164,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private final PersistentTasksService persistentTasksService;
 
+        @SuppressWarnings("this-escape")
         protected TaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
             super("task_name", ThreadPool.Names.GENERIC);
             persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);

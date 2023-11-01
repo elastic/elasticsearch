@@ -193,11 +193,25 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
-        if (userCredentials == null) {
+        if (userCredentials == null || userCredentials.isEmpty()) {
             return null;
         }
-        if (userCredentials.isEmpty()) {
-            throw new IllegalArgumentException("JWT bearer token must be non-empty");
+
+        // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
+        final SignedJWT signedJWT;
+        try {
+            signedJWT = SignedJWT.parse(userCredentials.toString());
+        } catch (ParseException e) {
+            logger.debug("Failed to parse JWT bearer token", e);
+            return null;
+        }
+
+        final JWTClaimsSet jwtClaimsSet;
+        try {
+            jwtClaimsSet = signedJWT.getJWTClaimsSet();
+        } catch (ParseException e) {
+            logger.debug("Failed to parse JWT claims set", e);
+            return null;
         }
 
         final SecureString clientCredentials = JwtUtil.getHeaderValue(
@@ -206,21 +220,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
-
-        // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
-        final SignedJWT signedJWT;
-        try {
-            signedJWT = SignedJWT.parse(userCredentials.toString());
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
-        }
-
-        final JWTClaimsSet jwtClaimsSet;
-        try {
-            jwtClaimsSet = signedJWT.getJWTClaimsSet();
-        } catch (ParseException e) {
-            throw new IllegalArgumentException("Failed to parse JWT claims set", e);
-        }
 
         // If Issuer is not found, still return a JWT token since it is after still a JWT, authentication
         // will fail later because issuer is mandated

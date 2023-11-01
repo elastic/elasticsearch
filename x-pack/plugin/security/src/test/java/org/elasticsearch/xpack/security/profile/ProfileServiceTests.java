@@ -49,6 +49,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.profile.ProfileDocument.ProfileDocumentUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
@@ -213,8 +215,8 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             clusterService,
-            name -> new DomainConfig(name, Set.of(), false, null),
-            threadPool
+            new FeatureService(List.of(new SecurityFeatures())),
+            name -> new DomainConfig(name, Set.of(), false, null)
         );
     }
 
@@ -493,8 +495,8 @@ public class ProfileServiceTests extends ESTestCase {
             client,
             profileIndex,
             mock(ClusterService.class),
-            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix"),
-            threadPool
+            new FeatureService(List.of(new SecurityFeatures())),
+            domainName -> new DomainConfig(domainName, Set.of(), true, "suffix")
         );
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
         service.maybeIncrementDifferentiatorAndCreateNewProfile(
@@ -649,13 +651,21 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testActivateProfileWithDifferentUidFormats() throws IOException {
         final ProfileService service = spy(
-            new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, mock(ClusterService.class), domainName -> {
-                if (domainName.startsWith("hash")) {
-                    return new DomainConfig(domainName, Set.of(), false, null);
-                } else {
-                    return new DomainConfig(domainName, Set.of(), true, "suffix");
+            new ProfileService(
+                Settings.EMPTY,
+                Clock.systemUTC(),
+                client,
+                profileIndex,
+                mock(ClusterService.class),
+                new FeatureService(List.of(new SecurityFeatures())),
+                domainName -> {
+                    if (domainName.startsWith("hash")) {
+                        return new DomainConfig(domainName, Set.of(), false, null);
+                    } else {
+                        return new DomainConfig(domainName, Set.of(), true, "suffix");
+                    }
                 }
-            }, threadPool)
+            )
         );
 
         doAnswer(invocation -> {

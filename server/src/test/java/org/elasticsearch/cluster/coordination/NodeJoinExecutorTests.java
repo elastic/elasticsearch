@@ -480,7 +480,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        ActionListener.wrap(r -> fail("Task should have failed"), e -> assertThat(e.getMessage(), containsString("found existing node"))),
+                        ActionListener.wrap(
+                            r -> fail("Task should have failed"),
+                            e -> assertThat(e.getMessage(), containsString("found existing node"))
+                        ),
                         executorTerm
                     )
                 )

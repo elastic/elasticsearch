@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1251,7 +1250,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
         testBlockLoader((loader, reader) -> {
             TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, 1);
-            reader.readValuesFromSingleDoc(0, block);
+            reader.read(0, block);
             return block;
         });
     }
@@ -1296,7 +1295,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext ctx = reader.leaves().get(0);
                 TestBlock block = switch (loader.method()) {
                     case CONSTANT, STORED_FIELDS -> (TestBlock) loader.constant(TestBlock.FACTORY, ctx.reader().numDocs());
-                    case DOC_VALUES -> body.apply(loader, loader.docValuesReader(ctx));
+                    case DOC_VALUES -> body.apply(loader, loader.readMany(ctx));
                 };
                 Object inBlock = block.get(0);
                 if (inBlock != null) {

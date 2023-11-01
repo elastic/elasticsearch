@@ -40,14 +40,14 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
     public final BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         try (BlockLoader.Builder builder = builder(factory, docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
-                readValuesFromSingleDoc(docs.get(i), builder);
+                this.read(docs.get(i), builder);
             }
             return builder.build();
         }
     }
 
     @Override
-    public final void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) throws IOException {
+    public final void read(int docId, BlockLoader.Builder builder) throws IOException {
         if (docId < this.docID) {
             throw new IllegalStateException("docs within same block must be in order");
         }
@@ -61,7 +61,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
     protected abstract void read(LeafStoredFieldLoader loader, BlockLoader.Builder builder) throws IOException;
 
     @Override
-    public final int docID() {
+    public final int docId() {
         return docID;
     }
 
@@ -110,7 +110,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Bytes(loader.getLoader(context, null), field) {
                 @Override
                 protected BytesRef toBytesRef(Object v) {
@@ -134,7 +134,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Bytes(loader.getLoader(context, null), field) {
                 private final BytesRef scratch = new BytesRef();
 
@@ -199,7 +199,7 @@ public abstract class BlockStoredFieldsReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Id(loader.getLoader(context, null));
         }
     }

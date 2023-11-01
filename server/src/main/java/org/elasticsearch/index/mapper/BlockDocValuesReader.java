@@ -33,7 +33,7 @@ import java.util.Set;
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
  */
-public abstract class BlockDocValuesReader {
+public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeReader {
     protected final Thread creationThread;
 
     public BlockDocValuesReader() {
@@ -43,7 +43,7 @@ public abstract class BlockDocValuesReader {
     /**
      * Returns the current doc that this reader is on.
      */
-    public abstract int docID();
+    protected abstract int docId();
 
     /**
      * Reads the values of the given documents specified in the input block
@@ -53,13 +53,13 @@ public abstract class BlockDocValuesReader {
     /**
      * Reads the values of the given document into the builder
      */
-    public abstract void readValuesFromSingleDoc(int docId, Builder builder) throws IOException;
+    public abstract void read(int docId, Builder builder) throws IOException;
 
     /**
      * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
      */
-    public static boolean canReuse(BlockDocValuesReader reader, int startingDocID) {
-        return reader != null && reader.creationThread == Thread.currentThread() && reader.docID() <= startingDocID;
+    public boolean canReuse(int startingDocID) {
+        return creationThread == Thread.currentThread() && docId() <= startingDocID;
     }
 
     @Override
@@ -71,11 +71,13 @@ public abstract class BlockDocValuesReader {
             return Method.DOC_VALUES;
         }
 
-        @Override public boolean loadSource() {
+        @Override
+        public boolean loadSource() {
             return false;
         }
 
-        @Override public Set<String> loadFields() {
+        @Override
+        public Set<String> loadFields() {
             return Set.of();
         }
 
@@ -98,7 +100,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -136,7 +138,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             BlockLoader.LongBuilder blockBuilder = (BlockLoader.LongBuilder) builder;
             if (numericDocValues.advanceExact(docId)) {
                 blockBuilder.appendLong(numericDocValues.longValue());
@@ -146,7 +148,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return numericDocValues.docID();
         }
 
@@ -179,7 +181,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             read(docId, (LongBuilder) builder);
         }
 
@@ -202,7 +204,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             // There is a .docID on the numericDocValues but it is often not implemented.
             return docID;
         }
@@ -226,7 +228,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -264,7 +266,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             IntBuilder blockBuilder = (IntBuilder) builder;
             if (numericDocValues.advanceExact(docId)) {
                 blockBuilder.appendInt(Math.toIntExact(numericDocValues.longValue()));
@@ -274,7 +276,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return numericDocValues.docID();
         }
 
@@ -307,7 +309,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             read(docId, (IntBuilder) builder);
         }
 
@@ -330,7 +332,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             // There is a .docID on on the numericDocValues but it is often not implemented.
             return docID;
         }
@@ -365,7 +367,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -407,7 +409,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             this.docID = docId;
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
             if (docValues.advanceExact(this.docID)) {
@@ -418,7 +420,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return docID;
         }
 
@@ -453,7 +455,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             read(docId, (DoubleBuilder) builder);
         }
 
@@ -476,7 +478,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return docID;
         }
 
@@ -499,7 +501,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             SortedSetDocValues docValues = ordinals(context);
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -545,7 +547,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int doc, Builder builder) throws IOException {
+        public void read(int doc, Builder builder) throws IOException {
             if (ordinals.advanceExact(doc)) {
                 ((BytesRefBuilder) builder).appendBytesRef(ordinals.lookupOrd(ordinals.ordValue()));
             } else {
@@ -554,7 +556,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return ordinals.docID();
         }
 
@@ -586,7 +588,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int doc, Builder builder) throws IOException {
+        public void read(int doc, Builder builder) throws IOException {
             read(doc, (BytesRefBuilder) builder);
         }
 
@@ -608,7 +610,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return ordinals.docID();
         }
 
@@ -631,7 +633,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
             if (docValues == null) {
                 // NOCOMMIT should we just there's got to be a constant null method?
@@ -667,7 +669,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             read(docId, (BytesRefBuilder) builder);
         }
 
@@ -700,7 +702,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return docID;
         }
 
@@ -723,7 +725,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -761,7 +763,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             BooleanBuilder blockBuilder = (BooleanBuilder) builder;
             if (numericDocValues.advanceExact(docId)) {
                 blockBuilder.appendBoolean(numericDocValues.longValue() != 0);
@@ -771,7 +773,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return numericDocValues.docID();
         }
 
@@ -804,7 +806,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) throws IOException {
+        public void read(int docId, Builder builder) throws IOException {
             read(docId, (BooleanBuilder) builder);
         }
 
@@ -827,7 +829,7 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             // There is a .docID on the numericDocValues but it is often not implemented.
             return docID;
         }
@@ -852,13 +854,13 @@ public abstract class BlockDocValuesReader {
         }
 
         @Override
-        public void readValuesFromSingleDoc(int docId, Builder builder) {
+        public void read(int docId, Builder builder) {
             this.docID = docId;
             builder.appendNull();
         }
 
         @Override
-        public int docID() {
+        public int docId() {
             return docID;
         }
 

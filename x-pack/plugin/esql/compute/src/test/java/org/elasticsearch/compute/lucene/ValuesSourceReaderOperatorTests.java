@@ -271,7 +271,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 }
 
                 @Override
-                public BlockDocValuesReader docValuesReader(LeafReaderContext context) {
+                public BlockDocValuesReader readMany(LeafReaderContext context) {
                     throw new UnsupportedOperationException();
                 }
 

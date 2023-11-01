@@ -13,9 +13,14 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -24,53 +29,69 @@ import java.util.Set;
  */
 public interface BlockLoader {
     /**
-     * How blocks should be loaded.
-     */
-    enum Method {
-        CONSTANT,
-        DOC_VALUES,
-        STORED_FIELDS;
-    }
-
-    /**
-     * How blocks should be loaded.
-     */
-    Method method();
-
-    boolean loadSource();
-
-    Set<String> loadFields();
-
-    /**
      * The {@link BlockLoader.Builder} for data of this type. Called when
      * loading from a multi-segment or unsorted block.
      */
     Builder builder(BlockFactory factory, int expectedCount);
 
-    /**
-     * Build a {@link LeafReaderContext leaf} level reader for doc values.
-     * This is only supported if {@link #method} returns {@link Method#DOC_VALUES}.
-     */
-    BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException;
+    interface Reader {
+        /**
+         * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
+         */
+        boolean canReuse(int startingDocID);
+    }
 
-    /**
-     * Build a constant block for this field with the specified size. This
-     * is only supported if {@link #method} returns {@link Method#CONSTANT}.
-     */
-    Block constant(BlockFactory factory, int size);
+    interface ColumnAtATimeReader extends Reader {
+        /**
+         * Reads the values of all documents in {@code docs}.
+         */
+        BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException;
+    }
+
+    interface RowStrideReader extends Reader {
+        /**
+         * Reads the values of the given document into the builder.
+         */
+        void read(int docId, StoredFields storedFields, Builder builder) throws IOException;
+    }
+
+    interface StoredFields {
+        Source source();
+
+        /**
+         * @return the ID for the current document
+         */
+        String id();
+
+        /**
+         * @return the routing path for the current document
+         */
+        String routing();
+
+        /**
+         * @return stored fields for the current document
+         */
+        Map<String, List<Object>> storedFields();
+    }
+
+    ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException;
+
+    RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
+
+    StoredFieldsSpec rowStrideStoredFieldSpec();
 
     /**
      * Does this loader support loading bytes via calling {@link #ordinals}.
      */
     default boolean supportsOrdinals() {
         return false;
-    }
+    } // NOCOMMIT not default?
 
     /**
      * Load ordinals for the provided context.
      */
     default SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
-        throw new IllegalStateException("ordinals not supported");
+        throw new IllegalStateException("ordinals not supported"); // NOCOMMIT not default?
     }
 
     /**
@@ -79,33 +100,39 @@ public interface BlockLoader {
     static BlockLoader constantNulls() {
         return new BlockLoader() {
             @Override
-            public Method method() {
-                return Method.CONSTANT;
-            }
-
-            @Override
-            public boolean loadSource() {
-                return false;
-            }
-
-            @Override
-            public Set<String> loadFields() {
-                return Set.of();
-            }
-
-            @Override
             public Builder builder(BlockFactory factory, int expectedCount) {
                 return factory.nulls(expectedCount);
             }
 
             @Override
-            public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
-                throw new UnsupportedEncodingException();
+            public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+                return new ColumnAtATimeReader() {
+                    @Override
+                    public Block read(BlockFactory factory, Docs docs) throws IOException {
+                        return factory.constantNulls(docs.count());
+                    }
+
+                    @Override
+                    public boolean canReuse(int startingDocID) {
+                        return true;
+                    }
+                };
             }
 
+
             @Override
-            public Block constant(BlockFactory factory, int size) {
-                return factory.constantNulls(size);
+            public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+                return new RowStrideReader() {
+                    @Override
+                    public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                        builder.appendNull();
+                    }
+
+                    @Override
+                    public boolean canReuse(int startingDocID) {
+                        return true;
+                    }
+                };
             }
 
             @Override
@@ -141,8 +168,8 @@ public interface BlockLoader {
             }
 
             @Override
-            public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
-                throw new UnsupportedEncodingException();
+            public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+                new BlockDocValuesReader()
             }
 
             @Override
@@ -158,7 +185,7 @@ public interface BlockLoader {
     }
 
     /**
-     * A list of documents to load.
+     * A list of documents to load. Documents are always in non-decreasing order.
      */
     interface Docs {
         int count();

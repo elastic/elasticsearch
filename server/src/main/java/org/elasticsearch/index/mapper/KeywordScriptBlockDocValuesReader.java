@@ -32,7 +32,7 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new KeywordScriptBlockDocValuesReader(factory.newInstance(context));
         }
     }
@@ -46,7 +46,7 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public int docID() {
+    public int docId() {
         return docId;
     }
 
@@ -62,7 +62,7 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public void readValuesFromSingleDoc(int docId, BlockLoader.Builder builder) {
+    public void read(int docId, BlockLoader.Builder builder) {
         this.docId = docId;
         read(docId, (BlockLoader.BytesRefBuilder) builder);
     }

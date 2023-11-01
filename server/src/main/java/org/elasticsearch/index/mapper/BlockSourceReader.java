@@ -28,38 +28,19 @@ import java.util.Set;
  * doc values because, for now, ESQL only knows how to load things in a doc values
  * order.
  */
-public abstract class BlockSourceReader extends BlockDocValuesReader {
+public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private final ValueFetcher fetcher;
-    private final LeafStoredFieldLoader loader;
     private final List<Object> ignoredValues = new ArrayList<>();
-    private int docID = -1;
 
-    BlockSourceReader(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
+    BlockSourceReader(ValueFetcher fetcher) {
         this.fetcher = fetcher;
-        this.loader = loader;
     }
 
     protected abstract BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int count);
 
     @Override
-    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
-        try (BlockLoader.Builder builder = builder(factory, docs.count())) {
-            for (int i = 0; i < docs.count(); i++) {
-                int doc = docs.get(i);
-                if (doc < this.docID) {
-                    throw new IllegalStateException("docs within same block must be in order");
-                }
-                readValuesFromSingleDoc(doc, builder);
-            }
-            return builder.build();
-        }
-    }
-
-    @Override
-    public void readValuesFromSingleDoc(int doc, BlockLoader.Builder builder) throws IOException {
-        this.docID = doc;
-        loader.advanceTo(doc);
-        List<Object> values = fetcher.fetchValues(Source.fromBytes(loader.source()), doc, ignoredValues);
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+        List<Object> values = fetcher.fetchValues(storedFields.source(), docId, ignoredValues);
         ignoredValues.clear();  // TODO do something with these?
         if (values == null) {
             builder.appendNull();
@@ -77,11 +58,6 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
     }
 
     protected abstract void append(BlockLoader.Builder builder, Object v);
-
-    @Override
-    public int docID() {
-        return docID;
-    }
 
     private abstract static class SourceBlockLoader implements BlockLoader {
         protected final StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
@@ -120,7 +96,7 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Booleans(fetcher, loader.getLoader(context, null));
         }
     }
@@ -159,7 +135,7 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new BytesRefs(fetcher, loader.getLoader(context, null));
         }
     }
@@ -200,7 +176,7 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Doubles(fetcher, loader.getLoader(context, null));
         }
     }
@@ -239,7 +215,7 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Ints(fetcher, loader.getLoader(context, null));
         }
     }
@@ -278,7 +254,7 @@ public abstract class BlockSourceReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader docValuesReader(LeafReaderContext context) throws IOException {
+        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
             return new Longs(fetcher, loader.getLoader(context, null));
         }
     }

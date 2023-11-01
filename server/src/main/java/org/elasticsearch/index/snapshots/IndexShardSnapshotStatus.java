@@ -83,6 +83,7 @@ public class IndexShardSnapshotStatus {
     }
 
     private final AtomicReference<Stage> stage;
+    private final AtomicReference<AbortStatus> abortStatus = new AtomicReference<>(AbortStatus.NOT_ABORTED);
     private final AtomicReference<ShardGeneration> generation;
     private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
     private long startTime;
@@ -95,7 +96,6 @@ public class IndexShardSnapshotStatus {
     private long processedSize;
     private String failure;
     private final SubscribableListener<AbortStatus> abortListeners = new SubscribableListener<>();
-    private volatile AbortStatus abortStatus = AbortStatus.NOT_ABORTED;
 
     private IndexShardSnapshotStatus(
         final Stage stage,
@@ -188,12 +188,13 @@ public class IndexShardSnapshotStatus {
 
     public synchronized void abortIfNotCompleted(final AbortStatus abortStatus, final Consumer<ActionListener<Releasable>> notifyRunner) {
         assert abortStatus != AbortStatus.NOT_ABORTED;
+        this.abortStatus.compareAndSet(AbortStatus.NOT_ABORTED, abortStatus); // maybe racing against a concurrent abort
+        final AbortStatus finalAbortStatus = getAbortStatus();
         if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
-            this.abortStatus = abortStatus;
-            this.failure = abortStatus.getDescription();
+            this.failure = finalAbortStatus.getDescription();
             notifyRunner.accept(abortListeners.map(r -> {
                 Releasables.closeExpectNoException(r);
-                return abortStatus;
+                return finalAbortStatus;
             }));
         }
     }
@@ -226,7 +227,7 @@ public class IndexShardSnapshotStatus {
     }
 
     public AbortStatus getAbortStatus() {
-        return abortStatus;
+        return abortStatus.get();
     }
 
     /**

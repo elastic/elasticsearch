@@ -24,9 +24,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceElserAction;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -37,13 +39,15 @@ public class HuggingFaceElserService implements InferenceService {
     public static final String NAME = "hugging_face_elser";
 
     private final SetOnce<HttpRequestSenderFactory> factory;
+    private final SetOnce<ThrottlerManager> throttlerManager;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
-    // This is initialized once which assumes that the settings will not change. To change the service it
+    // This is initialized once which assumes that the settings will not change. To change the service, it
     // should be deleted and then added again
     private final AtomicReference<HuggingFaceElserAction> action = new AtomicReference<>();
 
-    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory) {
-        this.factory = factory;
+    public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
+        this.factory = Objects.requireNonNull(factory);
+        this.throttlerManager = Objects.requireNonNull(throttlerManager);
     }
 
     @Override
@@ -128,10 +132,15 @@ public class HuggingFaceElserService implements InferenceService {
             throw new IllegalArgumentException("The internal model was invalid");
         }
 
-        sender.compareAndSet(null, factory.get().createSender(name()));
+        sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
 
         HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
-        action.compareAndSet(null, new HuggingFaceElserAction(sender.get(), huggingFaceElserModel));
+        action.updateAndGet(
+            current -> Objects.requireNonNullElseGet(
+                current,
+                () -> new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, throttlerManager.get())
+            )
+        );
     }
 
     @Override

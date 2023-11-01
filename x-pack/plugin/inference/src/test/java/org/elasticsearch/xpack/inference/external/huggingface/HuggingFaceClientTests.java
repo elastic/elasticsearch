@@ -31,11 +31,12 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.createThreadPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestTests.createRequest;
+import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -53,7 +54,7 @@ public class HuggingFaceClientTests extends ESTestCase {
     public void init() throws Exception {
         webServer.start();
         threadPool = createThreadPool(getTestName());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty());
+        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mockThrottlerManager());
     }
 
     @After
@@ -78,7 +79,7 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender);
+            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
@@ -124,7 +125,7 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender);
+            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
@@ -153,7 +154,7 @@ public class HuggingFaceClientTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
-        HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender);
+        HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
 
         var thrownException = expectThrows(

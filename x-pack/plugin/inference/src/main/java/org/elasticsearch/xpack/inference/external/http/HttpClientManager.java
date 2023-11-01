@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -66,9 +67,14 @@ public class HttpClientManager implements Closeable {
     private IdleConnectionEvictor connectionEvictor;
     private final HttpClient httpClient;
 
-    public static HttpClientManager create(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
+    public static HttpClientManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager
+    ) {
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
-        return new HttpClientManager(settings, connectionManager, threadPool, clusterService);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
     // Default for testing
@@ -76,14 +82,15 @@ public class HttpClientManager implements Closeable {
         Settings settings,
         PoolingNHttpClientConnectionManager connectionManager,
         ThreadPool threadPool,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager
     ) {
         this.threadPool = threadPool;
 
         this.connectionManager = connectionManager;
         setMaxConnections(MAX_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager);
+        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
 
         evictorSettings = new EvictorSettings(settings);
         connectionEvictor = createConnectionEvictor();

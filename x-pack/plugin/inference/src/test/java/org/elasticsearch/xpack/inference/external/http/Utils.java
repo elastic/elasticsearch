@@ -10,13 +10,18 @@ package org.elasticsearch.xpack.inference.external.http;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -28,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -42,7 +48,8 @@ public class Utils {
         var registeredSettings = Stream.of(
             HttpSettings.getSettings(),
             HttpClientManager.getSettings(),
-            HttpRequestSenderFactory.HttpRequestSender.getSettings()
+            HttpRequestSenderFactory.HttpRequestSender.getSettings(),
+            ThrottlerManager.getSettings()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
@@ -72,5 +79,19 @@ public class Utils {
         ) {
             return parser.map();
         }
+    }
+
+    public static ThreadPool createThreadPool(String name) {
+        return new TestThreadPool(
+            name,
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.inference.utility_thread_pool"
+            )
+        );
     }
 }

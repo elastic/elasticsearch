@@ -121,7 +121,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                             + "Wait for the cluster to finish upgrading and try again.",
                         serviceName
                     ),
-                    RestStatus.INTERNAL_SERVER_ERROR
+                    RestStatus.BAD_REQUEST
                 )
             );
             return;

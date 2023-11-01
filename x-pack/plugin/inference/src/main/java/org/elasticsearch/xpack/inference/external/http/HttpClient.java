@@ -17,13 +17,13 @@ import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
-import org.elasticsearch.xpack.inference.logging.ThrottledLogger;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,9 +32,6 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 public class HttpClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
-    private static final int THROTTLED_LOGS_THRESHOLD = 20;
-    private static final TimeValue THROTTLED_LOGS_WAIT_TIME = TimeValue.timeValueHours(1);
-    private static final ThrottledLogger throttledLogger = new ThrottledLogger(logger, THROTTLED_LOGS_THRESHOLD, THROTTLED_LOGS_WAIT_TIME);
 
     enum Status {
         CREATED,
@@ -46,11 +43,17 @@ public class HttpClient implements Closeable {
     private final AtomicReference<Status> status = new AtomicReference<>(Status.CREATED);
     private final ThreadPool threadPool;
     private final HttpSettings settings;
+    private final ThrottlerManager throttlerManager;
 
-    public static HttpClient create(HttpSettings settings, ThreadPool threadPool, PoolingNHttpClientConnectionManager connectionManager) {
-        CloseableHttpAsyncClient client = createAsyncClient(connectionManager);
+    public static HttpClient create(
+        HttpSettings settings,
+        ThreadPool threadPool,
+        PoolingNHttpClientConnectionManager connectionManager,
+        ThrottlerManager throttlerManager
+    ) {
+        CloseableHttpAsyncClient client = createAsyncClient(Objects.requireNonNull(connectionManager));
 
-        return new HttpClient(settings, client, threadPool);
+        return new HttpClient(settings, client, threadPool, throttlerManager);
     }
 
     private static CloseableHttpAsyncClient createAsyncClient(PoolingNHttpClientConnectionManager connectionManager) {
@@ -64,10 +67,11 @@ public class HttpClient implements Closeable {
     }
 
     // Default for testing
-    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, ThreadPool threadPool) {
-        this.settings = settings;
-        this.threadPool = threadPool;
-        this.client = asyncClient;
+    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, ThreadPool threadPool, ThrottlerManager throttlerManager) {
+        this.settings = Objects.requireNonNull(settings);
+        this.threadPool = Objects.requireNonNull(threadPool);
+        this.client = Objects.requireNonNull(asyncClient);
+        this.throttlerManager = Objects.requireNonNull(throttlerManager);
     }
 
     public void start() {
@@ -88,7 +92,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                throttledLogger.warn(format("Request [%s] failed", request.getRequestLine()), ex);
+                throttlerManager.getThrottler().warn(logger, format("Request [%s] failed", request.getRequestLine()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
@@ -104,7 +108,7 @@ public class HttpClient implements Closeable {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                throttledLogger.warn(format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                throttlerManager.getThrottler().warn(logger, format("Failed to create http result for [%s]", request.getRequestLine()), e);
                 listener.onFailure(e);
             }
         });

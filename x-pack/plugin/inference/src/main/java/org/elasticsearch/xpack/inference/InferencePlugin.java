@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestGetInferenceModelAction;
@@ -63,6 +64,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
     private final SetOnce<HttpRequestSenderFactory> httpRequestSenderFactory = new SetOnce<>();
     // We'll keep a reference to the http manager just in case the inference services don't get closed individually
     private final SetOnce<HttpClientManager> httpManager = new SetOnce<>();
+    private final SetOnce<ThrottlerManager> throttlerManager = new SetOnce<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -98,7 +100,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService()));
+        throttlerManager.set(new ThrottlerManager(settings, services.threadPool(), services.clusterService()));
+
+        httpManager.set(HttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager.get()));
         httpRequestSenderFactory.set(
             new HttpRequestSenderFactory(services.threadPool(), httpManager.get(), services.clusterService(), settings)
         );
@@ -152,7 +156,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
         return Stream.of(
             HttpSettings.getSettings(),
             HttpClientManager.getSettings(),
-            HttpRequestSenderFactory.HttpRequestSender.getSettings()
+            HttpRequestSenderFactory.HttpRequestSender.getSettings(),
+            ThrottlerManager.getSettings()
         ).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
@@ -168,7 +173,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public List<Factory> getInferenceServiceFactories() {
-        return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpRequestSenderFactory));
+        return List.of(ElserMlNodeService::new, context -> new HuggingFaceElserService(httpRequestSenderFactory, throttlerManager));
     }
 
     @Override
@@ -178,8 +183,6 @@ public class InferencePlugin extends Plugin implements ActionPlugin, InferenceSe
 
     @Override
     public void close() {
-        if (httpManager.get() != null) {
-            IOUtils.closeWhileHandlingException(httpManager.get());
-        }
+        IOUtils.closeWhileHandlingException(httpManager.get(), throttlerManager.get());
     }
 }

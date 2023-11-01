@@ -37,16 +37,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
         ValidationException validationException = new ValidationException();
 
         String parsedUrl = MapParsingUtils.removeAsType(map, URL, String.class);
-        if (parsedUrl == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(URL, ModelConfigurations.SERVICE_SETTINGS));
-        }
-
-        URI uri = null;
-        try {
-            uri = getUri(parsedUrl);
-        } catch (IllegalArgumentException ignored) {
-            validationException.addValidationError(MapParsingUtils.invalidUrlErrorMsg(parsedUrl, ModelConfigurations.SERVICE_SETTINGS));
-        }
+        URI uri = convertToUri(parsedUrl, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -55,11 +46,23 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
         return new HuggingFaceElserServiceSettings(uri);
     }
 
-    // TODO move this to a common location and potentially improve parsing errors
-    private static URI getUri(String url) throws IllegalArgumentException {
+    private static URI convertToUri(String url, ValidationException validationException) {
         if (url == null) {
+            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(URL, ModelConfigurations.SERVICE_SETTINGS));
             return null;
         }
+
+        try {
+            return createUri(url);
+        } catch (IllegalArgumentException ignored) {
+            validationException.addValidationError(MapParsingUtils.invalidUrlErrorMsg(url, ModelConfigurations.SERVICE_SETTINGS));
+            return null;
+        }
+    }
+
+    // TODO move this to a common location and potentially improve parsing errors
+    private static URI createUri(String url) throws IllegalArgumentException {
+        Objects.requireNonNull(url);
 
         try {
             return new URI(url);
@@ -74,7 +77,7 @@ public record HuggingFaceElserServiceSettings(URI uri) implements ServiceSetting
     }
 
     public HuggingFaceElserServiceSettings(String url) {
-        this(getUri(url));
+        this(createUri(url));
     }
 
     public HuggingFaceElserServiceSettings(StreamInput in) throws IOException {

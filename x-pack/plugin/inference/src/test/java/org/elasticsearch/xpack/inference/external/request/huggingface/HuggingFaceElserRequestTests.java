@@ -26,7 +26,6 @@ public class HuggingFaceElserRequestTests extends ESTestCase {
     public void testCreateRequest() throws URISyntaxException, IOException {
         var huggingFaceRequest = createRequest("www.google.com", "secret", "abc");
         var httpRequest = huggingFaceRequest.createRequest();
-        httpRequest.getAllHeaders();
 
         assertThat(httpRequest, instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest;

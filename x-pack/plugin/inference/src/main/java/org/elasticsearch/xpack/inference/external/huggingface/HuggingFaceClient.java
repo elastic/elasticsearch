@@ -12,13 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequest;
 import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
-import org.elasticsearch.xpack.inference.logging.ThrottledLogger;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
 
@@ -26,14 +25,14 @@ import static org.elasticsearch.core.Strings.format;
 
 public class HuggingFaceClient {
     private static final Logger logger = LogManager.getLogger(HuggingFaceClient.class);
-    private static final int THROTTLED_LOGS_THRESHOLD = 10;
-    private static final TimeValue THROTTLED_LOGS_WAIT_TIME = TimeValue.timeValueHours(1);
-    private static final ThrottledLogger throttledLogger = new ThrottledLogger(logger, THROTTLED_LOGS_THRESHOLD, THROTTLED_LOGS_WAIT_TIME);
+
+    private final ThrottlerManager throttlerManager;
 
     private final Sender sender;
 
-    public HuggingFaceClient(Sender sender) {
+    public HuggingFaceClient(Sender sender, ThrottlerManager throttlerManager) {
         this.sender = sender;
+        this.throttlerManager = throttlerManager;
     }
 
     public void send(HuggingFaceElserRequest request, ActionListener<InferenceResults> listener) throws IOException {
@@ -43,7 +42,7 @@ public class HuggingFaceClient {
                 listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
             } catch (Exception e) {
                 String msg = format("Failed to parse the Hugging Face ELSER response for request [%s]", httpRequest.getRequestLine());
-                throttledLogger.warn(msg, e);
+                throttlerManager.getThrottler().warn(logger, msg, e);
                 listener.onFailure(new ElasticsearchException(msg, e));
             }
         }, listener::onFailure);

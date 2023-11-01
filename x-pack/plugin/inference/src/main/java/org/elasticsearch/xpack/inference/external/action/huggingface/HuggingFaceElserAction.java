@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceAccount
 import org.elasticsearch.xpack.inference.external.huggingface.HuggingFaceClient;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequest;
 import org.elasticsearch.xpack.inference.external.request.huggingface.HuggingFaceElserRequestEntity;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
 
 public class HuggingFaceElserAction implements ExecutableAction {
@@ -25,8 +26,8 @@ public class HuggingFaceElserAction implements ExecutableAction {
     private final HuggingFaceAccount account;
     private final HuggingFaceClient client;
 
-    public HuggingFaceElserAction(Sender sender, HuggingFaceElserModel model) {
-        this.client = new HuggingFaceClient(sender);
+    public HuggingFaceElserAction(Sender sender, HuggingFaceElserModel model, ThrottlerManager throttlerManager) {
+        this.client = new HuggingFaceClient(sender, throttlerManager);
         this.account = new HuggingFaceAccount(model.getServiceSettings().uri(), model.getSecretSettings().apiKey());
     }
 

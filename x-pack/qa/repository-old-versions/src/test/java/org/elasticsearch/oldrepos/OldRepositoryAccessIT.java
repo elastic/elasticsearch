@@ -19,7 +19,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -275,9 +274,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // close indices
-        assertTrue(closeIndex(client(), "restored_" + indexName).isShardsAcknowledged());
-        assertTrue(closeIndex(client(), "mounted_full_copy_" + indexName).isShardsAcknowledged());
-        assertTrue(closeIndex(client(), "mounted_shared_cache_" + indexName).isShardsAcknowledged());
+        closeIndex(client(), "restored_" + indexName);
+        closeIndex(client(), "mounted_full_copy_" + indexName);
+        closeIndex(client(), "mounted_shared_cache_" + indexName);
 
         // restore / mount again
         restoreMountAndVerify(
@@ -511,9 +510,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         return Integer.parseInt(id.substring("testdoc".length()));
     }
 
-    static ShardsAcknowledgedResponse closeIndex(RestClient client, String index) throws IOException {
+    private static void closeIndex(RestClient client, String index) throws IOException {
         Request request = new Request("POST", "/" + index + "/_close");
-        Response response = client.performRequest(request);
-        return ShardsAcknowledgedResponse.fromXContent(responseAsParser(response));
+        ObjectPath doc = ObjectPath.createFromResponse(client.performRequest(request));
+        assertTrue(doc.evaluate("shards_acknowledged"));
     }
 }

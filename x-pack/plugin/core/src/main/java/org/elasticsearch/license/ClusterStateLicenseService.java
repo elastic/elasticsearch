@@ -250,12 +250,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                     }
                     Metadata currentMetadata = currentState.metadata();
                     LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
-                    TrialLicenseVersion trialEra = null;
+                    TrialLicenseVersion trialVersion = null;
                     if (licensesMetadata != null) {
-                        trialEra = licensesMetadata.getMostRecentTrialEra();
+                        trialVersion = licensesMetadata.getMostRecentTrialVersion();
                     }
                     Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
-                    mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialEra));
+                    mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
                     return ClusterState.builder(currentState).metadata(mdBuilder).build();
                 }
             });

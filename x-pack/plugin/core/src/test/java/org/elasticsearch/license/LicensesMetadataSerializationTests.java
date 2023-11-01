@@ -45,7 +45,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(licensesMetadataFromXContent.getLicense(), equalTo(license));
-        assertNull(licensesMetadataFromXContent.getMostRecentTrialEra());
+        assertNull(licensesMetadataFromXContent.getMostRecentTrialVersion());
     }
 
     public void testXContentSerializationOneSignedLicenseWithUsedTrial() throws Exception {
@@ -59,7 +59,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(licensesMetadataFromXContent.getLicense(), equalTo(license));
-        assertEquals(licensesMetadataFromXContent.getMostRecentTrialEra(), TrialLicenseVersion.CURRENT);
+        assertEquals(licensesMetadataFromXContent.getMostRecentTrialVersion(), TrialLicenseVersion.CURRENT);
     }
 
     public void testLicenseMetadataParsingDoesNotSwallowOtherMetadata() throws Exception {
@@ -107,7 +107,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(licensesMetadataFromXContent.getLicense(), equalTo(trialLicense));
-        assertEquals(licensesMetadataFromXContent.getMostRecentTrialEra(), TrialLicenseVersion.CURRENT);
+        assertEquals(licensesMetadataFromXContent.getMostRecentTrialVersion(), TrialLicenseVersion.CURRENT);
     }
 
     public void testLicenseTombstoneFromXContext() throws Exception {
@@ -131,7 +131,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         builder.endObject();
         LicensesMetadata metadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(metadataFromXContent.getLicense(), equalTo(LicensesMetadata.LICENSE_TOMBSTONE));
-        assertEquals(metadataFromXContent.getMostRecentTrialEra(), TrialLicenseVersion.CURRENT);
+        assertEquals(metadataFromXContent.getMostRecentTrialVersion(), TrialLicenseVersion.CURRENT);
     }
 
     private static LicensesMetadata getLicensesMetadataFromXContent(XContentParser parser) throws Exception {

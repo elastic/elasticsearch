@@ -87,8 +87,8 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
             .type(type)
             .expiryDate(expiryDate);
         License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentState.nodes());
-        TrialLicenseVersion trialEra = currentLicenseMetadata.getMostRecentTrialEra();
-        LicensesMetadata newLicenseMetadata = new LicensesMetadata(selfGeneratedLicense, trialEra);
+        TrialLicenseVersion trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
+        LicensesMetadata newLicenseMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
         mdBuilder.putCustom(LicensesMetadata.TYPE, newLicenseMetadata);
         logger.info(
             "Updating existing license to the new version.\n\nOld license:\n {}\n\n New license:\n{}",
@@ -129,7 +129,7 @@ public class StartupSelfGeneratedLicenseTask extends ClusterStateUpdateTask {
             .type(License.LicenseType.BASIC)
             .expiryDate(LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
         License selfGeneratedLicense = SelfGeneratedLicense.create(specBuilder, currentLicense.version());
-        TrialLicenseVersion trialVersion = currentLicenseMetadata.getMostRecentTrialEra();
+        TrialLicenseVersion trialVersion = currentLicenseMetadata.getMostRecentTrialVersion();
         return new LicensesMetadata(selfGeneratedLicense, trialVersion);
     }
 

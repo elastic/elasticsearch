@@ -75,7 +75,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         return trialLicenseVersion.ableToStartNewTrialSince(TrialLicenseVersion.CURRENT);
     }
 
-    TrialLicenseVersion getMostRecentTrialEra() {
+    TrialLicenseVersion getMostRecentTrialVersion() {
         return trialLicenseVersion;
     }
 

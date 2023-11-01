@@ -78,8 +78,8 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
                     return currentLicensesMetadata;
                 }
             }
-            TrialLicenseVersion trialEra = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialEra() : null;
-            updatedLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialEra);
+            TrialLicenseVersion trialVersion = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialVersion() : null;
+            updatedLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
         } else {
             updatedLicensesMetadata = currentLicensesMetadata;
         }

@@ -1,5 +1,5 @@
 pr: 101609
 summary: Add a node feature join barrier
-area: "Cluster Coordination, Infra/Core"
+area: "Cluster Coordination"
 type: feature
 issues: []

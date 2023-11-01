@@ -28,14 +28,8 @@ public class TrialLicenseVersionTests extends ESTestCase {
     }
 
     public void testRoundTripParsing() {
-        var randomEra = new TrialLicenseVersion(randomNonNegativeInt());
-        assertThat(TrialLicenseVersion.fromXContent(randomEra.toString()), equalTo(randomEra));
-    }
-
-    public void testVersionCanParseAllEras() {
-        for (int i = 2; i <= TrialLicenseVersion.CURRENT.asInt(); i++) {
-            Version.fromString(new TrialLicenseVersion(i).asVersionString());
-        }
+        var randomVersion = new TrialLicenseVersion(randomNonNegativeInt());
+        assertThat(TrialLicenseVersion.fromXContent(randomVersion.toString()), equalTo(randomVersion));
     }
 
     public void testNewTrialAllowed() {

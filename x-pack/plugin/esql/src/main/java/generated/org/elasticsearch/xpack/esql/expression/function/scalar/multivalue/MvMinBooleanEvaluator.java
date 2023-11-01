@@ -41,7 +41,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     try (ref) {
       BooleanBlock v = (BooleanBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -74,7 +74,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     try (ref) {
       BooleanBlock v = (BooleanBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           int first = v.getFirstValueIndex(p);
@@ -99,7 +99,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     try (ref) {
       BooleanBlock v = (BooleanBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -123,7 +123,7 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     try (ref) {
       BooleanBlock v = (BooleanBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (BooleanVector.FixedBuilder builder = BooleanVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (BooleanVector.FixedBuilder builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           int first = v.getFirstValueIndex(p);

@@ -41,7 +41,7 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -54,7 +54,7 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Floor.process(valVector.getDouble(p)));
       }

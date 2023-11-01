@@ -1,5 +1,5 @@
 ---
-jjbb-template: matrix-gradle-unix-disabled.yml
+jjbb-template: matrix-gradle-unix.yml
 vars:
   - job-name: elastic+elasticsearch+%BRANCH%+periodic+bwc
   - job-display-name: "elastic / elasticsearch # %BRANCH% - backwards compatibility matrix"

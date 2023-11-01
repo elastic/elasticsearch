@@ -54,7 +54,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-public abstract class FieldMapper extends Mapper implements Cloneable {
+public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
 
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting(

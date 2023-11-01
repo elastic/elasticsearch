@@ -379,10 +379,11 @@ public class TasksIT extends ESIntegTestCase {
             assertEquals(mainTask.get(0).taskId(), taskInfo.parentTaskId());
             assertTaskHeaders(taskInfo);
             switch (taskInfo.action()) {
-                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.DFS_ACTION_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
-                );
+                case SearchTransportService.QUERY_ACTION_NAME, SearchTransportService.QUERY_CAN_MATCH_NAME,
+                    SearchTransportService.DFS_ACTION_NAME -> assertTrue(
+                        taskInfo.description(),
+                        Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
+                    );
                 case SearchTransportService.QUERY_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], indices[test]", taskInfo.description())
@@ -390,10 +391,6 @@ public class TasksIT extends ESIntegTestCase {
                 case SearchTransportService.FETCH_ID_ACTION_NAME -> assertTrue(
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
-                );
-                case SearchTransportService.QUERY_CAN_MATCH_NAME -> assertTrue(
-                    taskInfo.description(),
-                    Regex.simpleMatch("shardId[[test][*]]", taskInfo.description())
                 );
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
             }
@@ -448,12 +445,6 @@ public class TasksIT extends ESIntegTestCase {
                             }
                         }
                     }
-
-                    @Override
-                    public void onTaskUnregistered(Task task) {}
-
-                    @Override
-                    public void waitForTaskCompletion(Task task) {}
                 });
             }
             // Need to run the task in a separate thread because node client's .execute() is blocked by our task listener
@@ -535,7 +526,7 @@ public class TasksIT extends ESIntegTestCase {
             )
         );
 
-        new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), UNBLOCK_TASK_ACTION).get();
+        client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();
 
         future.get();
         assertBusy(
@@ -609,12 +600,6 @@ public class TasksIT extends ESIntegTestCase {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                 ((MockTaskManager) transportService.getTaskManager()).addListener(new MockTaskManagerListener() {
                     @Override
-                    public void waitForTaskCompletion(Task task) {}
-
-                    @Override
-                    public void onTaskRegistered(Task task) {}
-
-                    @Override
                     public void onTaskUnregistered(Task task) {
                         waitForWaitingToStart.countDown();
                     }
@@ -630,7 +615,7 @@ public class TasksIT extends ESIntegTestCase {
             waitForWaitingToStart.await();
         } finally {
             // Unblock the request so the wait for completion request can finish
-            new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), UNBLOCK_TASK_ACTION).get();
+            client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();
         }
 
         // Now that the task is unblocked the list response will come back
@@ -688,7 +673,7 @@ public class TasksIT extends ESIntegTestCase {
             }
         } finally {
             // Now we can unblock those requests
-            new TestTaskPlugin.UnblockTestTasksRequestBuilder(client(), UNBLOCK_TASK_ACTION).get();
+            client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();
         }
         future.get();
     }

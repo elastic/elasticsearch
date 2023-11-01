@@ -195,7 +195,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     private static List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();

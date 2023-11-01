@@ -29,10 +29,12 @@ public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
 
     private static final Logger logger = LogManager.getLogger(NodeFakeAvailabilityZoneMapper.class);
 
+    @SuppressWarnings("this-escape")
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
         this(settings, clusterSettings, null);
     }
 
+    @SuppressWarnings("this-escape")
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         super(settings, clusterSettings, discoveryNodes);
         updateNodesByAvailabilityZone();

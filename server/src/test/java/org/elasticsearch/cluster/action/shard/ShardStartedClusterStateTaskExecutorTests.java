@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.StartedShardEntry;
@@ -408,14 +409,6 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(T t) {}
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

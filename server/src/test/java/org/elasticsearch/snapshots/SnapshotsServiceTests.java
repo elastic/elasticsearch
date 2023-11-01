@@ -8,7 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -433,7 +433,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             shardId,
             null,
             successfulShardStatus(nodeId),
-            ActionListener.running(() -> fail("should not complete publication"))
+            ActionTestUtils.assertNoFailureListener(t -> {})
         );
     }
 
@@ -443,7 +443,7 @@ public class SnapshotsServiceTests extends ESTestCase {
             null,
             shardId,
             successfulShardStatus(nodeId),
-            ActionListener.running(() -> fail("should not complete publication"))
+            ActionTestUtils.assertNoFailureListener(t -> {})
         );
     }
 

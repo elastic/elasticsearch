@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.expression.function.scalar.date.BinaryDateTimeFunction.argumentTypesAreSwapped;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isDate;
@@ -57,15 +56,7 @@ public class DateFormat extends ConfigurationFunction implements OptionalArgumen
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution;
-        if (format != null) {
-            resolution = argumentTypesAreSwapped(format.dataType(), field.dataType(), DataTypes::isString, sourceText());
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-        }
-
-        resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
+        TypeResolution resolution = isDate(field, sourceText(), format == null ? FIRST : SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }

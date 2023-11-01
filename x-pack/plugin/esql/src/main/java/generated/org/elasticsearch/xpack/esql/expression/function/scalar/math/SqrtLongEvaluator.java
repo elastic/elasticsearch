@@ -39,9 +39,6 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valBlock = (LongBlock) valRef.block();
       LongVector valVector = valBlock.asVector();
       if (valVector == null) {
@@ -52,7 +49,7 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -70,7 +67,7 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public DoubleBlock eval(int positionCount, LongVector valVector) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Sqrt.process(valVector.getLong(p)));
@@ -91,5 +88,26 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(val);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+      this.source = source;
+      this.val = val;
+    }
+
+    @Override
+    public SqrtLongEvaluator get(DriverContext context) {
+      return new SqrtLongEvaluator(source, val.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "SqrtLongEvaluator[" + "val=" + val + "]";
+    }
   }
 }

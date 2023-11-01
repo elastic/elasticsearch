@@ -694,7 +694,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 .indices()
                 .prepareCreate(indexInDatastream)
                 .setMapping(MetadataIndexTemplateService.DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING.toString())
-                .get()
         );
         leaderClient().prepareIndex(indexInDatastream)
             .setCreate(true)

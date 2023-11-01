@@ -39,19 +39,20 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
         return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendDouble(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendDouble(evalValue(vector, p));
+        } catch (Exception e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static double evalValue(BooleanVector container, int index) {
@@ -63,7 +64,7 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
   public Block evalBlock(Block b) {
     BooleanBlock block = (BooleanBlock) b;
     int positionCount = block.getPositionCount();
-    try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -96,5 +97,26 @@ public final class ToDoubleFromBooleanEvaluator extends AbstractConvertFunction.
   private static double evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToDouble.fromBoolean(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToDoubleFromBooleanEvaluator get(DriverContext context) {
+      return new ToDoubleFromBooleanEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDoubleFromBooleanEvaluator[field=" + field + "]";
+    }
   }
 }

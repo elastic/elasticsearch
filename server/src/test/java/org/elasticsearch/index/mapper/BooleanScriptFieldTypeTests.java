@@ -410,6 +410,19 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         }
     }
 
+    public void testBlockLoader() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                BooleanScriptFieldType fieldType = build("xor_param", Map.of("param", false), OnScriptError.FAIL);
+                List<Boolean> expected = List.of(false, true);
+                assertThat(blockLoaderReadValues(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromSingleDoc(reader, fieldType), equalTo(expected));
+            }
+        }
+    }
+
     private void assertSameCount(IndexSearcher searcher, String source, Object queryDescription, Query scriptedQuery, Query ootbQuery)
         throws IOException {
         assertThat(

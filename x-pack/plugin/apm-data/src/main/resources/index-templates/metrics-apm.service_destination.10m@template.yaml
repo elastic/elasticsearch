@@ -1,0 +1,29 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: [metrics-apm.service_destination.10m-*]
+priority: 140
+data_stream:
+  hidden: true
+allow_auto_create: true
+_meta:
+  description: Index template for metrics-apm.service_destination.10m-*
+  managed: true
+composed_of:
+- metrics@mappings
+- apm@mappings
+- apm@settings
+- apm-180d@lifecycle
+- metrics-apm@mappings
+- metrics-apm@settings
+- metrics-apm.service_destination@mappings
+- apm@custom
+- metrics-apm.service_destination@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- apm@custom
+- metrics-apm.service_destination@custom
+template:
+  settings:
+    index:
+      default_pipeline: apm@default-pipeline
+      final_pipeline: metrics-apm@pipeline

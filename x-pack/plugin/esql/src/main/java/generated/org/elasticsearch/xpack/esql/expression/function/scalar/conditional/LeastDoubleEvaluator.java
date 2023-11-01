@@ -38,11 +38,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
       DoubleBlock[] valuesBlocks = new DoubleBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        valuesBlocks[i] = (DoubleBlock) block;
+        valuesBlocks[i] = (DoubleBlock) valuesRefs[i].block();
       }
       DoubleVector[] valuesVectors = new DoubleVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -56,7 +52,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock[] valuesBlocks) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -77,7 +73,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleVector eval(int positionCount, DoubleVector[] valuesVectors) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       double[] valuesValues = new double[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
@@ -98,5 +94,24 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastDoubleEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastDoubleEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastDoubleEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

@@ -2506,7 +2506,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         case KEY_MAPPINGS_HASH -> {
                             assert mappingsByHash != null : "no deduplicated mappings given";
                             if (mappingsByHash.containsKey(parser.text()) == false) {
-                                throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
+                                throw new IllegalArgumentException(
+                                    "mapping of index [" + builder.index + "] with hash [" + parser.text() + "] not found"
+                                );
                             }
                             builder.putMapping(mappingsByHash.get(parser.text()));
                         }

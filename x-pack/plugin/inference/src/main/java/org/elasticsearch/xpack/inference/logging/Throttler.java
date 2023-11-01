@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -40,6 +41,7 @@ public class Throttler implements Closeable {
     private final Clock clock;
     private final ConcurrentMap<String, LogExecutor> logExecutors;
     private final AtomicReference<Scheduler.Cancellable> cancellableTask = new AtomicReference<>();
+    private final AtomicBoolean isRunning = new AtomicBoolean(true);
 
     /**
      * Constructs the throttler and kicks of a scheduled tasks to clear the internal stats.
@@ -89,7 +91,9 @@ public class Throttler implements Closeable {
         Objects.requireNonNull(message);
         Objects.requireNonNull(e);
 
-        logHelper(message, msgToAppend -> logger.warn(message.concat(msgToAppend), e));
+        if (isRunning.get()) {
+            logHelper(message, msgToAppend -> logger.warn(message.concat(msgToAppend), e));
+        }
     }
 
     private void logHelper(String message, Consumer<String> executor) {
@@ -106,12 +110,9 @@ public class Throttler implements Closeable {
 
     @Override
     public void close() {
+        isRunning.set(false);
         cancellableTask.get().cancel();
         logExecutors.clear();
-    }
-
-    public boolean isRunning() {
-        return cancellableTask.get().isCancelled() == false;
     }
 
     private static class LogExecutor {

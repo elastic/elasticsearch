@@ -208,4 +208,10 @@ public class ThrottlerTests extends ESTestCase {
             calledClearLatch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         }
     }
+
+    // TODO add test that ensures a message doesn't get logged after it is closed
+
+    public void testClose_DoesNotAllowLoggingAnyMore() {
+
+    }
 }

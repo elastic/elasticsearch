@@ -46,14 +46,8 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref newStrRef = newStr.eval(page)) {
-        if (newStrRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
@@ -69,7 +63,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock newStrBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -94,7 +88,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector,
       BytesRefVector newStrVector) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {

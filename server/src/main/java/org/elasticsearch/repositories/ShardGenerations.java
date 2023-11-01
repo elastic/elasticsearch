@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
@@ -221,11 +222,8 @@ public final class ShardGenerations {
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
             var indexIdWithSameName = indexIdsByName.put(indexId.getName(), indexId);
-            if (indexIdWithSameName != null && indexIdWithSameName.equals(indexId) == false) {
-                throw new IllegalStateException(
-                    "Unable to add: " + indexId + " There's another index id with the same name: " + indexIdWithSameName
-                );
-            }
+            assert indexIdWithSameName == null || indexIdWithSameName.equals(indexId) != false
+                : Strings.format("Unable to add: %s There's another index id with the same name: %s", indexId, indexIdWithSameName);
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
                 : "must not overwrite existing generation with null generation [" + existingGeneration + "]";

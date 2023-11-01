@@ -221,7 +221,7 @@ public class RestrictedTrustManagerTests extends ESTestCase {
                 assertNotValid(
                     trustManager,
                     cert,
-                    inFipsJvm() ? "unable to process certificates: Unable to find certificate chain." : "PKIX path building failed.*"
+                    inFipsJvm() ? "Unable to find certificate chain." : "PKIX path building failed.*"
                 );
             }
         }

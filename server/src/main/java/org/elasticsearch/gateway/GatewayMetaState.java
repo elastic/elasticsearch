@@ -525,7 +525,7 @@ public class GatewayMetaState implements Closeable {
             persistenceWriter.set(writer);
         }
 
-        protected void maybeWriteInitialState(long currentTerm, ClusterState lastAcceptedState, PersistedClusterStateService.Writer writer)
+        private void maybeWriteInitialState(long currentTerm, ClusterState lastAcceptedState, PersistedClusterStateService.Writer writer)
             throws IOException {
             try {
                 writer.writeFullStateAndCommit(currentTerm, lastAcceptedState);
@@ -555,7 +555,7 @@ public class GatewayMetaState implements Closeable {
             this.currentTerm = currentTerm;
         }
 
-        protected void writeCurrentTermToDisk(long currentTerm) {
+        private void writeCurrentTermToDisk(long currentTerm) {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
@@ -583,7 +583,7 @@ public class GatewayMetaState implements Closeable {
             lastAcceptedState = clusterState;
         }
 
-        protected void writeClusterStateToDisk(ClusterState clusterState) {
+        private void writeClusterStateToDisk(ClusterState clusterState) {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);

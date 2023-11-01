@@ -97,7 +97,7 @@ public final class Substring extends ScalarFunction implements OptionalArgument 
         return asScriptFrom(inputScript, startScript, endScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate endScript) {
+    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate endScript) {
         return new ScriptTemplate(
             format(
                 Locale.ROOT,

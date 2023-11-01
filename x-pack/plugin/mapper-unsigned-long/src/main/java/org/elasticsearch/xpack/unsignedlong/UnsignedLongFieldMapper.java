@@ -437,7 +437,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *         null, if a value represents some other number
          *         throws an exception if a value is wrongly formatted number
          */
-        protected static Long parseTerm(Object value) {
+        static Long parseTerm(Object value) {
             if (value instanceof Number) {
                 if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                     long lv = ((Number) value).longValue();
@@ -471,7 +471,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *      null, if value is higher than the maximum allowed value for unsigned long
          *      throws an exception is value represents wrongly formatted number
          */
-        protected static Long parseLowerRangeTerm(Object value, boolean include) {
+        static Long parseLowerRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
                 if (longValue < 0) return 0L; // limit lowerTerm to min value for unsigned long: 0
@@ -508,7 +508,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          *      -1 (unsigned long of 18446744073709551615) for values greater than 18446744073709551615
          *      throws an exception is value represents wrongly formatted number
          */
-        protected static Long parseUpperRangeTerm(Object value, boolean include) {
+        static Long parseUpperRangeTerm(Object value, boolean include) {
             if ((value instanceof Long) || (value instanceof Integer) || (value instanceof Short) || (value instanceof Byte)) {
                 long longValue = ((Number) value).longValue();
                 if ((longValue < 0) || (longValue == 0 && include == false)) return null; // upperTerm is below minimum

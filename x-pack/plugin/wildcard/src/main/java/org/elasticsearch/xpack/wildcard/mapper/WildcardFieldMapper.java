@@ -136,7 +136,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public final boolean incrementToken() throws IOException {
+        public boolean incrementToken() throws IOException {
             if (input.incrementToken()) {
                 normalize(termAtt.buffer(), 0, termAtt.length());
                 return true;
@@ -586,7 +586,7 @@ public class WildcardFieldMapper extends FieldMapper {
             throw new IllegalStateException("Invalid query type found parsing regex query:" + approxQuery);
         }
 
-        protected void getNgramTokens(Set<String> tokens, String fragment) {
+        private void getNgramTokens(Set<String> tokens, String fragment) {
             if (fragment.equals(TOKEN_START_STRING) || fragment.equals(TOKEN_END_STRING)) {
                 // If a regex is a form of match-all e.g. ".*" we only produce the token start/end markers as search
                 // terms which can be ignored.

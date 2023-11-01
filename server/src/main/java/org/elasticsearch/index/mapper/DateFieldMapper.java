@@ -395,11 +395,11 @@ public final class DateFieldMapper extends FieldMapper {
     }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class DateFieldType extends MappedFieldType {
-        protected final DateFormatter dateTimeFormatter;
-        protected final DateMathParser dateMathParser;
-        protected final Resolution resolution;
-        protected final String nullValue;
-        protected final FieldValues<Long> scriptValues;
+        final DateFormatter dateTimeFormatter;
+        final DateMathParser dateMathParser;
+        private final Resolution resolution;
+        private final String nullValue;
+        private final FieldValues<Long> scriptValues;
         private final boolean pointsMetadataAvailable;
 
         public DateFieldType(

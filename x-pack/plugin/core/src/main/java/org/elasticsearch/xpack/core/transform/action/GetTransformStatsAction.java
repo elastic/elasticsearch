@@ -95,11 +95,11 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this.expandedIds = List.copyOf(expandedIds);
         }
 
-        public final void setPageParams(PageParams pageParams) {
+        public void setPageParams(PageParams pageParams) {
             this.pageParams = Objects.requireNonNull(pageParams);
         }
 
-        public final PageParams getPageParams() {
+        public PageParams getPageParams() {
             return pageParams;
         }
 

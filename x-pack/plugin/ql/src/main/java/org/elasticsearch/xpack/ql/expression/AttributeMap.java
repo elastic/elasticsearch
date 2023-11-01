@@ -155,7 +155,7 @@ public final class AttributeMap<E> implements Map<Attribute, E> {
     private static final AttributeMap EMPTY = new AttributeMap<>(emptyMap());
 
     @SuppressWarnings("unchecked")
-    public static final <E> AttributeMap<E> emptyAttributeMap() {
+    public static <E> AttributeMap<E> emptyAttributeMap() {
         return EMPTY;
     }
 

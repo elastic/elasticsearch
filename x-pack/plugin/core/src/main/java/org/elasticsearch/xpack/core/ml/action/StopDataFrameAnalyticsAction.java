@@ -94,7 +94,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
             setTimeout(DEFAULT_TIMEOUT);
         }
 
-        public final Request setId(String id) {
+        public Request setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameAnalyticsConfig.ID);
             return this;
         }

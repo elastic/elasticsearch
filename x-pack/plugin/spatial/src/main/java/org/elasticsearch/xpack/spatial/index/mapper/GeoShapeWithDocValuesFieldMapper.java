@@ -144,7 +144,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         // for testing
-        protected Builder setStored(boolean stored) {
+        Builder setStored(boolean stored) {
             this.stored.setValue(stored);
             return this;
         }

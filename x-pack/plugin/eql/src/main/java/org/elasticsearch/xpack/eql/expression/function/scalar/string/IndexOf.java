@@ -102,7 +102,7 @@ public final class IndexOf extends CaseInsensitiveScalarFunction implements Opti
         return asScriptFrom(inputScript, substringScript, startScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
+    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate substringScript, ScriptTemplate startScript) {
         return new ScriptTemplate(
             format(
                 Locale.ROOT,

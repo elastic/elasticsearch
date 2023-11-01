@@ -134,7 +134,7 @@ public final class Between extends CaseInsensitiveScalarFunction implements Opti
         return asScriptFrom(inputScript, leftScript, rightScript, greedyScript);
     }
 
-    protected ScriptTemplate asScriptFrom(
+    private ScriptTemplate asScriptFrom(
         ScriptTemplate inputScript,
         ScriptTemplate leftScript,
         ScriptTemplate rightScript,

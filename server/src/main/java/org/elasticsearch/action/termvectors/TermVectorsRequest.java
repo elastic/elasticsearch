@@ -79,7 +79,7 @@ public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequ
 
     private long version = Versions.MATCH_ANY;
 
-    protected String preference;
+    private String preference;
 
     private static final AtomicInteger randomInt = new AtomicInteger(0);
 

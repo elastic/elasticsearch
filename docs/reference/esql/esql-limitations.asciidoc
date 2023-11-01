@@ -81,6 +81,28 @@ Columns with unsupported field types are returned with `null` values, with the
 exception of nested fields. Nested fields are not returned at all.
 
 [discrete]
+[[esql-limitations-text-fields]]
+=== `text` fields behave like `keyword` fields
+
+While {esql} supports <<text,`text`>> fields, {esql} does not treat these fields
+like the Search API does. {esql} queries do not query or aggregate the
+<<analysis,analyzed string>>. Instead, an {esql} query will try to get a `text`
+field's subfield of type `keyword` and query/aggregate that. If it's not
+possible to retrieve a `keyword` subfield, {esql} will get the string from a
+document's `_source`. As a result, an {esql} query on a `text` field is
+case-sensitive.
+
+Note that {esql}'s retrieval of `keyword` subfields may have unexpected
+consequences. For example, a subfield may have been mapped with a
+<<normalizer,normalizer>>, which can transform the original string. Or it may
+have been mapped with <<ignore-above>>, which can truncate the string. None of
+these mapping operations are applied to an {esql} query, which may lead to false
+positive or negatives. 
+
+To avoid these issues, a best practice is to be explicit about the field that
+you query, and query `keyword` fields instead of `text` fields.
+
+[discrete]
 [[esql-tsdb]]
 === Time series data streams are not supported
 

@@ -251,14 +251,24 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
                 return mapper.mappingLookup().sourcePaths(name);
             }
         });
-        assertThat(loader.method(), equalTo(BlockLoader.Method.CONSTANT));
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
             LuceneDocument doc = mapper.documentMapper().parse(source(b -> {})).rootDoc();
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                TestBlock block = (TestBlock) loader.constant(TestBlock.FACTORY, reader.numDocs());
+                TestBlock block = (TestBlock) loader.columnAtATimeReader(reader.leaves().get(0))
+                    .read(TestBlock.FACTORY, new BlockLoader.Docs() {
+                        @Override
+                        public int count() {
+                            return 1;
+                        }
+
+                        @Override
+                        public int get(int i) {
+                            return 0;
+                        }
+                    });
                 assertThat(block.get(0), nullValue());
             }
         }

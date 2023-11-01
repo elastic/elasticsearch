@@ -52,6 +52,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.junit.After;
 import org.junit.Before;
@@ -107,7 +108,11 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     static Operator.OperatorFactory factory(IndexReader reader, String name, BlockLoader loader) {
-        return new ValuesSourceReaderOperator.Factory(List.of(loader), List.of(reader), 0, name);
+        return new ValuesSourceReaderOperator.Factory(
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(loader))),
+            List.of(reader),
+            0
+        );
     }
 
     @Override
@@ -247,7 +252,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         loadSimpleAndAssert(driverContext, List.of(source), Block.MvOrdering.UNORDERED);
     }
 
+    private ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft) {
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), List.of(ft.blockLoader(null)));
+    }
+
     private void loadSimpleAndAssert(DriverContext driverContext, List<Page> input, Block.MvOrdering expectedMvOrdering) {
+//        Operator op = return new ValuesSourceReaderOperator.Factory(
+//            List.of()
+//        );
         List<Operator> operators = List.of(
             factory(reader, new NumberFieldMapper.NumberFieldType("key", NumberFieldMapper.NumberType.INTEGER)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
@@ -259,28 +271,9 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             factory(reader, new NumberFieldMapper.NumberFieldType("mv_long", NumberFieldMapper.NumberType.LONG)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext),
             factory(reader, new NumberFieldMapper.NumberFieldType("mv_double", NumberFieldMapper.NumberType.DOUBLE)).get(driverContext),
-            factory(reader, "constant_bytes", new BlockLoader() {
-                @Override
-                public Method method() {
-                    return Method.CONSTANT;
-                }
-
-                @Override
-                public Builder builder(BlockFactory factory, int expectedCount) {
-                    return factory.bytesRefs(expectedCount);
-                }
-
-                @Override
-                public BlockDocValuesReader readMany(LeafReaderContext context) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public Block constant(BlockFactory factory, int size) {
-                    return factory.constantBytes(new BytesRef("foo"), size);
-                }
-            }).get(driverContext)
+            factory(reader, "constant_bytes", BlockLoader.constantBytes(new BytesRef("foo"))).get(driverContext)
         );
+        // NOCOMMIT more cases - load from _source and stuff stored fields
         List<Page> results = drive(operators, input.iterator(), driverContext);
         assertThat(results, hasSize(input.size()));
         for (Page p : results) {

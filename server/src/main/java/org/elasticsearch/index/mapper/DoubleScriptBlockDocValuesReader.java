@@ -29,8 +29,7 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
             return factory.doubles(expectedCount);
         }
 
-        @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        @Override public AllReader reader(LeafReaderContext context) throws IOException {
             return new DoubleScriptBlockDocValuesReader(factory.newInstance(context));
         }
     }
@@ -47,8 +46,7 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         return docId;
     }
 
-    @Override
-    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
+    @Override public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         // Note that we don't sort the values sort, so we can't use factory.doublesFromDocValues
         try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
@@ -58,8 +56,7 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override
-    public void read(int docId, BlockLoader.Builder builder) {
+    @Override public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
         read(docId, (BlockLoader.DoubleBuilder) builder);
     }

@@ -383,11 +383,12 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         }
     }
 
-    protected final List<Object> blockLoaderReadValues(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
+    protected final List<Object> blockLoaderReadValuesFromColumnAtATimeReader(DirectoryReader reader, MappedFieldType fieldType)
+        throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.readMany(ctx).readValues(TestBlock.FACTORY, TestBlock.docs(ctx));
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.FACTORY, TestBlock.docs(ctx));
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }
@@ -395,14 +396,15 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return all;
     }
 
-    protected final List<Object> blockLoaderReadValuesFromSingleDoc(DirectoryReader reader, MappedFieldType fieldType) throws IOException {
+    protected final List<Object> blockLoaderReadValuesFromRowStrideReader(DirectoryReader reader, MappedFieldType fieldType)
+        throws IOException {
         BlockLoader loader = fieldType.blockLoader(blContext());
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            BlockDocValuesReader blockReader = loader.readMany(ctx);
+            BlockLoader.RowStrideReader blockReader = loader.rowStrideReader(ctx);
             TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, ctx.reader().numDocs());
             for (int i = 0; i < ctx.reader().numDocs(); i++) {
-                blockReader.read(i, block);
+                blockReader.read(i, null, block);
             }
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));

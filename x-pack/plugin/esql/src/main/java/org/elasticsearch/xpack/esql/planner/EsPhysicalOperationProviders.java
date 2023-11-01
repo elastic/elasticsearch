@@ -83,7 +83,14 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
             int docChannel = previousLayout.get(sourceAttr.id()).channel();
 
-            op = op.with(new ValuesSourceReaderOperator.Factory(loaders, readers, docChannel, fieldName), layout.build());
+            op = op.with(
+                new ValuesSourceReaderOperator.Factory(
+                    List.of(new ValuesSourceReaderOperator.FieldInfo(fieldName, loaders)),
+                    readers,
+                    docChannel
+                ),
+                layout.build()
+            );
         }
         return op;
     }

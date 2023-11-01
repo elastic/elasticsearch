@@ -134,10 +134,9 @@ public class ValuesSourceReaderBenchmark {
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             BlockFactory.getNonBreakingInstance(),
-            List.of(blockLoader(name)),
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name)))),
             List.of(reader),
-            0,
-            name
+            0
         );
         long sum = 0;
         for (Page page : pages) {

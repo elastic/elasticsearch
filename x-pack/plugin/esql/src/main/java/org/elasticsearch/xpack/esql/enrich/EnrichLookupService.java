@@ -258,10 +258,9 @@ public class EnrichLookupService {
                 intermediateOperators.add(
                     new ValuesSourceReaderOperator(
                         BlockFactory.getNonBreakingInstance(),
-                        loaders,
+                        List.of(new ValuesSourceReaderOperator.FieldInfo(extractField.name(), loaders)),
                         List.of(searchContext.searcher().getIndexReader()),
-                        0,
-                        extractField.name()
+                        0
                     )
                 );
             }

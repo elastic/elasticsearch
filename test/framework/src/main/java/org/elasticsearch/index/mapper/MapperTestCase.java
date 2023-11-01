@@ -28,12 +28,12 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1243,19 +1243,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testBlockLoaderReadValues() throws IOException {
-        testBlockLoader((loader, reader) -> (TestBlock) reader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
+        testBlockLoader((loader, ctx) -> {
+            BlockLoader.ColumnAtATimeReader reader = loader.columnAtATimeReader(ctx);
+            return (TestBlock) reader.read(TestBlock.FACTORY, TestBlock.docs(0));
+        });
     }
 
-    @Repeat(iterations = 1000)
-    public final void testBlockLoaderReadValuesFromSingleDoc() throws IOException {
-        testBlockLoader((loader, reader) -> {
+    public final void testBlockLoaderReadValuesFromRowStrideReader() throws IOException {
+        testBlockLoader((loader, ctx) -> {
+            BlockLoader.RowStrideReader reader = loader.rowStrideReader(ctx);
             TestBlock block = (TestBlock) loader.builder(TestBlock.FACTORY, 1);
-            reader.read(0, block);
+            reader.read(0, null, block);
             return block;
         });
     }
 
-    private void testBlockLoader(CheckedBiFunction<BlockLoader, BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
+    private void testBlockLoader(CheckedBiFunction<BlockLoader, LeafReaderContext, TestBlock, IOException> body) throws IOException {
         SyntheticSourceExample example = syntheticSourceSupport(false).example(5);
         MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("field");
@@ -1293,10 +1296,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext ctx = reader.leaves().get(0);
-                TestBlock block = switch (loader.method()) {
-                    case CONSTANT, STORED_FIELDS -> (TestBlock) loader.constant(TestBlock.FACTORY, ctx.reader().numDocs());
-                    case DOC_VALUES -> body.apply(loader, loader.readMany(ctx));
-                };
+                TestBlock block = body.apply(loader, ctx);
                 Object inBlock = block.get(0);
                 if (inBlock != null) {
                     if (inBlock instanceof List<?> l) {
@@ -1326,7 +1326,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * Matcher for {@link #testBlockLoaderReadValues} and {@link #testBlockLoaderReadValuesFromSingleDoc}.
+     * Matcher for {@link #testBlockLoaderReadValues} and {@link #testBlockLoaderReadValuesFromRowStrideReader}.
      */
     protected Matcher<?> blockItemMatcher(Object expected) {
         return equalTo(expected);

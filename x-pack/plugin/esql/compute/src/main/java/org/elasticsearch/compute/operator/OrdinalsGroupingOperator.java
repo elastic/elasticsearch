@@ -140,10 +140,7 @@ public class OrdinalsGroupingOperator implements Operator {
         final var blockLoader = blockLoaders.get(shardIndex);
         boolean pagePassed = false;
         try {
-            if (docVector.singleSegmentNonDecreasing()
-                && blockLoader.method() == BlockLoader.Method.DOC_VALUES
-                && blockLoader.supportsOrdinals()) {
-
+            if (docVector.singleSegmentNonDecreasing() && blockLoader.supportsOrdinals()) {
                 final IntVector segmentIndexVector = docVector.segments();
                 assert segmentIndexVector.isConstant();
                 final OrdinalSegmentAggregator ordinalAggregator = this.ordinalAggregators.computeIfAbsent(
@@ -480,10 +477,9 @@ public class OrdinalsGroupingOperator implements Operator {
         ) {
             this.extractor = new ValuesSourceReaderOperator(
                 BlockFactory.getNonBreakingInstance(),
-                blockLoaders,
+                List.of(new ValuesSourceReaderOperator.FieldInfo(groupingField, blockLoaders)),
                 readers,
-                docChannel,
-                groupingField
+                docChannel
             );
             this.aggregator = new HashAggregationOperator(
                 aggregatorFactories,

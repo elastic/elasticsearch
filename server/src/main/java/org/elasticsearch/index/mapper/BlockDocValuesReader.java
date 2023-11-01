@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.BlockLoader.Docs;
 import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.IntBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.Set;
@@ -33,32 +34,20 @@ import java.util.Set;
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.
  */
-public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeReader {
-    protected final Thread creationThread;
+public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
+    private final Thread creationThread;
 
     public BlockDocValuesReader() {
         this.creationThread = Thread.currentThread();
     }
 
-    /**
-     * Returns the current doc that this reader is on.
-     */
     protected abstract int docId();
-
-    /**
-     * Reads the values of the given documents specified in the input block
-     */
-    public abstract BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException;
-
-    /**
-     * Reads the values of the given document into the builder
-     */
-    public abstract void read(int docId, Builder builder) throws IOException;
 
     /**
      * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
      */
-    public boolean canReuse(int startingDocID) {
+    @Override
+    public final boolean canReuse(int startingDocID) {
         return creationThread == Thread.currentThread() && docId() <= startingDocID;
     }
 
@@ -66,23 +55,30 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
     public abstract String toString();
 
     public abstract static class DocValuesBlockLoader implements BlockLoader {
+        public abstract AllReader reader(LeafReaderContext context) throws IOException;
+
         @Override
-        public final Method method() {
-            return Method.DOC_VALUES;
+        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            return reader(context);
         }
 
         @Override
-        public boolean loadSource() {
+        public final RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+            return reader(context);
+        }
+
+        @Override
+        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
+
+        @Override
+        public boolean supportsOrdinals() {
             return false;
         }
 
         @Override
-        public Set<String> loadFields() {
-            return Set.of();
-        }
-
-        @Override
-        public final Block constant(BlockFactory factory, int size) {
+        public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
             throw new UnsupportedOperationException();
         }
     }
@@ -100,7 +96,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -118,7 +114,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
                 int lastDoc = -1;
                 for (int i = 0; i < docs.count(); i++) {
@@ -138,7 +134,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             BlockLoader.LongBuilder blockBuilder = (BlockLoader.LongBuilder) builder;
             if (numericDocValues.advanceExact(docId)) {
                 blockBuilder.appendLong(numericDocValues.longValue());
@@ -167,7 +163,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -181,7 +177,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (LongBuilder) builder);
         }
 
@@ -228,7 +224,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -246,7 +242,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
                 int lastDoc = -1;
                 for (int i = 0; i < docs.count(); i++) {
@@ -266,7 +262,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             IntBuilder blockBuilder = (IntBuilder) builder;
             if (numericDocValues.advanceExact(docId)) {
                 blockBuilder.appendInt(Math.toIntExact(numericDocValues.longValue()));
@@ -295,7 +291,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -309,7 +305,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (IntBuilder) builder);
         }
 
@@ -367,7 +363,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -388,7 +384,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
                 int lastDoc = -1;
                 for (int i = 0; i < docs.count(); i++) {
@@ -409,7 +405,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             this.docID = docId;
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
             if (docValues.advanceExact(this.docID)) {
@@ -441,7 +437,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -455,7 +451,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (DoubleBuilder) builder);
         }
 
@@ -501,7 +497,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             SortedSetDocValues docValues = ordinals(context);
             SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -529,7 +525,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -547,8 +543,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int doc, Builder builder) throws IOException {
-            if (ordinals.advanceExact(doc)) {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            if (ordinals.advanceExact(docId)) {
                 ((BytesRefBuilder) builder).appendBytesRef(ordinals.lookupOrd(ordinals.ordValue()));
             } else {
                 builder.appendNull();
@@ -574,7 +570,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BytesRefBuilder builder = factory.bytesRefsFromDocValues(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -588,12 +584,12 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int doc, Builder builder) throws IOException {
-            read(doc, (BytesRefBuilder) builder);
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            read(docId, (BytesRefBuilder) builder);
         }
 
-        private void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == ordinals.advanceExact(doc)) {
+        private void read(int docId, BytesRefBuilder builder) throws IOException {
+            if (false == ordinals.advanceExact(docId)) {
                 builder.appendNull();
                 return;
             }
@@ -633,11 +629,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
             if (docValues == null) {
-                // NOCOMMIT should we just there's got to be a constant null method?
-                return new Nulls();
+                return new ConstantNullsReader();
             }
             return new BytesRefsFromBinary(docValues);
         }
@@ -655,7 +650,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -669,7 +664,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (BytesRefBuilder) builder);
         }
 
@@ -725,7 +720,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             SortedNumericDocValues docValues = DocValues.getSortedNumeric(context.reader(), fieldName);
             NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
             if (singleton != null) {
@@ -743,7 +738,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count())) {
                 int lastDoc = -1;
                 for (int i = 0; i < docs.count(); i++) {
@@ -763,7 +758,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             BooleanBuilder blockBuilder = (BooleanBuilder) builder;
             if (numericDocValues.advanceExact(docId)) {
                 blockBuilder.appendBoolean(numericDocValues.longValue() != 0);
@@ -792,7 +787,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public BlockLoader.Block readValues(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
             try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count())) {
                 for (int i = 0; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -806,7 +801,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         }
 
         @Override
-        public void read(int docId, Builder builder) throws IOException {
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (BooleanBuilder) builder);
         }
 
@@ -838,47 +833,5 @@ public abstract class BlockDocValuesReader implements BlockLoader.DocAtATimeRead
         public String toString() {
             return "Booleans";
         }
-    }
-
-    private static class Nulls extends BlockDocValuesReader {
-        private int docID = -1;
-
-        @Override
-        public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.Builder builder = factory.nulls(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
-                    builder.appendNull();
-                }
-                return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, Builder builder) {
-            this.docID = docId;
-            builder.appendNull();
-        }
-
-        @Override
-        public int docId() {
-            return docID;
-        }
-
-        @Override
-        public String toString() {
-            return "Nulls";
-        }
-    }
-
-    /**
-     * Convert a {@link String} into a utf-8 {@link BytesRef}.
-     */
-    protected static BytesRef toBytesRef(BytesRef scratch, String v) {
-        int len = UnicodeUtil.maxUTF8Length(v.length());
-        if (scratch.bytes.length < len) {
-            scratch.bytes = new byte[len];
-        }
-        scratch.length = UnicodeUtil.UTF16toUTF8(v, 0, v.length(), scratch.bytes);
-        return scratch;
     }
 }

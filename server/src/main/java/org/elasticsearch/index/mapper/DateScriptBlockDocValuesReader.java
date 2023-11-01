@@ -30,7 +30,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
+        public AllReader reader(LeafReaderContext context) throws IOException {
             return new DateScriptBlockDocValuesReader(factory.newInstance(context));
         }
     }
@@ -48,7 +48,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block readValues(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         // Note that we don't sort the values sort, so we can't use factory.longsFromDocValues
         try (BlockLoader.LongBuilder builder = factory.longs(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
@@ -59,7 +59,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public void read(int docId, BlockLoader.Builder builder) {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
         read(docId, (BlockLoader.LongBuilder) builder);
     }

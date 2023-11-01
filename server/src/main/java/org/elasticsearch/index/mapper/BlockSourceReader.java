@@ -9,24 +9,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.search.lookup.Source;
+import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Loads values from {@code _source}. This whole process is very slow and cast-tastic,
  * so it doesn't really try to avoid megamorphic invocations. It's just going to be
  * slow.
- *
- * Note that this extends {@link BlockDocValuesReader} because it pretends to load
- * doc values because, for now, ESQL only knows how to load things in a doc values
- * order.
  */
 public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     private final ValueFetcher fetcher;
@@ -36,10 +31,8 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         this.fetcher = fetcher;
     }
 
-    protected abstract BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int count);
-
     @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+    public final void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         List<Object> values = fetcher.fetchValues(storedFields.source(), docId, ignoredValues);
         ignoredValues.clear();  // TODO do something with these?
         if (values == null) {
@@ -59,26 +52,29 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
     protected abstract void append(BlockLoader.Builder builder, Object v);
 
+    @Override
+    public boolean canReuse(int startingDocID) {
+        return true;
+    }
+
     private abstract static class SourceBlockLoader implements BlockLoader {
-        protected final StoredFieldLoader loader = StoredFieldLoader.create(true, Set.of());
-
         @Override
-        public final Method method() {
-            return Method.DOC_VALUES;
+        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+            return null;
         }
 
         @Override
-        public boolean loadSource() {
-            return true;
+        public final StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NEEDS_SOURCE;
         }
 
         @Override
-        public Set<String> loadFields() {
-            return Set.of();
+        public final boolean supportsOrdinals() {
+            return false;
         }
 
         @Override
-        public final Block constant(BlockFactory factory, int size) {
+        public final SortedSetDocValues ordinals(LeafReaderContext context) {
             throw new UnsupportedOperationException();
         }
     }
@@ -96,19 +92,14 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
-            return new Booleans(fetcher, loader.getLoader(context, null));
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new Booleans(fetcher);
         }
     }
 
     private static class Booleans extends BlockSourceReader {
-        Booleans(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
-            super(fetcher, loader);
-        }
-
-        @Override
-        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-            return factory.booleans(expectedCount);
+        Booleans(ValueFetcher fetcher) {
+            super(fetcher);
         }
 
         @Override
@@ -135,21 +126,16 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
-            return new BytesRefs(fetcher, loader.getLoader(context, null));
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new BytesRefs(fetcher);
         }
     }
 
     private static class BytesRefs extends BlockSourceReader {
         BytesRef scratch = new BytesRef();
 
-        BytesRefs(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
-            super(fetcher, loader);
-        }
-
-        @Override
-        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
+        BytesRefs(ValueFetcher fetcher) {
+            super(fetcher);
         }
 
         @Override
@@ -176,19 +162,14 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
-            return new Doubles(fetcher, loader.getLoader(context, null));
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new Doubles(fetcher);
         }
     }
 
     private static class Doubles extends BlockSourceReader {
-        Doubles(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
-            super(fetcher, loader);
-        }
-
-        @Override
-        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-            return factory.doubles(expectedCount);
+        Doubles(ValueFetcher fetcher) {
+            super(fetcher);
         }
 
         @Override
@@ -215,19 +196,14 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
-            return new Ints(fetcher, loader.getLoader(context, null));
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new Ints(fetcher);
         }
     }
 
     private static class Ints extends BlockSourceReader {
-        Ints(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
-            super(fetcher, loader);
-        }
-
-        @Override
-        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-            return factory.ints(expectedCount);
+        Ints(ValueFetcher fetcher) {
+            super(fetcher);
         }
 
         @Override
@@ -254,19 +230,14 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public BlockDocValuesReader readMany(LeafReaderContext context) throws IOException {
-            return new Longs(fetcher, loader.getLoader(context, null));
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new Longs(fetcher);
         }
     }
 
     private static class Longs extends BlockSourceReader {
-        Longs(ValueFetcher fetcher, LeafStoredFieldLoader loader) {
-            super(fetcher, loader);
-        }
-
-        @Override
-        public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-            return factory.longs(expectedCount);
+        Longs(ValueFetcher fetcher) {
+            super(fetcher);
         }
 
         @Override
@@ -278,5 +249,17 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         public String toString() {
             return "SourceLongs";
         }
+    }
+
+    /**
+     * Convert a {@link String} into a utf-8 {@link BytesRef}.
+     */
+    static BytesRef toBytesRef(BytesRef scratch, String v) {
+        int len = UnicodeUtil.maxUTF8Length(v.length());
+        if (scratch.bytes.length < len) {
+            scratch.bytes = new byte[len];
+        }
+        scratch.length = UnicodeUtil.UTF16toUTF8(v, 0, v.length(), scratch.bytes);
+        return scratch;
     }
 }

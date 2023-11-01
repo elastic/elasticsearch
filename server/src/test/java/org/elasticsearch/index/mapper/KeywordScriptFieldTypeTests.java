@@ -382,9 +382,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"), OnScriptError.FAIL);
-                assertThat(blockLoaderReadValues(reader, fieldType), equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix"))));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType), equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix"))));
                 assertThat(
-                    blockLoaderReadValuesFromSingleDoc(reader, fieldType),
+                    blockLoaderReadValuesFromRowStrideReader(reader, fieldType),
                     equalTo(List.of(new BytesRef("1-Suffix"), new BytesRef("2-Suffix")))
                 );
             }

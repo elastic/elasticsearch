@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
@@ -208,6 +209,24 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
          * Builds the block. This method can be called multiple times.
          */
         Block build();
+
+        /**
+         * Build many {@link Block}s at once, releasing any partially built blocks
+         * if any fail.
+         */
+        static Block[] buildAll(Block.Builder... builders) {
+            Block[] blocks = new Block[builders.length];
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = builders[b].build();
+                }
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+            return blocks;
+        }
     }
 
     /**

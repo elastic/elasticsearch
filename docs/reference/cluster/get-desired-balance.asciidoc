@@ -6,7 +6,12 @@
 
 NOTE: {cloud-only}
 
-Exposes the desired balance and basic metrics.
+Exposes:
+* the desired balance computation and reconciliation stats
+* balancing stats such as distribution of shards, disk and ingest forecasts
+  across nodes and data tiers (based on the current cluster state)
+* routing table with each shard current and desired location
+* cluster info with nodes disk usages
 
 [[get-desired-balance-request]]
 ==== {api-request-title}
@@ -44,6 +49,13 @@ The API returns the following result:
           "average" : 2.3333333333333335,
           "std_dev" : 0.4714045207910317
         },
+        "undesired_shard_allocation_count" : {
+          "total" : 0.0,
+          "min" : 0.0,
+          "max" : 0.0,
+          "average" : 0.0,
+          "std_dev" : 0.0
+        },
         "forecast_write_load" : {
           "total" : 21.0,
           "min" : 6.0,
@@ -72,6 +84,13 @@ The API returns the following result:
           "min" : 1.0,
           "max" : 1.0,
           "average" : 1.0,
+          "std_dev" : 0.0
+        },
+        "undesired_shard_allocation_count" : {
+          "total" : 0.0,
+          "min" : 0.0,
+          "max" : 0.0,
+          "average" : 0.0,
           "std_dev" : 0.0
         },
         "forecast_write_load" : {

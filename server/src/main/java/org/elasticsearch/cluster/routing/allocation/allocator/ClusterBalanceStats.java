@@ -106,6 +106,7 @@ public record ClusterBalanceStats(
 
     public record TierBalanceStats(
         MetricStats shardCount,
+        MetricStats undesiredShardAllocations,
         MetricStats forecastWriteLoad,
         MetricStats forecastShardSize,
         MetricStats actualShardSize
@@ -114,6 +115,7 @@ public record ClusterBalanceStats(
         private static TierBalanceStats createFrom(List<NodeBalanceStats> nodes) {
             return new TierBalanceStats(
                 MetricStats.createFrom(nodes, it -> it.shards),
+                MetricStats.createFrom(nodes, it -> it.undesiredShardAllocations),
                 MetricStats.createFrom(nodes, it -> it.forecastWriteLoad),
                 MetricStats.createFrom(nodes, it -> it.forecastShardSize),
                 MetricStats.createFrom(nodes, it -> it.actualShardSize)
@@ -123,6 +125,9 @@ public record ClusterBalanceStats(
         public static TierBalanceStats readFrom(StreamInput in) throws IOException {
             return new TierBalanceStats(
                 MetricStats.readFrom(in),
+                in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)
+                    ? MetricStats.readFrom(in)
+                    : new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                 MetricStats.readFrom(in),
                 MetricStats.readFrom(in),
                 MetricStats.readFrom(in)
@@ -132,6 +137,9 @@ public record ClusterBalanceStats(
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardCount.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)) {
+                undesiredShardAllocations.writeTo(out);
+            }
             forecastWriteLoad.writeTo(out);
             forecastShardSize.writeTo(out);
             actualShardSize.writeTo(out);
@@ -141,6 +149,7 @@ public record ClusterBalanceStats(
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                 .field("shard_count", shardCount)
+                .field("undesired_shard_allocation_count", undesiredShardAllocations)
                 .field("forecast_write_load", forecastWriteLoad)
                 .field("forecast_disk_usage", forecastShardSize)
                 .field("actual_disk_usage", actualShardSize)

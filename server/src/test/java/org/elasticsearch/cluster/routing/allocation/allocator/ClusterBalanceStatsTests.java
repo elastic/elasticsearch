@@ -77,6 +77,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         new ClusterBalanceStats.TierBalanceStats(
                             new MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
                             new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(12.0, 3.0, 5.0, 4.0, stdDev(3.0, 5.0, 4.0)),
                             new MetricStats(12.0, 3.0, 5.0, 4.0, stdDev(3.0, 5.0, 4.0))
                         )
@@ -127,6 +128,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         DATA_CONTENT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new MetricStats(6.0, 2.0, 2.0, 2.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(12.0, 3.5, 4.5, 4.0, stdDev(3.5, 4.0, 4.5)),
                             new MetricStats(36.0, 10.0, 14.0, 12.0, stdDev(10.0, 12.0, 14.0)),
                             new MetricStats(12.0, 3.0, 5.0, 4.0, stdDev(3.0, 5.0, 4.0))
@@ -191,6 +193,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         DATA_CONTENT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
                             new MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0)),
                             new MetricStats(34.0, 9.0, 15.0, 34.0 / 3, stdDev(9.0, 10.0, 15.0))
@@ -198,6 +201,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         DATA_HOT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new MetricStats(7.0, 2.0, 3.0, 7.0 / 3, stdDev(3.0, 2.0, 2.0)),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(21.0, 6.0, 8.5, 7.0, stdDev(6.0, 8.5, 6.5)),
                             new MetricStats(36.0, 10.0, 16.0, 12.0, stdDev(10.0, 10.0, 16.0)),
                             new MetricStats(34.0, 9.0, 15.0, 34.0 / 3, stdDev(9.0, 10.0, 15.0))
@@ -205,6 +209,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                         DATA_WARM_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
                             new MetricStats(3.0, 1.0, 1.0, 1.0, 0.0),
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0)),
                             new MetricStats(42.0, 12.0, 18.0, 14.0, stdDev(12.0, 12.0, 18.0))
@@ -246,6 +251,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
                     Map.of(
                         DATA_CONTENT_NODE_ROLE.roleName(),
                         new ClusterBalanceStats.TierBalanceStats(
+                            new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                             new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),

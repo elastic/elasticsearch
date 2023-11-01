@@ -215,3 +215,9 @@ setup:
   - gte: { 'cluster_balance_stats.shard_count' : 0 }
   - gte: { 'cluster_balance_stats.undesired_shard_allocation_count' : 0 }
   - gte: { 'cluster_balance_stats.nodes.$node_name.undesired_shard_allocation_count' : 0 }
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.total'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.min'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.max'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.average'
+  - exists: 'cluster_balance_stats.tiers.data_content.undesired_shard_allocation_count.std_dev'

@@ -83,11 +83,16 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
 
     private ClusterBalanceStats.TierBalanceStats randomTierBalanceStats() {
         return new ClusterBalanceStats.TierBalanceStats(
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble()),
-            new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble())
+            randomMetricStats(),
+            randomMetricStats(),
+            randomMetricStats(),
+            randomMetricStats(),
+            randomMetricStats()
         );
+    }
+
+    private ClusterBalanceStats.MetricStats randomMetricStats() {
+        return new ClusterBalanceStats.MetricStats(randomDouble(), randomDouble(), randomDouble(), randomDouble(), randomDouble());
     }
 
     private ClusterBalanceStats.NodeBalanceStats randomNodeBalanceStats() {
@@ -220,7 +225,13 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             Map<String, Object> tierStats = (Map<String, Object>) tiers.get(entry.getKey());
             assertThat(
                 tierStats.keySet(),
-                containsInAnyOrder("shard_count", "forecast_write_load", "forecast_disk_usage", "actual_disk_usage")
+                containsInAnyOrder(
+                    "shard_count",
+                    "undesired_shard_allocation_count",
+                    "forecast_write_load",
+                    "forecast_disk_usage",
+                    "actual_disk_usage"
+                )
             );
 
             Map<String, Object> shardCountStats = (Map<String, Object>) tierStats.get("shard_count");
@@ -230,6 +241,16 @@ public class DesiredBalanceResponseTests extends AbstractWireSerializingTestCase
             assertEquals(shardCountStats.get("min"), entry.getValue().shardCount().min());
             assertEquals(shardCountStats.get("max"), entry.getValue().shardCount().max());
             assertEquals(shardCountStats.get("std_dev"), entry.getValue().shardCount().stdDev());
+
+            Map<String, Object> undesiredShardAllocationCountStats = (Map<String, Object>) tierStats.get(
+                "undesired_shard_allocation_count"
+            );
+            assertThat(undesiredShardAllocationCountStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));
+            assertEquals(undesiredShardAllocationCountStats.get("total"), entry.getValue().undesiredShardAllocations().total());
+            assertEquals(undesiredShardAllocationCountStats.get("average"), entry.getValue().undesiredShardAllocations().average());
+            assertEquals(undesiredShardAllocationCountStats.get("min"), entry.getValue().undesiredShardAllocations().min());
+            assertEquals(undesiredShardAllocationCountStats.get("max"), entry.getValue().undesiredShardAllocations().max());
+            assertEquals(undesiredShardAllocationCountStats.get("std_dev"), entry.getValue().undesiredShardAllocations().stdDev());
 
             Map<String, Object> forecastWriteLoadStats = (Map<String, Object>) tierStats.get("forecast_write_load");
             assertThat(forecastWriteLoadStats.keySet(), containsInAnyOrder("total", "average", "min", "max", "std_dev"));

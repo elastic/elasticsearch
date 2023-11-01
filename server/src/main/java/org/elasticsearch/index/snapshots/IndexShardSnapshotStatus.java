@@ -10,12 +10,14 @@ package org.elasticsearch.index.snapshots;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
+import org.elasticsearch.snapshots.PausedSnapshotException;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +52,14 @@ public class IndexShardSnapshotStatus {
          * Snapshot failed
          */
         FAILURE,
+        /**
+         * Snapshot pausing because of node removal
+         */
+        PAUSING,
+        /**
+         * Snapshot paused because of node removal
+         */
+        PAUSED,
         /**
          * Snapshot aborted
          */
@@ -137,6 +147,7 @@ public class IndexShardSnapshotStatus {
                 yield asCopy();
             }
             case ABORTED -> throw new AbortedSnapshotException();
+            case PAUSING -> throw new PausedSnapshotException();
             default -> {
                 final var message = Strings.format(
                     "Unable to move the shard snapshot status to [FINALIZE]: expecting [STARTED] but got [%s]",
@@ -167,8 +178,21 @@ public class IndexShardSnapshotStatus {
         abortListeners.addListener(listener);
     }
 
-    public synchronized void abortIfNotCompleted(final String failure, Consumer<ActionListener<Releasable>> notifyRunner) {
-        if (stage.compareAndSet(Stage.INIT, Stage.ABORTED) || stage.compareAndSet(Stage.STARTED, Stage.ABORTED)) {
+    public void abortIfNotCompleted(final String failure, Consumer<ActionListener<Releasable>> notifyRunner) {
+        abortAndMoveToStageIfNotCompleted(Stage.ABORTED, failure, notifyRunner);
+    }
+
+    public void pauseIfNotCompleted(Consumer<ActionListener<Releasable>> notifyRunner) {
+        abortAndMoveToStageIfNotCompleted(Stage.PAUSING, "paused for removal of node holding primary", notifyRunner);
+    }
+
+    private synchronized void abortAndMoveToStageIfNotCompleted(
+        final Stage newStage,
+        final String failure,
+        final Consumer<ActionListener<Releasable>> notifyRunner
+    ) {
+        assert newStage == Stage.ABORTED || newStage == Stage.PAUSING : newStage;
+        if (stage.compareAndSet(Stage.INIT, newStage) || stage.compareAndSet(Stage.STARTED, newStage)) {
             this.failure = failure;
             notifyRunner.accept(abortListeners.map(r -> {
                 Releasables.closeExpectNoException(r);
@@ -177,7 +201,28 @@ public class IndexShardSnapshotStatus {
         }
     }
 
+    public synchronized SnapshotsInProgress.ShardState moveToUnsuccessful(final Stage newStage, final String failure, final long endTime) {
+        assert newStage == Stage.PAUSED || newStage == Stage.FAILURE : newStage;
+        if (newStage == Stage.PAUSED && stage.compareAndSet(Stage.PAUSING, Stage.PAUSED)) {
+            abortListeners.onResponse(AbortStatus.NO_ABORT);
+            this.totalTime = Math.max(0L, endTime - startTime);
+            this.failure = failure;
+            return SnapshotsInProgress.ShardState.WAITING;
+        }
+
+        moveToFailed(endTime, failure);
+        return SnapshotsInProgress.ShardState.FAILED;
+    }
+
     public synchronized void moveToFailed(final long endTime, final String failure) {
+        if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
+            abortListeners.onResponse(AbortStatus.NO_ABORT);
+            this.totalTime = Math.max(0L, endTime - startTime);
+            this.failure = failure;
+        }
+    }
+
+    private synchronized void moveToPaused(final long endTime) {
         if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
             abortListeners.onResponse(AbortStatus.NO_ABORT);
             this.totalTime = Math.max(0L, endTime - startTime);
@@ -195,9 +240,14 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        if (stage.get() == Stage.ABORTED) {
-            throw new AbortedSnapshotException();
+        switch (stage.get()) {
+            case ABORTED -> throw new AbortedSnapshotException();
+            case PAUSING -> throw new PausedSnapshotException();
         }
+    }
+
+    public boolean isPaused() {
+        return stage.get() == Stage.PAUSED;
     }
 
     /**

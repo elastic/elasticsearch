@@ -9,12 +9,15 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -414,9 +417,27 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 null,
                 IndexVersion.current()
             )
-        );
+        )
+            .withUpdatedNodeIdsForRemoval(
+                ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
+                    b -> b.putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                "node-id",
+                                SingleNodeShutdownMetadata.builder()
+                                    .setNodeId("node-id")
+                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setReason("test")
+                                    .build()
+                            )
+                        )
+                    )
+                )
+            );
 
-        AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 2));
+        AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 5));
         final var json = Strings.toString(sip, false, true);
         assertThat(
             json,
@@ -467,7 +488,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                           "feature_states": [],
                           "data_streams": []
                         }
-                      ]
+                      ],
+                      "node_ids_for_removal":["node-id"]
                     }""")),
                 // or the shards might be in the other order:
                 equalTo(XContentHelper.stripWhitespace("""
@@ -516,7 +538,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                           "feature_states": [],
                           "data_streams": []
                         }
-                      ]
+                      ],
+                      "node_ids_for_removal":["node-id"]
                     }"""))
             )
         );

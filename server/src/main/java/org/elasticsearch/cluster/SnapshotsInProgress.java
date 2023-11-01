@@ -11,6 +11,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState.Custom;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -39,6 +42,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -48,12 +52,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED;
+
 /**
  * Meta data about snapshots that are currently executing
  */
 public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
-    public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of());
+    public static final SnapshotsInProgress EMPTY = new SnapshotsInProgress(Map.of(), Set.of());
 
     public static final String TYPE = "snapshots";
 
@@ -62,12 +68,30 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     // keyed by repository name
     private final Map<String, ByRepo> entries;
 
+    /**
+     * IDs of nodes which are marked for removal, or which were previously marked for removal and still have running shard snapshots.
+     */
+    // When a node is marked for removal it pauses all its shard snapshots as promptly as possible. When each shard snapshot pauses it goes
+    // back to state WAITING to allow the shard to move to a different node where its snapshot can resume. However, if the removal marker is
+    // deleted before the node shuts down then we need to make sure to resume the snapshots of any remaining shards, which we do by moving
+    // all those WAITING shards back to state INIT. The problem is that the data node needs to be able to distinguish an INIT shard whose
+    // snapshot was successfully paused and now needs to be resumed from an INIT shard whose move to state WAITING has not yet been
+    // processed on the master: the latter kind of shard will move back to state WAITING in a subsequent update and so shouldn't be resumed.
+    // The solution is to avoid moving any shards back to state INIT while the node appears in this set.
+    private final Set<String> nodesIdsForRemoval;
+
     public static SnapshotsInProgress get(ClusterState state) {
         return state.custom(TYPE, EMPTY);
     }
 
     public SnapshotsInProgress(StreamInput in) throws IOException {
-        this(collectByRepo(in));
+        this(collectByRepo(in), readNodeIdsForRemoval(in));
+    }
+
+    private static Set<String> readNodeIdsForRemoval(StreamInput in) throws IOException {
+        return in.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)
+            ? in.readCollectionAsImmutableSet(StreamInput::readString)
+            : Set.of();
     }
 
     private static Map<String, ByRepo> collectByRepo(StreamInput in) throws IOException {
@@ -87,8 +111,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return res;
     }
 
-    private SnapshotsInProgress(Map<String, ByRepo> entries) {
+    private SnapshotsInProgress(Map<String, ByRepo> entries, Set<String> nodesIdsForRemoval) {
         this.entries = Map.copyOf(entries);
+        this.nodesIdsForRemoval = nodesIdsForRemoval;
         assert assertConsistentEntries(this.entries);
     }
 
@@ -105,7 +130,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         } else {
             copy.put(repository, new ByRepo(updatedEntries));
         }
-        return new SnapshotsInProgress(copy);
+        return new SnapshotsInProgress(copy, nodesIdsForRemoval);
     }
 
     public SnapshotsInProgress withAddedEntry(Entry entry) {
@@ -217,14 +242,22 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         while (iterator.hasNext()) {
             iterator.next().writeTo(out);
         }
+        if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
+            out.writeStringCollection(nodesIdsForRemoval);
+        } else {
+            assert nodesIdsForRemoval.isEmpty() : nodesIdsForRemoval;
+        }
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.<ToXContent>concat(
-            Iterators.single((builder, params) -> builder.startArray("snapshots")),
+        return Iterators.concat(
+            ChunkedToXContentHelper.startArray("snapshots"),
             asStream().iterator(),
-            Iterators.single((builder, params) -> builder.endArray())
+            ChunkedToXContentHelper.endArray(),
+            ChunkedToXContentHelper.startArray("node_ids_for_removal"),
+            Iterators.map(nodesIdsForRemoval.iterator(), s -> (builder, params) -> builder.value(s)),
+            ChunkedToXContentHelper.endArray()
         );
     }
 
@@ -232,7 +265,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return entries.equals(((SnapshotsInProgress) o).entries);
+        final var other = (SnapshotsInProgress) o;
+        return nodesIdsForRemoval.equals(other.nodesIdsForRemoval) && entries.equals(other.entries);
     }
 
     @Override
@@ -326,6 +360,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return true;
     }
 
+    public boolean isNodeIdForRemoval(String nodeId) {
+        return nodeId != null && nodesIdsForRemoval.contains(nodeId);
+    }
+
     private static boolean hasFailures(Map<RepositoryShardId, ShardSnapshotStatus> clones) {
         for (ShardSnapshotStatus value : clones.values()) {
             if (value.state().failed()) {
@@ -378,6 +416,74 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             queuedShards.add(Tuple.tuple(indexName, shardId));
         }
         return true;
+    }
+
+    /**
+     * Adds any new node IDs to {@link #nodesIdsForRemoval}, and removes any node IDs that are no longer marked for shutdown if they have no
+     * running shard snapshots.
+     */
+    public SnapshotsInProgress withUpdatedNodeIdsForRemoval(ClusterState clusterState) {
+        final var updatedNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
+
+        final var nodeIdsMarkedForRemoval = getNodesIdsMarkedForRemoval(clusterState);
+
+        // add any nodes newly marked for removal
+        updatedNodeIdsForRemoval.addAll(nodeIdsMarkedForRemoval);
+
+        // remove any nodes which are no longer marked for shutdown if they have no running shard snapshots
+        updatedNodeIdsForRemoval.removeAll(getObsoleteNodeIdsForRemoval(nodeIdsMarkedForRemoval));
+
+        if (updatedNodeIdsForRemoval.equals(nodesIdsForRemoval)) {
+            return this;
+        } else {
+            return new SnapshotsInProgress(entries, Collections.unmodifiableSet(updatedNodeIdsForRemoval));
+        }
+    }
+
+    private static Set<String> getNodesIdsMarkedForRemoval(ClusterState clusterState) {
+        final var nodesShutdownMetadata = clusterState.metadata().nodeShutdowns();
+        final var shutdownMetadataCount = nodesShutdownMetadata.getAllNodeIds().size();
+        if (shutdownMetadataCount == 0) {
+            return Set.of();
+        }
+
+        final Set<String> result = Sets.newHashSetWithExpectedSize(shutdownMetadataCount);
+        for (final var entry : nodesShutdownMetadata.getAll().entrySet()) {
+            if (entry.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+                // Only pause the snapshot when the node is being removed (to let shards vacate) and not when it is restarting in place. If
+                // it is restarting and there are replicas to promote then we need #71333 to move the shard snapshot over; if there are no
+                // replicas then we do not expect the restart to be graceful so a PARTIAL or FAILED snapshot is ok.
+                result.add(entry.getKey());
+            }
+        }
+        return result;
+    }
+
+    private Set<String> getObsoleteNodeIdsForRemoval(Set<String> nodeIdsMarkedForRemoval) {
+        final var obsoleteNodeIdsForRemoval = new HashSet<>(nodesIdsForRemoval);
+        obsoleteNodeIdsForRemoval.removeIf(nodeIdsMarkedForRemoval::contains);
+        if (obsoleteNodeIdsForRemoval.isEmpty()) {
+            return Set.of();
+        }
+        for (final var byRepo : entries.values()) {
+            for (final var entry : byRepo.entries()) {
+                if (entry.state() == State.STARTED && entry.hasShardsInInitState()) {
+                    for (final var shardSnapshotStatus : entry.shards().values()) {
+                        if (shardSnapshotStatus.state() == ShardState.INIT) {
+                            obsoleteNodeIdsForRemoval.remove(shardSnapshotStatus.nodeId());
+                            if (obsoleteNodeIdsForRemoval.isEmpty()) {
+                                return Set.of();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return obsoleteNodeIdsForRemoval;
+    }
+
+    public boolean nodeIdsForRemovalChanged(SnapshotsInProgress other) {
+        return nodesIdsForRemoval.equals(other.nodesIdsForRemoval) == false;
     }
 
     public enum ShardState {
@@ -1589,9 +1695,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final SnapshotsInProgress after;
 
         private final DiffableUtils.MapDiff<String, ByRepo, Map<String, ByRepo>> mapDiff;
+        private final Set<String> nodeIdsMarkedForRemoval;
 
         SnapshotInProgressDiff(SnapshotsInProgress before, SnapshotsInProgress after) {
             this.mapDiff = DiffableUtils.diff(before.entries, after.entries, DiffableUtils.getStringKeySerializer());
+            this.nodeIdsMarkedForRemoval = after.nodesIdsForRemoval;
             this.after = after;
         }
 
@@ -1605,12 +1713,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                     DiffableUtils.readJdkMapDiff(i, DiffableUtils.getStringKeySerializer(), ByRepo.INT_DIFF_VALUE_SERIALIZER)
                 )
             );
+            this.nodeIdsMarkedForRemoval = readNodeIdsForRemoval(in);
             this.after = null;
         }
 
         @Override
         public SnapshotsInProgress apply(Custom part) {
-            return new SnapshotsInProgress(mapDiff.apply(((SnapshotsInProgress) part).entries));
+            final var snapshotsInProgress = (SnapshotsInProgress) part;
+            return new SnapshotsInProgress(mapDiff.apply(snapshotsInProgress.entries), this.nodeIdsMarkedForRemoval);
         }
 
         @Override
@@ -1630,6 +1740,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 mapDiff.writeTo(out);
             } else {
                 new SimpleDiffable.CompleteDiff<>(after).writeTo(out);
+            }
+            if (out.getTransportVersion().onOrAfter(SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED)) {
+                out.writeStringCollection(nodeIdsMarkedForRemoval);
+            } else {
+                assert nodeIdsMarkedForRemoval.isEmpty() : nodeIdsMarkedForRemoval;
             }
         }
     }

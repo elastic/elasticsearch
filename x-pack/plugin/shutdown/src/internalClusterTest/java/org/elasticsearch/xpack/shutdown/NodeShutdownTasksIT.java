@@ -160,7 +160,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
     }
 
-    public static class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
+    public static final class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
 
         private final PersistentTasksService persistentTasksService;
 

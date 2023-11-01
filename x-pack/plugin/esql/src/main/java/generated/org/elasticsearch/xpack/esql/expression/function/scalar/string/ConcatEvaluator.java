@@ -58,7 +58,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock[] valuesBlocks) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef[] valuesValues = new BytesRef[values.length];
       BytesRef[] valuesScratch = new BytesRef[values.length];
       for (int i = 0; i < values.length; i++) {
@@ -83,7 +83,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BytesRefVector eval(int positionCount, BytesRefVector[] valuesVectors) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef[] valuesValues = new BytesRef[values.length];
       BytesRef[] valuesScratch = new BytesRef[values.length];
       for (int i = 0; i < values.length; i++) {

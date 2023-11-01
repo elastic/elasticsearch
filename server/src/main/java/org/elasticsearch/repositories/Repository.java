@@ -208,7 +208,7 @@ public interface Repository extends LifecycleComponent {
      * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
-     * {@link SnapshotShardContext#status()} and check its {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process
+     * {@link SnapshotShardContext#status()} and call {@link IndexShardSnapshotStatus#ensureNotAborted()} to see if the snapshot process
      * should be aborted.
      *
      * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or

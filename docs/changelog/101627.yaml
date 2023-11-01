@@ -1,0 +1,5 @@
+pr: 101627
+summary: Ignore `IndexNotFound` error when refreshing destination index
+area: Transform
+type: bug
+issues: []

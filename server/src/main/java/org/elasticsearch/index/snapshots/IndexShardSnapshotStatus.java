@@ -119,9 +119,8 @@ public class IndexShardSnapshotStatus {
             this.totalFileCount = totalFileCount;
             this.incrementalSize = incrementalSize;
             this.totalSize = totalSize;
-        } else if (isAborted()) {
-            throw new AbortedSnapshotException();
         } else {
+            ensureNotAborted();
             assert false : "Should not try to move stage [" + stage.get() + "] to [STARTED]";
             throw new IllegalStateException(
                 "Unable to move the shard snapshot status to [STARTED]: " + "expecting [INIT] but got [" + stage.get() + "]"
@@ -195,12 +194,8 @@ public class IndexShardSnapshotStatus {
         return shardSnapshotResult.get();
     }
 
-    public boolean isAborted() {
-        return stage.get() == Stage.ABORTED;
-    }
-
     public void ensureNotAborted() {
-        if (isAborted()) {
+        if (stage.get() == Stage.ABORTED) {
             throw new AbortedSnapshotException();
         }
     }

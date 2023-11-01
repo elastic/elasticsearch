@@ -49,7 +49,7 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public DoubleBlock eval(int positionCount, LongBlock valBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -67,7 +67,7 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public DoubleBlock eval(int positionCount, LongVector valVector) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendDouble(Sqrt.process(valVector.getLong(p)));

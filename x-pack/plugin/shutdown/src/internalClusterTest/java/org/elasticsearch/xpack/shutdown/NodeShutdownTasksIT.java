@@ -160,11 +160,10 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
     }
 
-    public static class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
+    public static final class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
 
         private final PersistentTasksService persistentTasksService;
 
-        @SuppressWarnings("this-escape")
         protected TaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
             super("task_name", ThreadPool.Names.GENERIC);
             persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);

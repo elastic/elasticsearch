@@ -243,7 +243,7 @@ public class MetadataCreateDataStreamService {
         IndexMetadata failureStoreIndex = null;
         if (template.getDataStreamTemplate().hasFailureStore()) {
             if (isSystem) {
-                throw new IllegalArgumentException("Failure stores are not supported on system indices");
+                throw new IllegalArgumentException("Failure stores are not supported on system data streams");
             }
             String failureStoreIndexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, request.getStartTime());
             currentState = createFailureStoreIndex(

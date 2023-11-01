@@ -209,9 +209,21 @@ public class ThrottlerTests extends ESTestCase {
         }
     }
 
-    // TODO add test that ensures a message doesn't get logged after it is closed
-
     public void testClose_DoesNotAllowLoggingAnyMore() {
+        var logger = mock(Logger.class);
 
+        var clock = mock(Clock.class);
+
+        var throttled = new Throttler(
+            TimeValue.timeValueDays(1),
+            TimeValue.timeValueSeconds(10),
+            clock,
+            threadPool,
+            new ConcurrentHashMap<>()
+        );
+
+        throttled.close();
+        throttled.warn(logger, "test", new IllegalArgumentException("failed"));
+        verifyNoMoreInteractions(logger);
     }
 }

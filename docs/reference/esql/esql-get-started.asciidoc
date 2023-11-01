@@ -7,6 +7,11 @@
 
 This guide shows you can use {esql} to query and aggregate your data.
 
+TIP: To get started with {esql} without setting up your own deployment, visit
+the public {esql} demo environment at
+https://esql.demo.elastic.co/[esql.demo.elastic.co]. It comes with preloaded
+data sets and sample queries.
+
 [discrete]
 [[esql-getting-started-prerequisites]]
 === Prerequisites

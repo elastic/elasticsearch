@@ -34,10 +34,12 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
 
     private volatile List<String> awarenessAttributes;
 
+    @SuppressWarnings("this-escape")
     public NodeRealAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
         this(settings, clusterSettings, null);
     }
 
+    @SuppressWarnings("this-escape")
     public NodeRealAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         super(settings, clusterSettings, discoveryNodes);
         awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);

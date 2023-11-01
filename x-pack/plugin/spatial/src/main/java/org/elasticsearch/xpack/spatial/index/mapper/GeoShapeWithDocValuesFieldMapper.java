@@ -125,6 +125,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         private final IndexVersion version;
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
 
+        @SuppressWarnings("this-escape")
         public Builder(
             String name,
             IndexVersion version,

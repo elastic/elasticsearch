@@ -49,15 +49,15 @@ column for each enrich field defined in the policy. The match is performed using
 the `match_field` defined in the <<esql-enrich-policy,enrich policy>> and
 requires that the input table has a column with the same name (`language_code`
 in this example). `ENRICH` will look for records in the
-<<esql-enrich-index,enrich index>> based on the match field value. 
+<<esql-enrich-index,enrich index>> based on the match field value.
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich-result]
 |===
 
 To use a column with a different name than the `match_field` defined in the
@@ -65,35 +65,35 @@ policy as the match field, use `ON <column-name>`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_on]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_on-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on-result]
 |===
 
 By default, each of the enrich fields defined in the policy is added as a
-column. To explicitly select the enrich fields that are added, use 
+column. To explicitly select the enrich fields that are added, use
 `WITH <field1>, <field2>...`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_with]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_with]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_with-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_with-result]
 |===
 
 You can rename the columns that are added using `WITH new_name=<field1>`:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_rename]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_rename]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/docs-ignoreCsvTests.csv-spec[tag=enrich_rename-result]
+include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_rename-result]
 |===
 
 In case of name collisions, the newly created columns will override existing

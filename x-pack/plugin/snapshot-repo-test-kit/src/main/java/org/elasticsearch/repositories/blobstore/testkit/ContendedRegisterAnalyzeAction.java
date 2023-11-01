@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
@@ -25,7 +24,6 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ByteUtils;
@@ -41,158 +39,145 @@ import org.elasticsearch.transport.TransportService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 
 /**
  * An action which atomically increments a register using {@link BlobContainer#compareAndExchangeRegister}. There will be multiple parties
  * accessing the register concurrently in order to test behaviour under contention.
  */
-public class ContendedRegisterAnalyzeAction extends ActionType<ActionResponse.Empty> {
+class ContendedRegisterAnalyzeAction extends HandledTransportAction<ContendedRegisterAnalyzeAction.Request, ActionResponse.Empty> {
 
     private static final Logger logger = LogManager.getLogger(ContendedRegisterAnalyzeAction.class);
 
-    public static final ContendedRegisterAnalyzeAction INSTANCE = new ContendedRegisterAnalyzeAction();
-    public static final String NAME = "cluster:admin/repository/analyze/register";
+    static final String NAME = "cluster:admin/repository/analyze/register";
 
-    private ContendedRegisterAnalyzeAction() {
-        super(NAME, in -> ActionResponse.Empty.INSTANCE);
+    private final RepositoriesService repositoriesService;
+    private final Executor executor;
+
+    ContendedRegisterAnalyzeAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RepositoriesService repositoriesService
+    ) {
+        super(NAME, transportService, actionFilters, Request::new, transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT));
+        this.repositoriesService = repositoriesService;
+        this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT);
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, ActionResponse.Empty> {
-
-        private static final Logger logger = ContendedRegisterAnalyzeAction.logger;
-
-        private final RepositoriesService repositoriesService;
-        private final ExecutorService executor;
-
-        @Inject
-        public TransportAction(TransportService transportService, ActionFilters actionFilters, RepositoriesService repositoriesService) {
-            super(
-                NAME,
-                transportService,
-                actionFilters,
-                Request::new,
-                transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT)
-            );
-            this.repositoriesService = repositoriesService;
-            this.executor = transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT);
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> outerListenerOld) {
+        final var outerListener = ActionListener.assertOnce(outerListenerOld);
+        final Repository repository = repositoriesService.repository(request.getRepositoryName());
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
         }
+        if (repository.isReadOnly()) {
+            throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
+        }
+        final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        final BlobPath path = blobStoreRepository.basePath().add(request.getContainerPath());
+        final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
-        @Override
-        protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> outerListenerOld) {
-            final var outerListener = ActionListener.assertOnce(outerListenerOld);
-            final Repository repository = repositoriesService.repository(request.getRepositoryName());
-            if (repository instanceof BlobStoreRepository == false) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
-            }
-            if (repository.isReadOnly()) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
-            }
-            final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final BlobPath path = blobStoreRepository.basePath().add(request.getContainerPath());
-            final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
+        logger.trace("handling [{}]", request);
 
-            logger.trace("handling [{}]", request);
+        assert task instanceof CancellableTask;
 
-            assert task instanceof CancellableTask;
+        final String registerName = request.getRegisterName();
+        final ActionListener<OptionalBytesReference> initialValueListener = new ActionListener<>() {
+            @Override
+            public void onResponse(OptionalBytesReference maybeInitialBytes) {
+                final long initialValue = maybeInitialBytes.isPresent() ? longFromBytes(maybeInitialBytes.bytesReference()) : 0L;
 
-            final String registerName = request.getRegisterName();
-            final ActionListener<OptionalBytesReference> initialValueListener = new ActionListener<>() {
-                @Override
-                public void onResponse(OptionalBytesReference maybeInitialBytes) {
-                    final long initialValue = maybeInitialBytes.isPresent() ? longFromBytes(maybeInitialBytes.bytesReference()) : 0L;
-
-                    ActionListener.run(outerListener.<Void>map(ignored -> ActionResponse.Empty.INSTANCE), l -> {
-                        if (initialValue < 0 || initialValue >= request.getRequestCount()) {
-                            throw new IllegalStateException("register holds unexpected value [" + initialValue + "]");
-                        }
-
-                        class Execution extends ActionRunnable<Void> {
-                            private long currentValue;
-
-                            private final ActionListener<OptionalBytesReference> witnessListener;
-
-                            Execution(long currentValue) {
-                                super(l);
-                                this.currentValue = currentValue;
-                                this.witnessListener = listener.delegateFailure(this::handleWitness);
-                            }
-
-                            @Override
-                            protected void doRun() {
-                                if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
-                                    blobContainer.compareAndExchangeRegister(
-                                        OperationPurpose.REPOSITORY_ANALYSIS,
-                                        registerName,
-                                        bytesFromLong(currentValue),
-                                        bytesFromLong(currentValue + 1L),
-                                        witnessListener
-                                    );
-                                }
-                            }
-
-                            private void handleWitness(ActionListener<Void> delegate, OptionalBytesReference witnessOrEmpty) {
-                                if (witnessOrEmpty.isPresent() == false) {
-                                    // Concurrent activity prevented us from updating the value, or even reading the concurrently-updated
-                                    // result, so we must just try again.
-                                    executor.execute(Execution.this);
-                                    return;
-                                }
-
-                                final long witness = longFromBytes(witnessOrEmpty.bytesReference());
-                                if (witness == currentValue) {
-                                    delegate.onResponse(null);
-                                } else if (witness < currentValue || witness >= request.getRequestCount()) {
-                                    delegate.onFailure(new IllegalStateException("register holds unexpected value [" + witness + "]"));
-                                } else {
-                                    currentValue = witness;
-                                    executor.execute(Execution.this);
-                                }
-                            }
-
-                        }
-
-                        new Execution(initialValue).run();
-
-                    });
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof UnsupportedOperationException) {
-                        // Registers are not supported on all repository types, and that's ok. If it's not supported here then the final
-                        // check will also be unsupported, so it doesn't matter that we didn't do anything before this successful response.
-                        outerListener.onResponse(ActionResponse.Empty.INSTANCE);
-                    } else {
-                        outerListener.onFailure(e);
+                ActionListener.run(outerListener.<Void>map(ignored -> ActionResponse.Empty.INSTANCE), l -> {
+                    if (initialValue < 0 || initialValue >= request.getRequestCount()) {
+                        throw new IllegalStateException("register holds unexpected value [" + initialValue + "]");
                     }
-                }
-            };
 
-            if (request.getInitialRead() > request.getRequestCount()) {
-                blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener);
-            } else {
-                blobContainer.compareAndExchangeRegister(
-                    OperationPurpose.REPOSITORY_ANALYSIS,
-                    registerName,
-                    bytesFromLong(request.getInitialRead()),
-                    bytesFromLong(
-                        request.getInitialRead() == request.getRequestCount() ? request.getRequestCount() + 1 : request.getInitialRead()
-                    ),
-                    initialValueListener
-                );
+                    class Execution extends ActionRunnable<Void> {
+                        private long currentValue;
+
+                        private final ActionListener<OptionalBytesReference> witnessListener;
+
+                        Execution(long currentValue) {
+                            super(l);
+                            this.currentValue = currentValue;
+                            this.witnessListener = listener.delegateFailure(this::handleWitness);
+                        }
+
+                        @Override
+                        protected void doRun() {
+                            if (((CancellableTask) task).notifyIfCancelled(listener) == false) {
+                                blobContainer.compareAndExchangeRegister(
+                                    OperationPurpose.REPOSITORY_ANALYSIS,
+                                    registerName,
+                                    bytesFromLong(currentValue),
+                                    bytesFromLong(currentValue + 1L),
+                                    witnessListener
+                                );
+                            }
+                        }
+
+                        private void handleWitness(ActionListener<Void> delegate, OptionalBytesReference witnessOrEmpty) {
+                            if (witnessOrEmpty.isPresent() == false) {
+                                // Concurrent activity prevented us from updating the value, or even reading the concurrently-updated
+                                // result, so we must just try again.
+                                executor.execute(Execution.this);
+                                return;
+                            }
+
+                            final long witness = longFromBytes(witnessOrEmpty.bytesReference());
+                            if (witness == currentValue) {
+                                delegate.onResponse(null);
+                            } else if (witness < currentValue || witness >= request.getRequestCount()) {
+                                delegate.onFailure(new IllegalStateException("register holds unexpected value [" + witness + "]"));
+                            } else {
+                                currentValue = witness;
+                                executor.execute(Execution.this);
+                            }
+                        }
+
+                    }
+
+                    new Execution(initialValue).run();
+
+                });
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof UnsupportedOperationException) {
+                    // Registers are not supported on all repository types, and that's ok. If it's not supported here then the final
+                    // check will also be unsupported, so it doesn't matter that we didn't do anything before this successful response.
+                    outerListener.onResponse(ActionResponse.Empty.INSTANCE);
+                } else {
+                    outerListener.onFailure(e);
+                }
+            }
+        };
+
+        if (request.getInitialRead() > request.getRequestCount()) {
+            blobContainer.getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, initialValueListener);
+        } else {
+            blobContainer.compareAndExchangeRegister(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                registerName,
+                bytesFromLong(request.getInitialRead()),
+                bytesFromLong(
+                    request.getInitialRead() == request.getRequestCount() ? request.getRequestCount() + 1 : request.getInitialRead()
+                ),
+                initialValueListener
+            );
         }
     }
 
-    public static class Request extends ActionRequest {
+    static class Request extends ActionRequest {
         private final String repositoryName;
         private final String containerPath;
         private final String registerName;
         private final int requestCount;
         private final int initialRead;
 
-        public Request(String repositoryName, String containerPath, String registerName, int requestCount, int initialRead) {
+        Request(String repositoryName, String containerPath, String registerName, int requestCount, int initialRead) {
             this.repositoryName = repositoryName;
             this.containerPath = containerPath;
             this.registerName = registerName;
@@ -200,7 +185,7 @@ public class ContendedRegisterAnalyzeAction extends ActionType<ActionResponse.Em
             this.initialRead = initialRead;
         }
 
-        public Request(StreamInput in) throws IOException {
+        Request(StreamInput in) throws IOException {
             super(in);
             assert in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0);
             repositoryName = in.readString();
@@ -226,23 +211,23 @@ public class ContendedRegisterAnalyzeAction extends ActionType<ActionResponse.Em
             return null;
         }
 
-        public String getRepositoryName() {
+        String getRepositoryName() {
             return repositoryName;
         }
 
-        public String getContainerPath() {
+        String getContainerPath() {
             return containerPath;
         }
 
-        public String getRegisterName() {
+        String getRegisterName() {
             return registerName;
         }
 
-        public int getRequestCount() {
+        int getRequestCount() {
             return requestCount;
         }
 
-        public int getInitialRead() {
+        int getInitialRead() {
             return initialRead;
         }
 

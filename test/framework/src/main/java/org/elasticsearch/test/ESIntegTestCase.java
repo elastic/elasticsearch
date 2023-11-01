@@ -2075,8 +2075,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
-            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true);
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         return new NodeConfigurationSource() {
             @Override

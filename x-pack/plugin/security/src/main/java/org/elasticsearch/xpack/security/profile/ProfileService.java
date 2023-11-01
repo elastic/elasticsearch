@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -53,7 +54,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -102,7 +102,7 @@ import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileO
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE;
 
 public class ProfileService {
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
@@ -116,8 +116,8 @@ public class ProfileService {
     private final Client client;
     private final SecurityIndexManager profileIndex;
     private final ClusterService clusterService;
+    private final FeatureService featureService;
     private final Function<String, DomainConfig> domainConfigLookup;
-    private final ThreadPool threadPool;
 
     public ProfileService(
         Settings settings,
@@ -125,16 +125,16 @@ public class ProfileService {
         Client client,
         SecurityIndexManager profileIndex,
         ClusterService clusterService,
-        Function<String, DomainConfig> domainConfigLookup,
-        ThreadPool threadPool
+        FeatureService featureService,
+        Function<String, DomainConfig> domainConfigLookup
     ) {
         this.settings = settings;
         this.clock = clock;
         this.client = client;
         this.profileIndex = profileIndex;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.domainConfigLookup = domainConfigLookup;
-        this.threadPool = threadPool;
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -956,7 +956,7 @@ public class ProfileService {
 
     private String getActionOrigin() {
         // profile origin and user is not available before v8.3.0
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(VERSION_SECURITY_PROFILE_ORIGIN)) {
+        if (featureService.clusterHasFeature(clusterService.state(), SECURITY_PROFILE_ORIGIN_FEATURE)) {
             return SECURITY_PROFILE_ORIGIN;
         } else {
             return SECURITY_ORIGIN;

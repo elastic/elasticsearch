@@ -82,4 +82,6 @@ module org.elasticsearch.security {
     provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
         with
             org.elasticsearch.xpack.security.ReservedSecurityStateHandlerProvider;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.security.SecurityFeatures;
 }

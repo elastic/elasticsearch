@@ -45,7 +45,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -187,8 +186,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         // Not a JWT
         final ThreadContext threadContext1 = prepareThreadContext(null, sharedSecret);
         threadContext1.putHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(40, 60));
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> jwtRealm.token(threadContext1));
-        assertThat(e1.getMessage(), containsString("Failed to parse JWT bearer token"));
+        assertThat(jwtRealm.token(threadContext1), nullValue());
 
         // Payload is not JSON
         final SignedJWT signedJWT2 = new SignedJWT(
@@ -198,8 +196,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         );
         final ThreadContext threadContext2 = prepareThreadContext(null, sharedSecret);
         threadContext2.putHeader("Authorization", "Bearer " + signedJWT2.serialize());
-        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> jwtRealm.token(threadContext2));
-        assertThat(e2.getMessage(), containsString("Failed to parse JWT claims set"));
+        assertThat(jwtRealm.token(threadContext2), nullValue());
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:DEBUG", reason = "failures can be very difficult to troubleshoot")

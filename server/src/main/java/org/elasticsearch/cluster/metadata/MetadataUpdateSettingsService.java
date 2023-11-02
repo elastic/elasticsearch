@@ -46,6 +46,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -205,22 +206,37 @@ public class MetadataUpdateSettingsService {
                         currentState.routingTable()
                     );
                     for (Index index : openIndices) {
-                        List<ShardRouting> shardRoutingList = currentState.routingTable().allShards(index.getName());
-                        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-                        for (ShardRouting shardRouting : shardRoutingList) {
-                            if (ShardRoutingState.UNASSIGNED.equals(shardRouting.state()) == false) {
-                                indexRoutingTableBuilder.addShard(
-                                    shardRouting.moveToUnassigned(
-                                        new UnassignedInfo(UnassignedInfo.Reason.INDEX_CLOSED, "Unassigning shards")
-                                    )
-                                );
-                            } else {
-                                indexRoutingTableBuilder.addShard(shardRouting);
+                        // We only want to take on the expense of reopening all shards for an index if the setting is really changing
+                        Settings existingSettings = currentState.getMetadata().index(index).getSettings();
+                        boolean needToReopenIndex = false;
+                        for (String setting : skippedSettings) {
+                            String newValue = request.settings().get(setting);
+                            if (Objects.equals(newValue, existingSettings.get(setting)) == false) {
+                                needToReopenIndex = true;
+                                break;
                             }
                         }
-                        routingTableBuilder.add(indexRoutingTableBuilder.build());
-                        openIndices.remove(index);
-                        closedIndices.add(index);
+                        if (needToReopenIndex) {
+                            List<ShardRouting> shardRoutingList = currentState.routingTable().allShards(index.getName());
+                            IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+                            for (ShardRouting shardRouting : shardRoutingList) {
+                                if (ShardRoutingState.UNASSIGNED.equals(shardRouting.state()) == false) {
+                                    indexRoutingTableBuilder.addShard(
+                                        shardRouting.moveToUnassigned(
+                                            new UnassignedInfo(
+                                                UnassignedInfo.Reason.INDEX_REOPENED,
+                                                "Unassigning shards to update static settings"
+                                            )
+                                        )
+                                    );
+                                } else {
+                                    indexRoutingTableBuilder.addShard(shardRouting);
+                                }
+                            }
+                            routingTableBuilder.add(indexRoutingTableBuilder.build());
+                            openIndices.remove(index);
+                            closedIndices.add(index);
+                        }
                     }
                 } else {
                     throw new IllegalArgumentException(

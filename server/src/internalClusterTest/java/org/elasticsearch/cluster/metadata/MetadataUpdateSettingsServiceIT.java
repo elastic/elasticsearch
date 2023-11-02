@@ -44,7 +44,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
             }
         }
         request.indices(indices.toArray(Index.EMPTY_ARRAY));
-        request.settings(Settings.builder().put("index.codec", "CheapBastard").build());
+        request.settings(Settings.builder().put("index.codec", "FastDecompressionCompressingStoredFieldsData").build());
 
         // First make sure it fails if reopenShards is not set on the request:
         AtomicBoolean expectedFailureOccurred = new AtomicBoolean(false);
@@ -80,11 +80,13 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
         // Now we look into the IndexShard objects to make sure that the code was actually updated (vs just the setting):
         for (IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
             for (IndexService indexService : indicesService) {
-                for (IndexShard indexShard : indexService) {
-                    final Engine engine = indexShard.getEngineOrNull();
-                    assertNotNull(engine);
-                    assertThat(engine.getEngineConfig().getCodec().getName(), equalTo("CheapBastard"));
-                }
+                assertBusy(() -> {
+                    for (IndexShard indexShard : indexService) {
+                        final Engine engine = indexShard.getEngineOrNull();
+                        assertNotNull("engine is null for " + indexService.index().getName(), engine);
+                        assertThat(engine.getEngineConfig().getCodec().getName(), equalTo("FastDecompressionCompressingStoredFieldsData"));
+                    }
+                });
             }
         }
     }

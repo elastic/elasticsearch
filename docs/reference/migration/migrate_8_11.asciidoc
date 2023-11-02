@@ -40,3 +40,32 @@ The `transport_versions` subobject of the response to `GET _cluster/state` has b
 If needed, retrieve the per-node transport versions from the `nodes_versions` subobject.
 ====
 
+
+[discrete]
+[[deprecated-8.11]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 8.11
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you to take the described steps to update your code
+after upgrading to 8.11.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[deprecations_811_rollup]]
+==== Rollup deprecations
+
+[[rollup_functionality_deprecated]]
+.Rollup functionality is now deprecated
+[%collapsible]
+====
+*Details* +
+<<xpack-rollup,Rollup functionality>> has been deprecated and will be removed in a future release. Previously, rollups were available in technical preview.
+
+*Impact* +
+Use <<downsampling,downsampling>> to reduce storage costs for time series data by storing it at reduced granularity.
+====
+

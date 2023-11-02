@@ -47,6 +47,7 @@ Cluster Coordination::
 Data streams::
 * DSL waits for the tsdb time boundaries to lapse {es-pull}100470[#100470] (issue: {es-issue}99696[#99696])
 * Propagate cancellation in `DataTiersUsageTransportAction` {es-pull}100253[#100253]
+* [DSL] skip deleting indices that have in-progress downsampling operations {es-pull}101495[#101495]
 
 Downsampling::
 * Make downsample target index replicas configurable {es-pull}99712[#99712]
@@ -55,29 +56,33 @@ ES|QL::
 * "params" correctly parses the values including an optional "type" {es-pull}99310[#99310] (issue: {es-issue}99294[#99294])
 * Account for an exception being thrown when building a `BytesRefArrayBlock` {es-pull}99726[#99726] (issue: {es-issue}99472[#99472])
 * Add arithmetic operators {es-pull}98628[#98628]
+* Add identity check in Block equality {es-pull}100377[#100377] (issue: {es-issue}100374[#100374])
+* Adds Enrich implicit `match_fields` to `field_caps` call {es-pull}101456[#101456] (issue: {es-issue}101328[#101328])
 * Better management of not stored TEXT fiels with synthetic source {es-pull}99695[#99695]
 * Continue resolving attributes for Eval {es-pull}99601[#99601] (issue: {es-issue}99576[#99576])
 * Create a Vector when needed for IN {es-pull}99382[#99382] (issue: {es-issue}99347[#99347])
-* ESQL: Add identity check in Block equality {es-pull}100377[#100377] (issue: {es-issue}100374[#100374])
-* ESQL: Fix NPE when aggregating literals {es-pull}99827[#99827]
-* ESQL: Fix escaping of backslash in LIKE operator {es-pull}101120[#101120] (issue: {es-issue}101106[#101106])
-* ESQL: Graceful handling of non-bool condition in the filter {es-pull}100645[#100645] (issues: {es-issue}100049[#100049], {es-issue}100409[#100409])
-* ESQL: Handle queries with non-existing enrich policies and no field {es-pull}100647[#100647] (issue: {es-issue}100593[#100593])
-* ESQL: Improve verifier error for incorrect agg declaration {es-pull}100650[#100650] (issue: {es-issue}100641[#100641])
-* ESQL: Limit how many bytes `concat()` can process {es-pull}100360[#100360]
-* ESQL: Page shouldn't close a block twice {es-pull}100370[#100370] (issues: {es-issue}100356[#100356], {es-issue}100365[#100365])
-* ESQL: Preserve intermediate aggregation output in local relation {es-pull}100866[#100866] (issue: {es-issue}100807[#100807])
-* ESQL: Properly handle multi-values in fold() and date math {es-pull}100766[#100766] (issue: {es-issue}100497[#100497])
-* ESQL: Remove aliasing inside Eval {es-pull}100238[#100238] (issue: {es-issue}100174[#100174])
-* ESQL: Support date and time intervals as input params {es-pull}101001[#101001] (issue: {es-issue}99570[#99570])
-* ESQL: `mv_expand` pushes down limit and project and keep the limit after it untouched {es-pull}100782[#100782] (issues: {es-issue}99971[#99971], {es-issue}100774[#100774])
-* ESQL: fix non-null value being returned for unsupported data types in `ValueSources` {es-pull}100656[#100656] (issue: {es-issue}100048[#100048])
-* ESQL: support metric tsdb fields while querying index patterns {es-pull}100351[#100351] (issue: {es-issue}100144[#100144])
+* ESQL: check type before casting {es-pull}101492[#101492] (issue: {es-issue}101489[#101489])
+* Fix NPE when aggregating literals {es-pull}99827[#99827]
+* Fix escaping of backslash in LIKE operator {es-pull}101120[#101120] (issue: {es-issue}101106[#101106])
+* Fix eval of functions on foldable literals {es-pull}101438[#101438] (issue: {es-issue}101425[#101425])
+* Fix non-null value being returned for unsupported data types in `ValueSources` {es-pull}100656[#100656] (issue: {es-issue}100048[#100048])
+* Graceful handling of non-bool condition in the filter {es-pull}100645[#100645] (issues: {es-issue}100049[#100049], {es-issue}100409[#100409])
+* Handle queries with non-existing enrich policies and no field {es-pull}100647[#100647] (issue: {es-issue}100593[#100593])
 * Implement serialization of `InvalidMappedField` {es-pull}98972[#98972] (issue: {es-issue}98851[#98851])
+* Improve verifier error for incorrect agg declaration {es-pull}100650[#100650] (issue: {es-issue}100641[#100641])
+* Limit how many bytes `concat()` can process {es-pull}100360[#100360]
+* Make DISSECT parameter `append_separator` case insensitive {es-pull}101358[#101358] (issue: {es-issue}101138[#101138])
+* Page shouldn't close a block twice {es-pull}100370[#100370] (issues: {es-issue}100356[#100356], {es-issue}100365[#100365])
+* Preserve intermediate aggregation output in local relation {es-pull}100866[#100866] (issue: {es-issue}100807[#100807])
+* Properly handle multi-values in fold() and date math {es-pull}100766[#100766] (issue: {es-issue}100497[#100497])
+* Remove aliasing inside Eval {es-pull}100238[#100238] (issue: {es-issue}100174[#100174])
 * Resilience to non-indexed fields {es-pull}99588[#99588] (issue: {es-issue}99506[#99506])
 * Skip synthetic attributes when planning the physical fragment {es-pull}99188[#99188] (issue: {es-issue}99170[#99170])
+* Support date and time intervals as input params {es-pull}101001[#101001] (issue: {es-issue}99570[#99570])
 * Support queries that don't return underlying fields {es-pull}98759[#98759] (issue: {es-issue}98404[#98404])
 * Use exact attributes for data source extraction {es-pull}99874[#99874] (issue: {es-issue}99183[#99183])
+* `mv_expand` pushes down limit and project and keep the limit after it untouched {es-pull}100782[#100782] (issues: {es-issue}99971[#99971], {es-issue}100774[#100774])
+* support metric tsdb fields while querying index patterns {es-pull}100351[#100351] (issue: {es-issue}100144[#100144])
 
 Geo::
 * Use `NamedWritable` to enable `GeoBoundingBox` serialisation {es-pull}99163[#99163] (issue: {es-issue}99089[#99089])
@@ -103,6 +108,7 @@ Infra/Scripting::
 * Improve painless error wrapping {es-pull}100872[#100872]
 
 Ingest Node::
+* Improving tika handling {es-pull}101486[#101486]
 * Update enrich execution to only set index false on fields that support it {es-pull}98038[#98038] (issue: {es-issue}98019[#98019])
 
 Machine Learning::
@@ -144,10 +150,12 @@ Security::
 * Fix NullPointerException in RotableSecret {es-pull}100779[#100779] (issue: {es-issue}99759[#99759])
 
 Snapshot/Restore::
+* Fix snapshot double finalization {es-pull}101497[#101497]
 * Fix thread context in `getRepositoryData` {es-pull}99627[#99627]
 * Frozen index input clone copy cache file {es-pull}98930[#98930]
 * Make S3 anti-contention delay configurable {es-pull}101245[#101245]
 * More robust timeout for repo analysis {es-pull}101184[#101184] (issue: {es-issue}101182[#101182])
+* Register `repository_s3` settings {es-pull}101344[#101344]
 * Reinstate `RepositoryData` BwC {es-pull}100447[#100447]
 
 TSDB::
@@ -157,11 +165,19 @@ TSDB::
 
 Transform::
 * Fix possible NPE when getting transform stats for failed transforms {es-pull}98061[#98061] (issue: {es-issue}98052[#98052])
+* Ignore `IndexNotFound` error when refreshing destination index {es-pull}101627[#101627]
 * Make Transform Feature Reset really wait for all the tasks {es-pull}100624[#100624]
 * Make tasks that calculate checkpoints cancellable {es-pull}100808[#100808]
 
 Watcher::
 * Treating watcher webhook response header names as case-insensitive {es-pull}99717[#99717]
+
+[[deprecation-8.11.0]]
+[float]
+=== Deprecations
+
+Rollup::
+* Rollup functionality is now deprecated {es-pull}101265[#101265]
 
 [[enhancement-8.11.0]]
 [float]
@@ -207,6 +223,7 @@ ES|QL::
 * Log start and end of queries {es-pull}99746[#99746]
 * Lower the implicit limit, if none is user-provided {es-pull}99816[#99816] (issue: {es-issue}99458[#99458])
 * Mark counter fields as unsupported {es-pull}99054[#99054]
+* Remove the swapped-args check for date_xxx() {es-pull}101362[#101362] (issue: {es-issue}99562[#99562])
 * Serialize the source in expressions {es-pull}99956[#99956]
 * Simple check if all blocks get released {es-pull}100199[#100199]
 * Support unsigned long in sqrt and log10 {es-pull}98711[#98711]
@@ -254,7 +271,6 @@ Search::
 * Add additional counters to `_clusters` response for all Cluster search states {es-pull}99566[#99566] (issue: {es-issue}98927[#98927])
 * Adding support for exist queries to `sparse_vector` fields {es-pull}99775[#99775] (issue: {es-issue}99319[#99319])
 * Make `_index` optional for pinned query docs {es-pull}97450[#97450]
-* Optimize ContentPath#pathAsText {es-pull}98244[#98244] (issue: {es-issue}94544[#94544])
 * Reduce copying when creating scroll/PIT ids {es-pull}99219[#99219]
 * Refactor `SearchResponseClusters` to use CHM {es-pull}100129[#100129] (issue: {es-issue}99101[#99101])
 * Support cluster/details for CCS minimize_roundtrips=false {es-pull}98457[#98457]

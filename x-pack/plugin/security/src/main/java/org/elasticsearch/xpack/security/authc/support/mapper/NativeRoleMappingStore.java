@@ -363,12 +363,16 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        // TODO figure out correct cache behavior here -- does anything need to happen?
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             refreshRealms(ActionListener.noop(), null);
+            // TODO is this what we want?
+            if (cache != null) {
+                // re-load cache, yikes...
+                getMappings(ActionListener.noop());
+            }
         }
     }
 

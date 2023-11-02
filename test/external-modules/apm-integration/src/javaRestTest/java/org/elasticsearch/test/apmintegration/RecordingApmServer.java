@@ -14,8 +14,6 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.junit.rules.ExternalResource;
 
@@ -26,20 +24,10 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
-
-import static org.elasticsearch.test.ESTestCase.fail;
-import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assert.assertThat;
 
 @SuppressForbidden(reason = "Uses an HTTP server for testing")
 public class RecordingApmServer extends ExternalResource {
@@ -50,10 +38,9 @@ public class RecordingApmServer extends ExternalResource {
     final ArrayBlockingQueue<String> received = new ArrayBlockingQueue<>(1000);
 
     private static HttpServer server;
+    private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<String> consumer;
-    private Thread messageConsumerThread = consumerThread();
     private volatile boolean consumerRunning = true;
-    private volatile Set<Predicate<APMMessage>> assertions;
 
     @Override
     protected void before() throws Throwable {
@@ -123,99 +110,8 @@ public class RecordingApmServer extends ExternalResource {
         return list;
     }
 
-    public CountDownLatch addMessageAssertions(Set<Predicate<APMMessage>> assertions) {
-        this.assertions = assertions;
-        CountDownLatch success = new CountDownLatch(1);
-        this.consumer = (String message) -> {
-            var apmMessage = new APMMessage(message);
-            assertions.removeIf(c -> c.test(apmMessage));
-
-            if (assertions.isEmpty()) {
-                success.countDown();
-            }
-        };
-        return success;
+    public void addMessageConsumer(Consumer<String> messageConsumer) {
+        this.consumer = messageConsumer;
     }
 
-    public Set<Predicate<APMMessage>> getMessageAssertions() {
-        return this.assertions;
-    }
-
-    public record Bucket(double value, int count) {}
-
-    public static class APMMessage {
-        Map<String, List<Bucket>> histograms = new HashMap<>();
-        Map<String, Double> doubles = new HashMap<>();
-        Map<String, Long> longs = new HashMap<>();
-
-        @SuppressWarnings("unchecked")
-        APMMessage(String message) {
-            Map<String, Object> parsed;
-            try (XContentParser parser = XCONTENT.XContent().createParser(XContentParserConfiguration.EMPTY, message)) {
-                parsed = parser.map();
-            } catch (IOException e) {
-                fail(e);
-                parsed = Collections.emptyMap();
-            }
-            if ("elasticsearch".equals(getTags(parsed).get("otel_instrumentation_scope_name")) == false) {
-                return;
-            }
-            getSamples(parsed).forEach((name, value) -> {
-                if ("histogram".equals(value.get("type"))) {
-                    List<Double> values = (List<Double>) value.getOrDefault("values", Collections.emptyList());
-                    List<Integer> counts = (List<Integer>) value.getOrDefault("counts", Collections.emptyList());
-                    assertThat(values.size(), equalTo(counts.size()));
-                    List<Bucket> buckets = new ArrayList<>(values.size());
-                    for (int i = 0; i < values.size(); i++) {
-                        buckets.add(new Bucket(values.get(i), counts.get(i)));
-                    }
-                    histograms.put(name, buckets);
-                    return;
-                }
-                if (value.get("value") instanceof Number number) {
-                    if (number instanceof Integer intn) {
-                        longs.put(name, Long.valueOf(intn));
-                    } else if (number instanceof Long longn) {
-                        longs.put(name, longn);
-                    } else if (number instanceof Float floatn) {
-                        doubles.put(name, Double.valueOf(floatn));
-                    } else if (number instanceof Double doublen) {
-                        doubles.put(name, doublen);
-                    } else {
-                        fail("unknown number [" + number.getClass().getName() + "] [" + number + "]");
-                    }
-                }
-            });
-        }
-
-        @SuppressWarnings("unchecked")
-        private static Map<String, String> getTags(Map<String, Object> parsed) {
-            return (Map<String, String>) (getMetricset(parsed).getOrDefault("tags", Collections.emptyMap()));
-        }
-
-        @SuppressWarnings("unchecked")
-        private static Map<String, Map<String, Object>> getSamples(Map<String, Object> parsed) {
-            return (Map<String, Map<String, Object>>) getMetricset(parsed).getOrDefault("samples", Collections.emptyMap());
-        }
-
-        @SuppressWarnings("unchecked")
-        private static Map<String, Map<String, ?>> getMetricset(Map<String, Object> parsed) {
-            if (parsed.get("metricset") instanceof Map<?, ?> map) {
-                return (Map<String, Map<String, ?>>) map;
-            }
-            return Collections.emptyMap();
-        }
-
-        public List<Bucket> getHistogram(String name) {
-            return histograms.getOrDefault(name, Collections.emptyList());
-        }
-
-        public Long getLong(String name) {
-            return longs.get(name);
-        }
-
-        public Double getDouble(String name) {
-            return doubles.get(name);
-        }
-    }
 }

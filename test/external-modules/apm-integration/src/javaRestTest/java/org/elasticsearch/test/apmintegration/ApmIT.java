@@ -12,23 +12,32 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ApmIT extends ESRestTestCase {
+    private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
+
     @ClassRule
     public static RecordingApmServer mockApmServer = new RecordingApmServer();
 
@@ -47,51 +56,91 @@ public class ApmIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    @SuppressWarnings("unchecked")
     public void testApmIntegration() throws Exception {
-        Set<Predicate<RecordingApmServer.APMMessage>> assertions = new HashSet<>(
-            Set.of(
-                assertionWithDescription("testLongCounter", msg -> msg.getDouble("testLongCounter"), closeTo(1.0, 0.001)),
-                assertionWithDescription("testDoubleCounter", msg -> msg.getDouble("testDoubleCounter"), closeTo(1.0, 0.001)),
-                assertionWithDescription("testDoubleGauge", msg -> msg.getDouble("testDoubleGauge"), closeTo(1.0, 0.001)),
-                assertionWithDescription("testLongGauge", msg -> msg.getLong("testLongGauge"), equalTo(1L)),
-                assertionWithDescription(
+        Map<String, Predicate<Map<String, Object>>> sampleAssertions = new HashMap<>(
+            Map.ofEntries(
+                assertion("testDoubleCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testLongCounter", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testDoubleGauge", m -> (Double) m.get("value"), closeTo(1.0, 0.001)),
+                assertion("testLongGauge", m -> (Integer) m.get("value"), equalTo(1)),
+                assertion(
                     "testDoubleHistogram",
-                    msg -> msg.getHistogram("testDoubleHistogram").stream().mapToInt(RecordingApmServer.Bucket::count).sum(),
+                    m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 ),
-                assertionWithDescription(
+                assertion(
                     "testLongHistogram",
-                    msg -> msg.getHistogram("testLongHistogram").stream().mapToInt(RecordingApmServer.Bucket::count).sum(),
+                    m -> ((Collection<Integer>) m.get("counts")).stream().mapToInt(Integer::intValue).sum(),
                     equalTo(2)
                 )
             )
         );
-        CountDownLatch finished = mockApmServer.addMessageAssertions(assertions);
+
+        CountDownLatch finished = new CountDownLatch(1);
+
+        // a consumer that will remove the assertions from a map once it matched
+        Consumer<String> messageConsumer = (String message) -> {
+            var apmMessage = parseMap(message);
+            if (isElasticsearchMetric(apmMessage)) {
+                var metricset = (Map<String, Object>) apmMessage.get("metricset");
+                var samples = (Map<String, Object>) metricset.get("samples");
+
+                samples.entrySet().forEach(sampleEntry -> {
+                    var assertion = sampleAssertions.get(sampleEntry.getKey());// sample name
+                    if (assertion != null && assertion.test((Map<String, Object>) sampleEntry.getValue())) {// sample object
+                        sampleAssertions.remove(sampleEntry.getKey());
+                    }
+                });
+            }
+
+            if (sampleAssertions.isEmpty()) {
+                finished.countDown();
+            }
+        };
+
+        mockApmServer.addMessageConsumer(messageConsumer);
 
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
         finished.await(30, TimeUnit.SECONDS);
-        assertThat(mockApmServer.getMessageAssertions(), empty());
+        assertThat(sampleAssertions, Matchers.anEmptyMap());
     }
 
-    private <T> Predicate<RecordingApmServer.APMMessage> assertionWithDescription(
-        String description,
-        Function<RecordingApmServer.APMMessage, T> actual,
+    private <T> Map.Entry<String, Predicate<Map<String, Object>>> assertion(
+        String sampleKeyName,
+        Function<Map<String, Object>, T> accessor,
         Matcher<T> expected
     ) {
-        return new Predicate<>() {
+        return Map.entry(sampleKeyName, new Predicate<>() {
             @Override
-            public boolean test(RecordingApmServer.APMMessage message) {
-                return expected.matches(actual.apply(message));
+            public boolean test(Map<String, Object> sampleObject) {
+                return expected.matches(accessor.apply(sampleObject));
             }
 
             @Override
             public String toString() {
                 StringDescription matcherDescription = new StringDescription();
                 expected.describeTo(matcherDescription);
-                return description + " " + matcherDescription;
+                return sampleKeyName + " " + matcherDescription;
             }
-        };
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean isElasticsearchMetric(Map<String, Object> apmMessage) {
+        var metricset = (Map<String, Object>) apmMessage.getOrDefault("metricset", Collections.emptyMap());
+        var tags = (Map<String, Object>) metricset.getOrDefault("tags", Collections.emptyMap());
+        return "elasticsearch".equals(tags.getOrDefault("otel_instrumentation_scope_name", "not_found"));
+    }
+
+    private Map<String, Object> parseMap(String message) {
+        try (XContentParser parser = XCONTENT.XContent().createParser(XContentParserConfiguration.EMPTY, message)) {
+            return parser.map();
+        } catch (IOException e) {
+            fail(e);
+            return Collections.emptyMap();
+        }
     }
 
 }

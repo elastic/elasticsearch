@@ -407,6 +407,7 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.features.FeaturesSupportedSpecification,
             org.elasticsearch.health.HealthFeature,
+            org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;

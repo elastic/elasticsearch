@@ -621,12 +621,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final ShardGeneration generation
     ) {
         assert shardState == ShardState.FAILED || shardState == ShardState.WAITING : shardState;
-
-        /* TODO (Danger):
-         *  If we move to WAITING the shard must transition out of, and back into, routing state STARTED to get the shard snapshot back into
-         *  state INIT to trigger another shard snapshot attempt. Work out how to guarantee that this will happen. Presumably
-         *  SnapshotsService will also need to move shards to state INIT on removal of node shutdown metadata? */
-
         sendSnapshotShardUpdate(
             snapshot,
             shardId,
@@ -662,7 +656,3 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         );
     }
 }
-
-// TODO ugh need to track the shutting-down-for-removal node IDs specifically for snapshots, in case a shutdown marker is removed while
-// we're still waiting for some shard snapshots to pause - preserve the node ID until the marker is removed _and_ all its shard snapshots
-// are not running. That way if we see an INIT shard on a shutting down node we know it hasn't paused yet.

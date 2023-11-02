@@ -32,6 +32,6 @@ interface TermsAggregatorSupplier {
         boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata,
-        boolean defaultToMapExecution
+        TermsAggregatorFactory.ExecutionMode defaultExecutionMode
     ) throws IOException;
 }

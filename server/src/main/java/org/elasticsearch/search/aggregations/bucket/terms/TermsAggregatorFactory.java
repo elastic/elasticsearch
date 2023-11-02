@@ -102,7 +102,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             showTermDocCountError,
             cardinality,
             metadata,
-            defaultToMapExecution) -> {
+            defaultExecutionMode) -> {
             ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
             ExecutionMode execution = null;
             if (executionHint != null) {
@@ -113,11 +113,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 execution = ExecutionMode.MAP;
             }
             if (execution == null) {
-                if (defaultToMapExecution) {
-                    execution = ExecutionMode.MAP;
-                } else {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
+                execution = defaultExecutionMode;
             }
             final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
             if (subAggCollectMode == null) {
@@ -173,7 +169,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             showTermDocCountError,
             cardinality,
             metadata,
-            defaultToMapExecution) -> {
+            defaultExecutionMode) -> {
 
             if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                 throw new IllegalArgumentException(
@@ -228,7 +224,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final boolean showTermDocCountError;
-    private final boolean defaultToMapExecution;
+    private final ExecutionMode defaultExecutionMode;
 
     TermsAggregatorFactory(
         String name,
@@ -253,14 +249,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         this.collectMode = collectMode;
         this.bucketCountThresholds = bucketCountThresholds;
         this.showTermDocCountError = showTermDocCountError;
-
-        // The current tsdb backing index may still receive active writes and
-        // if global ordinals is built then it may be invalidated on the next search request.
-        // So it isn't worth to build it. Depending on the cardinality of a field building global ordinals may be very expensive.
-        var indexSettings = context.getIndexSettings();
-        boolean isTsdbIndex = indexSettings.getMode() == IndexMode.TIME_SERIES;
-        boolean receivesWrites = isTsdbIndex && context.nowInMillis() <= indexSettings.getTimestampBounds().endTime();
-        this.defaultToMapExecution = isTsdbIndex && receivesWrites;
+        this.defaultExecutionMode = selectDefaultExecutionMode(context);
     }
 
     @Override
@@ -334,7 +323,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             showTermDocCountError,
             cardinality,
             metadata,
-            defaultToMapExecution
+            defaultExecutionMode
         );
     }
 
@@ -362,6 +351,26 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         }
         // We expect to collect so many buckets that we may as well collect them all.
         return SubAggCollectionMode.DEPTH_FIRST;
+    }
+
+    /**
+     * Currently, always returns {@link ExecutionMode#GLOBAL_ORDINALS} unless the index this terms
+     * aggregation executes on is a time series index and actively accepts writes, then {@link ExecutionMode#MAP} is returned.
+     * The latter is determined based on whether current time is on or before index.time_series.end_time setting.
+     * Building global ordinals is expensive and needs to be rebuilt after each refresh. Writes trigger a refresh.
+     * If current time is before index.time_series.end_time then we expect a constant stream of writes.
+     * This would always require re-building global ordinals without reusing it for subsequent requests.
+     *
+     * @return The default execution mode to use if none has been provided via execution_hint parameter.
+     */
+    static ExecutionMode selectDefaultExecutionMode(AggregationContext context) {
+        // The current tsdb backing index may still receive active writes and
+        // if global ordinals is built then it may be invalidated on the next search request.
+        // So it isn't worth to build it. Depending on the cardinality of a field building global ordinals may be very expensive.
+        var indexSettings = context.getIndexSettings();
+        boolean isTsdbIndex = indexSettings.getMode() == IndexMode.TIME_SERIES;
+        boolean receivesWrites = isTsdbIndex && context.nowInMillis() <= indexSettings.getTimestampBounds().endTime();
+        return isTsdbIndex && receivesWrites ? ExecutionMode.MAP : ExecutionMode.GLOBAL_ORDINALS;
     }
 
     /**

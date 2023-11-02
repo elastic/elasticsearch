@@ -220,7 +220,7 @@ public final class ShardGenerations {
         }
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
-            assert noIndicesWithSameName(indexId)
+            assert noDuplicateIndicesWithSameName(indexId)
                 : Strings.format("Unable to add: %s There's another index id with the same name", indexId);
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null
@@ -228,7 +228,7 @@ public final class ShardGenerations {
             return this;
         }
 
-        private boolean noIndicesWithSameName(IndexId newId) {
+        private boolean noDuplicateIndicesWithSameName(IndexId newId) {
             for (IndexId id : generations.keySet()) {
                 if (id.getName().equals(newId.getName()) && id.equals(newId) == false) {
                     return false;

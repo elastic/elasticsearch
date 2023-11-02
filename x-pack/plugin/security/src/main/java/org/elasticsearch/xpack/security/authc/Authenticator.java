@@ -80,20 +80,19 @@ public interface Authenticator {
      * required for authentication.
      * It is instantiated for every incoming request and passed around to {@link AuthenticatorChain} and subsequently all
      * {@link Authenticator}.
+     * {@link Authenticator}s are consulted in order (see {@link AuthenticatorChain}),
+     * where each is given the chance to first extract some token, and then to verify it.
+     * If token verification fails in some particular way (i.e. {@link AuthenticationResult.Status.CONTINUE}),
+     * the next {@link Authenticator} is tried.
+     * The extracted tokens are all appended with {@link #addAuthenticationToken(AuthenticationToken)}.
      */
     class Context implements Closeable {
         private final ThreadContext threadContext;
         private final AuthenticationService.AuditableRequest request;
         private final User fallbackUser;
         private final boolean allowAnonymous;
-        // {@code true}, if {@code Authenticator}s should first be tried in order to extract the credentials token from the thread context
-        // otherwise, the tokens must explicitly be passed in, see {@code authenticationTokens}
         private final boolean extractCredentials;
         private final Realms realms;
-        // {@code Authenticator}s are consulted in order (see {@code AuthenticatorChain}),
-        // where each is given the chance to first extract some token, and then to verify it.
-        // If token verification fails in some particular way (i.e. {@code AuthenticationResult.Status.CONTINUE}),
-        // the next {@code Authenticator} is tried. The extracted tokens are appended to this list.
         private final List<AuthenticationToken> authenticationTokens;
         private final List<String> unsuccessfulMessages = new ArrayList<>();
         private boolean handleNullToken = true;
@@ -108,7 +107,6 @@ public interface Authenticator {
          * (i.e. in case the token CAN NOT be verified, the user IS NOT authenticated as the anonymous or the fallback user, and
          * instead the authentication process fails, see {@link AuthenticatorChain#doAuthenticate}). If a {@code null} token is provided
          * the authentication will invariably fail.
-         *
          */
         Context(
             ThreadContext threadContext,
@@ -172,6 +170,13 @@ public interface Authenticator {
             return handleNullToken;
         }
 
+        /**
+         * Returns {@code true}, if {@code Authenticator}s should first be tried in order to extract the credentials token
+         * from the thread context. The extracted tokens are appended to this authenticator context with
+         * {@link #addAuthenticationToken(AuthenticationToken)}.
+         * If {@code false}, the credentials token is directly passed in to this authenticator context, and the authenticators
+         * themselves are only consulted to authenticate the token, and never to extract any tokens from the thread context.
+         */
         public boolean shouldExtractCredentials() {
             return extractCredentials;
         }

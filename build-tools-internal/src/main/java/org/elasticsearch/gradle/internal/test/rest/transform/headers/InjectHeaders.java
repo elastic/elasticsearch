@@ -18,6 +18,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.feature.FeatureInje
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -26,12 +27,12 @@ import java.util.function.Function;
  * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
  * as well as adding headers as a features to the "setup" and "teardown" sections.
  */
-public class InjectHeaders extends FeatureInjector implements RestTestTransformByParentObject {
+public class InjectHeaders extends FeatureInjector implements RestTestTransformByParentObject, Serializable {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-    private final Map<String, String> headers;
-    private final Set<Function<ObjectNode, Boolean>> applyConditions;
+    private Map<String, String> headers;
+    private Set<Function<ObjectNode, Boolean>> applyConditions;
 
     /**
      * @param headers The headers to inject

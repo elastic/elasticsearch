@@ -365,7 +365,7 @@ class S3Service implements Closeable {
 
             // Support regionalized STS endpoints https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
             if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
-                // AWS_REGION should be injected in the pod https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
+                // AWS_REGION should be injected by the EKS pod identity webhook https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
                 String region = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
                 if (region != null) {
                     stsClientBuilder.withRegion(region);

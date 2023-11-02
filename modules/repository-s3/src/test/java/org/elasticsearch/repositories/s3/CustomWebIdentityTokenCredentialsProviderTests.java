@@ -149,12 +149,12 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             getEnvironment(),
             environmentVariables::get,
             systemProperties::getOrDefault,
-            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC)
+            Clock.systemUTC()
         );
-        // We can't verify that webIdentityTokenCredentialsProvider AWSClient uses the "https://sts.us-west-2.amazonaws.com"
-        // endpoint, because it depends on hardcoded RegionalEndpointsOptionResolver that in turn depends
-        // on the system environment that we can't change in a unit test, so we just verify we that we called `setRegion`
-        // on stsClientBuilder which should internally correctly configure the endpoint
+        // We can't verify that webIdentityTokenCredentialsProvider's STS client uses the "https://sts.us-west-2.amazonaws.com"
+        // endpoint in a unit test. The client depends on hardcoded RegionalEndpointsOptionResolver that in turn depends
+        // on the system environment that we can't change in the test. So we just verify we that we called `withRegion`
+        // on stsClientBuilder which should internally correctly configure the endpoint when the STS client is built.
         assertTrue(webIdentityTokenCredentialsProvider.isStsRegionConfigured());
 
         webIdentityTokenCredentialsProvider.shutdown();

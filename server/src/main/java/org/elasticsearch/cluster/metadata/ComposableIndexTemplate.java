@@ -578,7 +578,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return this;
         }
 
-        public Builder deprecated(Boolean deprecated) {
+        public Builder deprecated(@Nullable Boolean deprecated) {
             this.deprecated = deprecated;
             return this;
         }

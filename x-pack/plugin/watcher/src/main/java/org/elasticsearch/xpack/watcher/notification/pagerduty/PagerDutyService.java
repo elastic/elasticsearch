@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * A component to store pagerduty credentials.
  */
-public final class PagerDutyService extends NotificationService<PagerDutyAccount> {
+public class PagerDutyService extends NotificationService<PagerDutyAccount> {
 
     private static final Setting<String> SETTING_DEFAULT_ACCOUNT = Setting.simpleString(
         "xpack.notification.pagerduty.default_account",
@@ -44,6 +44,7 @@ public final class PagerDutyService extends NotificationService<PagerDutyAccount
 
     private final HttpClient httpClient;
 
+    @SuppressWarnings("this-escape")
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super("pagerduty", settings, clusterSettings, PagerDutyService.getDynamicSettings(), PagerDutyService.getSecureSettings());
         this.httpClient = httpClient;

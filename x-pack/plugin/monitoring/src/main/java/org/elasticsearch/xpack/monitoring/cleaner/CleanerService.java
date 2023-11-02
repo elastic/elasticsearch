@@ -28,7 +28,7 @@ import java.util.concurrent.Executor;
 /**
  * {@code CleanerService} takes care of deleting old monitoring indices.
  */
-public final class CleanerService extends AbstractLifecycleComponent {
+public class CleanerService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CleanerService.class);
 
     private final ThreadPool threadPool;
@@ -39,6 +39,7 @@ public final class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
+    @SuppressWarnings("this-escape")
     CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, ExecutionScheduler executionScheduler) {
         this.threadPool = threadPool;
         this.genericExecutor = threadPool.generic();

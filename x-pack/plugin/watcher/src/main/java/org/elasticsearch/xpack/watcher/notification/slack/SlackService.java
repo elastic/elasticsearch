@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * A component to store slack credentials.
  */
-public final class SlackService extends NotificationService<SlackAccount> {
+public class SlackService extends NotificationService<SlackAccount> {
 
     private static final Setting<String> SETTING_DEFAULT_ACCOUNT = Setting.simpleString(
         "xpack.notification.slack.default_account",
@@ -48,6 +48,7 @@ public final class SlackService extends NotificationService<SlackAccount> {
 
     private final HttpClient httpClient;
 
+    @SuppressWarnings("this-escape")
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super("slack", settings, clusterSettings, SlackService.getDynamicSettings(), SlackService.getSecureSettings());
         this.httpClient = httpClient;

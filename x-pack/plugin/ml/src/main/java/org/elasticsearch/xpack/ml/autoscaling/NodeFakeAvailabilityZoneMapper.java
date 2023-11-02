@@ -25,7 +25,7 @@ import java.util.Map;
  * Maintains a list of the nodes in each fake availability zone, where each availability zone
  * corresponds to a single node.
  */
-public final class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZoneMapper {
+public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZoneMapper {
 
     private static final Logger logger = LogManager.getLogger(NodeFakeAvailabilityZoneMapper.class);
 
@@ -33,6 +33,7 @@ public final class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabili
         this(settings, clusterSettings, null);
     }
 
+    @SuppressWarnings("this-escape")
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         super(settings, clusterSettings, discoveryNodes);
         updateNodesByAvailabilityZone();

@@ -44,7 +44,7 @@ import java.util.function.Function;
  * regular "webhook" actions as well as parts of an "email" action with attachments that make HTTP
  * requests.
  */
-public final class WebhookService extends NotificationService<WebhookService.WebhookAccount> {
+public class WebhookService extends NotificationService<WebhookService.WebhookAccount> {
     public static final String NAME = "webhook";
 
     private static final Logger logger = LogManager.getLogger(WebhookService.class);
@@ -68,6 +68,7 @@ public final class WebhookService extends NotificationService<WebhookService.Web
     private final HttpClient httpClient;
     private final boolean additionalTokenEnabled;
 
+    @SuppressWarnings("this-escape")
     public WebhookService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(NAME, settings, clusterSettings, List.of(), getSecureSettings());
         this.httpClient = httpClient;

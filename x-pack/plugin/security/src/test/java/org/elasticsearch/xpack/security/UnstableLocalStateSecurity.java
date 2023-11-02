@@ -31,9 +31,8 @@ import java.util.Optional;
  * in an integration test class, because the reserved handlers are injected through
  * SPI. (see {@link LocalReservedUnstableSecurityStateHandlerProvider})
  */
-public class UnstableLocalStateSecurity extends LocalStateSecurity {
+public final class UnstableLocalStateSecurity extends LocalStateSecurity {
 
-    @SuppressWarnings("this-escape")
     public UnstableLocalStateSecurity(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
         // We reuse most of the initialization of LocalStateSecurity, we then just overwrite

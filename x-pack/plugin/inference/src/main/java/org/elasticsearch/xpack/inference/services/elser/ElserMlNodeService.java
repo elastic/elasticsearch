@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
@@ -196,4 +198,9 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
+    }
 }

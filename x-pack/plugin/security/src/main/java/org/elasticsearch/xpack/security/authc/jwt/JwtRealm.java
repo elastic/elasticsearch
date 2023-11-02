@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -57,6 +59,8 @@ import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.C
  * For security, it is recommended to authenticate the client too.
  */
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
+
+    private static final Logger logger = LogManager.getLogger(JwtRealm.class);
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "ES-Client-Authentication";

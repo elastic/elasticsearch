@@ -38,7 +38,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
-class RealmsAuthenticator implements Authenticator {
+public class RealmsAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
@@ -46,7 +46,7 @@ class RealmsAuthenticator implements Authenticator {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private boolean authenticationTokenExtracted = false;
 
-    RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
+    public RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
     }

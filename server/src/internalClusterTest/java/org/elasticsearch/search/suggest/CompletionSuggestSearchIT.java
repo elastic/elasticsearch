@@ -1221,7 +1221,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         mapping = mapping.endObject().endObject().endObject().endObject();
 
         assertAcked(
-            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping).get()
+            indicesAdmin().prepareCreate(INDEX).setSettings(Settings.builder().put(indexSettings()).put(settings)).setMapping(mapping)
         );
     }
 
@@ -1275,7 +1275,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         // can cause stack overflow without the default max_input_length
         String longString = replaceReservedChars(randomRealisticUnicodeOfLength(randomIntBetween(5000, 10000)), (char) 0x01);
@@ -1304,7 +1303,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
@@ -1342,7 +1340,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                 )
-                .get()
         );
         String string = "foo bar";
         client().prepareIndex(INDEX)
@@ -1454,7 +1451,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         String index = "test";
         assertAcked(
-            indicesAdmin().prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 2)).setMapping(mapping).get()
+            indicesAdmin().prepareCreate(index).setSettings(Settings.builder().put("index.number_of_shards", 2)).setMapping(mapping)
         );
 
         int numDocs = 2;

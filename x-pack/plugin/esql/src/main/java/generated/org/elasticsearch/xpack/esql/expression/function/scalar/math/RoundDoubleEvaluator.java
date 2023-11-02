@@ -37,14 +37,8 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       DoubleBlock valBlock = (DoubleBlock) valRef.block();
       try (Block.Ref decimalsRef = decimals.eval(page)) {
-        if (decimalsRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         LongBlock decimalsBlock = (LongBlock) decimalsRef.block();
         DoubleVector valVector = valBlock.asVector();
         if (valVector == null) {
@@ -60,7 +54,7 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleBlock eval(int positionCount, DoubleBlock valBlock, LongBlock decimalsBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -77,7 +71,7 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public DoubleVector eval(int positionCount, DoubleVector valVector, LongVector decimalsVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Round.process(valVector.getDouble(p), decimalsVector.getLong(p)));
       }
@@ -93,5 +87,27 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(val, decimals);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory val;
+
+    private final EvalOperator.ExpressionEvaluator.Factory decimals;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory val,
+        EvalOperator.ExpressionEvaluator.Factory decimals) {
+      this.val = val;
+      this.decimals = decimals;
+    }
+
+    @Override
+    public RoundDoubleEvaluator get(DriverContext context) {
+      return new RoundDoubleEvaluator(val.get(context), decimals.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "RoundDoubleEvaluator[" + "val=" + val + ", decimals=" + decimals + "]";
+    }
   }
 }

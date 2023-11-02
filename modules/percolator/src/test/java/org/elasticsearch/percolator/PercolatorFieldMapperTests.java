@@ -30,6 +30,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -53,6 +55,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -67,13 +70,17 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
 import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,6 +99,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -130,7 +138,13 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, PercolatorPlugin.class, FoolMeScriptPlugin.class, ParentJoinPlugin.class);
+        return pluginList(
+            InternalSettingsPlugin.class,
+            PercolatorPlugin.class,
+            FoolMeScriptPlugin.class,
+            ParentJoinPlugin.class,
+            CustomQueriesPlugin.class
+        );
     }
 
     @Override
@@ -538,6 +552,38 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             );
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()), hasSize(1));
         assertThat(doc.rootDoc().getFields(fieldType.extractionResultField.name()).get(0).stringValue(), equalTo(EXTRACTION_FAILED));
+    }
+
+    public void testParseScriptScoreQueryWithParams() throws Exception {
+        addQueryFieldMappings();
+        ScriptScoreQueryBuilder scriptScoreQueryBuilder = new ScriptScoreQueryBuilder(
+            new MatchAllQueryBuilder(),
+            new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "score", Collections.singletonMap("param", "1"))
+        );
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(fieldName, scriptScoreQueryBuilder).endObject()),
+                    XContentType.JSON
+                )
+            );
+        assertNotNull(doc);
+    }
+
+    public void testParseCustomParserQuery() throws Exception {
+        addQueryFieldMappings();
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder().startObject().field(fieldName, new CustomParserQueryBuilder()).endObject()
+                    ),
+                    XContentType.JSON
+                )
+            );
+        assertNotNull(doc);
     }
 
     public void testStoringQueries() throws Exception {
@@ -1106,12 +1152,147 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("return true", (vars) -> true);
+            return Map.of("return true", (vars) -> true, "score", (vars) -> 0f);
         }
 
         @Override
         public String pluginScriptLang() {
             return Script.DEFAULT_SCRIPT_LANG;
+        }
+    }
+
+    public static class CustomQueriesPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return Collections.singletonList(
+                new QuerySpec<QueryBuilder>(
+                    CustomParserQueryBuilder.NAME,
+                    CustomParserQueryBuilder::new,
+                    CustomParserQueryBuilder::fromXContent
+                )
+            );
+        }
+    }
+
+    public static final class CustomParserQueryBuilder extends AbstractQueryBuilder<CustomParserQueryBuilder> {
+        private static final String NAME = "CUSTOM";
+
+        CustomParserQueryBuilder() {}
+
+        CustomParserQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {
+            // only the superclass has state
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            return new DummyQueryParserPlugin.DummyQuery();
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected boolean doEquals(CustomParserQueryBuilder other) {
+            return true;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            builder.array("list", "value0", "value1", "value2");
+            builder.array("listOrdered", "value0", "value1", "value2");
+            builder.field("map");
+            builder.map(Map.of("key1", "value1", "key2", "value2"));
+            builder.field("mapOrdered");
+            builder.map(Map.of("key3", "value3", "key4", "value4"));
+            builder.field("mapStrings");
+            builder.map(Map.of("key5", "value5", "key6", "value6"));
+            builder.field("mapSupplier");
+            builder.map(Map.of("key7", "value7", "key8", "value8"));
+            builder.endObject();
+        }
+
+        public static CustomParserQueryBuilder fromXContent(XContentParser parser) throws IOException {
+            {
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("list", parser.currentName());
+                List<Object> list = parser.list();
+                assertEquals(3, list.size());
+                for (int i = 0; i < 3; i++) {
+                    assertEquals("value" + i, list.get(i).toString());
+                }
+                assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
+            }
+            {
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("listOrdered", parser.currentName());
+                List<Object> listOrdered = parser.listOrderedMap();
+                assertEquals(3, listOrdered.size());
+                for (int i = 0; i < 3; i++) {
+                    assertEquals("value" + i, listOrdered.get(i).toString());
+                }
+                assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
+            }
+            {
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("map", parser.currentName());
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                Map<String, Object> map = parser.map();
+                assertEquals(2, map.size());
+                assertEquals("value1", map.get("key1").toString());
+                assertEquals("value2", map.get("key2").toString());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            }
+            {
+                assertEquals("mapOrdered", parser.currentName());
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                Map<String, Object> mapOrdered = parser.mapOrdered();
+                assertEquals(2, mapOrdered.size());
+                assertEquals("value3", mapOrdered.get("key3").toString());
+                assertEquals("value4", mapOrdered.get("key4").toString());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            }
+            {
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("mapStrings", parser.currentName());
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                Map<String, Object> mapStrings = parser.map();
+                assertEquals(2, mapStrings.size());
+                assertEquals("value5", mapStrings.get("key5").toString());
+                assertEquals("value6", mapStrings.get("key6").toString());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            }
+            {
+                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+                assertEquals("mapSupplier", parser.currentName());
+                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+                Map<String, Object> mapSupplier = parser.map(HashMap::new, XContentParser::text);
+                assertEquals(2, mapSupplier.size());
+                assertEquals("value7", mapSupplier.get("key7").toString());
+                assertEquals("value8", mapSupplier.get("key8").toString());
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            }
+
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            return new CustomParserQueryBuilder();
         }
     }
 }

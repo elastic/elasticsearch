@@ -613,12 +613,14 @@ public class StatementParserTests extends ESTestCase {
         assertEquals("", dissect.parser().appendSeparator());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
 
-        cmd = processingCommand("dissect a \"%{foo}\" append_separator=\",\"");
-        assertEquals(Dissect.class, cmd.getClass());
-        dissect = (Dissect) cmd;
-        assertEquals("%{foo}", dissect.parser().pattern());
-        assertEquals(",", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
+            cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
+            assertEquals(Dissect.class, cmd.getClass());
+            dissect = (Dissect) cmd;
+            assertEquals("%{foo}", dissect.parser().pattern());
+            assertEquals(",", dissect.parser().appendSeparator());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
             Tuple.tuple("from a | dissect foo \"\"", "[]"),

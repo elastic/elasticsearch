@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.maybeResolveAgai
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.resolveFunction;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
-public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
+public final class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
 
     private static final Iterable<RuleExecutor.Batch<LogicalPlan>> rules;
 
@@ -114,7 +114,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      */
     private final Verifier verifier;
 
-    @SuppressWarnings("this-escape")
     public Analyzer(AnalyzerContext context, Verifier verifier) {
         super(context);
         context.analyzeWithoutVerify().set(this::execute);

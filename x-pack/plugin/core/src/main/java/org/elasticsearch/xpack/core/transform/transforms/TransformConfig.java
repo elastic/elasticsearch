@@ -53,7 +53,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * This class holds the configuration details of a data frame transform
  */
-public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
+public final class TransformConfig implements SimpleDiffable<TransformConfig>, Writeable, ToXContentObject {
 
     /**
      * Version of the last time the config defaults have been changed.
@@ -209,7 +209,6 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         return NAME + "-" + transformId;
     }
 
-    @SuppressWarnings("this-escape")
     public TransformConfig(
         final String id,
         final SourceConfig source,
@@ -245,7 +244,6 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         this.transformVersion = version == null ? null : TransformConfigVersion.fromString(version);
     }
 
-    @SuppressWarnings("this-escape")
     public TransformConfig(final StreamInput in) throws IOException {
         id = in.readString();
         source = new SourceConfig(in);

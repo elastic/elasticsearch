@@ -510,7 +510,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 connectionPermits.release();
                                 runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         }
 
@@ -592,7 +592,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 && e.getMessage().contains("concurrently connecting and disconnecting")) {
                                 runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         }
 

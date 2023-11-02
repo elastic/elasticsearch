@@ -39,19 +39,20 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
         return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
       } catch (Exception e) {
         registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
+        return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
     }
-    BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
-        builder.appendBoolean(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        try {
+          builder.appendBoolean(evalValue(vector, p));
+        } catch (Exception e) {
+          registerException(e);
+          builder.appendNull();
+        }
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static boolean evalValue(LongVector container, int index) {
@@ -63,7 +64,7 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
   public Block evalBlock(Block b) {
     LongBlock block = (LongBlock) b;
     int positionCount = block.getPositionCount();
-    try (BooleanBlock.Builder builder = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);

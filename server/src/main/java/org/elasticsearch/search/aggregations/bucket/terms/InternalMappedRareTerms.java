@@ -107,7 +107,7 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
                 && terms.getClass().equals(UnmappedRareTerms.class) == false) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
-                throw AggregationErrors.reduceTypeMissmatch(referenceTerms.getName(), Optional.empty());
+                throw AggregationErrors.reduceTypeMismatch(referenceTerms.getName(), Optional.empty());
             }
             for (B bucket : terms.getBuckets()) {
                 List<B> bucketList = buckets.computeIfAbsent(bucket.getKey(), k -> new ArrayList<>());

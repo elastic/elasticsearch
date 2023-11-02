@@ -43,7 +43,7 @@ based on a similarity metric, the better its match.
 {es} supports two methods for kNN search:
 
 * <<approximate-knn,Approximate kNN>> using the `knn` search
-option
+option or `knn` query
 
 * <<exact-knn,Exact, brute-force kNN>> using a `script_score` query with a
 vector function
@@ -129,7 +129,8 @@ POST image-index/_bulk?refresh=true
 //TEST[continued]
 //TEST[s/\.\.\.//]
 
-. Run the search using the <<search-api-knn, `knn` option>>.
+. Run the search using the <<search-api-knn, `knn` option>> or the
+<<query-dsl-knn-query,`knn` query>> (expert case).
 +
 [source,console]
 ----

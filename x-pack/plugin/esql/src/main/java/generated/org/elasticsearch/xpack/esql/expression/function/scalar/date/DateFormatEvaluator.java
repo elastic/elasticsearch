@@ -42,14 +42,8 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valRef = val.eval(page)) {
-      if (valRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valBlock = (LongBlock) valRef.block();
       try (Block.Ref formatterRef = formatter.eval(page)) {
-        if (formatterRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock formatterBlock = (BytesRefBlock) formatterRef.block();
         LongVector valVector = valBlock.asVector();
         if (valVector == null) {
@@ -65,7 +59,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock valBlock, BytesRefBlock formatterBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valBlock.isNull(p) || valBlock.getValueCount(p) != 1) {
@@ -84,7 +78,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
   public BytesRefVector eval(int positionCount, LongVector valVector,
       BytesRefVector formatterVector) {
-    try(BytesRefVector.Builder result = BytesRefVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef formatterScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBytesRef(DateFormat.process(valVector.getLong(p), formatterVector.getBytesRef(p, formatterScratch), locale));

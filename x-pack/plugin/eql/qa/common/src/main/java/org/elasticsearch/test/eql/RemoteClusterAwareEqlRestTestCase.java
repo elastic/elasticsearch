@@ -23,7 +23,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.Strings.hasText;
@@ -57,11 +56,6 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     protected String getRemoteCluster() {
         return System.getProperty("tests.rest.cluster.remote.host");
-    }
-
-    protected static RestHighLevelClient highLevelClient(RestClient client) {
-        return new RestHighLevelClient(client, ignore -> {}, Collections.emptyList()) {
-        };
     }
 
     protected static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {

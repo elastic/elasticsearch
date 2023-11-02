@@ -67,7 +67,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         final var threadContext = threadPool.getThreadContext();
 
         final var barrier = new CyclicBarrier(2);
-        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).get(0).barrier = barrier;
+        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).findFirst().get().barrier = barrier;
 
         final var testActionFuture = new PlainActionFuture<ActionResponse.Empty>();
         client().execute(TEST_ACTION, new TestRequest(), testActionFuture.map(r -> {
@@ -181,7 +181,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
             ThreadPool threadPool
         ) {
             super(NAME, transportService, actionFilters, in -> new TestRequest(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            testPlugin = pluginsService.filterPlugins(TestPlugin.class).get(0);
+            testPlugin = pluginsService.filterPlugins(TestPlugin.class).findFirst().get();
             this.threadPool = threadPool;
         }
 

@@ -46,6 +46,8 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -111,6 +113,7 @@ import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperator
  * drivers that are used to execute the given plan.
  */
 public class LocalExecutionPlanner {
+    private static final Logger logger = LogManager.getLogger(LocalExecutionPlanner.class);
 
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -813,6 +816,7 @@ public class LocalExecutionPlanner {
             try {
                 for (DriverFactory df : driverFactories) {
                     for (int i = 0; i < df.driverParallelism.instanceCount; i++) {
+                        logger.trace("building {} {}", i, df);
                         drivers.add(df.driverSupplier.apply(sessionId));
                     }
                 }
@@ -820,7 +824,7 @@ public class LocalExecutionPlanner {
                 return drivers;
             } finally {
                 if (success == false) {
-                    Releasables.close(() -> Releasables.close(drivers));
+                    Releasables.close(Releasables.wrap(drivers));
                 }
             }
         }

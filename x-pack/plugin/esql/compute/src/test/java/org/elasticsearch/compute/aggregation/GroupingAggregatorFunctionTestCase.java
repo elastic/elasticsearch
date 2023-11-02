@@ -303,7 +303,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         assertSimpleOutput(origInput, results);
     }
 
-    public final void testMulitvaluedNullGroup() {
+    public void testMulitvaluedNullGroup() {
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         int end = between(1, 2);  // TODO revert

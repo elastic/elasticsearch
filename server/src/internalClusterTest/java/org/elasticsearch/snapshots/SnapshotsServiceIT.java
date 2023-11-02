@@ -12,11 +12,16 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -120,5 +125,43 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             mockLogAppender.stop();
             deleteRepository("test-repo");
         }
+    }
+
+    public void testRerouteWhenShardSnapshotsCompleted() throws Exception {
+        final var repoName = randomIdentifier();
+        createRepository(repoName, "mock");
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        final var originalNode = internalCluster().startDataOnlyNode();
+
+        final var indexName = randomIdentifier();
+        createIndexWithContent(
+            indexName,
+            indexSettings(1, 0).put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", originalNode).build()
+        );
+
+        final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
+
+        // Use allocation filtering to push the shard to a new node, but it will not do so yet because of the ongoing snapshot.
+        updateIndexSettings(
+            Settings.builder()
+                .putNull(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name")
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", originalNode)
+        );
+
+        final var shardMovedListener = ClusterServiceUtils.addTemporaryStateListener(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            state -> {
+                final var primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
+                return primaryShard.started() && originalNode.equals(state.nodes().get(primaryShard.currentNodeId()).getName()) == false;
+            }
+        );
+        assertFalse(shardMovedListener.isDone());
+
+        unblockAllDataNodes(repoName);
+        assertEquals(SnapshotState.SUCCESS, snapshotFuture.get(10, TimeUnit.SECONDS).getSnapshotInfo().state());
+
+        // Now that the snapshot completed the shard should move to its new location.
+        safeAwait(shardMovedListener);
+        ensureGreen(indexName);
     }
 }

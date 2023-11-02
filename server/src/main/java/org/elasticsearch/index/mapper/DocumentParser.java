@@ -824,6 +824,11 @@ public final class DocumentParser {
         NoOpObjectMapper(String name, String fullPath) {
             super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
         }
+
+        @Override
+        public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+            return this;
+        }
     }
 
     /**

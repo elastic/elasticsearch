@@ -65,7 +65,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       BytesRef[] cidrsValues = new BytesRef[cidrs.length];
       BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
@@ -96,7 +96,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       BytesRef[] cidrsValues = new BytesRef[cidrs.length];
       BytesRef[] cidrsScratch = new BytesRef[cidrs.length];

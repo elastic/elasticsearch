@@ -25,6 +25,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.Executor;
 
 /**
  * This class represents a repository that could not be initialized due to unknown type.
@@ -66,7 +67,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+    public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
         listener.onFailure(createUnknownTypeException());
     }
 
@@ -134,7 +135,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         throw createUnknownTypeException();
     }
 

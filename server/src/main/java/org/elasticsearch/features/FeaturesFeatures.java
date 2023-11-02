@@ -15,7 +15,7 @@ import java.util.Set;
  * Nodes that do not support features won't have this feature in its feature set,
  * so this can be checked without needing to look at the node version.
  */
-public class FeaturesSupportedSpecification implements FeatureSpecification {
+public class FeaturesFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {

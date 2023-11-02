@@ -24,9 +24,13 @@ public final class ObjectStoreTestUtils {
     private ObjectStoreTestUtils() {}
 
     public static MockRepository getObjectStoreMockRepository(ObjectStoreService service) {
+        return getObjectStoreMockRepository(service, MockRepository.class);
+    }
+
+    public static <T> T getObjectStoreMockRepository(ObjectStoreService service, Class<T> repoClass) {
         var objectStore = service.getObjectStore();
-        if (objectStore instanceof MockRepository mockRepository) {
-            return mockRepository;
+        if (repoClass.isInstance(objectStore)) {
+            return repoClass.cast(objectStore);
         } else {
             throw new AssertionError("ObjectStoreService does not use a mocked BlobStoreRepository");
         }

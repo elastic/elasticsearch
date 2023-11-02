@@ -68,6 +68,8 @@ import co.elastic.elasticsearch.stateless.metering.GetBlobStoreStatsRestHandler;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 import co.elastic.elasticsearch.stateless.metering.action.TransportGetBlobStoreStatsAction;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTask;
+import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -117,12 +119,14 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -151,18 +155,23 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
+import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -194,7 +203,8 @@ public class Stateless extends Plugin
         ClusterPlugin,
         ClusterCoordinationPlugin,
         ExtensiblePlugin,
-        HealthPlugin {
+        HealthPlugin,
+        PersistentTaskPlugin {
 
     private static final Logger logger = LogManager.getLogger(Stateless.class);
 
@@ -562,7 +572,9 @@ public class Stateless extends Plugin
             IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING,
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
-            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING
+            BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
+            ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING,
+            ObjectStoreGCTask.GC_INTERVAL_SETTING
         );
     }
 
@@ -1024,6 +1036,37 @@ public class Stateless extends Plugin
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         return Map.of(StatelessElectionStrategy.NAME, Objects.requireNonNull(electionStrategy.get()));
+    }
+
+    @Override
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
+        return List.of(ObjectStoreGCTaskExecutor.create(clusterService, threadPool, client, objectStoreService::get));
+    }
+
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                PersistentTaskParams.class,
+                ObjectStoreGCTask.TASK_NAME,
+                ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams::new
+            )
+        );
+    }
+
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return List.of(
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(ObjectStoreGCTask.TASK_NAME),
+                ObjectStoreGCTaskExecutor.ObjectStoreGCTaskParams::fromXContent
+            )
+        );
     }
 
     /**

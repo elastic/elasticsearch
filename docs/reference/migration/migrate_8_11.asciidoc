@@ -63,9 +63,9 @@ enable <<deprecation-logging, deprecation logging>>.
 [%collapsible]
 ====
 *Details* +
-{ref}/xpack-rollup[Rollup functionality] has been deprecated and will be removed in a future release. Previously, rollups were available in technical preview.
+<<xpack-rollup,Rollup functionality>> has been deprecated and will be removed in a future release. Previously, rollups were available in technical preview.
 
 *Impact* +
-Use {ref}/downsampling.html[downsampling] to reduce storage costs for time series data by by storing it at reduced granularity.
+Use <<downsampling,downsampling>> to reduce storage costs for time series data by storing it at reduced granularity.
 ====
 

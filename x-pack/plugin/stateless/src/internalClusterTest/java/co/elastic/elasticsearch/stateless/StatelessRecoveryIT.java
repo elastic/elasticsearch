@@ -1991,6 +1991,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
     }
 
     @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.indices.cluster.IndicesClusterStateService:WARN")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1104")
     public void testPrimaryRelocationWhileLocallyFailedLogging() {
         final var indexNodeA = startIndexNode();
         startSearchNode();

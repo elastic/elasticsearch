@@ -1018,6 +1018,8 @@ public class Security extends Plugin
 
         reservedRoleMappingAction.set(new ReservedRoleMappingAction(nativeRoleMappingStore));
         systemIndices.getMainIndexManager().onStateRecovered(state -> reservedRoleMappingAction.get().securityIndexRecovered());
+        // How do we wait for role mappings to be available instead of only the security index?
+        systemIndices.getMainIndexManager().onStateRecovered(state -> nativeRoleMappingStore.loadCache());
 
         cacheInvalidatorRegistry.validate();
 

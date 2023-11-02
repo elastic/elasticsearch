@@ -145,13 +145,6 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
                     final List<ExpressionRoleMapping> mappingList = mappings.stream().filter(Objects::nonNull).toList();
                     logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
-                    // TODO hack hack hack
-                    if (cache != null) {
-                        cache.invalidateAll();
-                        for (var mapping : mappingList) {
-                            cache.put(mapping.getName(), mapping);
-                        }
-                    }
                     listener.onResponse(mappingList);
                 }, ex -> {
                     logger.error(
@@ -162,6 +155,17 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 })),
                 doc -> buildMapping(getNameFromId(doc.getId()), doc.getSourceRef())
             );
+        }
+    }
+
+    public void loadCache() {
+        if (cache != null) {
+            loadMappings(ActionListener.wrap(roleMappings -> {
+                cache.invalidateAll();
+                for (var roleMapping : roleMappings) {
+                    cache.put(roleMapping.getName(), roleMapping);
+                }
+            }, logger::error));
         }
     }
 
@@ -370,7 +374,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             refreshRealms(ActionListener.noop(), null);
             // TODO is this what we want?
             if (cache != null) {
-                // re-load cache, yikes...
+                // reload cache, yikes...
                 getMappings(ActionListener.noop());
             }
         }

@@ -22,8 +22,6 @@ import java.util.TreeSet;
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
-    private static final char PRINCIPAL_SEPARATOR = '|';
-    private static final char PRINCIPAL_LITERAL_SEPARATOR_REPLACE = ' ';
     private SignedJWT signedJWT;
     private final String principal;
     private final byte[] userCredentialsHash;
@@ -43,7 +41,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         @Nullable final SecureString clientAuthenticationSharedSecret
     ) {
         this.signedJWT = Objects.requireNonNull(signedJWT);
-        this.principal = buildPrincipal();
+        this.principal = buildTokenPrincipal();
         this.userCredentialsHash = Objects.requireNonNull(userCredentialsHash);
         if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
@@ -96,17 +94,41 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         return JwtAuthenticationToken.class.getSimpleName() + "=" + this.principal;
     }
 
-    private String buildPrincipal() {
-        StringBuilder principalBuilder = new StringBuilder();
+    private String buildTokenPrincipal() {
         JWTClaimsSet jwtClaimsSet = getJWTClaimsSet();
-        principalBuilder.append(replaceLiteralSeparator(jwtClaimsSet.getIssuer())).append(PRINCIPAL_SEPARATOR);
-        principalBuilder.append(replaceLiteralSeparator(String.join(",", new TreeSet<>(jwtClaimsSet.getAudience()))))
-            .append(PRINCIPAL_SEPARATOR);
-        principalBuilder.append(replaceLiteralSeparator(jwtClaimsSet.getSubject()));
+        StringBuilder principalBuilder = new StringBuilder();
+        for (String claimName : new TreeSet<>(jwtClaimsSet.getClaims().keySet())) {
+            // only use String or String[] claim values to assemble the principal
+            try {
+                String claimValue = jwtClaimsSet.getStringClaim(claimName);
+                if (principalBuilder.isEmpty() == false) {
+                    principalBuilder.append(' ');
+                }
+                principalBuilder.append('\'').append(claimName).append(':').append(claimValue).append('\'');
+            } catch (ParseException e1) {
+                try {
+                    String[] claimValues = jwtClaimsSet.getStringArrayClaim(claimName);
+                    if (claimValues != null && claimValues.length > 0) {
+                        if (principalBuilder.isEmpty() == false) {
+                            principalBuilder.append(' ');
+                        }
+                        principalBuilder.append('\'').append(claimName).append(':');
+                        for (int i = 0; i < claimValues.length; i++) {
+                            if (i > 0) {
+                                principalBuilder.append(',');
+                            }
+                            principalBuilder.append(claimValues[i]);
+                        }
+                        principalBuilder.append('\'');
+                    }
+                } catch (ParseException e2) {
+                    // ignored claim type
+                }
+            }
+        }
+        if (principalBuilder.isEmpty()) {
+            return "<malformed JWT token>";
+        }
         return principalBuilder.toString();
-    }
-
-    private String replaceLiteralSeparator(@Nullable String claimValue) {
-        return claimValue == null ? null : claimValue.replace(PRINCIPAL_SEPARATOR, PRINCIPAL_LITERAL_SEPARATOR_REPLACE);
     }
 }

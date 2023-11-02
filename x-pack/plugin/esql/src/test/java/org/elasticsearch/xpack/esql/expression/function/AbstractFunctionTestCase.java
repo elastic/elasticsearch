@@ -297,6 +297,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      *     input pattern contained only a single value.
      * </p>
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100820")
     public final void testCrankyEvaluateBlockWithoutNullsFloating() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
         try {
@@ -458,10 +459,17 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public final void testEvaluatorToString() {
         assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
         assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
-        var supplier = evaluator(buildFieldExpression(testCase));
-        try (ExpressionEvaluator ev = supplier.get(driverContext())) {
+        var factory = evaluator(buildFieldExpression(testCase));
+        try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), equalTo(testCase.evaluatorToString));
         }
+    }
+
+    public final void testFactoryToString() {
+        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
+        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        var factory = evaluator(buildFieldExpression(testCase));
+        assertThat(factory.toString(), equalTo(testCase.evaluatorToString));
     }
 
     public final void testFold() {
@@ -515,6 +523,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 continue; // TODO remove this eventually, so that all the functions will have to provide signature info
             }
             Set<String> signatureTypes = typesFromSignature.get(i);
+            if (signatureTypes.isEmpty()) {
+                continue;
+            }
             assertEquals(annotationTypes, signatureTypes);
         }
 

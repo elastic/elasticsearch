@@ -306,7 +306,6 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
     private boolean isCheckPrivilegesBlocked() {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
             if (pluginsService.filterPlugins(LocalStateWithDummyAuthorizationEngineExtension.class)
-                .stream()
                 .anyMatch(LocalStateWithDummyAuthorizationEngineExtension::isBlockedOnCheckPrivileges)) {
                 return true;
             }
@@ -316,7 +315,7 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
 
     private boolean isShardSearchBlocked() {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            if (pluginsService.filterPlugins(SearchBlockPlugin.class).stream().anyMatch(SearchBlockPlugin::isShardSearchBlocked)) {
+            if (pluginsService.filterPlugins(SearchBlockPlugin.class).anyMatch(SearchBlockPlugin::isShardSearchBlocked)) {
                 return true;
             }
         }

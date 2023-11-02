@@ -121,11 +121,22 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCxt -> new CoalesceEvaluator(
-            dvrCxt,
-            LocalExecutionPlanner.toElementType(dataType()),
-            children().stream().map(toEvaluator).map(x -> x.get(dvrCxt)).toList()
-        );
+        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
+        return new ExpressionEvaluator.Factory() {
+            @Override
+            public ExpressionEvaluator get(DriverContext context) {
+                return new CoalesceEvaluator(
+                    context,
+                    LocalExecutionPlanner.toElementType(dataType()),
+                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                );
+            }
+
+            @Override
+            public String toString() {
+                return "CoalesceEvaluator[values=" + childEvaluators + ']';
+            }
+        };
     }
 
     private record CoalesceEvaluator(DriverContext driverContext, ElementType resultType, List<EvalOperator.ExpressionEvaluator> evaluators)

@@ -54,13 +54,13 @@ import static java.util.Collections.emptyMap;
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
 
-    private static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
+    static final Setting<TimeValue> REPOSITORY_S3_CAS_TTL_SETTING = Setting.timeSetting(
         "repository_s3.compare_and_exchange.time_to_live",
         StoreHeartbeatService.HEARTBEAT_FREQUENCY,
         Setting.Property.NodeScope
     );
 
-    private static final Setting<TimeValue> REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING = Setting.timeSetting(
+    static final Setting<TimeValue> REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING = Setting.timeSetting(
         "repository_s3.compare_and_exchange.anti_contention_delay",
         TimeValue.timeValueSeconds(1),
         TimeValue.timeValueMillis(1),

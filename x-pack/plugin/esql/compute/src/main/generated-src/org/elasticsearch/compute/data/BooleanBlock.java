@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
@@ -17,7 +18,7 @@ import java.io.IOException;
  * Block that stores boolean values.
  * This class is generated. Do not edit it.
  */
-public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock {
+public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock {
 
     /**
      * Retrieves the boolean value stored at the given value index.
@@ -165,31 +166,52 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         return result;
     }
 
-    /** Returns a builder using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a builder using the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newBooleanBlockBuilder}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static Builder newBlockBuilder(int estimatedSize) {
         return newBlockBuilder(estimatedSize, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Returns a builder.
+     * @deprecated use {@link BlockFactory#newBooleanBlockBuilder}
+     */
+    @Deprecated
     static Builder newBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         return blockFactory.newBooleanBlockBuilder(estimatedSize);
     }
 
-    /** Returns a block using the {@link BlockFactory#getNonBreakingInstance block factory}. */
+    /**
+     * Returns a constant block built by the {@link BlockFactory#getNonBreakingInstance non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newConstantBooleanBlockWith}
+     */
     // Eventually, we want to remove this entirely, always passing an explicit BlockFactory
+    @Deprecated
     static BooleanBlock newConstantBlockWith(boolean value, int positions) {
         return newConstantBlockWith(value, positions, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * Returns a constant block.
+     * @deprecated use {@link BlockFactory#newConstantBooleanBlockWith}
+     */
+    @Deprecated
     static BooleanBlock newConstantBlockWith(boolean value, int positions, BlockFactory blockFactory) {
         return blockFactory.newConstantBooleanBlockWith(value, positions);
     }
 
-    sealed interface Builder extends Block.Builder permits BooleanBlockBuilder {
-
+    /**
+     * Builder for {@link BooleanBlock}
+     */
+    sealed interface Builder extends Block.Builder, BlockLoader.BooleanBuilder permits BooleanBlockBuilder {
         /**
          * Appends a boolean to the current entry.
          */
+        @Override
         Builder appendBoolean(boolean value);
 
         /**
@@ -213,12 +235,11 @@ public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, Bo
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
-        // TODO boolean containsMvDups();
-
         /**
          * Appends the all values of the given block into a the current position
          * in this builder.
          */
+        @Override
         Builder appendAllValuesToCurrentPosition(Block block);
 
         /**

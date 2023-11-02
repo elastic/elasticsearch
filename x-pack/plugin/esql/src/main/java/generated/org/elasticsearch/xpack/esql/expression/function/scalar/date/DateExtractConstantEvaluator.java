@@ -40,9 +40,6 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
-      if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       LongVector valueVector = valueBlock.asVector();
       if (valueVector == null) {
@@ -53,7 +50,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -66,7 +63,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   }
 
   public LongVector eval(int positionCount, LongVector valueVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(DateExtract.process(valueVector.getLong(p), chronoField, zone));
       }
@@ -82,5 +79,30 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   @Override
   public void close() {
     Releasables.closeExpectNoException(value);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final ChronoField chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory value, ChronoField chronoField,
+        ZoneId zone) {
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractConstantEvaluator get(DriverContext context) {
+      return new DateExtractConstantEvaluator(value.get(context), chronoField, zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractConstantEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
   }
 }

@@ -73,7 +73,7 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.ml.inference": "TRACE",
-                "logger.org.elasticsearch.xpack.ml.inference.assignments": "TRACE",
+                "logger.org.elasticsearch.xpack.ml.inference.assignments": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.process": "DEBUG",
                 "logger.org.elasticsearch.xpack.ml.action": "TRACE"
               }
@@ -97,7 +97,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         client().performRequest(request);
     }
 
-    @AwaitsFix(bugUrl = "mute to try and reproduce https://github.com/elastic/elasticsearch/issues/100379")
     public void testTrainedModelDeployment() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", isOriginalClusterVersionAtLeast(Version.V_8_0_0));
 

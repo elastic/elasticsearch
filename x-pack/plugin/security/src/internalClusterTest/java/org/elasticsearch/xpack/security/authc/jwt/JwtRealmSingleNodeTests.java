@@ -265,7 +265,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         );
         // reload settings
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
-        final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).get(0);
+        final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
         for (Plugin p : localStateSecurity.plugins()) {
             if (p instanceof Security securityPlugin) {
                 Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);

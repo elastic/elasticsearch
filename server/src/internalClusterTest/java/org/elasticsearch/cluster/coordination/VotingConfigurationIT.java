@@ -92,10 +92,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             if (sender.equals(excludedNodeName)) {
                 continue;
             }
-            final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                sender
-            );
+            final var senderTransportService = MockTransportService.getInstance(sender);
             for (final String receiver : nodeNames) {
                 senderTransportService.addSendBehavior(
                     internalCluster().getInstance(TransportService.class, receiver),

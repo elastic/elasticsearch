@@ -37,11 +37,10 @@ public class ScheduleNowTransformAction extends ActionType<ScheduleNowTransformA
         super(NAME, ScheduleNowTransformAction.Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final String id;
 
-        @SuppressWarnings("this-escape")
         public Request(String id, TimeValue timeout) {
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.setTimeout(ExceptionsHelper.requireNonNull(timeout, TransformField.TIMEOUT.getPreferredName()));

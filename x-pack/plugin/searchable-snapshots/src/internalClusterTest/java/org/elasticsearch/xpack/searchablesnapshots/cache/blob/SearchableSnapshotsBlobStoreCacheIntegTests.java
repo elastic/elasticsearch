@@ -360,7 +360,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
             assertThat(refreshResponse.getSuccessfulShards(), greaterThan(0));
             assertThat(refreshResponse.getFailedShards(), equalTo(0));
         } catch (IndexNotFoundException indexNotFoundException) {
-            throw new AssertionError("unexpected", indexNotFoundException);
+            fail(indexNotFoundException);
         }
     }
 

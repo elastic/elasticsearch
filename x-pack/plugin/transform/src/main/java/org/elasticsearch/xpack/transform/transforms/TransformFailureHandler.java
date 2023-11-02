@@ -248,7 +248,7 @@ class TransformFailureHandler {
                 numFailureRetries
             );
 
-            logger.log(unattended ? Level.INFO : Level.WARN, () -> "[" + transformId + "] " + retryMessage);
+            logger.log(unattended ? Level.INFO : Level.WARN, () -> "[" + transformId + "] " + retryMessage, unwrappedException);
             auditor.audit(unattended ? INFO : WARNING, transformId, retryMessage);
         }
     }

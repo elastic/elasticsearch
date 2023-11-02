@@ -37,11 +37,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
       IntBlock[] valuesBlocks = new IntBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        valuesBlocks[i] = (IntBlock) block;
+        valuesBlocks[i] = (IntBlock) valuesRefs[i].block();
       }
       IntVector[] valuesVectors = new IntVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -55,7 +51,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntBlock eval(int positionCount, IntBlock[] valuesBlocks) {
-    try(IntBlock.Builder result = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -76,7 +72,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public IntVector eval(int positionCount, IntVector[] valuesVectors) {
-    try(IntVector.Builder result = IntVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(IntVector.Builder result = driverContext.blockFactory().newIntVectorBuilder(positionCount)) {
       int[] valuesValues = new int[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues
@@ -97,5 +93,24 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(() -> Releasables.close(values));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory[] values;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory[] values) {
+      this.values = values;
+    }
+
+    @Override
+    public LeastIntEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastIntEvaluator(values, context);
+    }
+
+    @Override
+    public String toString() {
+      return "LeastIntEvaluator[" + "values=" + Arrays.toString(values) + "]";
+    }
   }
 }

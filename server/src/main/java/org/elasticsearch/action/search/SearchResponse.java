@@ -455,7 +455,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * and how many of them were skipped and further details in a Map of Cluster objects
      * (when doing a cross-cluster search).
      */
-    public static class Clusters implements ToXContentFragment, Writeable {
+    public static final class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 

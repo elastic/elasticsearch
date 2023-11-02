@@ -95,7 +95,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final SecurityIndexManager securityIndex;
     private final ScriptService scriptService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
-    private final Cache<String, ExpressionRoleMapping> fallbackCache;
+    private final Cache<String, ExpressionRoleMapping> cache;
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
         this.settings = settings;
@@ -103,7 +103,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
         // TODO would be enabled and parametrized based on hidden settings
-        this.fallbackCache = CacheBuilder.<String, ExpressionRoleMapping>builder().build();
+        this.cache = CacheBuilder.<String, ExpressionRoleMapping>builder().build();
     }
 
     private static String getNameFromId(String id) {
@@ -145,6 +145,13 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
                     final List<ExpressionRoleMapping> mappingList = mappings.stream().filter(Objects::nonNull).toList();
                     logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
+                    // TODO hack hack hack
+                    if (cache != null) {
+                        cache.invalidateAll();
+                        for (var mapping : mappingList) {
+                            cache.put(mapping.getName(), mapping);
+                        }
+                    }
                     listener.onResponse(mappingList);
                 }, ex -> {
                     logger.error(
@@ -235,8 +242,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     @Override
                     public void onResponse(DocWriteResponse indexResponse) {
                         boolean created = indexResponse.getResult() == CREATED;
-                        if (fallbackCache != null) {
-                            fallbackCache.put(mapping.getName(), mapping);
+                        if (cache != null) {
+                            cache.put(mapping.getName(), mapping);
                         }
                         listener.onResponse(created);
                     }
@@ -271,8 +278,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         @Override
                         public void onResponse(DeleteResponse deleteResponse) {
                             boolean deleted = deleteResponse.getResult() == DELETED;
-                            if (fallbackCache != null) {
-                                fallbackCache.invalidate(request.getName());
+                            if (cache != null) {
+                                cache.invalidate(request.getName());
                             }
                             listener.onResponse(deleted);
                         }
@@ -312,11 +319,10 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             logger.debug("The security index exists but is closed - no role mappings can be loaded");
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
-            if (fallbackCache != null) {
-                logger.debug(
-                    "The security index exists but is not available - loading role mappings from fallback cache. Results may be incomplete"
-                );
-                loadMappingsFromFallbackCache(listener);
+            // Best effort - try to fetch from cache
+            if (cache != null) {
+                logger.debug("The security index exists but is not available - loading role mappings from cache.");
+                loadMappingsFromCache(listener);
                 return;
             }
             logger.debug("The security index exists but is not available - no role mappings can be loaded");
@@ -326,10 +332,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         }
     }
 
-    private void loadMappingsFromFallbackCache(ActionListener<List<ExpressionRoleMapping>> listener) {
-        final List<ExpressionRoleMapping> mappings = StreamSupport.stream(fallbackCache.values().spliterator(), false)
-            .collect(Collectors.toList());
-        logger.debug("Successfully loaded [{}] role mappings(s) from fallback cache", mappings.size());
+    private void loadMappingsFromCache(ActionListener<List<ExpressionRoleMapping>> listener) {
+        final List<ExpressionRoleMapping> mappings = StreamSupport.stream(cache.values().spliterator(), false).collect(Collectors.toList());
+        logger.debug("Successfully loaded [{}] role mappings(s) from cache", mappings.size());
         listener.onResponse(mappings);
     }
 

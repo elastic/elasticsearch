@@ -146,7 +146,7 @@ buildScan {
             'buildkite-agent',
             'annotate',
             '--context',
-            'gradle-build-scans',
+            result.failure ? 'gradle-build-scans-failed' : 'gradle-build-scans',
             '--append',
             '--style',
             result.failure ? 'error' : 'info',

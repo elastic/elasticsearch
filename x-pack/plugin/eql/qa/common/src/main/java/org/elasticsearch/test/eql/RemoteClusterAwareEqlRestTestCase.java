@@ -11,7 +11,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -24,11 +23,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.elasticsearch.common.Strings.hasText;
 
-@SuppressWarnings("removal")
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accomodate for max measured throughput decline
@@ -59,11 +56,6 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         } finally {
             remoteClient = null;
         }
-    }
-
-    protected static RestHighLevelClient highLevelClient(RestClient client) {
-        return new RestHighLevelClient(client, ignore -> {}, Collections.emptyList()) {
-        };
     }
 
     protected static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {

@@ -287,7 +287,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.getDataStreamTemplate(),
                     orig.getAllowAutoCreate(),
                     orig.getIgnoreMissingComponentTemplates(),
-                    orig.deprecated() ? randomFrom(false, null) : true
+                    orig.isDeprecated() ? randomFrom(false, null) : true
                 );
             default:
                 throw new IllegalStateException("illegal randomization branch");

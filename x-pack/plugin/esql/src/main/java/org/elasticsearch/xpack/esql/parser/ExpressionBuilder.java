@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -116,7 +117,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         try {
             number = StringUtils.parseIntegral(text);
-        } catch (QlIllegalArgumentException siae) {
+        } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
@@ -225,7 +226,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         try {
             TemporalAmount quantity = parseTemporalAmout(value, qualifier, source);
             return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
-        } catch (QlIllegalArgumentException | ArithmeticException e) {
+        } catch (InvalidArgumentException | ArithmeticException e) {
             // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
             // and same for Period#ofWeeks()
             throw new ParsingException(source, "Number [{}] outside of [{}] range", ctx.integerValue().getText(), qualifier);

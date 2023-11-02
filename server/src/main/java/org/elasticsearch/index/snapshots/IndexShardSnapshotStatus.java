@@ -238,15 +238,15 @@ public class IndexShardSnapshotStatus {
         return new IndexShardSnapshotStatus(Stage.INIT, 0L, 0L, 0, 0, 0, 0, 0, 0, null, generation);
     }
 
-    public static IndexShardSnapshotStatus newFailed(final String failure) {
+    public static IndexShardSnapshotStatus.Copy newFailed(final String failure) {
         assert failure != null : "expecting non null failure for a failed IndexShardSnapshotStatus";
         if (failure == null) {
             throw new IllegalArgumentException("A failure description is required for a failed IndexShardSnapshotStatus");
         }
-        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null);
+        return new IndexShardSnapshotStatus(Stage.FAILURE, 0L, 0L, 0, 0, 0, 0, 0, 0, failure, null).asCopy();
     }
 
-    public static IndexShardSnapshotStatus newDone(
+    public static IndexShardSnapshotStatus.Copy newDone(
         final long startTime,
         final long totalTime,
         final int incrementalFileCount,
@@ -268,7 +268,7 @@ public class IndexShardSnapshotStatus {
             incrementalSize,
             null,
             generation
-        );
+        ).asCopy();
     }
 
     /**

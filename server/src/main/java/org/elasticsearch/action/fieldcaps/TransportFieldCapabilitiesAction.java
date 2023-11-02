@@ -309,7 +309,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         FieldCapabilitiesRequest request,
         List<FieldCapabilitiesFailure> failures
     ) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
+        // too expensive to run this on a transport worker, TODO: remove GENERIC from the assertion, it's only used by EsqlDisruptionIT
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION, ThreadPool.Names.GENERIC);
         task.ensureNotCancelled();
         final FieldCapabilitiesIndexResponse[] indexResponses = indexResponsesMap.values().toArray(new FieldCapabilitiesIndexResponse[0]);
         Arrays.sort(indexResponses, Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName));

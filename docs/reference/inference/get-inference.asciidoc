@@ -2,6 +2,8 @@
 [[get-inference-api]]
 === Get {infer} API
 
+experimental[]
+
 Retrieves {infer} model information.
 
 [discrete]

@@ -72,6 +72,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkOperationListener;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -3218,7 +3219,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         assert assertPrimaryMode();
         // only needed for BWC reasons involving rolling upgrades from versions that do not support PRRLs:
-        assert indexSettings.getIndexVersionCreated().before(IndexVersion.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
+        assert indexSettings.getIndexVersionCreated().before(IndexVersions.V_7_4_0) || indexSettings.isSoftDeleteEnabled() == false;
         return replicationTracker.addPeerRecoveryRetentionLease(nodeId, globalCheckpoint, listener);
     }
 
@@ -4172,7 +4173,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return "IndexShard(shardRouting=" + shardRouting + ")";
     }
 
+    /**
+     * @deprecated use {@link #waitForPrimaryTermAndGeneration(long, long, ActionListener)} instead.
+     */
+    @Deprecated
     public void waitForSegmentGeneration(long segmentGeneration, ActionListener<Long> listener) {
-        getEngine().addSegmentGenerationListener(segmentGeneration, listener);
+        waitForPrimaryTermAndGeneration(getOperationPrimaryTerm(), segmentGeneration, listener);
+    }
+
+    /**
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     */
+    public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
+        getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, listener);
     }
 }

@@ -172,7 +172,7 @@
       <a href="data-management.html">Data management</a>
     </li>
     <li>
-      <a href="data-rollup-transform.html">Roll up or transform your data</a>
+      <a href="downsampling.html">Downsampling</a>
     </li>
     <li>
       <a href="snapshot-restore.html">Snapshot and restore</a>

@@ -842,9 +842,8 @@ public class ShardStateAction {
         }
     }
 
-    public static class NoLongerPrimaryShardException extends ElasticsearchException {
+    public static final class NoLongerPrimaryShardException extends ElasticsearchException {
 
-        @SuppressWarnings("this-escape")
         public NoLongerPrimaryShardException(ShardId shardId, String msg) {
             super(msg);
             setShard(shardId);

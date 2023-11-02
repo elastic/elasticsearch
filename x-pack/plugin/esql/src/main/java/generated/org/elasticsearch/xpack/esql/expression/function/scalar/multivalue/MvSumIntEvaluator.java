@@ -43,7 +43,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -67,6 +67,27 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
         }
         return Block.Ref.floating(builder.build());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field) {
+      this.source = source;
+      this.field = field;
+    }
+
+    @Override
+    public MvSumIntEvaluator get(DriverContext context) {
+      return new MvSumIntEvaluator(source, field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
     }
   }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -19,7 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -51,7 +50,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
             return;
         }
 
-        if (event.localNodeMaster() && event.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
+        if (event.localNodeMaster()) {
             // only want one doing this at a time, assume it succeeds and reset if not.
             if (upgraded.compareAndSet(false, true)) {
                 final Executor executor = threadPool.generic();
@@ -99,8 +98,8 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         return state.metadata()
             .stream()
             .filter(
-                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersion.V_7_12_0)
-                    && imd.getCompatibilityVersion().before(IndexVersion.V_8_0_0)
+                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersions.V_7_12_0)
+                    && imd.getCompatibilityVersion().before(IndexVersions.V_8_0_0)
             )
             .filter(IndexMetadata::isPartialSearchableSnapshot)
             .map(IndexMetadata::getSettings)
@@ -115,8 +114,8 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         currentState.metadata()
             .stream()
             .filter(
-                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersion.V_7_12_0)
-                    && imd.getCompatibilityVersion().before(IndexVersion.V_8_0_0)
+                imd -> imd.getCompatibilityVersion().onOrAfter(IndexVersions.V_7_12_0)
+                    && imd.getCompatibilityVersion().before(IndexVersions.V_8_0_0)
             )
             .filter(imd -> imd.isPartialSearchableSnapshot() && notFrozenShardLimitGroup(imd.getSettings()))
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)

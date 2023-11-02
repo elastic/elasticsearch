@@ -69,7 +69,8 @@ public class RestHandlerNodesIT extends ESIntegTestCase {
 
         final var dataNodeSupplier = internalCluster().getInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .get(0).nodesInCluster;
+            .findFirst()
+            .get().nodesInCluster;
 
         assertEquals(DiscoveryNodes.EMPTY_NODES, dataNodeSupplier.get());
 
@@ -78,7 +79,8 @@ public class RestHandlerNodesIT extends ESIntegTestCase {
 
         final var masterNodeSupplier = internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .get(0).nodesInCluster;
+            .findFirst()
+            .get().nodesInCluster;
 
         assertThat(dataNodeSupplier.get().size(), equalTo(2));
         assertThat(masterNodeSupplier.get().size(), equalTo(2));

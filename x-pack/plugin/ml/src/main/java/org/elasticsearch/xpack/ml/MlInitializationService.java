@@ -42,7 +42,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HID
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class MlInitializationService implements ClusterStateListener {
+public final class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
@@ -85,7 +85,6 @@ public class MlInitializationService implements ClusterStateListener {
     }
 
     // For testing
-    @SuppressWarnings("this-escape")
     public MlInitializationService(
         Client client,
         ThreadPool threadPool,

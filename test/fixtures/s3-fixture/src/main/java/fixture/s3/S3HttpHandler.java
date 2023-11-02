@@ -102,8 +102,10 @@ public class S3HttpHandler implements HttpHandler {
                 uploadsList.append("<MaxUploads>10000</MaxUploads>");
                 uploadsList.append("<IsTruncated>false</IsTruncated>");
 
-                for (MultipartUpload value : uploads.values()) {
-                    value.appendXml(uploadsList);
+                for (final var multipartUpload : uploads.values()) {
+                    if (multipartUpload.getPath().startsWith(prefix)) {
+                        multipartUpload.appendXml(uploadsList);
+                    }
                 }
 
                 uploadsList.append("</ListMultipartUploadsResult>");

@@ -53,6 +53,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -776,7 +777,13 @@ public class PainlessExecuteAction {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse("_id", document, xContentType);
+                    String id;
+                    if (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                        id = null; // The id gets auto generated for time series indices.
+                    } else {
+                        id = "_id";
+                    }
+                    SourceToParse sourceToParse = new SourceToParse(id, document, xContentType);
                     DocumentMapper documentMapper = indexService.mapperService().documentMapper();
                     if (documentMapper == null) {
                         documentMapper = DocumentMapper.createEmpty(indexService.mapperService());

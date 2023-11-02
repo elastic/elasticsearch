@@ -222,7 +222,7 @@ public final class ShardGenerations {
 
         public Builder put(IndexId indexId, int shardId, ShardGeneration generation) {
             var indexIdWithSameName = indexIdsByName.put(indexId.getName(), indexId);
-            assert indexIdWithSameName == null || indexIdWithSameName.equals(indexId) != false
+            assert indexIdWithSameName == null || indexIdWithSameName.equals(indexId)
                 : Strings.format("Unable to add: %s There's another index id with the same name: %s", indexId, indexIdWithSameName);
             ShardGeneration existingGeneration = generations.computeIfAbsent(indexId, i -> new HashMap<>()).put(shardId, generation);
             assert generation != null || existingGeneration == null

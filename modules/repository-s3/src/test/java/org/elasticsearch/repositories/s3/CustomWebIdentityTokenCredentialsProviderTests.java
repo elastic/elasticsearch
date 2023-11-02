@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonWebServiceClient;
 import com.amazonaws.auth.AWSCredentials;
 import com.sun.net.httpserver.HttpServer;
 
@@ -24,10 +23,8 @@ import org.junit.Assert;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -147,16 +144,18 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             "us-west-2"
         );
         Map<String, String> systemProperties = Map.of();
+
         var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
             getEnvironment(),
             environmentVariables::get,
             systemProperties::getOrDefault,
             Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC)
         );
-
-        Field endpointField = AmazonWebServiceClient.class.getDeclaredField("endpoint");
-        endpointField.setAccessible(true);
-        assertEquals(URI.create("https://sts.us-west-2.amazonaws.com"), endpointField.get(webIdentityTokenCredentialsProvider.stsClient()));
+        // We can't verify that webIdentityTokenCredentialsProvider AWSClient uses the "https://sts.us-west-2.amazonaws.com"
+        // endpoint, because it depends on hardcoded RegionalEndpointsOptionResolver that in turn depends
+        // on the system environment that we can't change in a unit test, so we just verify we that we called `setRegion`
+        // on stsClientBuilder which should internally correctly configure the endpoint
+        assertTrue(webIdentityTokenCredentialsProvider.isStsRegionConfigured());
 
         webIdentityTokenCredentialsProvider.shutdown();
     }

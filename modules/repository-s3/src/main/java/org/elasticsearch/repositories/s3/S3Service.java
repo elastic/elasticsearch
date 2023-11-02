@@ -321,6 +321,7 @@ class S3Service implements Closeable {
 
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
+        private boolean stsRegionConfigured = false;
 
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
@@ -362,7 +363,6 @@ class S3Service implements Closeable {
             );
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            boolean stsRegionConfigured = false;
             // Support regionalized STS endpoints https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
             if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
                 // AWS_REGION should be injected in the pod https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
@@ -398,8 +398,8 @@ class S3Service implements Closeable {
             return credentialsProvider != null;
         }
 
-        AWSSecurityTokenService stsClient() {
-            return stsClient;
+        public boolean isStsRegionConfigured() {
+            return stsRegionConfigured;
         }
 
         @Override

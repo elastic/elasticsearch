@@ -242,6 +242,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
         assertThat(lastUnsafeGeneration, greaterThan(0L));
+        // last unsafe generation is set to last committed gen after the refresh triggered by realtime get
+        assertThat(engine.getLastCommittedSegmentInfos().getGeneration(), equalTo(lastUnsafeGeneration));
         assertTrue(LiveVersionMapTestUtils.isSafeAccessRequired(map));
         assertFalse(LiveVersionMapTestUtils.isUnsafe(map));
 
@@ -250,7 +252,6 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         engine.flush(true, true, flushFuture);
         var flushResult = flushFuture.actionGet();
         assertTrue(flushResult.flushPerformed());
-        assertThat(flushResult.generation(), equalTo(lastUnsafeGeneration));
         assertThat(engine.getLastUnsafeSegmentGenerationForGets(), equalTo(lastUnsafeGeneration));
         // No longer in translog
         getResult = primary.getService()

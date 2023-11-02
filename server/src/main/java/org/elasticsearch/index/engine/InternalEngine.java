@@ -766,8 +766,8 @@ public class InternalEngine extends Engine {
                     DirectoryReader.open(indexWriter),
                     shardId
                 );
-                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 internalReaderManager = createInternalReaderManager(directoryReader);
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 ExternalReaderManager externalReaderManager = new ExternalReaderManager(internalReaderManager, externalRefreshListener);
                 success = true;
                 return externalReaderManager;

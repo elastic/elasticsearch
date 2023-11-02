@@ -2,6 +2,8 @@
 [[post-inference-api]]
 === Perform inference API
 
+experimental[]
+
 Performs an inference task on an input text by using an {infer} model.
 
 

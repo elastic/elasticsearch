@@ -131,7 +131,7 @@ public class ApmIT extends ESRestTestCase {
     private static boolean isElasticsearchMetric(Map<String, Object> apmMessage) {
         var metricset = (Map<String, Object>) apmMessage.getOrDefault("metricset", Collections.emptyMap());
         var tags = (Map<String, Object>) metricset.getOrDefault("tags", Collections.emptyMap());
-        return "elasticsearch".equals(tags.getOrDefault("otel_instrumentation_scope_name", "not_found"));
+        return "elasticsearch".equals(tags.get("otel_instrumentation_scope_name"));
     }
 
     private Map<String, Object> parseMap(String message) {

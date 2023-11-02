@@ -258,7 +258,7 @@ class NodeConstruction {
     /**
      * See comments on Node#logger for why this is not static
      */
-    private static final Logger logger = LogManager.getLogger(Node.class);
+    private final Logger logger = LogManager.getLogger(Node.class);
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Node.class);
 
     private final List<Closeable> resourcesToClose;

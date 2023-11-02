@@ -231,7 +231,7 @@ public final class ShardGenerations {
         private boolean noDuplicateIndicesWithSameName(IndexId newId) {
             for (IndexId id : generations.keySet()) {
                 if (id.getName().equals(newId.getName()) && id.equals(newId) == false) {
-                    return false;
+                    assert false : id + " vs " + newId;
                 }
             }
             return true;

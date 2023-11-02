@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.engine;
 import org.elasticsearch.index.engine.LiveVersionMap;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,8 +40,9 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class StatelessLiveVersionMapTests extends ESTestCase {
 
     public void testBasics() throws Exception {
-        AtomicLong generation = new AtomicLong(0);
-        var archive = new StatelessLiveVersionMapArchive(generation::get);
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
         Translog.Location loc = randomTranslogLocation();
@@ -50,11 +52,11 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
         refresh(map);
         assertThat(archive.archivePerGeneration().size(), equalTo(1));
-        var archiveMap = archive.archivePerGeneration().get(generation.get() + 1);
+        var archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get() + 1);
         assertThat(versionLookupSize(archiveMap), equalTo(1));
         assertEquals(indexVersionValue, get(map, id));
-        // A flush/commit happens
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
         assertNull(get(map, id));
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
 
@@ -65,8 +67,8 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         refresh(map);
         assertEquals(deleteVersionValue, get(map, id));
         assertThat(archive.archivePerGeneration().size(), equalTo(1));
-        // A flush/commit happens
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertEquals(deleteVersionValue, get(map, id));
         pruneTombstones(map, 2, 1);
         assertNull(get(map, id));
@@ -87,31 +89,31 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         refresh(map);
         assertEquals(indexValueVersion2, get(map, id));
         assertThat(archive.archivePerGeneration().size(), equalTo(1));
-        archiveMap = archive.archivePerGeneration().get(generation.get() + 1);
+        archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get() + 1);
         assertThat(versionLookupSize(archiveMap), equalTo(1));
-        // A flush/commit happens
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertNull(get(map, id));
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
     }
 
     public void testMultipleRefreshesWithFlush() throws Exception {
-        AtomicLong generation = new AtomicLong(0);
-        var archive = new StatelessLiveVersionMapArchive(generation::get);
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
         putIndex(map, id, newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
         refresh(map);
         assertThat(archive.archivePerGeneration().size(), equalTo(1));
-        var archiveMap = archive.archivePerGeneration().get(generation.get() + 1);
+        var archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get() + 1);
         assertNotNull(archiveMap);
         var update = newIndexVersionValue(randomTranslogLocation(), 2, 2, 1);
         putIndex(map, id, update);
         refresh(map);
         assertEquals(update, get(map, id));
-        // A flush/commit happens
-        generation.incrementAndGet();
+        flush(map, currentGeneration, preCommitGeneration);
         // while the commit if propagating to the unpromotables, a new update is added
         var update2 = newIndexVersionValue(randomTranslogLocation(), 1, 1, 1);
         putIndex(map, id, update2);
@@ -120,12 +122,12 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         // We should have two generations in the archive, since there were two refreshes before and after
         // the generation changed.
         assertThat(archive.archivePerGeneration().size(), equalTo(2));
-        archiveMap = archive.archivePerGeneration().get(generation.get());
+        archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get());
         assertThat(versionLookupSize(archiveMap), equalTo(1));
-        archiveMap = archive.archivePerGeneration().get(generation.get() + 1);
+        archiveMap = archive.archivePerGeneration().get(preCommitGeneration.get() + 1);
         assertThat(versionLookupSize(archiveMap), equalTo(1));
         assertEquals(update2, get(map, id));
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.incrementAndGet());
         assertNull(get(map, id));
         assertThat(archive.archivePerGeneration().size(), equalTo(0));
     }
@@ -135,8 +137,9 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
      * we could return stale value from archive rather than delete from tombstone.
      */
     public void testPruneTombstonesBetweenRefreshAndUnpromotableRefresh() throws Exception {
-        AtomicLong generation = new AtomicLong(0);
-        var archive = new StatelessLiveVersionMapArchive(generation::get);
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         var id = "test";
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
@@ -152,7 +155,8 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         pruneTombstones(map, 3, 3);
         assertEquals(deleteVersionValue, get(map, id));
         // A flush/commit happens
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertEquals(deleteVersionValue, get(map, id));
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
         pruneTombstones(map, 3, 3);
@@ -160,8 +164,10 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
     }
 
     public void testArchiveMinDeleteTimestamp() throws IOException {
-        AtomicLong generation = new AtomicLong(); // current segment generation is 0
-        var archive = new StatelessLiveVersionMapArchive(generation::get);
+        // current segment generation is 0
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         assertEquals(archive.getMinDeleteTimestamp(), Long.MAX_VALUE);
         // the timestamp is not changed throughout refreshes that don't see deletes
@@ -179,22 +185,25 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(1L));
         // New segment generation (flush on index shard)
-        generation.incrementAndGet();
+        preCommitGeneration.incrementAndGet();
+        currentGeneration.incrementAndGet();
         putIndex(map, "3", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
         putDelete(map, "3", newDeleteVersionValue(1, 1, 1, 3));
         refresh(map);
         assertThat(archive.getMinDeleteTimestamp(), equalTo(1L));
         // The commit reaches the search shards
-        archive.afterUnpromotablesRefreshed(generation.get());
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertThat(archive.getMinDeleteTimestamp(), equalTo(3L));
         // New flush, and it gets to the search shards...
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertThat(archive.getMinDeleteTimestamp(), equalTo(Long.MAX_VALUE));
     }
 
     public void testUnsafeMapIsRecordedInArchiveUntilUnpromotablesAreRefreshed() throws IOException {
-        AtomicLong generation = new AtomicLong(); // current segment generation is 0
-        var archive = new StatelessLiveVersionMapArchive(generation::get);
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong(0);
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
         var map = newLiveVersionMap(archive);
         assertFalse(isUnsafe(map));
         maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
@@ -206,15 +215,105 @@ public class StatelessLiveVersionMapTests extends ESTestCase {
             // Flushes don't change anything as long as they haven't reached the search shards
             if (randomBoolean()) {
                 // flush
-                generation.incrementAndGet();
+                preCommitGeneration.incrementAndGet();
+                currentGeneration.incrementAndGet();
             }
             refresh(map);
         }
         // We should still remember that the archive received an unsafe map
         assertTrue(isUnsafe(map));
         // New flush, and it gets to the search shards...
-        archive.afterUnpromotablesRefreshed(generation.incrementAndGet());
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(preCommitGeneration.get());
         assertFalse(isUnsafe(map));
+    }
+
+    public void testUnsafeMapClearedByUnpromotableRefresh() throws IOException {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong();
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        assertFalse(isUnsafe(map));
+        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        assertTrue(isUnsafe(map));
+        // A commit happens (e.g. due to a switch from unsafe to safe when a get to an unsafe map is received)
+        flush(map, currentGeneration, preCommitGeneration);
+        assertThat(archive.getMinSafeGeneration(), Matchers.equalTo(preCommitGeneration.get() + 1));
+        // We should still remember that the archive received an unsafe map
+        assertTrue(isUnsafe(map));
+        // It gets to the search shards...
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        // Since we conservatively wait for one more generation to clear the isUnsafe flag, in this case
+        // we would need to wait for an extra commit to clear the flag, although it is not necessary.
+        assertTrue(isUnsafe(map));
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertFalse(isUnsafe(map));
+    }
+
+    public void testUnsafeMapNotClearedDueToLocalRefresh() throws IOException {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong();
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        // commit, hold on to unprmotable responses
+        assertThat(archive.getMinSafeGeneration(), equalTo(-1L));
+        flush(map, currentGeneration, preCommitGeneration);
+        var minSafeGeneration = archive.getMinSafeGeneration();
+        assertThat(minSafeGeneration, Matchers.equalTo(preCommitGeneration.get() + 1));
+        assertTrue(isUnsafe(map));
+        // while unpromotable refresh is happening, we index mode
+        maybePutIndex(map, "2", newIndexVersionValue(randomTranslogLocation(), 1, 1, 1));
+        refresh(map);
+        assertThat(archive.getMinSafeGeneration(), Matchers.equalTo(preCommitGeneration.get() + 1));
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        // Shouldn't be cleared since the commit that is inflight to search shards only had id 1
+        assertTrue(isUnsafe(map));
+        flush(map, currentGeneration, preCommitGeneration);
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertFalse(isUnsafe(map));
+    }
+
+    /**
+     * Due to possibility of parallel indexing and local refreshes during a flush, we'd need to conservatively set minSafeGeneration
+     * in the archive to preCommitGeneration + 1, as otherwise we'd risk not seeing some documents that are indexed while a flush is
+     * happening and the live version map is unsafe.
+     */
+    public void testUnsafeMapDataIndexedDuringFlush() throws IOException {
+        AtomicLong currentGeneration = new AtomicLong(0);
+        AtomicLong preCommitGeneration = new AtomicLong();
+        var archive = new StatelessLiveVersionMapArchive(preCommitGeneration::get);
+        var map = newLiveVersionMap(archive);
+        maybePutIndex(map, "1", newIndexVersionValue(randomTranslogLocation(), 1, 0, 1));
+        assertTrue(isUnsafe(map));
+        // Flush starts
+        preCommitGeneration.set(currentGeneration.get() + 1);
+        // Index data during the flush, after we have committed the index writer, but still unsafe
+        assertTrue(isUnsafe(map));
+        int count = randomIntBetween(1, 3);
+        for (int i = 0; i < count; i++) {
+            maybePutIndex(map, randomIdentifier(), newIndexVersionValue(randomTranslogLocation(), 1, i + 1, 1));
+            if (randomBoolean()) {
+                refresh(map);
+            }
+        }
+        refresh(map); // A refresh (version_table_flush) that happens after the index writer is committed. See {@link InternalEngine#flush}
+        assertThat(archive.getMinSafeGeneration(), Matchers.equalTo(preCommitGeneration.get() + 1));
+        currentGeneration.incrementAndGet();
+        // Flush ends
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        // should still be unsafe
+        assertTrue(isUnsafe(map));
+        currentGeneration.incrementAndGet();
+        archive.afterUnpromotablesRefreshed(currentGeneration.get());
+        assertFalse(isUnsafe(map));
+    }
+
+    private void flush(LiveVersionMap map, AtomicLong currentGeneration, AtomicLong preCommitGeneration) throws IOException {
+        preCommitGeneration.set(currentGeneration.get() + 1);
+        refresh(map); // A refresh (version_table_flush) that happens after the index writer is committed. See {@link InternalEngine#flush}
+        currentGeneration.incrementAndGet();
     }
 
     private void refresh(LiveVersionMap map) throws IOException {

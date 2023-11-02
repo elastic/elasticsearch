@@ -54,7 +54,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
 
     private final SharedBlobCacheService<FileCacheKey> cacheService;
     private final long offset;
-    public static final String CACHE_MISS_COUNTER = "elasticsearch.blob_cache.miss_that_triggered_read_from_blob_store";
+    public static final String CACHE_MISS_COUNTER = "elasticsearch.blob_cache.miss_that_triggered_read";
     private final LongCounter cacheMissCounter;
 
     public SearchIndexInput(

@@ -55,6 +55,8 @@
 
 ---
 "Bug fix https://github.com/elastic/elasticsearch/issues/101489":
+  - skip:
+      features: warnings
   - do:
       indices.create:
         index: index1
@@ -100,6 +102,9 @@
           - { "index": { "_index": "index3" } }
           - { "http.headers.location": "CN" }
   - do:
+      warnings:
+        - "Field [http.headers] cannot be retrieved, it is unsupported or not indexed; returning null"
+        - "Field [http.headers.location] cannot be retrieved, it is unsupported or not indexed; returning null"
       esql.query:
         body:
           query: 'from index* [metadata _index] | limit 5 | sort _index desc'

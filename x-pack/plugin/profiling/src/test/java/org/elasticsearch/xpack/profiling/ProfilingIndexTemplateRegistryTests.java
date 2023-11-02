@@ -331,7 +331,13 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             metadata.put("version", randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
             policies.put(
                 policy.getName(),
-                new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy.getName(), policy.getPhases(), metadata, policy.isDeprecated())
+                new LifecyclePolicy(
+                    TimeseriesLifecycleType.INSTANCE,
+                    policy.getName(),
+                    policy.getPhases(),
+                    metadata,
+                    policy.getDeprecated()
+                )
             );
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);

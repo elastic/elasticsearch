@@ -213,7 +213,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 orig.template(),
                 orig.version(),
                 orig.metadata(),
-                orig.deprecated() ? randomFrom(false, null) : true
+                orig.isDeprecated() ? randomFrom(false, null) : true
             );
             default -> throw new IllegalStateException("illegal randomization branch");
         };

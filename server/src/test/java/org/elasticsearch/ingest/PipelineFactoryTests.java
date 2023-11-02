@@ -48,7 +48,7 @@ public class PipelineFactoryTests extends ESTestCase {
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getVersion(), equalTo(version));
-        assertThat(pipeline.isDeprecated(), equalTo(Boolean.TRUE.equals(deprecated)));
+        assertThat(pipeline.getDeprecated(), equalTo(deprecated));
         assertThat(pipeline.getProcessors().size(), equalTo(2));
         assertThat(pipeline.getProcessors().get(0).getType(), equalTo("test-processor"));
         assertThat(pipeline.getProcessors().get(0).getTag(), equalTo("first-processor"));

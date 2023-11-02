@@ -113,7 +113,11 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return metadata;
     }
 
-    public boolean deprecated() {
+    public Boolean deprecated() {
+        return deprecated;
+    }
+
+    public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
     }
 

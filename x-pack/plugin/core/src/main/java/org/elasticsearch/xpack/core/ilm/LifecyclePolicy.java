@@ -190,6 +190,10 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         return metadata;
     }
 
+    public Boolean getDeprecated() {
+        return deprecated;
+    }
+
     public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
     }

@@ -735,7 +735,7 @@ public class MetadataIndexTemplateService {
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
         validateLifecycleIsOnlyAppliedOnDataStreams(currentState.metadata(), name, templateToValidate);
 
-        if (templateToValidate.deprecated() == false) {
+        if (templateToValidate.isDeprecated() == false) {
             validateUseOfDeprecatedComponentTemplates(name, templateToValidate, currentState.metadata().componentTemplates());
             validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
             // TODO come up with a plan how to validate usage of deprecated ILM policies
@@ -767,7 +767,7 @@ public class MetadataIndexTemplateService {
             .stream()
             .map(ct -> Tuple.tuple(ct, componentTemplates.get(ct)))
             .filter(ct -> Objects.nonNull(ct.v2()))
-            .filter(ct -> ct.v2().deprecated())
+            .filter(ct -> ct.v2().isDeprecated())
             .forEach(
                 ct -> deprecationLogger.warn(
                     DeprecationCategory.TEMPLATES,

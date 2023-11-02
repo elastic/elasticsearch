@@ -287,7 +287,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return ignoreMissingComponentTemplates;
     }
 
-    public boolean deprecated() {
+    public Boolean deprecated() {
+        return deprecated;
+    }
+
+    public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
     }
 

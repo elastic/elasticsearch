@@ -284,7 +284,7 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
         String name = instance.getName();
         Map<String, Phase> phases = instance.getPhases();
         Map<String, Object> metadata = instance.getMetadata();
-        Boolean deprecated = instance.isDeprecated();
+        Boolean deprecated = instance.getDeprecated();
         switch (between(0, 3)) {
             case 0 -> name = name + randomAlphaOfLengthBetween(1, 5);
             case 1 -> {

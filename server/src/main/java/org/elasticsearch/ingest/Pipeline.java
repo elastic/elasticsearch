@@ -203,6 +203,10 @@ public final class Pipeline {
         return metrics;
     }
 
+    public Boolean getDeprecated() {
+        return deprecated;
+    }
+
     public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
     }

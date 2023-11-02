@@ -199,7 +199,7 @@ public final class NodeEnvironment implements Closeable {
      */
     static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
 
-    public static class NodeLock implements Releasable {
+    public static final class NodeLock implements Releasable {
 
         private final Lock[] locks;
         private final DataPath[] dataPaths;
@@ -213,7 +213,6 @@ public final class NodeEnvironment implements Closeable {
          * Tries to acquire a node lock for a node id, throws {@code IOException} if it is unable to acquire it
          * @param pathFunction function to check node path before attempt of acquiring a node lock
          */
-        @SuppressWarnings("this-escape")
         public NodeLock(
             final Logger logger,
             final Environment environment,
@@ -990,7 +989,7 @@ public final class NodeEnvironment implements Closeable {
             lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
 
-        protected void release() {
+        private void release() {
             mutex.release();
             decWaitCount();
         }

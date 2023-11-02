@@ -384,7 +384,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         {
             ClusterState clusterState = createClusterStateWith(
                 List.of(
-                    index(
+                    indexWithTwoPrimaryOneReplicaShard(
                         "myindex",
                         new ShardAllocation(randomNodeId(), AVAILABLE), // Primary 1
                         new ShardAllocation(randomNodeId(), AVAILABLE), // Replica 1
@@ -2036,7 +2036,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private static IndexRoutingTable index(
+    private static IndexRoutingTable indexWithTwoPrimaryOneReplicaShard(
         String name,
         ShardAllocation primary1State,
         ShardAllocation replica1State,

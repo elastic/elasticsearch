@@ -17,6 +17,10 @@ or collection of documents.
 This query finds queries that are stored as documents that match with
 the specified document.
 
+<<query-dsl-knn-query,`knn` query>>::
+A query that finds the _k_ nearest vectors to a query
+vector, as measured by a similarity metric.
+
 <<query-dsl-rank-feature-query,`rank_feature` query>>::
 A query that computes scores based on the values of numeric features and is
 able to efficiently skip non-competitive hits.
@@ -42,6 +46,8 @@ include::distance-feature-query.asciidoc[]
 include::mlt-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
+
+include::knn-query.asciidoc[]
 
 include::rank-feature-query.asciidoc[]
 

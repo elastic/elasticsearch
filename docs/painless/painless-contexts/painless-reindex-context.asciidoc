@@ -19,7 +19,7 @@ reindexed into a target index.
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`)::
         The name of the index.
 
-{ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
+{ref}/mapping-id-field.html[`ctx['_id']`] (`String`)::
         The unique document id.
 
 `ctx['_version']` (`int`)::

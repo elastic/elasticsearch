@@ -39,7 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
-public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
+public final class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
@@ -51,7 +51,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
 
-    @SuppressWarnings("this-escape")
     public IndicesFieldDataCache(Settings settings, IndexFieldDataCache.Listener indicesFieldDataCacheListener) {
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final long sizeInBytes = INDICES_FIELDDATA_CACHE_SIZE_KEY.get(settings).getBytes();

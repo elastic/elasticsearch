@@ -154,7 +154,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         }
     }
 
-    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
+    public static final class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
 
@@ -163,7 +163,6 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             clusterBlock = new ClusterBlock(in);
         }
 
-        @SuppressWarnings("this-escape")
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);

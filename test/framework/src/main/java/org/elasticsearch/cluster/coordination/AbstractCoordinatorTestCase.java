@@ -941,7 +941,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return 0;
         }
 
-        public class ClusterNode {
+        public final class ClusterNode {
             private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
@@ -962,7 +962,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClearableRecycler clearableRecycler;
             private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
-            @SuppressWarnings("this-escape")
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
                     nodeIndex,

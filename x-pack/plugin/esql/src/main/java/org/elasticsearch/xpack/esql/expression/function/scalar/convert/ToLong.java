@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -69,7 +71,7 @@ public class ToLong extends AbstractConvertFunction {
         return bool ? 1L : 0L;
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
     static long fromKeyword(BytesRef in) {
         String asString = in.utf8ToString();
         try {
@@ -83,12 +85,12 @@ public class ToLong extends AbstractConvertFunction {
         }
     }
 
-    @ConvertEvaluator(extraName = "FromDouble")
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
     static long fromDouble(double dbl) {
         return safeDoubleToLong(dbl);
     }
 
-    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
     static long fromUnsignedLong(long ul) {
         return safeToLong(unsignedLongAsNumber(ul));
     }

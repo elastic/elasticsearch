@@ -31,8 +31,8 @@ public class InjectHeaders extends FeatureInjector implements RestTestTransformB
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-    private Map<String, String> headers;
-    private Set<Function<ObjectNode, Boolean>> applyConditions;
+    private final Map<String, String> headers;
+    private final Set<Function<ObjectNode, Boolean>> applyConditions;
 
     /**
      * @param headers The headers to inject

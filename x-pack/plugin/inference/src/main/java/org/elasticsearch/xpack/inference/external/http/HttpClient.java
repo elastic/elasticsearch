@@ -92,7 +92,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                throttlerManager.getThrottler().warn(logger, format("Request [%s] failed", request.getRequestLine()), ex);
+                throttlerManager.warn(logger, format("Request [%s] failed", request.getRequestLine()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
@@ -108,7 +108,7 @@ public class HttpClient implements Closeable {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                throttlerManager.getThrottler().warn(logger, format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                throttlerManager.warn(logger, format("Failed to create http result for [%s]", request.getRequestLine()), e);
                 listener.onFailure(e);
             }
         });

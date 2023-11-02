@@ -42,7 +42,7 @@ public class HuggingFaceClient {
                 listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
             } catch (Exception e) {
                 String msg = format("Failed to parse the Hugging Face ELSER response for request [%s]", httpRequest.getRequestLine());
-                throttlerManager.getThrottler().warn(logger, msg, e);
+                throttlerManager.warn(logger, msg, e);
                 listener.onFailure(new ElasticsearchException(msg, e));
             }
         }, listener::onFailure);

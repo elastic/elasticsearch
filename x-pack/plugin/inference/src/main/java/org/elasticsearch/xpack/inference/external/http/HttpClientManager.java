@@ -38,9 +38,8 @@ public class HttpClientManager implements Closeable {
     public static final Setting<Integer> MAX_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_connections",
         // TODO pick a reasonable values here
-        20,
-        1,
-        1000,
+        20, // default
+        1, // min
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

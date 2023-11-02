@@ -266,6 +266,16 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             .blobContainer(objectStore.basePath().add("indices").add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())));
     }
 
+    public BlobContainer getIndicesBlobContainer() {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("indices"));
+    }
+
+    public BlobContainer getIndexBlobContainer(String indexUUID) {
+        final BlobStoreRepository objectStore = getObjectStore();
+        return objectStore.blobStore().blobContainer(objectStore.basePath().add("indices").add(indexUUID));
+    }
+
     public BlobContainer getTermLeaseBlobContainer() {
         final BlobStoreRepository objectStore = getObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));

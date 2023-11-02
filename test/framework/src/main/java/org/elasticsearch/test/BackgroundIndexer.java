@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public final class BackgroundIndexer implements AutoCloseable {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(BackgroundIndexer.class);
 
     final Thread[] writers;
     final Client client;

@@ -115,7 +115,6 @@ public class HuggingFaceElserService implements InferenceService {
     public void start(Model model, ActionListener<Boolean> listener) {
         try {
             init(model);
-            sender.get().start();
             listener.onResponse(true);
         } catch (Exception e) {
             listener.onFailure(new ElasticsearchException("Failed to start service", e));
@@ -133,6 +132,7 @@ public class HuggingFaceElserService implements InferenceService {
         }
 
         sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
+        sender.get().start();
 
         HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
         action.updateAndGet(

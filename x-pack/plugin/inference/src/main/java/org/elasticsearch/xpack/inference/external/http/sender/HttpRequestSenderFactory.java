@@ -83,7 +83,7 @@ public class HttpRequestSenderFactory {
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(1);
 
-        private HttpRequestSender(
+        protected HttpRequestSender(
             String serviceName,
             ThreadPool threadPool,
             HttpClientManager httpClientManager,

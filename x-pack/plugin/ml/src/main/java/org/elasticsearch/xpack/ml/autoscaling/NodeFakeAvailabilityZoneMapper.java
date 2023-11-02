@@ -33,6 +33,7 @@ public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
         this(settings, clusterSettings, null);
     }
 
+    @SuppressWarnings("this-escape")
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
         super(settings, clusterSettings, discoveryNodes);
         updateNodesByAvailabilityZone();

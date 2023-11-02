@@ -108,7 +108,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         return ((GeoShapeWithDocValuesFieldMapper) in).builder;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
@@ -144,7 +144,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         // for testing
-        protected Builder setStored(boolean stored) {
+        Builder setStored(boolean stored) {
             this.stored.setValue(stored);
             return this;
         }

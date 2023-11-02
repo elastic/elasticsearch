@@ -192,7 +192,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String SNAPSHOT_INDEX_PREFIX = "index-";
 
-    private static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
+    public static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
 
     public static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
@@ -1398,17 +1398,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
 
         private Iterator<String> resolveFilesToDelete(Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
+            // Somewhat surprisingly we can construct the String representations of the blobs to delete with BlobPath#buildAsString even
+            // on Windows, because the JDK translates / to \ automatically (and all other blob stores use / as the path separator anyway)
             final String basePath = basePath().buildAsString();
             final int basePathLen = basePath.length();
-            final Map<IndexId, Collection<String>> indexMetaGenerations = originalRepositoryData
-                .indexMetaDataToRemoveAfterRemovingSnapshots(snapshotIds);
-            return Stream.concat(deleteResults.stream().flatMap(shardResult -> {
-                final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
-                return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
-            }), indexMetaGenerations.entrySet().stream().flatMap(entry -> {
-                final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
-                return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
-            })).map(absolutePath -> {
+            return Stream.concat(
+                // Unreferenced shard-level blobs
+                deleteResults.stream().flatMap(shardResult -> {
+                    final String shardPath = shardPath(shardResult.indexId, shardResult.shardId).buildAsString();
+                    return shardResult.blobsToDelete.stream().map(blob -> shardPath + blob);
+                }),
+                // Unreferenced index metadata
+                originalRepositoryData.indexMetaDataToRemoveAfterRemovingSnapshots(snapshotIds).entrySet().stream().flatMap(entry -> {
+                    final String indexContainerPath = indexPath(entry.getKey()).buildAsString();
+                    return entry.getValue().stream().map(id -> indexContainerPath + INDEX_METADATA_FORMAT.blobName(id));
+                })
+            ).map(absolutePath -> {
                 assert absolutePath.startsWith(basePath);
                 return absolutePath.substring(basePathLen);
             }).iterator();
@@ -3035,10 +3040,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 }
                 for (String fileName : fileNames) {
-                    if (snapshotStatus.isAborted()) {
-                        logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
-                        throw new AbortedSnapshotException();
-                    }
+                    ensureNotAborted(shardId, snapshotId, snapshotStatus, fileName);
 
                     logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
                     final StoreFileMetadata md = metadataFromStore.get(fileName);
@@ -3240,6 +3242,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    private static void ensureNotAborted(ShardId shardId, SnapshotId snapshotId, IndexShardSnapshotStatus snapshotStatus, String fileName) {
+        try {
+            snapshotStatus.ensureNotAborted();
+        } catch (Exception e) {
+            logger.debug("[{}] [{}] {} on the file [{}], exiting", shardId, snapshotId, e.getMessage(), fileName);
+            assert e instanceof AbortedSnapshotException : e;
+            throw e;
+        }
+    }
+
     protected void snapshotFiles(
         SnapshotShardContext context,
         BlockingQueue<FileInfo> filesToSnapshot,
@@ -3268,7 +3280,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 store.decRef();
             }
         } else {
-            assert snapshotStatus.isAborted() : "if the store is already closed we must have been aborted";
+            try {
+                snapshotStatus.ensureNotAborted();
+                assert false : "if the store is already closed we must have been aborted";
+            } catch (Exception e) {
+                assert e instanceof AbortedSnapshotException : e;
+            }
         }
         return true;
     }
@@ -3492,7 +3509,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
         return IndexShardSnapshotStatus.newDone(
             snapshot.startTime(),
@@ -3501,8 +3518,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshot.totalFileCount(),
             snapshot.incrementalSize(),
             snapshot.totalSize(),
-            null
-        ); // Not adding a real generation here as it doesn't matter to callers
+            null // Not adding a real generation here as it doesn't matter to callers
+        );
     }
 
     @Override
@@ -3707,10 +3724,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
 
                     private void checkAborted() {
-                        if (snapshotStatus.isAborted()) {
-                            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileInfo.physicalName());
-                            throw new AbortedSnapshotException();
-                        }
+                        ensureNotAborted(shardId, snapshotId, snapshotStatus, fileInfo.physicalName());
                     }
                 };
                 final String partName = fileInfo.partName(i);

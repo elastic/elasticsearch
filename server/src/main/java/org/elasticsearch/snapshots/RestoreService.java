@@ -136,7 +136,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
  */
-public class RestoreService implements ClusterStateApplier {
+public final class RestoreService implements ClusterStateApplier {
 
     private static final Logger logger = LogManager.getLogger(RestoreService.class);
 
@@ -190,7 +190,6 @@ public class RestoreService implements ClusterStateApplier {
 
     private volatile boolean refreshRepositoryUuidOnRestore;
 
-    @SuppressWarnings("this-escape")
     public RestoreService(
         ClusterService clusterService,
         RepositoriesService repositoriesService,
@@ -1589,7 +1588,7 @@ public class RestoreService implements ClusterStateApplier {
         convertedIndexMetadataBuilder.settings(
             Settings.builder()
                 .put(snapshotIndexMetadata.getSettings())
-                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getSmallestNonClientNodeVersion())
+                .put(IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.getKey(), clusterState.getNodes().getMinSupportedIndexVersion())
                 .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
         );
         snapshotIndexMetadata = convertedIndexMetadataBuilder.build();

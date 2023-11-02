@@ -403,7 +403,11 @@ module org.elasticsearch.server {
     uses org.elasticsearch.internal.BuildExtension;
     uses org.elasticsearch.features.FeatureSpecification;
 
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.features.FeaturesSupportedSpecification;
+    provides org.elasticsearch.features.FeatureSpecification
+        with
+            org.elasticsearch.features.FeaturesSupportedSpecification,
+            org.elasticsearch.health.HealthFeature,
+            org.elasticsearch.rest.RestFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;

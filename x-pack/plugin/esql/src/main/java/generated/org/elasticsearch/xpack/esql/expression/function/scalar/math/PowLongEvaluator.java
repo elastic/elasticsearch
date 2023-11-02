@@ -59,7 +59,7 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (baseBlock.isNull(p) || baseBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -81,7 +81,7 @@ public final class PowLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Pow.processLong(baseVector.getDouble(p), exponentVector.getDouble(p)));

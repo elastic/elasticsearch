@@ -37,6 +37,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class MockEngineSupport {
 
+    private static final Logger logger = LogManager.getLogger(Engine.class);
+
     /**
      * Allows tests to wrap an index reader randomly with a given ratio. This
      * is disabled by default ie. {@code 0.0d} since reader wrapping is insanely
@@ -58,7 +60,6 @@ public final class MockEngineSupport {
     );
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
-    private static final Logger logger = LogManager.getLogger(Engine.class);
     private final ShardId shardId;
     private final InFlightSearchers inFlightSearchers;
     private final MockContext mockContext;

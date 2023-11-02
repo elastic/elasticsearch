@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -122,29 +121,29 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
             }
         });
         logger.trace("Waiting for keystore fix...");
-        timed(logger, Level.DEBUG, "Awaited {}ms. Verifying the cluster...", () -> {
+        timed(Level.DEBUG, "Awaited {}ms. Verifying the cluster...", () -> {
             try {
                 afterKeystoreFix.await(); // SYNC: Verify cluster after cert update
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
-        timed(logger, Level.TRACE, "Ensure cluster size consistency took {}ms.", this::ensureClusterSizeConsistency);
-        timed(logger, Level.TRACE, "Ensure fully connected cluster took {}ms.", this::ensureFullyConnectedCluster);
+        timed(Level.TRACE, "Ensure cluster size consistency took {}ms.", this::ensureClusterSizeConsistency);
+        timed(Level.TRACE, "Ensure fully connected cluster took {}ms.", this::ensureFullyConnectedCluster);
     }
 
     private void waitUntilNodeStartupIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
         logger.trace("Waiting for ES start to begin...");
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
         final long sleepMillis = randomLongBetween(1L, 2000L); // intended sleepMillis
-        timed(logger, Level.DEBUG, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...", () -> {
+        timed(Level.DEBUG, "Awaited {}ms. Sleeping " + sleepMillis + "ms before fixing...", () -> {
             try {
                 beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
-        timed(logger, Level.DEBUG, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...", () -> {
+        timed(Level.DEBUG, "Slept {}ms, intended " + sleepMillis + "ms. Fixing can start now...", () -> {
             try {
                 Thread.sleep(sleepMillis); // Simulate cert update delay relative to ES start
             } catch (InterruptedException e) {
@@ -156,7 +155,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
     private void waitUntilFixKeystoreIsReadyToBegin(final CountDownLatch beforeKeystoreFix) {
         logger.trace("Waiting for keystore fix to begin...");
         beforeKeystoreFix.countDown(); // SYNC: Cert update & ES restart
-        timed(logger, Level.DEBUG, "Awaited {}ms. Node can start now...", () -> {
+        timed(Level.DEBUG, "Awaited {}ms. Node can start now...", () -> {
             try {
                 beforeKeystoreFix.await(); // SYNC: Cert update & ES restart
             } catch (InterruptedException e) {
@@ -165,8 +164,7 @@ public class SSLReloadDuringStartupIntegTests extends SecurityIntegTestCase {
         });
     }
 
-    static void timed(final Logger logger, final Level level, final String message, final Runnable runnable) {
-        assert logger != null;
+    private void timed(final Level level, final String message, final Runnable runnable) {
         assert level != null;
         assert Strings.isEmpty(message) == false;
         assert message.contains("{}ms") : "Message must contain {}ms";

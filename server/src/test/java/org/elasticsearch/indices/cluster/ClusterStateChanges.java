@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -413,9 +414,7 @@ public class ClusterStateChanges {
                     new CompatibilityVersions(transportVersion, Map.of()),
                     Set.of(),
                     DUMMY_REASON,
-                    ActionListener.running(() -> {
-                        throw new AssertionError("should not complete publication");
-                    }),
+                    createTestListener(),
                     clusterState.term()
                 )
             )
@@ -435,9 +434,7 @@ public class ClusterStateChanges {
                                 new CompatibilityVersions(transportVersion, Map.of()),
                                 Set.of(),
                                 DUMMY_REASON,
-                                ActionListener.running(() -> {
-                                    throw new AssertionError("should not complete publication");
-                                })
+                                createTestListener()
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -552,7 +549,7 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<Void> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+    private static ActionListener<Void> createTestListener() {
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

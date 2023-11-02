@@ -7,27 +7,34 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Measures time and logs it in milliseconds.
  */
 public class StopWatch {
-    private static final Logger log = LogManager.getLogger(TransportGetStackTracesAction.class);
+    private final String name;
     private final long start;
 
-    public StopWatch() {
+    public StopWatch(String name) {
+        this.name = name;
         start = System.nanoTime();
     }
 
     /**
-     * Print name and the number of elapsed milliseconds since object creation.
+     * Log name and the number of elapsed milliseconds since object creation.
      *
-     * @param name String to be printed with the number of milliseconds taken.
+     * @param log Logger for logging the report.
      */
-    public void Log(String name) {
-        log.debug(name + " took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+    public void Log(Logger log) {
+        log.debug(this.Report());
+    }
+
+    /**
+     * Return a textual report including the name and the number of elapsed milliseconds since object creation.
+     */
+    public String Report() {
+        return name + " took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].";
     }
 
     /**

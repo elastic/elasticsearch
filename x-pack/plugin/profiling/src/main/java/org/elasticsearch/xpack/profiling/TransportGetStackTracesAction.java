@@ -126,7 +126,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
-        StopWatch watch = new StopWatch();
+        StopWatch watch = new StopWatch("getResampledIndex");
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
@@ -143,7 +143,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     mediumDownsampled,
                     resampledIndex
                 );
-                watch.Log("getResampledIndex");
+                log.debug(watch.Report());
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
@@ -166,7 +166,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         EventsIndex eventsIndex,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        StopWatch watch = new StopWatch();
+        StopWatch watch = new StopWatch("searchEventGroupByStackTrace");
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setSampleRate(eventsIndex.getSampleRate());
         client.prepareSearch(eventsIndex.getName())
@@ -216,7 +216,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     totalFinalCount,
                     stackTraceEvents.size()
                 );
-                watch.Log("searchEventGroupByStackTrace");
+                log.debug(watch.Report());
                 if (stackTraceEvents.isEmpty() == false) {
                     responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                     responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
@@ -287,7 +287,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Set<String> stackFrameIds = new ConcurrentSkipListSet<>();
         private final Set<String> executableIds = new ConcurrentSkipListSet<>();
         private final AtomicInteger totalFrames = new AtomicInteger();
-        private final StopWatch watch = new StopWatch();
+        private final StopWatch watch = new StopWatch("retrieveStackTraces");
 
         private StackTraceHandler(
             ClusterState clusterState,
@@ -334,7 +334,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     stackFrameIds.size(),
                     executableIds.size()
                 );
-                watch.Log("retrieveStackTraces");
+                log.debug(watch.Report());
                 retrieveStackTraceDetails(
                     clusterState,
                     client,
@@ -409,7 +409,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
-        private final StopWatch watch = new StopWatch();
+        private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
         private DetailsHandler(
             GetStackTracesResponseBuilder builder,
@@ -479,7 +479,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
-                watch.Log("retrieveStackTraceDetails");
+                log.debug(watch.Report());
                 submitListener.onResponse(builder.build());
             }
         }

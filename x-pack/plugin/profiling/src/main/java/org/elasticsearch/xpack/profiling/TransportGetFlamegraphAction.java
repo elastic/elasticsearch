@@ -44,16 +44,14 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     @Override
     protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetFlamegraphResponse> listener) {
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), task);
-        StopWatch watch = new StopWatch();
+        StopWatch watch = new StopWatch("getFlamegraphAction");
         client.execute(GetStackTracesAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(GetStackTracesResponse response) {
-                StopWatch processingWatch = new StopWatch();
                 try {
+                    StopWatch processingWatch = new StopWatch("Processing response");
                     GetFlamegraphResponse flamegraphResponse = buildFlamegraph(response);
-                    log.debug(
-                        "getFlamegraphAction took [" + watch.Millis() + "] ms (processing response: [" + processingWatch.Millis() + "] ms."
-                    );
+                    log.debug(watch.Report() + " " + processingWatch.Report());
                     listener.onResponse(flamegraphResponse);
                 } catch (Exception ex) {
                     listener.onFailure(ex);

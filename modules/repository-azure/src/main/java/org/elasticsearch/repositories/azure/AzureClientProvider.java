@@ -238,8 +238,13 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     @Override
     protected void doClose() throws IOException {}
 
-    private record SuccessfulRequestTracker(BiConsumer<String, URL> onSuccessfulRequest) implements HttpPipelinePolicy {
+    private static final class SuccessfulRequestTracker implements HttpPipelinePolicy {
         private static final Logger logger = LogManager.getLogger(SuccessfulRequestTracker.class);
+        private final BiConsumer<String, URL> onSuccessfulRequest;
+
+        private SuccessfulRequestTracker(BiConsumer<String, URL> onSuccessfulRequest) {
+            this.onSuccessfulRequest = onSuccessfulRequest;
+        }
 
         @Override
         public Mono<HttpResponse> process(HttpPipelineCallContext context, HttpPipelineNextPolicy next) {

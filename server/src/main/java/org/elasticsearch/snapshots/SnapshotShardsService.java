@@ -135,9 +135,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 final var localNodeId = clusterService.localNode().getId();
                 synchronized (shardSnapshots) {
                     cancelRemoved(currentSnapshots);
-                    for (final var oneRepoSnapshots : currentSnapshots.entriesByRepo()) {
-                        for (final var snapshotInProgress : oneRepoSnapshots) {
-                            handleUpdatedSnapshotInProgress(localNodeId, snapshotInProgress);
+                    for (final var oneRepoSnapshotsInProgress : currentSnapshots.entriesByRepo()) {
+                        for (final var snapshotsInProgressEntry : oneRepoSnapshotsInProgress) {
+                            handleUpdatedSnapshotInProgress(localNodeId, snapshotsInProgressEntry);
                         }
                     }
                 }

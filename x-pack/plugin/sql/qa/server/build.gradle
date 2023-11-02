@@ -41,12 +41,21 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.legacy-java-rest-test'
+    if (project.name == 'single-node') {
+      apply plugin: 'elasticsearch.internal-java-rest-test'
+      tasks.named('javaRestTest') {
+        usesDefaultDistribution()
+      }
+    } else {
+      apply plugin: 'elasticsearch.legacy-java-rest-test'
+    }
 
-    testClusters.matching { it.name == "javaRestTest" }.configureEach {
-      testDistribution = 'DEFAULT'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
+    if (project.name != 'single-node') {
+      testClusters.matching { it.name == "javaRestTest" }.configureEach {
+        testDistribution = 'DEFAULT'
+        setting 'xpack.ml.enabled', 'false'
+        setting 'xpack.watcher.enabled', 'false'
+      }
     }
 
 

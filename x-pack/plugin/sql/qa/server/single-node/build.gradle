@@ -5,3 +5,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   plugin ':x-pack:qa:freeze-plugin'
 }
 
+dependencies {
+  clusterPlugins project(':x-pack:qa:freeze-plugin')
+}

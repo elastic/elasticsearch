@@ -858,6 +858,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             listener
                         );
                     } catch (Exception e) {
+                        assert e instanceof AlreadyClosedException : e;
                         listener.onFailure(e);
                     }
                 }

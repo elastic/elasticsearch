@@ -90,6 +90,7 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101725")
     public void testLockingWhenRegistering() throws Exception {
         APMMeterRegistry meterRegistrar = new APMMeterRegistry(lockingMeter);
 

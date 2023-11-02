@@ -82,7 +82,7 @@ public interface Authenticator {
      * {@link Authenticator}.
      * {@link Authenticator}s are consulted in order (see {@link AuthenticatorChain}),
      * where each is given the chance to first extract some token, and then to verify it.
-     * If token verification fails in some particular way (i.e. {@link AuthenticationResult.Status.CONTINUE}),
+     * If token verification fails in some particular way (i.e. {@code AuthenticationResult.Status.CONTINUE}),
      * the next {@link Authenticator} is tried.
      * The extracted tokens are all appended with {@link #addAuthenticationToken(AuthenticationToken)}.
      */

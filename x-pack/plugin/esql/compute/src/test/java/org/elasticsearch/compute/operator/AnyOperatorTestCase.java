@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.MockBlockFactory;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
@@ -106,6 +107,16 @@ public abstract class AnyOperatorTestCase extends ESTestCase {
 
     private final List<CircuitBreaker> breakers = new ArrayList<>();
     private final List<BlockFactory> blockFactories = new ArrayList<>();
+
+    protected final DriverContext crankyDriverContext() {
+        CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
+        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
+        breakers.add(breaker);
+        BlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
+        blockFactories.add(blockFactory);
+        return new DriverContext(bigArrays, blockFactory);
+    }
 
     /**
      * A {@link DriverContext} with a breaking {@link BigArrays} and {@link BlockFactory}.

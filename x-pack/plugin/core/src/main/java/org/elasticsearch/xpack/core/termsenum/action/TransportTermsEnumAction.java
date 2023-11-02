@@ -147,7 +147,14 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (ccsCheckCompatibility) {
             checkCCSVersionCompatibility(request);
         }
-        new AsyncBroadcastAction(task, request, listener).start();
+        // log any errors that occur in a successful partial results scenario
+        ActionListener<TermsEnumResponse> loggingListener = listener.delegateFailureAndWrap((l, termsEnumResponse) -> {
+            for (DefaultShardOperationFailedException shardFailure : termsEnumResponse.getShardFailures()) {
+                logger.warn(() -> format("TransportTermsEnumAction shard failure for request [%s]", request), shardFailure);
+            }
+            l.onResponse(termsEnumResponse);
+        });
+        new AsyncBroadcastAction(task, request, loggingListener).start();
     }
 
     protected static NodeTermsEnumRequest newNodeRequest(

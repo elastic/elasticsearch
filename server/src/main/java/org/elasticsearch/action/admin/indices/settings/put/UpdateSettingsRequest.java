@@ -47,6 +47,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     private Settings settings = Settings.EMPTY;
     private boolean preserveExisting = false;
     private String origin = "";
+    private boolean reopen = false;
 
     public UpdateSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -174,6 +175,19 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
     public UpdateSettingsRequest origin(String origin) {
         this.origin = Objects.requireNonNull(origin, "origin cannot be null");
         return this;
+    }
+
+    /**
+     * Returns <code>true</code> if non-dynamic setting updates should go through, by automatically unassigning shards in the same cluster
+     * state change as the setting update. The shards will be automatically reassigned after the cluster state update is made. The
+     * default is <code>false</code>.
+     */
+    public boolean reopen() {
+        return reopen;
+    }
+
+    public void reopen(boolean reopen) {
+        this.reopen = reopen;
     }
 
     @Override

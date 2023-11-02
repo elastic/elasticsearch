@@ -751,7 +751,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     ComponentTemplate migratedComponentTemplate = new ComponentTemplate(
                         migratedInnerTemplate,
                         componentTemplate.version(),
-                        componentTemplate.metadata()
+                        componentTemplate.metadata(),
+                        componentTemplate.deprecated()
                     );
 
                     mb.put(componentEntry.getKey(), migratedComponentTemplate);

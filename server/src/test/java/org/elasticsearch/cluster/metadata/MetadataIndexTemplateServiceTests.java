@@ -1016,7 +1016,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
         assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean()));
 
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct"), null, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -1033,7 +1033,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
         assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true));
 
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -1051,7 +1051,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
         assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true));
 
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("index-*"), null, List.of("ct"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -2009,7 +2009,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testPutExistingComponentTemplateIsNoop() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        ComponentTemplate componentTemplate = ComponentTemplateTests.randomInstance();
+        ComponentTemplate componentTemplate = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
         assertNotNull(state.metadata().componentTemplates().get("foo"));
@@ -2595,6 +2595,30 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             parsedMappings.get(1),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
         );
+    }
+
+    public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComponentTemplate ct = ComponentTemplateTests.randomInstance(false, true);
+        state = service.addComponentTemplate(state, true, "ct", ct);
+
+        ComposableIndexTemplate it = new ComposableIndexTemplate(
+            List.of("test*"),
+            null,
+            List.of("ct"),
+            null,
+            1L,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        service.addIndexTemplateV2(state, false, "foo", it);
+
+        assertWarnings("index template [foo] uses deprecated component template [ct]");
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

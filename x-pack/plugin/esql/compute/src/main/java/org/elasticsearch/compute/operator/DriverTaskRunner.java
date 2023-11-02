@@ -52,7 +52,13 @@ public class DriverTaskRunner {
                     new DriverRequest(driver, executor),
                     parentTask,
                     TransportRequestOptions.EMPTY,
-                    TransportResponseHandler.empty(executor, driverListener)
+                    TransportResponseHandler.empty(
+                        executor,
+                        // The TransportResponseHandler can be notified while the Driver is still running during node shutdown
+                        // or the Driver hasn't started when the parent task is canceled. In such cases, we should abort
+                        // the Driver and wait for it to finish.
+                        ActionListener.wrap(driverListener::onResponse, e -> driver.abort(e, driverListener))
+                    )
                 );
             }
         };

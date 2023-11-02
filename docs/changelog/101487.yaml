@@ -1,0 +1,5 @@
+pr: 101487
+summary: Wait for async searches to finish when shutting down
+area: Infra/Node Lifecycle
+type: enhancement
+issues: []

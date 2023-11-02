@@ -91,12 +91,6 @@ public class TopNOperator implements Operator, Accountable {
             return SHALLOW_SIZE + keys.ramBytesUsed() + orderByCompositeKeyAscending.size() / Byte.SIZE + values.ramBytesUsed();
         }
 
-        private void clear() {
-            keys.clear();
-            orderByCompositeKeyAscending.clear();
-            values.clear();
-        }
-
         @Override
         public void close() {
             Releasables.closeExpectNoException(keys, values);
@@ -405,7 +399,17 @@ public class TopNOperator implements Operator, Accountable {
 
                 p++;
                 if (p == size) {
-                    result.add(new Page(Arrays.stream(builders).map(ResultBuilder::build).toArray(Block[]::new)));
+                    Block[] blocks = new Block[builders.length];
+                    try {
+                        for (int b = 0; b < blocks.length; b++) {
+                            blocks[b] = builders[b].build();
+                        }
+                    } finally {
+                        if (blocks[blocks.length - 1] == null) {
+                            Releasables.closeExpectNoException(blocks);
+                        }
+                    }
+                    result.add(new Page(blocks));
                     Releasables.closeExpectNoException(builders);
                     builders = null;
                 }

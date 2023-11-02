@@ -28,7 +28,8 @@ public class TestBlock
         BlockLoader.DoubleBuilder,
         BlockLoader.IntBuilder,
         BlockLoader.LongBuilder,
-        BlockLoader.SingletonOrdinalsBuilder {
+        BlockLoader.SingletonOrdinalsBuilder,
+        BlockLoader.Block {
     public static BlockLoader.BuilderFactory FACTORY = new BlockLoader.BuilderFactory() {
         @Override
         public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
@@ -192,8 +193,18 @@ public class TestBlock
         }
     }
 
+    @Override
+    public TestBlock build() {
+        return this;
+    }
+
     private TestBlock add(Object value) {
         (currentPosition == null ? values : currentPosition).add(value);
         return this;
+    }
+
+    @Override
+    public void close() {
+        // TODO assert that we close the test blocks
     }
 }

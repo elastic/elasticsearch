@@ -21,9 +21,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -137,6 +139,16 @@ public abstract class Plugin implements Closeable {
          * A service to manage indices in the cluster
          */
         IndicesService indicesService();
+
+        /**
+         * A service to access features supported by nodes in the cluster
+         */
+        FeatureService featureService();
+
+        /**
+         * The system indices for the cluster
+         */
+        SystemIndices systemIndices();
     }
 
     /**
@@ -149,67 +161,6 @@ public abstract class Plugin implements Closeable {
      * @param services      Provides access to various Elasticsearch services
      */
     public Collection<?> createComponents(PluginServices services) {
-        return createComponents(
-            services.client(),
-            services.clusterService(),
-            services.threadPool(),
-            services.resourceWatcherService(),
-            services.scriptService(),
-            services.xContentRegistry(),
-            services.environment(),
-            services.nodeEnvironment(),
-            services.namedWriteableRegistry(),
-            services.indexNameExpressionResolver(),
-            services.repositoriesServiceSupplier(),
-            services.telemetryProvider(),
-            services.allocationService(),
-            services.indicesService()
-        );
-    }
-
-    /**
-     * Returns components added by this plugin. Either this method or {@link #createComponents(PluginServices)}
-     * should be implemented.
-     * <p>
-     * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
-     * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
-     * to themselves.
-     *
-     * @param client                      A client to make requests to the system
-     * @param clusterService              A service to allow watching and updating cluster state
-     * @param threadPool                  A service to allow retrieving an executor to run an async action
-     * @param resourceWatcherService      A service to watch for changes to node local files
-     * @param scriptService               A service to allow running scripts on the local node
-     * @param xContentRegistry            The registry for extensible xContent parsing
-     * @param environment                 The environment for path and setting configurations
-     * @param nodeEnvironment             The node environment used coordinate access to the data paths
-     * @param namedWriteableRegistry      The registry for {@link NamedWriteable} object parsing
-     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
-     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
-     *                                    is called, but will return the repositories service once the node is initialized.
-     * @param telemetryProvider           An interface for distributed tracing
-     * @param allocationService           A service to manage shard allocation in the cluster
-     * @param indicesService              A service to manage indices in the cluster
-     *
-     * @deprecated New services will only be added to {@link PluginServices}; this method is maintained for compatibility.
-     */
-    @Deprecated
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
         return Collections.emptyList();
     }
 

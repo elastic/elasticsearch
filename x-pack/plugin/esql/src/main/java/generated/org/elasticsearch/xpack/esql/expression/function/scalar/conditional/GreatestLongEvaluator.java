@@ -38,11 +38,7 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
       LongBlock[] valuesBlocks = new LongBlock[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
         valuesRefs[i] = values[i].eval(page);
-        Block block = valuesRefs[i].block();
-        if (block.areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
-        valuesBlocks[i] = (LongBlock) block;
+        valuesBlocks[i] = (LongBlock) valuesRefs[i].block();
       }
       LongVector[] valuesVectors = new LongVector[values.length];
       for (int i = 0; i < valuesBlocks.length; i++) {
@@ -56,7 +52,7 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock[] valuesBlocks) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         for (int i = 0; i < valuesBlocks.length; i++) {
@@ -77,7 +73,7 @@ public final class GreatestLongEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongVector eval(int positionCount, LongVector[] valuesVectors) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       long[] valuesValues = new long[values.length];
       position: for (int p = 0; p < positionCount; p++) {
         // unpack valuesVectors into valuesValues

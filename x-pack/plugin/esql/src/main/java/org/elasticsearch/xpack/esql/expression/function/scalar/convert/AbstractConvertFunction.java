@@ -110,9 +110,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
 
         public Block.Ref eval(Page page) {
             try (Block.Ref ref = fieldEvaluator.eval(page)) {
-                if (ref.block().areAllValuesNull()) {
-                    return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-                }
                 Vector vector = ref.block().asVector();
                 return Block.Ref.floating(vector == null ? evalBlock(ref.block()) : evalVector(vector));
             }

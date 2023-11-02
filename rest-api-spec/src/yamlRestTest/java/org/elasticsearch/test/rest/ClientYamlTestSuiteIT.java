@@ -31,6 +31,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("rest-root")
         .module("reindex")
         .module("analysis-common")
+        .module("health-shards-availability")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

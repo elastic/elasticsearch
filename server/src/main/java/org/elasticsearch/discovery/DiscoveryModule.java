@@ -111,7 +111,8 @@ public class DiscoveryModule {
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
         CircuitBreakerService circuitBreakerService,
-        CompatibilityVersions compatibilityVersions
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -213,7 +214,8 @@ public class DiscoveryModule {
                 reconfigurator,
                 leaderHeartbeatService,
                 preVoteCollectorFactory,
-                compatibilityVersions
+                compatibilityVersions,
+                features
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");

@@ -224,6 +224,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
     exports org.elasticsearch.env;
+    exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
     exports org.elasticsearch.health.node;
@@ -400,6 +401,14 @@ module org.elasticsearch.server {
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
+    uses org.elasticsearch.features.FeatureSpecification;
+
+    provides org.elasticsearch.features.FeatureSpecification
+        with
+            org.elasticsearch.features.FeaturesSupportedSpecification,
+            org.elasticsearch.health.HealthFeature,
+            org.elasticsearch.rest.RestFeatures;
+
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
     uses org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber;

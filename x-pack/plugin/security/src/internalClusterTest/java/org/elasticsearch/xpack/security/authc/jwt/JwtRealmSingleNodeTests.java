@@ -17,6 +17,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -29,6 +30,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
@@ -59,6 +61,10 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
     protected Settings nodeSettings() {
         final Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings())
+            // also enable anonymous access
+            .put("xpack.security.authc.anonymous.roles", "anonymous")
+            //.put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), randomBoolean())
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             // 1st JWT realm
             .put("xpack.security.authc.realms.jwt.jwt0.order", 10)
             .put(
@@ -109,8 +115,30 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return builder.build();
     }
 
+    @Override
+    protected String configRoles() {
+        return super.configRoles() + "\n" + """
+            anonymous:
+              cluster:
+                - monitor
+            """;
+    }
+
     protected boolean addMockHttpTransport() {
         return false;
+    }
+
+    public void testX() throws Exception {
+        Request request = new Request("GET", "/_security/_authenticate");
+        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        // empty JWT token
+        options.addHeader("Authorization", "Bearer X");
+        if (randomBoolean()) {
+            options.addHeader("ES-Client-Authentication", "SharedSecret " + randomFrom(jwt0SharedSecret, jwt1SharedSecret, jwt2SharedSecret));
+        }
+        request.setOptions(options);
+        Response response = getRestClient().performRequest(request);
+        response.toString();
     }
 
     public void testAnyJwtRealmWillExtractTheToken() throws ParseException {

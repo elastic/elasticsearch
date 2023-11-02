@@ -325,4 +325,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected ZoneId timeZone() {
         return null;
     }
+
+    /**
+     * Return false if this composite values source does not support parallel collection.
+     * As a result, a request including a composite aggregation with such source is always executed sequentially despite concurrency is
+     * enabled for the query phase.
+     */
+    public boolean supportsParallelCollection() {
+        return true;
+    }
 }

@@ -302,4 +302,14 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
+            if (source.supportsParallelCollection() == false) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

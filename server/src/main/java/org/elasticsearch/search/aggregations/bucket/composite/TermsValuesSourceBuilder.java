@@ -215,4 +215,9 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        return false;
+    }
 }

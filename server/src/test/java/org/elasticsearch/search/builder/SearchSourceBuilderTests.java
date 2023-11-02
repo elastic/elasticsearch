@@ -34,6 +34,11 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.GeoTileGridValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -919,6 +924,34 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms"));
+            assertFalse(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new CompositeAggregationBuilder("name", Collections.singletonList(new DateHistogramValuesSourceBuilder("name")))
+            );
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new CompositeAggregationBuilder("name", Collections.singletonList(new HistogramValuesSourceBuilder("name")))
+            );
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new CompositeAggregationBuilder("name", Collections.singletonList(new GeoTileGridValuesSourceBuilder("name")))
+            );
+            assertTrue(searchSourceBuilder.supportsParallelCollection());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new CompositeAggregationBuilder("name", Collections.singletonList(new TermsValuesSourceBuilder("name")))
+            );
             assertFalse(searchSourceBuilder.supportsParallelCollection());
         }
         {

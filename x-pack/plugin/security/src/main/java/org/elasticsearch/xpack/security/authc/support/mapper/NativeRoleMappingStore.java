@@ -17,6 +17,8 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -54,6 +56,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
@@ -92,12 +95,15 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final SecurityIndexManager securityIndex;
     private final ScriptService scriptService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
+    private final Cache<String, ExpressionRoleMapping> fallbackCache;
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
+        // TODO would be enabled and parametrized based on hidden settings
+        this.fallbackCache = CacheBuilder.<String, ExpressionRoleMapping>builder().build();
     }
 
     private static String getNameFromId(String id) {
@@ -229,6 +235,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     @Override
                     public void onResponse(DocWriteResponse indexResponse) {
                         boolean created = indexResponse.getResult() == CREATED;
+                        if (fallbackCache != null) {
+                            fallbackCache.put(mapping.getName(), mapping);
+                        }
                         listener.onResponse(created);
                     }
 
@@ -262,6 +271,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         @Override
                         public void onResponse(DeleteResponse deleteResponse) {
                             boolean deleted = deleteResponse.getResult() == DELETED;
+                            if (fallbackCache != null) {
+                                fallbackCache.invalidate(request.getName());
+                            }
                             listener.onResponse(deleted);
                         }
 
@@ -294,17 +306,31 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private void getMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
-            logger.debug("The security does not index exist - no role mappings can be loaded");
+            logger.debug("The security index does not exist - no role mappings can be loaded");
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.indexIsClosed()) {
             logger.debug("The security index exists but is closed - no role mappings can be loaded");
             listener.onResponse(Collections.emptyList());
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            if (fallbackCache != null) {
+                logger.debug(
+                    "The security index exists but is not available - loading role mappings from fallback cache. Results may be incomplete"
+                );
+                loadMappingsFromFallbackCache(listener);
+                return;
+            }
             logger.debug("The security index exists but is not available - no role mappings can be loaded");
             listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             loadMappings(listener);
         }
+    }
+
+    private void loadMappingsFromFallbackCache(ActionListener<List<ExpressionRoleMapping>> listener) {
+        final List<ExpressionRoleMapping> mappings = StreamSupport.stream(fallbackCache.values().spliterator(), false)
+            .collect(Collectors.toList());
+        logger.debug("Successfully loaded [{}] role mappings(s) from fallback cache", mappings.size());
+        listener.onResponse(mappings);
     }
 
     /**
@@ -332,6 +358,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+        // TODO figure out correct cache behavior here -- does anything need to happen?
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false

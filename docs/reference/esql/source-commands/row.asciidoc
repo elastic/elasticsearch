@@ -4,7 +4,7 @@
 
 **Syntax**
 
-[source,txt]
+[source,esql]
 ----
 ROW column1 = value1[, ..., columnN = valueN]
 ----
@@ -15,7 +15,8 @@ ROW column1 = value1[, ..., columnN = valueN]
 The column name.
 
 `valueX`::
-The value for the column. Can be a literal or a <<esql-functions,function>>.
+The value for the column. Can be a literal, an expression, or a
+<<esql-functions,function>>.
 
 *Description*
 

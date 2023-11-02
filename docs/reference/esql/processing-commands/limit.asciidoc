@@ -2,12 +2,28 @@
 [[esql-limit]]
 === `LIMIT`
 
-The `LIMIT` processing command enables you to limit the number of rows:
+**Syntax**
+
+[source,esql]
+----
+LIMIT max_number_of_rows
+----
+
+*Parameters*
+
+`max_number_of_rows`::
+The maximum number of rows to return.
+
+*Description*
+
+The `LIMIT` processing command enables you to limit the number of rows that are
+returned. If not specified, `LIMIT` defaults to `500`.
+
+A query does not return more than 10,000 rows, regardless of the `LIMIT` value.
+
+*Example*
 
 [source,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=limit]
 ----
-
-If not specified, `LIMIT` defaults to `500`. A single query will not return
-more than 10,000 rows, regardless of the `LIMIT` value.

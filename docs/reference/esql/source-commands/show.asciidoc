@@ -4,7 +4,7 @@
 
 **Syntax**
 
-[source,txt]
+[source,esql]
 ----
 SHOW item
 ----

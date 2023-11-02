@@ -197,7 +197,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             return null;
         }
 
-        // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
+        // custom realms can also consume the Bearer credentials scheme
         final SignedJWT signedJWT;
         try {
             signedJWT = SignedJWT.parse(userCredentials.toString());
@@ -205,7 +205,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             logger.debug("Failed to parse JWT bearer token", e);
             return null;
         }
-
         final JWTClaimsSet jwtClaimsSet;
         try {
             jwtClaimsSet = signedJWT.getJWTClaimsSet();

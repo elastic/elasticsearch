@@ -55,19 +55,24 @@ public class CrossClusterAccessAuthenticationService {
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
         final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
-        final ApiKeyService.ApiKeyCredentials apiKeyCredentials;
+        final Authenticator.Context authcContext;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
-            apiKeyCredentials = crossClusterAccessHeaders.credentials();
+            final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
-            apiKeyService.ensureEnabled();
+            // authn must verify only the provided api key and not try to extract any other credential from the thread context
+            authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
         } catch (Exception ex) {
             withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
             return;
         }
-        // authn must verify the provided api key (not try to extract the credential from the thread context)
-        final Authenticator.Context authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
+        try {
+            apiKeyService.ensureEnabled();
+        } catch (Exception ex) {
+            withRequestProcessingFailure(authcContext, ex, listener);
+            return;
+        }
 
         // This check is to ensure all nodes understand cross_cluster_access subject type
         if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {

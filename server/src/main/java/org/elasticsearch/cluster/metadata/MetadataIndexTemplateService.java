@@ -740,7 +740,6 @@ public class MetadataIndexTemplateService {
             validateUseOfDeprecatedIngestPipelines(name, currentState.metadata().custom(IngestMetadata.TYPE), combinedSettings);
             // TODO come up with a plan how to validate usage of deprecated ILM policies
             // we don't have access to the core/main plugin here so we can't use the IndexLifecycleMetadata type
-            // validateUseOfDeprecatedIlmPolicies(name, currentState.metadata().custom(IndexLifecycleMetadata.TYPE), combinedSettings);
         }
 
         // Finally, right before adding the template, we need to ensure that the composite settings,

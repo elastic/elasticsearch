@@ -57,6 +57,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private final Long version;
     @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
     private final Boolean deprecated;
 
     static Diff<ComponentTemplate> readComponentTemplateDiffFrom(StreamInput in) throws IOException {
@@ -71,7 +72,12 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         this(template, version, metadata, null);
     }
 
-    public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata, Boolean deprecated) {
+    public ComponentTemplate(
+        Template template,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata,
+        @Nullable Boolean deprecated
+    ) {
         this.template = template;
         this.version = version;
         this.metadata = metadata;
@@ -128,7 +134,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
 
     @Override
     public int hashCode() {
-        return Objects.hash(template, version, metadata, deprecated());
+        return Objects.hash(template, version, metadata, deprecated);
     }
 
     @Override
@@ -143,7 +149,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         return Objects.equals(template, other.template)
             && Objects.equals(version, other.version)
             && Objects.equals(metadata, other.metadata)
-            && deprecated() == other.deprecated();
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override

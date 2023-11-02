@@ -72,6 +72,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
     private final Map<String, Phase> phases;
     @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
     private final Boolean deprecated;
 
     /**
@@ -132,7 +133,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         String name,
         Map<String, Phase> phases,
         @Nullable Map<String, Object> metadata,
-        Boolean deprecated
+        @Nullable Boolean deprecated
     ) {
         this.name = name;
         this.phases = phases;
@@ -338,7 +339,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, phases, metadata, isDeprecated());
+        return Objects.hash(name, phases, metadata, deprecated);
     }
 
     @Override
@@ -353,7 +354,7 @@ public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXCont
         return Objects.equals(name, other.name)
             && Objects.equals(phases, other.phases)
             && Objects.equals(metadata, other.metadata)
-            && isDeprecated() == other.isDeprecated();
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override

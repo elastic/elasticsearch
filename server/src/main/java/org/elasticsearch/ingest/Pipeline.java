@@ -40,6 +40,7 @@ public final class Pipeline {
     private final CompoundProcessor compoundProcessor;
     private final IngestMetric metrics;
     private final LongSupplier relativeTimeProvider;
+    @Nullable
     private final Boolean deprecated;
 
     public Pipeline(
@@ -58,7 +59,7 @@ public final class Pipeline {
         @Nullable Integer version,
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor,
-        Boolean deprecated
+        @Nullable Boolean deprecated
     ) {
         this(id, description, version, metadata, compoundProcessor, System::nanoTime, deprecated);
     }
@@ -71,7 +72,7 @@ public final class Pipeline {
         @Nullable Map<String, Object> metadata,
         CompoundProcessor compoundProcessor,
         LongSupplier relativeTimeProvider,
-        Boolean deprecated
+        @Nullable Boolean deprecated
     ) {
         this.id = id;
         this.description = description;

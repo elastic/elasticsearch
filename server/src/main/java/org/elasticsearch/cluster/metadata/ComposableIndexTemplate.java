@@ -370,7 +370,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             this.dataStreamTemplate,
             this.allowAutoCreate,
             this.ignoreMissingComponentTemplates,
-            deprecated()
+            this.deprecated
         );
     }
 
@@ -392,7 +392,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate)
             && Objects.equals(this.ignoreMissingComponentTemplates, other.ignoreMissingComponentTemplates)
-            && deprecated() == other.deprecated();
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {

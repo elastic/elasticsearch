@@ -21,7 +21,7 @@ import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,9 +58,10 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, XContentType.JSON));
 
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-179.75, 1))), 1L);
-        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))), 0);
+        assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(90, 1))), 0L);
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(-180, 1))), 1L);
         assertHitCount(prepareSearch("test").setQuery(geoShapeQuery("shape", new Point(180, 1))), 1L);
+
     }
 
     /** The testBulk method uses this only for Geo-specific tests */
@@ -70,12 +71,12 @@ public abstract class GeoShapeIntegTestCase extends BaseShapeIntegTestCase<GeoSh
             53
         );
 
-        assertNoFailuresAndResponse(
+        assertResponse(
             prepareSearch().addStoredField("pin").setQuery(geoDistanceQuery("pin").distance("425km").point(51.11, 9.851)),
-            distance -> {
-                assertHitCount(distance, 5);
+            response -> {
+                assertHitCount(response, 5L);
                 GeoPoint point = new GeoPoint();
-                for (SearchHit hit : distance.getHits()) {
+                for (SearchHit hit : response.getHits()) {
                     String name = hit.getId();
                     point.resetFromString(hit.getFields().get("pin").getValue());
                     double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);

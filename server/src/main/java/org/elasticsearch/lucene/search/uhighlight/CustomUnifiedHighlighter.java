@@ -50,7 +50,7 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  * value as a discrete passage for highlighting (unless the whole content needs to be highlighted).
  * Supports both returning empty snippets and non highlighted snippets when no highlighting can be performed.
  */
-public class CustomUnifiedHighlighter extends UnifiedHighlighter {
+public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
@@ -79,7 +79,6 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      *                          offset source for it because it'd be super slow
      * @param weightMatchesEnabled whether the {@link HighlightFlag#WEIGHT_MATCHES} should be enabled
      */
-    @SuppressWarnings("this-escape")
     public CustomUnifiedHighlighter(
         Builder builder,
         OffsetSource offsetSource,

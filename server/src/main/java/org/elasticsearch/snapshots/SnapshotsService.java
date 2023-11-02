@@ -3941,7 +3941,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
     }
 
-    static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
+    private static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
         return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.SNAPSHOTS_IN_PROGRESS_TRACKING_REMOVING_NODES_ADDED);
     }
 

@@ -321,7 +321,7 @@ class S3Service implements Closeable {
 
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
-        private boolean stsRegionConfigured = false;
+        private String stsRegion;
 
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
@@ -363,18 +363,14 @@ class S3Service implements Closeable {
             );
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            // Support regionalized STS endpoints https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
-            if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
-                // AWS_REGION should be injected by the EKS pod identity webhook https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
-                String region = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
-                if (region != null) {
-                    stsClientBuilder.withRegion(region);
-                    stsRegionConfigured = true;
-                } else {
-                    LOGGER.warn("Unable to lookup region for the AWS STS endpoint, because the AWS_REGION environment variable is not set");
-                }
-            }
-            if (stsRegionConfigured == false) {
+            // AWS_REGION should be injected by the EKS pod identity webhook:
+            // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
+            stsRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
+            // Check if we need to use regional STS endpoints
+            // https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
+            if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS")) && stsRegion != null) {
+                stsClientBuilder.withRegion(stsRegion);
+            } else {
                 // Custom system property used for specifying a mocked version of the STS for testing
                 String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
                 // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
@@ -398,8 +394,8 @@ class S3Service implements Closeable {
             return credentialsProvider != null;
         }
 
-        public boolean isStsRegionConfigured() {
-            return stsRegionConfigured;
+        String getStsRegion() {
+            return stsRegion;
         }
 
         @Override

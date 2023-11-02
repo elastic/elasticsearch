@@ -29,7 +29,7 @@ delimiter-based pattern, and extracts the specified keys as columns.
 
 Refer to <<esql-process-data-with-dissect>> for the syntax of dissect patterns.
 
-*Example*
+*Examples*
 
 // tag::examples[]
 The following example parses a string that contains a timestamp, some text, and

@@ -51,8 +51,9 @@ public class RecordingApmServer extends ExternalResource {
 
     private static HttpServer server;
     private volatile Consumer<String> consumer;
-    private Thread thread;
+    private Thread messageConsumerThread = consumerThread();
     private volatile boolean consumerRunning = true;
+    private volatile Set<Predicate<APMMessage>> assertions;
 
     @Override
     protected void before() throws Throwable {
@@ -61,18 +62,17 @@ public class RecordingApmServer extends ExternalResource {
         server.createContext("/", this::handle);
         server.start();
 
-        this.thread = new Thread(consumerTask());
-        thread.start();
+        messageConsumerThread.start();
     }
 
-    private Runnable consumerTask() {
-        return () -> {
+    private Thread consumerThread() {
+        return new Thread(() -> {
             while (consumerRunning) {
                 if (consumer != null) {
                     try {
                         String msg = received.poll(1L, TimeUnit.SECONDS);
                         if (msg != null && msg.isEmpty() == false) {
-                            System.out.println("received" + msg);
+                            logger.info("APM server received: " + msg);
                             consumer.accept(msg);
                         }
 
@@ -81,7 +81,7 @@ public class RecordingApmServer extends ExternalResource {
                     }
                 }
             }
-        };
+        });
     }
 
     @Override
@@ -124,6 +124,7 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     public CountDownLatch addMessageAssertions(Set<Predicate<APMMessage>> assertions) {
+        this.assertions = assertions;
         CountDownLatch success = new CountDownLatch(1);
         this.consumer = (String message) -> {
             var apmMessage = new APMMessage(message);
@@ -134,6 +135,10 @@ public class RecordingApmServer extends ExternalResource {
             }
         };
         return success;
+    }
+
+    public Set<Predicate<APMMessage>> getMessageAssertions() {
+        return this.assertions;
     }
 
     public record Bucket(double value, int count) {}

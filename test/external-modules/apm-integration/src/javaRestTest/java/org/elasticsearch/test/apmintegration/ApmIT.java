@@ -13,6 +13,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
+import org.hamcrest.StringDescription;
 import org.junit.ClassRule;
 import org.junit.Rule;
 
@@ -70,7 +71,7 @@ public class ApmIT extends ESRestTestCase {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
 
         finished.await(30, TimeUnit.SECONDS);
-        assertThat(assertions, empty());
+        assertThat(mockApmServer.getMessageAssertions(), empty());
     }
 
     private <T> Predicate<RecordingApmServer.APMMessage> assertionWithDescription(
@@ -86,7 +87,9 @@ public class ApmIT extends ESRestTestCase {
 
             @Override
             public String toString() {
-                return description;
+                StringDescription matcherDescription = new StringDescription();
+                expected.describeTo(matcherDescription);
+                return description + " " + matcherDescription;
             }
         };
     }

@@ -134,7 +134,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void snapshotShard(SnapshotShardContext context) {}
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+    public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return null;
     }
 

@@ -1944,24 +1944,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private static IndexRoutingTable frozenIndex(String name, ShardAllocation primaryState, String originalIndex) {
-        return index(
-            IndexMetadata.builder(name)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, originalIndex)
-                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, randomBoolean())
-                        .build()
-                )
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build(),
-            primaryState
-        );
-    }
-
     private static IndexRoutingTable index(IndexMetadata indexMetadata, ShardAllocation primaryState, ShardAllocation... replicaStates) {
         var index = indexMetadata.getIndex();
         var shardId = new ShardId(index, 0);

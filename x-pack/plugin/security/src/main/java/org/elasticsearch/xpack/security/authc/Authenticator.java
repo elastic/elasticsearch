@@ -168,11 +168,11 @@ public interface Authenticator {
             handleNullToken = value;
         }
 
-        public boolean handleNullToken() {
+        public boolean shouldHandleNullToken() {
             return handleNullToken;
         }
 
-        public boolean extractCredentials() {
+        public boolean shouldExtractCredentials() {
             return extractCredentials;
         }
 

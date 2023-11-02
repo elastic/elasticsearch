@@ -110,7 +110,7 @@ class AuthenticatorChain {
                     maybeLookupRunAsUser(context, result.getValue(), l);
                 } else {
                     assert result.getStatus() == AuthenticationResult.Status.CONTINUE;
-                    if (context.handleNullToken()) {
+                    if (context.shouldHandleNullToken()) {
                         handleNullToken(context, l);
                     } else {
                         l.onFailure(Exceptions.authenticationError("failed to authenticate", result.getException()));
@@ -130,7 +130,7 @@ class AuthenticatorChain {
         Authenticator.Context context
     ) {
         return (authenticator, listener) -> {
-            if (context.extractCredentials()) {
+            if (context.shouldExtractCredentials()) {
                 final AuthenticationToken authenticationToken;
                 try {
                     authenticationToken = authenticator.extractCredentials(context);

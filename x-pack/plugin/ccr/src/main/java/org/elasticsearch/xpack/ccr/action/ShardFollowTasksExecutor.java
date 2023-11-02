@@ -88,7 +88,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ccr.CcrLicenseChecker.wrapClient;
 import static org.elasticsearch.xpack.ccr.action.TransportResumeFollowAction.extractLeaderShardHistoryUUIDs;
 
-public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
+public final class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollowTask> {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTasksExecutor.class);
 
@@ -100,7 +100,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private final TimeValue retentionLeaseRenewInterval;
     private volatile TimeValue waitForMetadataTimeOut;
 
-    @SuppressWarnings("this-escape")
     public ShardFollowTasksExecutor(Client client, ThreadPool threadPool, ClusterService clusterService, SettingsModule settingsModule) {
         super(ShardFollowTask.NAME, Ccr.CCR_THREAD_POOL_NAME);
         this.client = client;

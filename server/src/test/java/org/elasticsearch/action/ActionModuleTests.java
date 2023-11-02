@@ -124,7 +124,7 @@ public class ActionModuleTests extends ESTestCase {
             List.of(),
             RestExtension.allowAll()
         );
-        actionModule.initRestHandlers(null);
+        actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -184,7 +184,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll()
             );
-            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
             threadPool.shutdown();
@@ -237,7 +237,7 @@ public class ActionModuleTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(
                 IllegalArgumentException.class,

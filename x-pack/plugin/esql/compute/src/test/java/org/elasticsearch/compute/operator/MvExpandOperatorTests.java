@@ -257,9 +257,4 @@ public class MvExpandOperatorTests extends OperatorTestCase {
         List<Page> results = drive(new MvExpandOperator(0, randomIntBetween(1, 1000)), input.iterator(), context);
         assertSimpleOutput(origInput, results);
     }
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
 }

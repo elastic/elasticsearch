@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.transform.action;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -32,13 +33,17 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomShards(randomInt(10)), randomOriginalIndices(randomIntBetween(0, 20)));
+        return new Request(
+            randomShards(randomInt(10)),
+            randomOriginalIndices(randomIntBetween(0, 20)),
+            randomBoolean() ? randomTimeout() : null
+        );
     }
 
     @Override
     protected Request mutateInstance(Request instance) {
 
-        switch (random().nextInt(1)) {
+        switch (random().nextInt(2)) {
             case 0 -> {
                 Set<ShardId> shards = new HashSet<>(instance.getShards());
                 if (randomBoolean() && shards.size() > 0) {
@@ -50,36 +55,43 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
                 } else {
                     shards.add(new ShardId(randomAlphaOfLength(8), randomAlphaOfLength(4), randomInt(5)));
                 }
-                return new Request(shards, instance.getOriginalIndices());
+                return new Request(shards, instance.getOriginalIndices(), instance.getTimeout());
             }
             case 1 -> {
                 OriginalIndices originalIndices = randomOriginalIndices(instance.indices().length + 1);
-                return new Request(instance.getShards(), originalIndices);
+                return new Request(instance.getShards(), originalIndices, instance.getTimeout());
+            }
+            case 2 -> {
+                return new Request(
+                    instance.getShards(),
+                    instance.getOriginalIndices(),
+                    instance.getTimeout() != null ? null : randomTimeout()
+                );
             }
             default -> throw new IllegalStateException("The test should only allow 1 parameters mutated");
         }
     }
 
     public void testCreateTask() {
-        Request request = new Request(randomShards(7), randomOriginalIndices(19));
+        Request request = new Request(randomShards(7), randomOriginalIndices(19), null);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[19;7]")));
     }
 
     public void testCreateTaskWithNullShardsAndIndices() {
-        Request request = new Request(null, OriginalIndices.NONE);
+        Request request = new Request(null, OriginalIndices.NONE, null);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[0;0]")));
     }
 
     public void testCreateTaskWithNullShards() {
-        Request request = new Request(null, randomOriginalIndices(13));
+        Request request = new Request(null, randomOriginalIndices(13), null);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[13;0]")));
     }
 
     public void testCreateTaskWithNullIndices() {
-        Request request = new Request(randomShards(11), OriginalIndices.NONE);
+        Request request = new Request(randomShards(11), OriginalIndices.NONE, null);
         CancellableTask task = request.createTask(123, "type", "action", new TaskId("dummy-node:456"), Map.of());
         assertThat(task.getDescription(), is(equalTo("get_checkpoint_node[0;11]")));
     }
@@ -99,5 +111,9 @@ public class GetCheckpointNodeActionRequestTests extends AbstractWireSerializing
         }
         IndicesOptions indicesOptions = randomBoolean() ? IndicesOptions.strictExpand() : IndicesOptions.lenientExpandOpen();
         return new OriginalIndices(randomIndices, indicesOptions);
+    }
+
+    private static TimeValue randomTimeout() {
+        return TimeValue.timeValueSeconds(randomIntBetween(1, 300));
     }
 }

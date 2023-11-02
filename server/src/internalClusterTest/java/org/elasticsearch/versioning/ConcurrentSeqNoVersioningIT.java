@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -26,8 +27,6 @@ import org.elasticsearch.discovery.AbstractDisruptionTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.threadpool.Scheduler;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -40,10 +39,8 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -434,18 +431,9 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             LinearizabilityChecker.SequentialSpec spec = new CASSequentialSpec(initialVersion);
             boolean linearizable = false;
             try {
-                final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-                final AtomicBoolean abort = new AtomicBoolean();
-                // Large histories can be problematic and have the linearizability checker run OOM
-                // Bound the time how long the checker can run on such histories (Values empirically determined)
-                if (history.size() > 300) {
-                    scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
-                }
-                linearizable = LinearizabilityChecker.isLinearizable(spec, history, missingResponseGenerator(), abort::get);
-                ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
-                if (abort.get() && linearizable == false) {
-                    linearizable = true; // let the test pass
-                }
+                linearizable = LinearizabilityChecker.isLinearizable(spec, history, missingResponseGenerator());
+            } catch (LinearizabilityCheckAborted e) {
+                logger.warn("linearizability check check was aborted", e);
             } finally {
                 // implicitly test that we can serialize all histories.
                 String serializedHistory = base64Serialize(history);
@@ -683,7 +671,8 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
     }
 
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException {
+    private static void runLinearizabilityChecker(FileInputStream fileInputStream, long primaryTerm, long seqNo) throws IOException,
+        LinearizabilityCheckAborted {
         StreamInput is = new InputStreamStreamInput(Base64.getDecoder().wrap(fileInputStream));
         is = new NamedWriteableAwareStreamInput(is, createNamedWriteableRegistry());
 

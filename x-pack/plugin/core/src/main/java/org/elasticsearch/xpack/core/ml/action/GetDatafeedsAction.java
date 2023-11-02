@@ -37,7 +37,7 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
         super(NAME, Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static final class Request extends MasterNodeReadRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -49,7 +49,6 @@ public class GetDatafeedsAction extends ActionType<GetDatafeedsAction.Response> 
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        @SuppressWarnings("this-escape")
         public Request() {
             local(true);
         }

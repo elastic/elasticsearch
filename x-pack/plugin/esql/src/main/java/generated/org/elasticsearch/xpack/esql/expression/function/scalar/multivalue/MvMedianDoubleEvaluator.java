@@ -38,7 +38,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
         MvMedian.Doubles work = new MvMedian.Doubles();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -68,7 +68,7 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
         MvMedian.Doubles work = new MvMedian.Doubles();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -83,6 +83,24 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianDoubleEvaluator get(DriverContext context) {
+      return new MvMedianDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
     }
   }
 }

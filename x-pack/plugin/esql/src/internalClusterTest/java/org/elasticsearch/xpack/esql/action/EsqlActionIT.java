@@ -1475,7 +1475,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
 
-        // This fails unless settings are declared dynamic.
         client.updateSettings(settingsRequest).actionGet();
         try (EsqlQueryResponse results = run("from test")) {
             logger.info(results);
@@ -1492,7 +1491,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(settings);
 
-        // This fails unless settings are declared dynamic.
         client.updateSettings(settingsRequest).actionGet();
         try (EsqlQueryResponse results = run("from test | limit 40")) {
             logger.info(results);

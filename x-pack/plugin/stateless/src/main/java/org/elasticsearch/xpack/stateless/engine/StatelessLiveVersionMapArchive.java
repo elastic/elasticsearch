@@ -45,7 +45,7 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     // the first get request forces switching to a safe map.
     private volatile boolean isUnsafe = false;
     // Records the generation that we need to receive unpromotable refresh for, in order to consider the archive map safe.
-    private long minSafeGeneration = -1;
+    private volatile long minSafeGeneration = -1;
 
     StatelessLiveVersionMapArchive(Supplier<Long> preCommitGenerationSupplier) {
         this.preCommitGenerationSupplier = preCommitGenerationSupplier;
@@ -57,7 +57,9 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
         synchronized (mutex) {
             if (old.isUnsafe()) {
                 isUnsafe = true;
-                // todo: this can allegedly lead to double flush when going out of unsafe
+                // todo: this can lead to requiring two flushes/commits to clear up the `isUnsafe` flag since we conservatively
+                // wait for +1 generation to ensure safety when parallel indexing and local refreshes happen between the
+                // local lucene commit and the refresh that happens as part of the flush.
                 minSafeGeneration = preCommitGenerationSupplier.get() + 1;
             }
             // Even if the old version lookup to archive is empty, we might need to keep track of it since it
@@ -116,6 +118,11 @@ public class StatelessLiveVersionMapArchive implements LiveVersionMapArchive {
     // package private for testing
     Map<Long, LiveVersionMap.VersionLookup> archivePerGeneration() {
         return archivePerGeneration;
+    }
+
+    // visible for testing
+    public long getMinSafeGeneration() {
+        return minSafeGeneration;
     }
 
     @Override

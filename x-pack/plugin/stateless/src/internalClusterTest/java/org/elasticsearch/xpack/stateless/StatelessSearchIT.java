@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
+import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
@@ -98,6 +99,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -323,6 +326,45 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
                 assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
             }
         }
+    }
+
+    public void testRealTimeGetLocalRefreshDuringUnpromotableRefresh() throws Exception {
+        var indexNode = startIndexNode();
+        startSearchNode();
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+        var sendUnpromotableRefreshStarted = new CountDownLatch(1);
+        var continueSendUnpromotableRefresh = new CountDownLatch(1);
+        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
+        mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
+                sendUnpromotableRefreshStarted.countDown();
+                safeAwait(continueSendUnpromotableRefresh);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        indexDocs(indexName, randomIntBetween(5, 10));
+        var refreshFuture = indicesAdmin().refresh(new RefreshRequest(indexName)); // async refresh
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
+        var map = indexEngine.getLiveVersionMap();
+        assertTrue(isUnsafe(map));
+        // While map is unsafe and unpromotable refresh is inflight, index more
+        safeAwait(sendUnpromotableRefreshStarted);
+        var id = client().prepareIndex(indexName).setSource("field", randomIdentifier()).get().getId();
+        // Still unsafe and `id` is not in the previous commit
+        assertTrue(isUnsafe(map));
+        // Local refresh happens (sets minSafeGeneration).
+        indexEngine.refresh("local");
+        var archive = (StatelessLiveVersionMapArchive) getArchive(map);
+        assertThat(archive.getMinSafeGeneration(), equalTo(indexEngine.getCurrentGeneration() + 1));
+        // After unpromotable refresh comes back, map should still be unsafe
+        continueSendUnpromotableRefresh.countDown();
+        refreshFuture.get();
+        assertTrue(isUnsafe(map));
+        var getResponse = client().prepareGet(indexName, id).get();
+        assertTrue(getResponse.isExists());
     }
 
     public void testGenerationalDocValues() throws Exception {

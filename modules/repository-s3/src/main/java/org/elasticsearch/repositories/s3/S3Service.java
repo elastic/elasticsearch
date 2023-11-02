@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSCredentialsProviderChain;
@@ -361,10 +362,24 @@ class S3Service implements Closeable {
             );
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            // Custom system property used for specifying a mocked version of the STS for testing
-            String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
-            // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
-            stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
+            boolean stsRegionConfigured = false;
+            // Support regionalized STS endpoints https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
+            if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
+                // AWS_REGION should be injected in the pod https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
+                String region = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
+                if (region != null) {
+                    stsClientBuilder.withRegion(region);
+                    stsRegionConfigured = true;
+                } else {
+                    LOGGER.warn("Unable to lookup region for the AWS STS endpoint, because the AWS_REGION environment variable is not set");
+                }
+            }
+            if (stsRegionConfigured == false) {
+                // Custom system property used for specifying a mocked version of the STS for testing
+                String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+                // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
+                stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
+            }
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
             try {
@@ -381,6 +396,10 @@ class S3Service implements Closeable {
 
         boolean isActive() {
             return credentialsProvider != null;
+        }
+
+        AWSSecurityTokenService stsClient() {
+            return stsClient;
         }
 
         @Override

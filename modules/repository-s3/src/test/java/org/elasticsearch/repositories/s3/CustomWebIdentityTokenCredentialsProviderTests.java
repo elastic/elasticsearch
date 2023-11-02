@@ -8,6 +8,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonWebServiceClient;
 import com.amazonaws.auth.AWSCredentials;
 import com.sun.net.httpserver.HttpServer;
 
@@ -22,8 +23,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 import org.mockito.Mockito;
 
+import java.io.IOException;
+import java.lang.reflect.Field;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -41,6 +45,15 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
 
     private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
     private static final String ROLE_NAME = "aws-sdk-java-1651084775908";
+
+    private static Environment getEnvironment() throws IOException {
+        Path configDirectory = Files.createTempDirectory("web-identity-token-test");
+        Files.createDirectory(configDirectory.resolve("repository-s3"));
+        Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
+        Environment environment = Mockito.mock(Environment.class);
+        Mockito.when(environment.configFile()).thenReturn(configDirectory);
+        return environment;
+    }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
     public void testCreateWebIdentityTokenCredentialsProvider() throws Exception {
@@ -88,11 +101,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         });
         httpServer.start();
 
-        Path configDirectory = Files.createTempDirectory("web-identity-token-test");
-        Files.createDirectory(configDirectory.resolve("repository-s3"));
-        Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
-        Environment environment = Mockito.mock(Environment.class);
-        Mockito.when(environment.configFile()).thenReturn(configDirectory);
+        Environment environment = getEnvironment();
 
         // No region is set, but the SDK shouldn't fail because of that
         Map<String, String> environmentVariables = Map.of(
@@ -124,5 +133,31 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             webIdentityTokenCredentialsProvider.shutdown();
             httpServer.stop(0);
         }
+    }
+
+    public void testSupportRegionalizedEndpoints() throws Exception {
+        Map<String, String> environmentVariables = Map.of(
+            "AWS_WEB_IDENTITY_TOKEN_FILE",
+            "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
+            "AWS_ROLE_ARN",
+            ROLE_ARN,
+            "AWS_STS_REGIONAL_ENDPOINTS",
+            "regional",
+            "AWS_REGION",
+            "us-west-2"
+        );
+        Map<String, String> systemProperties = Map.of();
+        var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
+            getEnvironment(),
+            environmentVariables::get,
+            systemProperties::getOrDefault,
+            Clock.fixed(Instant.ofEpochMilli(1651084775908L), ZoneOffset.UTC)
+        );
+
+        Field endpointField = AmazonWebServiceClient.class.getDeclaredField("endpoint");
+        endpointField.setAccessible(true);
+        assertEquals(URI.create("https://sts.us-west-2.amazonaws.com"), endpointField.get(webIdentityTokenCredentialsProvider.stsClient()));
+
+        webIdentityTokenCredentialsProvider.shutdown();
     }
 }

@@ -60,6 +60,16 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 (Optional, Boolean) If `true`, existing index settings remain unchanged.
 Defaults to `false`.
 
+`reopen`::
+(Optional, Boolean) If `true`, then any static settings that would ordinarily only
+be updated on closed indices will be updated by automatically closing and reopening
+the affected indices. If `false`, attempts to update static settings on open indices
+will fail. Defaults to `false`.
+
+WARNING: Changing index settings on an automatically closed index using the `reopen`
+parameter could result in incorrect settings that are impossible to rectify without
+deleting and recreating the index.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 

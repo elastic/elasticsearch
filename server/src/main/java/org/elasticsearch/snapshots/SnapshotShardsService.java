@@ -137,7 +137,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     cancelRemoved(currentSnapshots);
                     for (final var oneRepoSnapshotsInProgress : currentSnapshots.entriesByRepo()) {
                         for (final var snapshotsInProgressEntry : oneRepoSnapshotsInProgress) {
-                            handleUpdatedSnapshotInProgress(localNodeId, snapshotsInProgressEntry);
+                            handleUpdatedSnapshotsInProgressEntry(localNodeId, snapshotsInProgressEntry);
                         }
                     }
                 }
@@ -224,7 +224,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void handleUpdatedSnapshotInProgress(String localNodeId, SnapshotsInProgress.Entry entry) {
+    private void handleUpdatedSnapshotsInProgressEntry(String localNodeId, SnapshotsInProgress.Entry entry) {
         if (entry.isClone()) {
             // This is a snapshot clone, it will be executed on the current master
             return;

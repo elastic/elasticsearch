@@ -6,6 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.qa.single_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;
+import org.junit.ClassRule;
 
-public class CliErrorsIT extends ErrorsTestCase {}
+public class CliErrorsIT extends ErrorsTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+}

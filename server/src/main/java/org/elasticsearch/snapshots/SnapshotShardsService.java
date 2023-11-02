@@ -510,7 +510,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 synchronized (shardSnapshots) {
                     final var currentLocalShards = shardSnapshots.get(snapshot.snapshot());
                     if (currentLocalShards == null) {
-                        return;
+                        continue;
                     }
                     localShards = Map.copyOf(currentLocalShards);
                 }

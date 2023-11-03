@@ -262,7 +262,9 @@ public class DesiredBalanceReconciler {
                                 continue;
                             }
                             if (routingNode.getByShardId(shard.shardId()) != null) {
-                                // node already contains same shard
+                                // node already contains same shard.
+                                // Skipping it allows us to exclude NO decisions from SameShardAllocationDecider and only log more relevant
+                                // NO or THROTTLE decisions of the preventing shard from starting on assigned node
                                 continue;
                             }
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);

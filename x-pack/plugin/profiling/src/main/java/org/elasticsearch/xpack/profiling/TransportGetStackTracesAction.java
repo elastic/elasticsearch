@@ -143,7 +143,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     mediumDownsampled,
                     resampledIndex
                 );
-                log.debug(watch.Report());
+                log.debug(() -> watch.report());
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
@@ -216,7 +216,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     totalFinalCount,
                     stackTraceEvents.size()
                 );
-                log.debug(watch.Report());
+                log.debug(() -> watch.report());
                 if (stackTraceEvents.isEmpty() == false) {
                     responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                     responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
@@ -334,7 +334,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     stackFrameIds.size(),
                     executableIds.size()
                 );
-                log.debug(watch.Report());
+                log.debug(() -> watch.report());
                 retrieveStackTraceDetails(
                     clusterState,
                     client,
@@ -479,7 +479,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
-                log.debug(watch.Report());
+                log.debug(() -> watch.report());
                 submitListener.onResponse(builder.build());
             }
         }

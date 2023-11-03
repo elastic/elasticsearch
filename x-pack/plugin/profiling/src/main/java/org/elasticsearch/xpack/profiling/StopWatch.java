@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.profiling;
 
-import org.apache.logging.log4j.Logger;
-
 /**
  * Measures time and logs it in milliseconds.
  */
-public class StopWatch {
+public final class StopWatch {
     private final String name;
     private final long start;
 
@@ -22,26 +20,16 @@ public class StopWatch {
     }
 
     /**
-     * Log name and the number of elapsed milliseconds since object creation.
-     *
-     * @param log Logger for logging the report.
-     */
-    public void Log(Logger log) {
-        log.debug(this.Report());
-    }
-
-    /**
      * Return a textual report including the name and the number of elapsed milliseconds since object creation.
      */
-    public String Report() {
-        return name + " took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].";
+    public String report() {
+        return name + " took [" + millis() + " ms].";
     }
 
     /**
      * Return number of elapsed milliseconds since object creation.
      */
-    public double Millis() {
+    public double millis() {
         return (System.nanoTime() - start) / 1_000_000.0d;
     }
-
 }

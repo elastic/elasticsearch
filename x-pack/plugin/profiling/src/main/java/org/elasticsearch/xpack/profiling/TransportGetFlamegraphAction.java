@@ -51,7 +51,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 try {
                     StopWatch processingWatch = new StopWatch("Processing response");
                     GetFlamegraphResponse flamegraphResponse = buildFlamegraph(response);
-                    log.debug(watch.Report() + " " + processingWatch.Report());
+                    log.debug(() -> watch.report() + " " + processingWatch.report());
                     listener.onResponse(flamegraphResponse);
                 } catch (Exception ex) {
                     listener.onFailure(ex);

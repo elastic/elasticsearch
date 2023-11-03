@@ -191,8 +191,8 @@ FROM sample_data
 ----
 
 NOTE: The order of processing commands is important. First limiting the result
-set to 3 rows before sorting those 3 rows would most likely return 3 different
-rows.
+set to 3 rows before sorting those 3 rows would most likely return a result that
+is different than this example, where the sorting comes before the limit.
 
 [discrete]
 [[esql-getting-started-eval]]
@@ -241,7 +241,7 @@ FROM sample_data
 | STATS median_duration = MEDIAN(event.duration), max_duration = MAX(event.duration)
 ----
 
-Use `BY` to group calculated stats by one or more other values. For example, to
+Use `BY` to group calculated stats by one or more columns. For example, to
 calculate the median duration per client IP:
 
 [source,esql]
@@ -255,9 +255,9 @@ FROM sample_data
 === Create a histogram
 
 To track statistics over time, {esql} enables you to create histograms using the
-<<esql-auto_bucket>> function. `AUTO_BUCKET` creates human-friendly buckets and
-returns a value for each row that corresponds to the resulting bucket the row
-falls into. 
+<<esql-auto_bucket>> function. `AUTO_BUCKET` creates human-friendly bucket sizes
+and returns a value for each row that corresponds to the resulting bucket the
+row falls into. 
 
 For example, to create hourly buckets for the data on October 23rd:
 

@@ -1147,7 +1147,7 @@ class NodeConstruction {
 
         injector = modules.createInjector();
 
-        postInjection(clusterModule, actionModule, clusterService, transportService);
+        postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
     }
 
     private Module loadDiagnosticServices(
@@ -1231,7 +1231,8 @@ class NodeConstruction {
         ClusterModule clusterModule,
         ActionModule actionModule,
         ClusterService clusterService,
-        TransportService transportService
+        TransportService transportService,
+        FeatureService featureService
     ) {
         // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
         // The search for viable copies is triggered by an allocation attempt (i.e. a reroute) and is performed asynchronously. When it

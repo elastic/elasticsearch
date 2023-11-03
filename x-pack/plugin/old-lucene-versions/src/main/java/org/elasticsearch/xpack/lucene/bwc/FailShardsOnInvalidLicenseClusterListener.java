@@ -26,7 +26,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.lucene.bwc.OldLuceneVersions.ARCHIVE_FEATURE;
 
-public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateListener, IndexEventListener {
+public final class FailShardsOnInvalidLicenseClusterListener implements LicenseStateListener, IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(FailShardsOnInvalidLicenseClusterListener.class);
 
@@ -38,7 +38,6 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
 
     private boolean allowed;
 
-    @SuppressWarnings("this-escape")
     public FailShardsOnInvalidLicenseClusterListener(XPackLicenseState xPackLicenseState, RerouteService rerouteService) {
         this.xPackLicenseState = xPackLicenseState;
         this.rerouteService = rerouteService;

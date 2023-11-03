@@ -6,7 +6,7 @@
 ++++
 
 You can use {esql} in {kib} to query and aggregate your data, create
-visualizations, and set up alerts. 
+visualizations, and set up alerts.
 
 This guide shows you how to use {esql} in Kibana. To follow along with the
 queries, load the "Sample web logs" sample data set by clicking *Try sample
@@ -17,10 +17,12 @@ data* on the *Sample web logs* card.
 [[esql-kibana-get-started]]
 === Get started with {esql}
 
+// tag::esql-mode[]
 To get started with {esql} in Discover, open the main menu and select
 *Discover*. Next, from the Data views menu, select *Try ES|QL*.
 
 image::images/esql/esql-data-view-menu.png[align="center",width=33%]
+// end::esql-mode[]
 
 The ability to select {esql} from the Data views menu can be enabled and
 disabled using the `discover:enableESQL` setting from
@@ -48,10 +50,12 @@ limits the number of rows that are retrieved.
 TIP: Click the help icon (image:images/esql/esql-icon-help.svg[]) to open the
 in-product reference documentation for all commands and functions.
 
+// tag::autocomplete[]
 To make it easier to write queries, auto-complete offers suggestions with
 possible commands and functions:
 
 image::images/esql/esql-kibana-auto-complete.png[align="center"]
+// end::autocomplete[]
 
 [NOTE]
 ====
@@ -72,18 +76,20 @@ following query is identical to the previous one:
 
 [source,esql]
 ----
-FROM kibana_sample_data_logs 
+FROM kibana_sample_data_logs
 | LIMIT 10
 ----
 
+// tag::compact[]
 To make it easier to write multi-line queries, click the double-headed arrow
 button (image:images/esql/esql-icon-expand-query-bar.svg[]) to expand the query
 bar:
 
 image::images/esql/esql-expanded-query-bar.png[align="center"]
 
-To return to a compact query bar, click the minimize editor button 
+To return to a compact query bar, click the minimize editor button
 (image:images/esql/esql-icon-minimize-query-bar.svg[]).
+// end::compact[]
 
 [discrete]
 ==== Warnings
@@ -244,13 +250,20 @@ image::images/esql/esql-kibana-create-rule.png[align="center",width=50%]
 [[esql-kibana-limitations]]
 === Limitations
 
+// tag::limitations[]
 * The user interface to filter data is not enabled when Discover is in {esql}
 mode. To filter data, write a query that uses the <<esql-where>> command
 instead.
 * In {esql} mode, clicking a field in the field list in Discover does not show
 quick statistics for that field.
 * Discover shows no more than 10,000 rows. This limit only applies to the number
-of rows that are retrieved by the query and displayed in Discover. Any query or
-aggregation runs on the full data set.
+of rows that are retrieved by the query and displayed in Discover. Queries and
+aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns
 more than 50 columns, Discover only shows the first 50.
+* Querying many many indices at once without any filters can cause an error in
+kibana which looks like `[esql] > Unexpected error from Elasticsearch: The
+content length (536885793) is bigger than the maximum allowed string
+(536870888)`. The response from {esql} is too long. Use <<esql-drop>> or
+<<esql-keep>> to limit the number of fields returned.
+// end::limitations[]

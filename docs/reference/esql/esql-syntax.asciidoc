@@ -43,19 +43,21 @@ source-command | processing-command1 | processing-command2
 Unless containing special characters, the identifiers can be used as-are and
 don't require quoting. If they do, however, they must be quoted with
 backticks (```). The special characters are those that have already a semantic
-meaning for a given command, like arithmetic operators (`-`, `+` etc),
+meaning for a given command, like arithmetic operators (`-`, `+` etc.),
 decimals delimiters (`.`), field delimiters (`,`), command separators (`|`),
 subfield referencing (`.`) a.s.o. This is also applicable to identifiers that
 could be interpreted like numbers (the scientific notation, like `1e2`) or
 simply start with a number.
 
 For instance:
+
 [source,esql]
 ----
 // Retain just one field
 FROM index
 | KEEP 1.field
 ----
+
 is legal. However, if same field is to be used with an <<esql-eval, EVAL>>,
 it'd have to be quoted:
 
@@ -65,7 +67,6 @@ it'd have to be quoted:
 FROM index
 | EVAL my_field = `1.field`
 ----
-
 
 [discrete]
 [[esql-literals]]
@@ -92,6 +93,7 @@ ROW name = """Indiana "Indy" Jones"""
 
 The special characters CR, LF and TAB can be provided with the usual escaping:
 `\r`, `\n`, `\t`, respectively.
+
 
 [discrete]
 [[esql-comments]]

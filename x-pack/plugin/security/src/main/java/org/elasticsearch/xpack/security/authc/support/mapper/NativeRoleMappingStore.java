@@ -93,7 +93,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     public static final Setting<Boolean> FALLBACK_CACHE_ENABLED_SETTING = Setting.boolSetting(
         "xpack.security.authc.role_mapping.fallback_cache.enabled",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
     );
 
     private final Settings settings;
@@ -101,7 +102,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final SecurityIndexManager securityIndex;
     private final ScriptService scriptService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
-    private final boolean shouldCacheSuccessfulLoad;
+    private final boolean fallbackCacheEnabled;
     private final AtomicReference<List<ExpressionRoleMapping>> lastSuccessfulLoadRef = new AtomicReference<>(null);
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
@@ -109,21 +110,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         this.client = client;
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
-        this.shouldCacheSuccessfulLoad = FALLBACK_CACHE_ENABLED_SETTING.get(settings);
-    }
-
-    NativeRoleMappingStore(
-        Settings settings,
-        Client client,
-        SecurityIndexManager securityIndex,
-        ScriptService scriptService,
-        boolean shouldCacheSuccessfulLoad
-    ) {
-        this.settings = settings;
-        this.client = client;
-        this.securityIndex = securityIndex;
-        this.scriptService = scriptService;
-        this.shouldCacheSuccessfulLoad = shouldCacheSuccessfulLoad;
+        this.fallbackCacheEnabled = FALLBACK_CACHE_ENABLED_SETTING.get(settings);
     }
 
     private static String getNameFromId(String id) {
@@ -165,7 +152,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
                     final List<ExpressionRoleMapping> mappingList = mappings.stream().filter(Objects::nonNull).toList();
                     logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
-                    if (shouldCacheSuccessfulLoad) {
+                    if (fallbackCacheEnabled) {
                         logger.debug("caching loaded role-mapping(s)");
                         lastSuccessfulLoadRef.set(mappingList);
                     }
@@ -331,7 +318,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         final List<ExpressionRoleMapping> lastSuccessfulLoad = lastSuccessfulLoadRef.get();
         if (frozenSecurityIndex.indexIsClosed()) {
             if (lastSuccessfulLoad != null) {
-                assert shouldCacheSuccessfulLoad;
+                assert fallbackCacheEnabled;
                 logger.debug("The security index exists but is closed - returning previously cached role mappings");
                 listener.onResponse(lastSuccessfulLoad);
             } else {
@@ -341,7 +328,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
             if (lastSuccessfulLoad != null) {
-                assert shouldCacheSuccessfulLoad;
+                assert fallbackCacheEnabled;
                 logger.debug(
                     "The security index exists but is not available - returning previously cached role mappings",
                     unavailableReason

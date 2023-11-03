@@ -268,7 +268,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
     private class ShardOpenReaderRequestHandler implements TransportRequestHandler<ShardOpenReaderRequest> {
         @Override
-        public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) throws Exception {
+        public void messageReceived(ShardOpenReaderRequest request, TransportChannel channel, Task task) {
             searchService.openReaderContext(
                 request.getShardId(),
                 request.keepAlive,

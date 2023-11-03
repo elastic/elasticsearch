@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createHttpPost;
-import static org.elasticsearch.xpack.inference.external.http.HttpClientTests.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.createThreadPool;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;

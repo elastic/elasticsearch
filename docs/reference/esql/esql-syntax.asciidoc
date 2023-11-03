@@ -9,7 +9,7 @@
 [[esql-basic-syntax]]
 === Basic syntax
 
-An {esql} query is composed of a <<esql-commands,source_command>> followed
+An {esql} query is composed of a <<esql-commands,source command>> followed
 by an optional series of <<esql-commands,processing commands>>,
 separated by a pipe character: `|`. For example:
 
@@ -35,6 +35,63 @@ query is identical to the previous one:
 source-command | processing-command1 | processing-command2
 ----
 ====
+
+[discrete]
+[[esql-identifiers]]
+==== Identifiers
+
+Unless containing special characters, the identifiers can be used as-are and
+don't require quoting. If they do, however, they must be quoted with
+backticks (```). The special characters are those that have already a semantic
+meaning for a given command, like arithmetic operators (`-`, `+` etc),
+decimals delimiters (`.`), field delimiters (`,`), command separators (`|`),
+subfield referencing (`.`) a.s.o. This is also applicable to identifiers that
+could be interpreted like numbers (the scientific notation, like `1e2`) or
+simply start with a number.
+
+For instance:
+[source,esql]
+----
+// Retain just one field
+FROM index
+| KEEP 1.field
+----
+is legal. However, if same field is to be used with an <<esql-eval, EVAL>>,
+it'd have to be quoted:
+
+[source,esql]
+----
+// Copy one field
+FROM index
+| EVAL my_field = `1.field`
+----
+
+
+[discrete]
+[[esql-literals]]
+==== Literals
+
+{esql} supports currently numeric and string literals. The numeric literals
+can be used as are. The string literals need to be quoted in double
+quotes (`"`).
+
+[source,esql]
+----
+// Filter by a string value
+FROM index
+| WHERE first_name == "Georgi"
+----
+
+If the literal string itself contains quotes, these need to be escaped (`\\"`).
+{esql} also supports the triple-quotes (`"""`) delimiter, for convenience:
+
+[source,esql]
+----
+ROW name = """Indiana "Indy" Jones"""
+----
+
+The special characters CR, LF and TAB can be provided with the usual escaping:
+`\r`, `\n`, `\t`, respectively.
 
 [discrete]
 [[esql-comments]]

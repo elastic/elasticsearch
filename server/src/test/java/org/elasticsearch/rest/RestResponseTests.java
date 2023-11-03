@@ -476,14 +476,10 @@ public class RestResponseTests extends ESTestCase {
             "unauthorized"
         );
 
-        // setting "rest.exception.stacktrace.skip" to false should prevent logging to happen
-        request.params().put(REST_EXCEPTION_SKIP_STACK_TRACE, "false");
-        assertLogging(channel, new ElasticsearchException("simulated"), null, null, null);
-        // setting "error_trace" to true currently also prevents logging
+        // setting "error_trace" to true should not affect logging
         request.params().clear();
         request.params().put("error_trace", "true");
-        assertLogging(channel, new ElasticsearchException("simulated"), null, null, null);
-        // we still seem to log 401s though, regardless of "error_trace" setting
+        assertLogging(channel, new ElasticsearchException("simulated"), Level.WARN, "500", "simulated");
         assertLogging(
             channel,
             new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED),

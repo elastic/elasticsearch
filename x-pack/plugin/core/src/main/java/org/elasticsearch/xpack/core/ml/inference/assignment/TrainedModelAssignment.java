@@ -40,7 +40,7 @@ import java.util.Set;
 /**
  * Trained model assignment object that contains assignment options and the assignment routing table
  */
-public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
+public final class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
 
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField ASSIGNMENT_STATE = new ParseField("assignment_state");
@@ -137,7 +137,6 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             : Math.max(maxAssignedAllocations, totalCurrentAllocations());
     }
 
-    @SuppressWarnings("this-escape")
     public TrainedModelAssignment(StreamInput in) throws IOException {
         this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
         this.nodeRoutingTable = in.readOrderedMap(StreamInput::readString, RoutingInfo::new);

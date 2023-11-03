@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
@@ -1256,7 +1257,10 @@ class NodeConstruction {
         );
 
         logger.debug("initializing HTTP handlers ...");
-        actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
+        actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered(), f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        });
         logger.info("initialized");
     }
 

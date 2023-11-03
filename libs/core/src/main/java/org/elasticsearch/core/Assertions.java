@@ -34,8 +34,9 @@ public final class Assertions {
     /**
      * A "poison-pill" assertion to use in code we want to review (cleanup, remove or change) before releasing 9.0
      * Before starting the 9.0 release process a feature branch will be created, in which this assertion will be changed to cause failures
-     * which must addressed before to main.
-     * Each poison pill has to be addressed before we can merge to main, branch the next version and bump the current version.
+     * which must addressed before proceeding.
+     * Each poison pill has to be addressed before we merge the feature branch to main. Only then we can proceed to branch the next version
+     * and bump the current version.
      * @param reason a string that will be part of the assertion message, with details on how to fix the issue.
      */
     public static void assertRemoveBeforeV9(String reason) {

@@ -90,8 +90,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
-    public static final Setting<Boolean> CACHE_LAST_SUCCESSFUL_LOAD_SETTING = Setting.boolSetting(
-        "xpack.security.authc.role_mapping.cache_last_successful_load",
+    public static final Setting<Boolean> FALLBACK_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "xpack.security.authc.role_mapping.fallback_cache.enabled",
         false,
         Setting.Property.NodeScope
     );
@@ -109,7 +109,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         this.client = client;
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
-        this.shouldCacheSuccessfulLoad = CACHE_LAST_SUCCESSFUL_LOAD_SETTING.get(settings);
+        this.shouldCacheSuccessfulLoad = FALLBACK_CACHE_ENABLED_SETTING.get(settings);
     }
 
     NativeRoleMappingStore(
@@ -381,24 +381,11 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        final boolean moveFromRedToNonRed = isMoveFromRedToNonRed(previousState, currentState);
-        final boolean indexDeleted = isIndexDeleted(previousState, currentState);
-        final boolean uuidChanged = Objects.equals(previousState.indexUUID, currentState.indexUUID) == false;
-        final boolean indexNotUpToDateChanged = previousState.isIndexUpToDate != currentState.isIndexUpToDate;
-        if (moveFromRedToNonRed || indexDeleted || uuidChanged || indexNotUpToDateChanged) {
+        if (isMoveFromRedToNonRed(previousState, currentState)
+            || isIndexDeleted(previousState, currentState)
+            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
+            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
             refreshRealms(ActionListener.noop(), null);
-            // TODO to clear or not to clear...
-            if (shouldCacheSuccessfulLoad && false == indexDeleted) {
-                logger.debug(
-                    "Clearing role mapping cache."
-                        + " moveFromRedToNonRed [{}] indexDeleted [{}] uuidChanged [{}] indexNotUpToDateChanged [{}]",
-                    moveFromRedToNonRed,
-                    indexDeleted,
-                    uuidChanged,
-                    indexNotUpToDateChanged
-                );
-                lastSuccessfulLoadRef.set(null);
-            }
         }
     }
 

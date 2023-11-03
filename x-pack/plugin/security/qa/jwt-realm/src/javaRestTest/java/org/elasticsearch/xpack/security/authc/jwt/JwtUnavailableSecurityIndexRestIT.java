@@ -85,7 +85,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE")
         .setting("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset")
 
-        .setting("xpack.security.authc.role_mapping.cache_last_successful_load", "true")
+        .setting("xpack.security.authc.role_mapping.fallback_cache.enabled", "true")
         .user("admin_user", "admin-password")
         .build();
 

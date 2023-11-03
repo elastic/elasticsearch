@@ -153,9 +153,9 @@ public class GeoDistanceIT extends ESIntegTestCase {
                     new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "geohashDistance", Collections.emptyMap())
                 ),
             response -> {
-                Double resultDistance4 = response.getHits().getHits()[0].getFields().get("distance").getValue();
+                Double resultDistance = response.getHits().getHits()[0].getFields().get("distance").getValue();
                 assertThat(
-                    resultDistance4,
+                    resultDistance,
                     closeTo(
                         GeoUtils.arcDistance(src_lat, src_lon, Geohash.decodeLatitude(tgt_geohash), Geohash.decodeLongitude(tgt_geohash)),
                         0.01d

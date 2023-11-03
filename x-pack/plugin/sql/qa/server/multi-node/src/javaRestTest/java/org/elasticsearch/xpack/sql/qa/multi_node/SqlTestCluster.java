@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.qa.single_node;
+package org.elasticsearch.xpack.sql.qa.multi_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -14,6 +14,7 @@ public class SqlTestCluster {
     public static ElasticsearchCluster getCluster() {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            .nodes(2)
             .setting("cluster.name", "javaRestTest")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")

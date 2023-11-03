@@ -101,8 +101,10 @@ buildScan {
       def jobName = (System.getenv('BUILDKITE_LABEL') ?: '').replaceAll(/[^a-zA-Z0-9_\-]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 
       tag 'CI'
-      link 'CI Build', buildKiteUrl
+      link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
       value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+      value 'Build ID', System.getenv('BUILDKITE_BUILD_ID')
+      value 'Job ID', System.getenv('BUILDKITE_JOB_ID')
 
       value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
       tag System.getenv('BUILDKITE_PIPELINE_SLUG')
@@ -144,7 +146,7 @@ buildScan {
             'buildkite-agent',
             'annotate',
             '--context',
-            'gradle-build-scans',
+            result.failure ? 'gradle-build-scans-failed' : 'gradle-build-scans',
             '--append',
             '--style',
             result.failure ? 'error' : 'info',

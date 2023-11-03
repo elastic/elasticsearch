@@ -71,7 +71,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
     private static final Duration DEFAULT_AUTOSCALING_CHECK_INTERVAL = Duration.ofMinutes(5);
 
-    private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
+    private static final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
     private final Map<String, Long> memoryRequirementByDataFrameAnalyticsJob = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Long>> memoryRequirementByTaskName;

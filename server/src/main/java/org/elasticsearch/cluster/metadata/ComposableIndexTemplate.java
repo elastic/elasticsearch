@@ -110,7 +110,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     /**
      * @deprecated use {@link Builder} instead
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -125,7 +125,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     /**
      * @deprecated use {@link Builder} instead
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -141,7 +141,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     /**
      * @deprecated use {@link Builder} instead
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -158,6 +158,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     /**
      * @deprecated use {@link Builder} instead
      */
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,

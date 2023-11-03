@@ -856,7 +856,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    class ShardAllocationStatus {
+    public class ShardAllocationStatus {
         final ShardAllocationCounts primaries = new ShardAllocationCounts();
         final ShardAllocationCounts replicas = new ShardAllocationCounts();
         final Metadata clusterMetadata;

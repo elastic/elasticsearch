@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.SpatialPoint;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -229,25 +229,28 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         // value for NUMBER_FIELD_NAME. This will check that after random indexing each document only has 1 value for
         // NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting
         // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type.
-        SearchResponse response = prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME)
-            .addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC))
-            .setSize(5000)
-            .get();
-        assertNoFailures(response);
-        long totalHits = response.getHits().getTotalHits().value;
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
-        for (int i = 0; i < totalHits; i++) {
-            SearchHit searchHit = response.getHits().getAt(i);
-            assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
-            DocumentField hitField = searchHit.field(NUMBER_FIELD_NAME);
+        assertCheckedResponse(
+            prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME)
+                .addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME).order(SortOrder.ASC))
+                .setSize(5000),
+            response -> {
+                assertNoFailures(response);
+                long totalHits = response.getHits().getTotalHits().value;
+                XContentBuilder builder = XContentFactory.jsonBuilder();
+                ChunkedToXContent.wrapAsToXContent(response).toXContent(builder, ToXContent.EMPTY_PARAMS);
+                logger.info("Full high_card_idx Response Content:\n{ {} }", Strings.toString(builder));
+                for (int i = 0; i < totalHits; i++) {
+                    SearchHit searchHit = response.getHits().getAt(i);
+                    assertThat("Hit " + i + " with id: " + searchHit.getId(), searchHit.getIndex(), equalTo("high_card_idx"));
+                    DocumentField hitField = searchHit.field(NUMBER_FIELD_NAME);
 
-            assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
-            Long value = hitField.getValue();
-            assertThat("Hit " + i + " has wrong value", value.intValue(), equalTo(i));
-        }
-        assertThat(totalHits, equalTo(2000L));
+                    assertThat("Hit " + i + " has wrong number of values", hitField.getValues().size(), equalTo(1));
+                    Long value = hitField.getValue();
+                    assertThat("Hit " + i + " has wrong value", value.intValue(), equalTo(i));
+                }
+                assertThat(totalHits, equalTo(2000L));
+            }
+        );
     }
 
     private SpatialPoint computeCentroid(SpatialPoint[] points) {

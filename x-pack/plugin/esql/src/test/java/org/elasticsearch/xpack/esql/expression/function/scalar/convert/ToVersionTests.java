@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
@@ -27,7 +26,6 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@Seed("6291ACF300018200")
 public class ToVersionTests extends AbstractFunctionTestCase {
     public ToVersionTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

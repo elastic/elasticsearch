@@ -50,11 +50,34 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class TimeSeriesAggregatorTests extends AggregationTestCase {
+public class TimeSeriesAggregatorTsidHashingTests extends AggregationTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of();
+    }
+
+    /**
+     * @return {@link IndexSettings} including a specific {@link IndexVersion}. Versions up to 8.11.0 do not use tsid hashing and
+     * {@link InternalTimeSeries#getBucketByKey(String)} works passing dimension name/value pairs. After introducing tsis hashing
+     * that is not possible anymore and we need to get buckets by the tsid value instead.
+     */
+    @Override
+    protected IndexSettings createIndexSettings() {
+        final IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersions.V_8_10_0, // TODO: change to 8.11.0 after release
+            IndexVersion.current()
+        );
+        return new IndexSettings(
+            IndexMetadata.builder("_index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
     }
 
     public void testStandAloneTimeSeriesWithSum() throws IOException {
@@ -72,12 +95,36 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         }, ts -> {
             assertThat(ts.getBuckets(), hasSize(3));
 
-            assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L));
-            assertThat(((Sum) ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("sum")).value(), equalTo(6.0));
-            assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L));
-            assertThat(((Sum) ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("sum")).value(), equalTo(8.0));
-            assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L));
-            assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
+            assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg}").docCount,
+                equalTo(2L)
+            );
+            assertThat(
+                ((Sum) ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg}")
+                    .getAggregations()
+                    .get("sum")).value(),
+                equalTo(6.0)
+            );
+            assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4}").docCount,
+                equalTo(2L)
+            );
+            assertThat(
+                ((Sum) ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4}")
+                    .getAggregations()
+                    .get("sum")).value(),
+                equalTo(8.0)
+            );
+            assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAAAS_0VrZGalylFPi9dkK4dYyY9g0yybS6o}").docCount,
+                equalTo(4L)
+            );
+            assertThat(
+                ((Sum) ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAAAS_0VrZGalylFPi9dkK4dYyY9g0yybS6o}")
+                    .getAggregations()
+                    .get("sum")).value(),
+                equalTo(22.0)
+            );
 
         },
             new KeywordFieldMapper.KeywordFieldType("dim1"),
@@ -107,7 +154,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                 fields.add(new DoubleDocValuesField(metrics[i].toString(), (double) metrics[i + 1]));
             }
         }
-        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.withoutHash().toBytesRef()));
+        fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.withHash().toBytesRef()));
         // TODO: Handle metrics
         iw.addDocument(fields);
     }
@@ -158,20 +205,35 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         Consumer<InternalTimeSeries> verifier = ts -> {
             assertThat(ts.getBuckets(), hasSize(3));
 
-            assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L));
-            InternalDateHistogram byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=xxx}").getAggregations().get("by_timestamp");
+            assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg}").docCount,
+                equalTo(2L)
+            );
+            InternalDateHistogram byTimeStampBucket = ts.getBucketByKey(
+                "{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg}"
+            ).getAggregations().get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
                 contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
             );
-            assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L));
-            byTimeStampBucket = ts.getBucketByKey("{dim1=aaa, dim2=yyy}").getAggregations().get("by_timestamp");
+            assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4}").docCount,
+                equalTo(2L)
+            );
+            byTimeStampBucket = ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4}")
+                .getAggregations()
+                .get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
                 contains(new InternalDateHistogram.Bucket(startTime, 2, false, null, InternalAggregations.EMPTY))
             );
-            assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L));
-            byTimeStampBucket = ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("by_timestamp");
+            assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAAAS_0VrZGalylFPi9dkK4dYyY9g0yybS6o}").docCount,
+                equalTo(4L)
+            );
+            byTimeStampBucket = ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAAAS_0VrZGalylFPi9dkK4dYyY9g0yybS6o}")
+                .getAggregations()
+                .get("by_timestamp");
             assertThat(
                 byTimeStampBucket.getBuckets(),
                 contains(new InternalDateHistogram.Bucket(startTime, 4, false, null, InternalAggregations.EMPTY))
@@ -191,9 +253,24 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
 
         List<Consumer<InternalTimeSeries>> verifiers = new ArrayList<Consumer<InternalTimeSeries>>();
 
-        verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L)));
-        verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=aaa, dim2=yyy}").docCount, equalTo(2L)));
-        verifiers.add(ts -> assertThat(ts.getBucketByKey("{dim1=bbb, dim2=zzz}").docCount, equalTo(4L)));
+        verifiers.add(
+            ts -> assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAAAS_0VrZGalylFPi9dkK4dYyY9g0yybS6o}").docCount,
+                equalTo(4L)
+            )
+        );
+        verifiers.add(
+            ts -> assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyfgM9Vvd-IRpsCvXNT5j_dX4tz0qg}").docCount,
+                equalTo(2L)
+            )
+        );
+        verifiers.add(
+            ts -> assertThat(
+                ts.getBucketByKey("{_tsid=C0uMhZuLQSpAQ5ipTZFLMgAAAAAAAAAAAAAAAAAAAABjzNyftxCMQuGv-XOPz9J6bZM-ZhUGnV4}").docCount,
+                equalTo(2L)
+            )
+        );
 
         for (int i = 1; i <= 3; i++) {
             int size = i;

@@ -724,7 +724,7 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             try {
-                return builder.withoutHash().toBytesRef();
+                return builder.withHash().toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

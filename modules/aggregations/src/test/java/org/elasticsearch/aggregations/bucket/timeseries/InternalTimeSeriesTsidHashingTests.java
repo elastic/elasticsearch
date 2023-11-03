@@ -35,7 +35,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTestCase<InternalTimeSeries> {
+public class InternalTimeSeriesTsidHashingTests extends AggregationMultiBucketAggregationTestCase<InternalTimeSeries> {
 
     @Override
     protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
@@ -53,7 +53,7 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
                 builder.addKeywordDimension(entry.getKey(), (String) entry.getValue());
             }
             try {
-                var key = builder.withoutHash().toBytesRef();
+                var key = builder.withHash().toBytesRef();
                 bucketList.add(new InternalBucket(key, docCount, aggregations, keyed));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -91,10 +91,10 @@ public class InternalTimeSeriesTests extends AggregationMultiBucketAggregationTe
     @Override
     @SuppressWarnings("unchecked")
     protected void assertReduced(InternalTimeSeries reduced, List<InternalTimeSeries> inputs) {
-        Map<Map<String, Object>, Long> keys = new HashMap<>();
+        Map<String, Long> keys = new HashMap<>();
         for (InternalTimeSeries in : inputs) {
             for (InternalBucket bucket : in.getBuckets()) {
-                keys.compute((Map<String, Object>) bucket.getKey(), (k, v) -> {
+                keys.compute((String) bucket.getKey(), (k, v) -> {
                     if (v == null) {
                         return bucket.docCount;
                     } else {

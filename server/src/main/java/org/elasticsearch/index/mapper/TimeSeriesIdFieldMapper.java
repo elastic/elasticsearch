@@ -162,12 +162,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     /**
      * Decode the {@code _tsid} into a human readable map.
      */
-    public static Map<String, Object> decodeTsid(StreamInput in) {
+    public static Object decodeTsid(StreamInput in) {
         try {
             int sizeOrTsidHashSentinel = in.readVInt();
             if (sizeOrTsidHashSentinel == TSID_HASH_SENTINEL) {
-                final BytesRef bytesRef = in.readBytesRef();
-                return Collections.singletonMap("_tsid", Base64.getUrlEncoder().withoutPadding().encodeToString(bytesRef.bytes));
+                return Base64.getUrlEncoder().withoutPadding().encodeToString(in.readBytesRef().bytes);
             }
             Map<String, Object> result = new LinkedHashMap<>(sizeOrTsidHashSentinel);
 
@@ -195,9 +194,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
     public static class TimeSeriesIdBuilder implements DocumentFields {
 
+        private static final int SEED = 0;
+
         public static final int MAX_DIMENSIONS = 512;
 
-        private record DimensionDataHolder(BytesRef name, BytesRef value) {}
+        private record DimensionDataHolder(BytesRef name, BytesReference value) {}
 
         private final Murmur3Hasher tsidHasher = new Murmur3Hasher(0);
 
@@ -227,7 +228,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                 out.writeVInt(dimensions.size());
                 for (DimensionDataHolder entry : dimensions) {
                     out.writeBytesRef(entry.name);
-                    out.writeBytesRef(entry.value);
+                    entry.value.writeTo(out);
                 }
                 return out.bytes();
             }
@@ -268,8 +269,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             int tsidHashStartIndex = tsidHashIndex;
             for (final DimensionDataHolder dimension : dimensions) {
                 if ((tsidHashIndex - tsidHashStartIndex) >= 4 * numberOfDimensions) break;
+                final BytesRef dimensionValueBytesRef = dimension.value.toBytesRef();
                 ByteUtils.writeIntLE(
-                    StringHelper.murmurhash3_x86_32(dimension.value.bytes, dimension.value.offset, dimension.value.length, 0),
+                    StringHelper.murmurhash3_x86_32(
+                        dimensionValueBytesRef.bytes,
+                        dimensionValueBytesRef.offset,
+                        dimensionValueBytesRef.length,
+                        SEED
+                    ),
                     tsidHash,
                     tsidHashIndex
                 );
@@ -279,7 +286,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             // NOTE: hash all dimension field allValues
             tsidHasher.reset();
             for (final DimensionDataHolder dimension : dimensions) {
-                tsidHasher.update(dimension.value.bytes);
+                tsidHasher.update(dimension.value.toBytesRef().bytes);
             }
             tsidHashIndex = writeHash128(tsidHasher.digestHash(), tsidHash, tsidHashIndex);
 
@@ -358,7 +365,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
 
         private void add(String fieldName, BytesReference encoded) throws IOException {
-            final DimensionDataHolder dimension = new DimensionDataHolder(new BytesRef(fieldName), encoded.toBytesRef());
+            final DimensionDataHolder dimension = new DimensionDataHolder(new BytesRef(fieldName), encoded);
             if (dimensions.contains(dimension)) {
                 throw new IllegalArgumentException("Dimension field [" + fieldName + "] cannot be a multi-valued field.");
             }
@@ -366,7 +373,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static Map<String, Object> decodeTsid(BytesRef bytesRef) {
+    public static Object decodeTsid(BytesRef bytesRef) {
         try (StreamInput input = new BytesArray(bytesRef).streamInput()) {
             return decodeTsid(input);
         } catch (IOException ex) {

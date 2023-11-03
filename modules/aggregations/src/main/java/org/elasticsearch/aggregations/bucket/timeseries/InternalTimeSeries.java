@@ -81,7 +81,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
         }
 
         @Override
-        public Map<String, Object> getKey() {
+        public Object getKey() {
             return TimeSeriesIdFieldMapper.decodeTsid(key);
         }
 

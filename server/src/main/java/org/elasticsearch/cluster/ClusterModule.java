@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;

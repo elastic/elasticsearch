@@ -18,6 +18,6 @@ import java.lang.annotation.Target;
  * before releasing 9.0
  */
 @Retention(RetentionPolicy.SOURCE)
-@Target({ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE})
+@Target({ ElementType.CONSTRUCTOR, ElementType.FIELD, ElementType.METHOD, ElementType.TYPE })
 public @interface RemoveBeforeV9 {
 }

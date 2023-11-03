@@ -443,17 +443,20 @@ public final class BulkRequestParser {
         } catch (XContentEOFException ignore) {
             warnBulkActionNotProperlyClosed(
                 "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
-                    + "rejected in a future version.");
+                    + "rejected in a future version."
+            );
             return;
         }
         if (token != XContentParser.Token.END_OBJECT) {
-            warnBulkActionNotProperlyClosed("A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
+            warnBulkActionNotProperlyClosed(
+                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
                     + "future version."
             );
             return;
         }
         if (parser.nextToken() != null) {
-            warnBulkActionNotProperlyClosed("A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
+            warnBulkActionNotProperlyClosed(
+                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
                     + "future version."
             );
         }

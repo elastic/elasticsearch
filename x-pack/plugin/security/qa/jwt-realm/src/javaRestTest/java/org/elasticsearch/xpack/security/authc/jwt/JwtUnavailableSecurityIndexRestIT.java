@@ -48,7 +48,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class JwtRoleMappingsIT extends ESRestTestCase {
+public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -101,12 +101,11 @@ public class JwtRoleMappingsIT extends ESRestTestCase {
     }
 
     private static Path findResource(String name) throws FileNotFoundException, URISyntaxException {
-        final URL resource = JwtRoleMappingsIT.class.getResource(name);
+        final URL resource = JwtUnavailableSecurityIndexRestIT.class.getResource(name);
         if (resource == null) {
             throw new FileNotFoundException("Cannot find classpath resource " + name);
         }
-        final Path path = PathUtils.get(resource.toURI());
-        return path;
+        return PathUtils.get(resource.toURI());
     }
 
     @Override
@@ -141,8 +140,7 @@ public class JwtRoleMappingsIT extends ESRestTestCase {
         return adminSecurityClient;
     }
 
-    public void testAuthenticateWithCachedRoleMapping() throws Exception {
-        final String principal = randomPrincipal();
+    public void testAuthenticateWithCachedRoleMappingSucceedsWithoutAccessToSecurityIndex() throws Exception {
         final String dn = randomDn();
         final String name = randomName();
         final String mail = randomMail();
@@ -158,48 +156,66 @@ public class JwtRoleMappingsIT extends ESRestTestCase {
         final String roleMappingName = createRoleMapping(roles, rules);
 
         try {
-            final SignedJWT jwt = buildAndSignJwt(principal, dn, name, mail, List.of(), Instant.now());
-            final TestSecurityClient client = getSecurityClient(jwt);
+            {
+                final String principal = randomPrincipal();
+                final SignedJWT jwt = buildAndSignJwt(principal, dn, name, mail, List.of(), Instant.now());
+                final TestSecurityClient client = getSecurityClient(jwt);
 
-            final Map<String, Object> response = client.authenticate();
+                final Map<String, Object> response = client.authenticate();
 
-            final String description = "Authentication response [" + response + "]";
-            assertThat(description, response, hasEntry(User.Fields.USERNAME.getPreferredName(), principal));
-            assertThat(
-                description,
-                JwtRestIT.assertMap(response, User.Fields.AUTHENTICATION_REALM),
-                hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
-            );
-            assertThat(
-                description,
-                JwtRestIT.assertList(response, User.Fields.ROLES),
-                Matchers.containsInAnyOrder(roles.toArray(String[]::new))
-            );
-            assertThat(description, JwtRestIT.assertMap(response, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
+                assertAuthenticationHasUsernameAndRoles(response, principal, roles);
+            }
 
             makeSecurityIndexUnavailable();
 
-            final String principal2 = randomFrom(principal, randomPrincipal());
-            final SignedJWT jwt2 = buildAndSignJwt(principal2, dn, name, mail, List.of(), Instant.now());
-            final TestSecurityClient client2 = getSecurityClient(jwt2);
-            final Map<String, Object> response2 = client2.authenticate();
-            final String description2 = "Authentication response [" + response2 + "]";
-            assertThat(description2, response2, hasEntry(User.Fields.USERNAME.getPreferredName(), principal2));
-            assertThat(
-                description2,
-                JwtRestIT.assertMap(response2, User.Fields.AUTHENTICATION_REALM),
-                hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
-            );
-            assertThat(
-                description2,
-                JwtRestIT.assertList(response2, User.Fields.ROLES),
-                Matchers.containsInAnyOrder(roles.toArray(String[]::new))
-            );
-            assertThat(description2, JwtRestIT.assertMap(response2, User.Fields.METADATA), hasEntry("jwt_token_type", "id_token"));
+            {
+                final String principal = randomPrincipal();
+                final SignedJWT jwt = buildAndSignJwt(principal, dn, name, mail, List.of(), Instant.now());
+
+                final Map<String, Object> response = getSecurityClient(jwt).authenticate();
+
+                assertAuthenticationHasUsernameAndRoles(response, principal, roles);
+            }
+
+            {
+                final String principal = randomPrincipal();
+                final SignedJWT jwt = buildAndSignJwt(
+                    principal,
+                    randomValueOtherThan(dn, this::randomDn),
+                    name,
+                    mail,
+                    List.of(),
+                    Instant.now()
+                );
+
+                final Map<String, Object> response = getSecurityClient(jwt).authenticate();
+
+                // Empty roles because the DN doesn't match the cached mapping rules
+                assertAuthenticationHasUsernameAndRoles(response, principal, List.of());
+            }
         } finally {
             restoreSecurityIndexAvailability();
             deleteRoleMapping(roleMappingName);
         }
+    }
+
+    private void assertAuthenticationHasUsernameAndRoles(
+        Map<String, Object> response,
+        String expectedUsername,
+        List<String> expectedRoles
+    ) {
+        final String description = "Authentication response [" + response + "]";
+        assertThat(description, response, hasEntry(User.Fields.USERNAME.getPreferredName(), expectedUsername));
+        assertThat(
+            description,
+            JwtRestIT.assertMap(response, User.Fields.AUTHENTICATION_REALM),
+            hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
+        );
+        assertThat(
+            description,
+            JwtRestIT.assertList(response, User.Fields.ROLES),
+            Matchers.containsInAnyOrder(expectedRoles.toArray(String[]::new))
+        );
     }
 
     private void restoreSecurityIndexAvailability() throws IOException {

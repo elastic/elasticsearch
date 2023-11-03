@@ -8,15 +8,15 @@
 
 package org.elasticsearch.core;
 
-/**
- * Provides a static final field that can be used to check if assertions are enabled. Since this field might be used elsewhere to check if
- * assertions are enabled, if you are running with assertions enabled for specific packages or classes, you should enable assertions on this
- * class too (e.g., {@code -ea org.elasticsearch.core.Assertions -ea org.elasticsearch.cluster.service.MasterService}).
- */
 public final class Assertions {
 
     private Assertions() {}
 
+    /**
+     * A static final field that can be used to check if assertions are enabled. Since this field might be used elsewhere to check if
+     * assertions are enabled, if you are running with assertions enabled for specific packages or classes, you should enable assertions on
+     * this class too (e.g., {@code -ea org.elasticsearch.core.Assertions -ea org.elasticsearch.cluster.service.MasterService}).
+     */
     public static final boolean ENABLED;
 
     static {
@@ -31,4 +31,14 @@ public final class Assertions {
         ENABLED = enabled;
     }
 
+    /**
+     * A "poison-pill" assertion to use in code we want to review (cleanup, remove or change) before releasing 9.0
+     * Before starting the 9.0 release process a feature branch will be created, in which this assertion will be changed to cause failures
+     * which must addressed before to main.
+     * Each poison pill has to be addressed before we can merge to main, branch the next version and bump the current version.
+     * @param reason a string that will be part of the assertion message, with details on how to fix the issue.
+     */
+    public static void assertRemoveBeforeV9(String reason) {
+        assert true : reason;
+    }
 }

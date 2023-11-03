@@ -383,7 +383,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                             }
                         } else if (token == Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                while (parser.nextToken() != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {
@@ -1163,7 +1163,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     }
                 } else if (token == Token.START_ARRAY) {
                     if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                        while (parser.nextToken() != Token.END_ARRAY) {
                             failures.add(ShardSearchFailure.fromXContent(parser));
                         }
                     } else {

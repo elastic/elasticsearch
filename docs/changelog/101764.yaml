@@ -1,0 +1,5 @@
+pr: 101764
+summary: Refactor `ComposableIndexTemplate` construction to use builder
+area: Indices APIs
+type: tech debt
+issues: []

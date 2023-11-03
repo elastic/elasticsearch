@@ -32,9 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode.DEPTH_FIRST;
-import static org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.globalOrdsValues;
-
 public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     // TODO: Do we need to make this configurable? Is this a good default? Or should it be "key"?
     private final BucketOrder order = BucketOrder.count(false);
@@ -44,7 +41,6 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             CountedTermsAggregationBuilder.REGISTRY_KEY,
-            // TODO: Is this correct?
             List.of(CoreValuesSourceType.KEYWORD),
             CountedTermsAggregatorFactory.bytesSupplier(),
             true
@@ -64,8 +60,6 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
             bucketCountThresholds,
             context,
             parent,
-            subAggCollectMode,
-            showTermDocCountError,
             cardinality,
             metadata) -> {
 
@@ -75,17 +69,12 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
             return new CountedTermsAggregator(
                 name,
                 factories,
-                a -> a.new StandardTermsResults(),
                 ordinalsValuesSource,
-                () -> globalOrdsValues(context, ordinalsValuesSource),
                 order,
                 valuesSourceConfig.format(),
                 bucketCountThresholds,
                 context,
                 parent,
-                // TODO: Is this correct?
-                subAggCollectMode,
-                showTermDocCountError,
                 cardinality,
                 metadata
             );
@@ -145,8 +134,6 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
         }
         bucketCountThresholds.ensureValidity();
 
-        // TODO: This is hacky as we should get this injected but we can probably just hardcode it?
-        boolean showTermDocCountError = true;
         return supplier.build(
             name,
             factories,
@@ -155,9 +142,6 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
             bucketCountThresholds,
             context,
             parent,
-            // TODO: Hardcoded for now, not sure if this should be configurable
-            DEPTH_FIRST,
-            showTermDocCountError,
             cardinality,
             metadata
         );

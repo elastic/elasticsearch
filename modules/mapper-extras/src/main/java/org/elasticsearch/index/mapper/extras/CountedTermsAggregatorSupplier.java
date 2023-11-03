@@ -28,8 +28,6 @@ interface CountedTermsAggregatorSupplier {
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         AggregationContext context,
         Aggregator parent,
-        Aggregator.SubAggCollectionMode subAggCollectMode,
-        boolean showTermDocCountError,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException;

@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link PercentileIntAggregator}.
@@ -31,21 +32,25 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   private final double percentile;
 
   public PercentileIntGroupingAggregatorFunction(List<Integer> channels,
-      QuantileStates.GroupingState state, BigArrays bigArrays, double percentile) {
+      QuantileStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
+      double percentile) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
     this.percentile = percentile;
   }
 
   public static PercentileIntGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, double percentile) {
-    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(bigArrays, percentile), bigArrays, percentile);
+      DriverContext driverContext, BigArrays bigArrays, double percentile) {
+    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(bigArrays, percentile), driverContext, bigArrays, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,20 +65,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    IntBlock valuesBlock = (IntBlock) uncastValuesBlock;
+    IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
@@ -184,12 +176,13 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

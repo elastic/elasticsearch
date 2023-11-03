@@ -74,7 +74,7 @@ public abstract class RestActionTestCase extends ESTestCase {
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
      * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
-    public static class VerifyingClient extends NoOpNodeClient {
+    public static final class VerifyingClient extends NoOpNodeClient {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 

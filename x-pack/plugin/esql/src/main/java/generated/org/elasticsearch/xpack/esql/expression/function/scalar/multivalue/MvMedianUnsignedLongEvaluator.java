@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.LongArrayVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -35,93 +34,123 @@ public final class MvMedianUnsignedLongEvaluator extends AbstractMultivalueFunct
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
-      return evalAscendingNullable(fieldVal);
+  public Block.Ref evalNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNullable(ref);
     }
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-    MvMedian.Longs work = new MvMedian.Longs();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (ref) {
+      LongBlock v = (LongBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+        MvMedian.Longs work = new MvMedian.Longs();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            long value = v.getLong(i);
+            MvMedian.processUnsignedLong(work, value);
+          }
+          long result = MvMedian.finishUnsignedLong(work);
+          builder.appendLong(result);
+        }
+        return Block.Ref.floating(builder.build());
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        long value = v.getLong(i);
-        MvMedian.processUnsignedLong(work, value);
-      }
-      long result = MvMedian.finishUnsignedLong(work);
-      builder.appendLong(result);
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
-      return evalAscendingNotNullable(fieldVal);
+  public Block.Ref evalNotNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNotNullable(ref);
     }
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    long[] values = new long[positionCount];
-    MvMedian.Longs work = new MvMedian.Longs();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      for (int i = first; i < end; i++) {
-        long value = v.getLong(i);
-        MvMedian.processUnsignedLong(work, value);
+    try (ref) {
+      LongBlock v = (LongBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+        MvMedian.Longs work = new MvMedian.Longs();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          for (int i = first; i < end; i++) {
+            long value = v.getLong(i);
+            MvMedian.processUnsignedLong(work, value);
+          }
+          long result = MvMedian.finishUnsignedLong(work);
+          builder.appendLong(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      long result = MvMedian.finishUnsignedLong(work);
-      values[p] = result;
     }
-    return new LongArrayVector(values, positionCount);
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block evalAscendingNullable(Block fieldVal) {
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount);
-    MvMedian.Longs work = new MvMedian.Longs();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+  private Block.Ref evalAscendingNullable(Block.Ref ref) {
+    try (ref) {
+      LongBlock v = (LongBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+        MvMedian.Longs work = new MvMedian.Longs();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
+          builder.appendLong(result);
+        }
+        return Block.Ref.floating(builder.build());
       }
-      int first = v.getFirstValueIndex(p);
-      long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
-      builder.appendLong(result);
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Vector evalAscendingNotNullable(Block fieldVal) {
-    LongBlock v = (LongBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    long[] values = new long[positionCount];
-    MvMedian.Longs work = new MvMedian.Longs();
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
-      values[p] = result;
+  private Block.Ref evalAscendingNotNullable(Block.Ref ref) {
+    try (ref) {
+      LongBlock v = (LongBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+        MvMedian.Longs work = new MvMedian.Longs();
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          long result = MvMedian.ascendingUnsignedLong(v, first, valueCount);
+          builder.appendLong(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
+      }
     }
-    return new LongArrayVector(values, positionCount);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMedianUnsignedLongEvaluator get(DriverContext context) {
+      return new MvMedianUnsignedLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMedian[field=" + field + "]";
+    }
   }
 }

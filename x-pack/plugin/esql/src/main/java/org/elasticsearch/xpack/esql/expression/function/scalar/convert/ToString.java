@@ -9,10 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.versionfield.Version;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
@@ -38,36 +36,31 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public class ToString extends AbstractConvertFunction implements EvaluatorMapper {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            KEYWORD,
-            (fieldEval, source) -> fieldEval,
-            BOOLEAN,
-            ToStringFromBooleanEvaluator::new,
-            DATETIME,
-            ToStringFromDatetimeEvaluator::new,
-            IP,
-            ToStringFromIPEvaluator::new,
-            DOUBLE,
-            ToStringFromDoubleEvaluator::new,
-            LONG,
-            ToStringFromLongEvaluator::new,
-            INTEGER,
-            ToStringFromIntEvaluator::new,
-            TEXT,
-            (fieldEval, source) -> fieldEval,
-            VERSION,
-            ToStringFromVersionEvaluator::new,
-            UNSIGNED_LONG,
-            ToStringFromUnsignedLongEvaluator::new
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(KEYWORD, (fieldEval, source) -> fieldEval),
+        Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
+        Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
+        Map.entry(IP, ToStringFromIPEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
+        Map.entry(TEXT, (fieldEval, source) -> fieldEval),
+        Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new)
+    );
 
-    public ToString(Source source, @Named("v") Expression v) {
+    public ToString(
+        Source source,
+        @Param(
+            name = "v",
+            type = { "unsigned_long", "date", "boolean", "double", "ip", "text", "integer", "keyword", "version", "long" }
+        ) Expression v
+    ) {
         super(source, v);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 

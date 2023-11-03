@@ -15,11 +15,11 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -49,12 +49,6 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleObjectForDocument() {
         return getSampleValueForDocument();
-    }
-
-    @Override
-    protected void assertExistsQuery(MapperService mapperService) {
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> super.assertExistsQuery(mapperService));
-        assertEquals("[sparse_vector] fields do not support [exists] queries", iae.getMessage());
     }
 
     @Override
@@ -247,7 +241,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(
             random(),
             PREVIOUS_SPARSE_VECTOR_INDEX_VERSION,
-            IndexVersion.V_8_500_000
+            IndexVersions.FIRST_DETACHED_INDEX_VERSION
         );
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(version, fieldMapping(b -> {
             b.field("type", "sparse_vector");

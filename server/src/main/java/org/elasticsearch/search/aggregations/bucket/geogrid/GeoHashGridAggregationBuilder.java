@@ -26,7 +26,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
+public final class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
     public static final String NAME = "geohash_grid";
     public static final int DEFAULT_PRECISION = 5;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.esql.expression.function.Named;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
@@ -35,7 +35,11 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
     private final Expression base, exponent;
     private final DataType dataType;
 
-    public Pow(Source source, @Named("base") Expression base, @Named("exponent") Expression exponent) {
+    public Pow(
+        Source source,
+        @Param(name = "base", type = { "integer", "long", "double" }) Expression base,
+        @Param(name = "exponent", type = { "integer", "double" }) Expression exponent
+    ) {
         super(source, Arrays.asList(base, exponent));
         this.base = base;
         this.exponent = exponent;
@@ -168,25 +172,22 @@ public class Pow extends ScalarFunction implements OptionalArgument, EvaluatorMa
         var baseEvaluator = toEvaluator.apply(base);
         var exponentEvaluator = toEvaluator.apply(exponent);
         if (dataType == DataTypes.DOUBLE) {
-            return dvrCtx -> new PowDoubleEvaluator(
+            return new PowDoubleEvaluator.Factory(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
-                dvrCtx
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
             );
         } else if (dataType == DataTypes.LONG) {
-            return dvrCtx -> new PowLongEvaluator(
+            return new PowLongEvaluator.Factory(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
-                dvrCtx
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
             );
         } else {
-            return dvrCtx -> new PowIntEvaluator(
+            return new PowIntEvaluator.Factory(
                 source(),
-                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator).get(dvrCtx),
-                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator).get(dvrCtx),
-                dvrCtx
+                cast(base.dataType(), DataTypes.DOUBLE, baseEvaluator),
+                cast(exponent.dataType(), DataTypes.DOUBLE, exponentEvaluator)
             );
         }
     }

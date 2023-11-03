@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -66,7 +67,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             CreateIndexRequest::new,
             indexNameExpressionResolver,
             CreateIndexResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;

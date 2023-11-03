@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -59,6 +60,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateServiceUtils;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -71,7 +73,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
-import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -220,7 +221,10 @@ public class ClusterStateChanges {
             transport,
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(SETTINGS, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(SETTINGS)
+                .address(boundAddress.publishAddress())
+                .build(),
             clusterSettings,
             Collections.emptySet(),
             Tracer.NOOP
@@ -405,9 +409,14 @@ public class ClusterStateChanges {
             new NodeJoinExecutor(allocationService, (s, p, r) -> {}),
             clusterState,
             List.of(
-                JoinTask.singleNode(discoveryNode, CompatibilityVersionsUtils.staticCurrent(), DUMMY_REASON, ActionListener.running(() -> {
-                    throw new AssertionError("should not complete publication");
-                }), clusterState.term())
+                JoinTask.singleNode(
+                    discoveryNode,
+                    new CompatibilityVersions(transportVersion, Map.of()),
+                    Set.of(),
+                    DUMMY_REASON,
+                    createTestListener(),
+                    clusterState.term()
+                )
             )
         );
     }
@@ -423,10 +432,9 @@ public class ClusterStateChanges {
                             node -> new JoinTask.NodeJoinTask(
                                 node,
                                 new CompatibilityVersions(transportVersion, Map.of()),
+                                Set.of(),
                                 DUMMY_REASON,
-                                ActionListener.running(() -> {
-                                    throw new AssertionError("should not complete publication");
-                                })
+                                createTestListener()
                             )
                         ),
                     clusterState.term() + between(1, 10)
@@ -541,7 +549,7 @@ public class ClusterStateChanges {
         }
     }
 
-    private ActionListener<Void> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+    private static ActionListener<Void> createTestListener() {
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -452,7 +451,7 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
-        IndexResponse result = client().prepareIndex("test").setId("1").setSource("field", 1).get();
+        DocWriteResponse result = client().prepareIndex("test").setId("1").setSource("field", 1).get();
         expectThrows(
             VersionConflictEngineException.class,
             () -> client().prepareUpdate(indexOrAlias(), "1")

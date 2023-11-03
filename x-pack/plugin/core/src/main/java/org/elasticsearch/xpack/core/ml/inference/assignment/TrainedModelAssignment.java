@@ -40,7 +40,7 @@ import java.util.Set;
 /**
  * Trained model assignment object that contains assignment options and the assignment routing table
  */
-public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
+public final class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
 
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField ASSIGNMENT_STATE = new ParseField("assignment_state");
@@ -182,12 +182,19 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
             .toArray(String[]::new);
     }
 
-    public List<Tuple<String, Integer>> selectRandomStartedNodesWeighedOnAllocationsForNRequests(int numberOfRequests) {
+    public boolean hasStartedRoutes() {
+        return nodeRoutingTable.values().stream().anyMatch(routeInfo -> routeInfo.getState() == RoutingState.STARTED);
+    }
+
+    public List<Tuple<String, Integer>> selectRandomStartedNodesWeighedOnAllocationsForNRequests(
+        int numberOfRequests,
+        RoutingState requiredState
+    ) {
         List<String> nodeIds = new ArrayList<>(nodeRoutingTable.size());
         List<Integer> cumulativeAllocations = new ArrayList<>(nodeRoutingTable.size());
         int allocationSum = 0;
         for (Map.Entry<String, RoutingInfo> routingEntry : nodeRoutingTable.entrySet()) {
-            if (RoutingState.STARTED.equals(routingEntry.getValue().getState())) {
+            if (routingEntry.getValue().getState() == requiredState) {
                 nodeIds.add(routingEntry.getKey());
                 allocationSum += routingEntry.getValue().getCurrentAllocations();
                 cumulativeAllocations.add(allocationSum);
@@ -212,7 +219,9 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
             var nodeCounts = new ArrayList<Tuple<String, Integer>>();
             for (int i = 0; i < counts.length; i++) {
-                nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+                if (counts[i] > 0) {
+                    nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+                }
             }
             return nodeCounts;
         }
@@ -231,7 +240,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
         var nodeCounts = new ArrayList<Tuple<String, Integer>>();
         for (int i = 0; i < counts.length; i++) {
-            nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+            // filter out zero counts
+            if (counts[i] > 0) {
+                nodeCounts.add(new Tuple<>(nodeIds.get(i), counts[i]));
+            }
         }
         return nodeCounts;
     }

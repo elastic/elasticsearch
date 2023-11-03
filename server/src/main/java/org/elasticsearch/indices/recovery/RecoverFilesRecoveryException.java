@@ -18,7 +18,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.util.Objects;
 
-public class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
+public final class RecoverFilesRecoveryException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final int numberOfFiles;
 

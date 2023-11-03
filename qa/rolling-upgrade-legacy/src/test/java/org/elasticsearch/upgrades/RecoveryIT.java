@@ -8,6 +8,7 @@
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -52,6 +54,7 @@ import static org.hamcrest.Matchers.oneOf;
 /**
  * In depth testing of the recovery mechanism during a rolling restart.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99778")
 public class RecoveryIT extends AbstractRollingTestCase {
 
     private static String CLUSTER_NAME = System.getProperty("tests.clustername");
@@ -382,7 +385,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     final Map<?, ?> nodeDetailsMap = (Map<?, ?>) nodeDetails;
                     final String versionString = (String) nodeDetailsMap.get("version");
                     if (versionString.equals(Version.CURRENT.toString()) == false) {
-                        oldNodeNames.add((String) nodeDetailsMap.get("name"));
+                        oldNodeNames.add(versionString);
                     }
                 }
                 if (oldNodeNames.size() == 1) {
@@ -428,7 +431,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
 
         final IndexVersion indexVersionCreated = indexVersionCreated(indexName);
-        if (indexVersionCreated.onOrAfter(IndexVersion.V_7_2_0)) {
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices,
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
@@ -498,7 +501,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             closeIndex(indexName);
         }
 
-        if (indexVersionCreated(indexName).onOrAfter(IndexVersion.V_7_2_0)) {
+        if (indexVersionCreated(indexName).onOrAfter(IndexVersions.V_7_2_0)) {
             // index was created on a version that supports the replication of closed indices, so we expect it to be closed and replicated
             assertTrue(minimumNodeVersion().onOrAfter(Version.V_7_2_0));
             ensureGreen(indexName);
@@ -752,7 +755,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     private static void updateIndexSettingsPermittingSlowlogDeprecationWarning(String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
-        request.setJsonEntity(org.elasticsearch.common.Strings.toString(settings.build()));
+        request.setJsonEntity(Strings.toString(settings.build()));
         if (UPGRADE_FROM_VERSION.before(Version.V_7_17_9)) {
             // There is a bug (fixed in 7.17.9 and 8.7.0 where deprecation warnings could leak into ClusterApplierService#applyChanges)
             // Below warnings are set (and leaking) from an index in this test case

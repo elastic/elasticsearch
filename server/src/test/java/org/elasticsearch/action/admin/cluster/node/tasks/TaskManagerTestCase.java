@@ -148,13 +148,11 @@ public abstract class TaskManagerTestCase extends ESTestCase {
         ) {
             super(
                 actionName,
-                threadPool,
                 clusterService,
                 transportService,
                 new ActionFilters(new HashSet<>()),
-                request,
                 nodeRequest,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
         }
 

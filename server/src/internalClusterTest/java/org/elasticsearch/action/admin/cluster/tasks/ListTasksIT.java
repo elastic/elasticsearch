@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -66,7 +67,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         final var threadContext = threadPool.getThreadContext();
 
         final var barrier = new CyclicBarrier(2);
-        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).get(0).barrier = barrier;
+        getInstanceFromNode(PluginsService.class).filterPlugins(TestPlugin.class).findFirst().get().barrier = barrier;
 
         final var testActionFuture = new PlainActionFuture<ActionResponse.Empty>();
         client().execute(TEST_ACTION, new TestRequest(), testActionFuture.map(r -> {
@@ -131,13 +132,7 @@ public class ListTasksIT extends ESSingleNodeTestCase {
         var maxThreads = threadPool.info(executor).getMax();
         var barrier = new CyclicBarrier(maxThreads + 1);
         for (int i = 0; i < maxThreads; i++) {
-            threadPool.executor(executor).execute(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            threadPool.executor(executor).execute(() -> safeAwait(barrier));
         }
         barrier.await(10, TimeUnit.SECONDS);
     }
@@ -185,8 +180,8 @@ public class ListTasksIT extends ESSingleNodeTestCase {
             PluginsService pluginsService,
             ThreadPool threadPool
         ) {
-            super(NAME, transportService, actionFilters, in -> new TestRequest());
-            testPlugin = pluginsService.filterPlugins(TestPlugin.class).get(0);
+            super(NAME, transportService, actionFilters, in -> new TestRequest(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            testPlugin = pluginsService.filterPlugins(TestPlugin.class).findFirst().get();
             this.threadPool = threadPool;
         }
 

@@ -69,7 +69,7 @@ import java.util.Objects;
  * "https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-simple-query-string-query.html"
  * > online documentation</a>.
  */
-public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
+public final class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQueryStringBuilder> {
 
     /** Default for using lenient query parsing.*/
     public static final boolean DEFAULT_LENIENT = false;
@@ -91,7 +91,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
 
-    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_500_023;
+    public static final TransportVersion TYPE_FIELD_ADDED_VERSION = TransportVersions.V_8_500_040;
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");

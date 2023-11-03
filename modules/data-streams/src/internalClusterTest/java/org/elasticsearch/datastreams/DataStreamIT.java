@@ -8,11 +8,11 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.logging.log4j.core.util.Throwables;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -48,7 +48,6 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.DataStr
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -91,7 +90,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -297,7 +295,7 @@ public class DataStreamIT extends ESIntegTestCase {
         {
             IndexRequest indexRequest = new IndexRequest(dataStreamName).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
                 .opType(DocWriteRequest.OpType.CREATE);
-            IndexResponse indexResponse = client().index(indexRequest).actionGet();
+            DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
             assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStreamName, 1));
         }
         {
@@ -560,10 +558,10 @@ public class DataStreamIT extends ESIntegTestCase {
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareRefresh(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().prepareSearch(dataStreamName), false, 1);
+        verifyResolvability(dataStreamName, prepareSearch(dataStreamName), false, 1);
         verifyResolvability(
             dataStreamName,
-            client().prepareMultiSearch().add(client().prepareSearch(dataStreamName).setQuery(matchAllQuery())),
+            client().prepareMultiSearch().add(prepareSearch(dataStreamName).setQuery(matchAllQuery())),
             false
         );
         verifyResolvability(dataStreamName, indicesAdmin().prepareClearCache(dataStreamName), false);
@@ -606,10 +604,10 @@ public class DataStreamIT extends ESIntegTestCase {
 
         String wildcardExpression = "logs*";
         verifyResolvability(wildcardExpression, indicesAdmin().prepareRefresh(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().prepareSearch(wildcardExpression), false, 2);
+        verifyResolvability(wildcardExpression, prepareSearch(wildcardExpression), false, 2);
         verifyResolvability(
             wildcardExpression,
-            client().prepareMultiSearch().add(client().prepareSearch(wildcardExpression).setQuery(matchAllQuery())),
+            client().prepareMultiSearch().add(prepareSearch(wildcardExpression).setQuery(matchAllQuery())),
             false
         );
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClearCache(wildcardExpression), false);
@@ -754,11 +752,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        SearchResponse searchResponse = client().prepareSearch("logs-foobar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 2, because it matches with the defined filter in the alias:
-        searchResponse = client().prepareSearch("foo").get();
-        assertSearchHits(searchResponse, "2");
+        assertSearchHits(prepareSearch("foo"), "2");
 
         // Update alias:
         addAction = new AliasActions(AliasActions.Type.ADD).index(dataStreamName)
@@ -786,11 +782,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the data stream directly should return all hits:
-        searchResponse = client().prepareSearch("logs-foobar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("logs-foobar"), "1", "2");
         // Search the alias should only return document 1, because it matches with the defined filter in the alias:
-        searchResponse = client().prepareSearch("foo").get();
-        assertSearchHits(searchResponse, "1");
+        assertSearchHits(prepareSearch("foo"), "1");
     }
 
     public void testSearchFilteredAndUnfilteredAlias() throws Exception {
@@ -833,11 +827,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
 
         // Searching the filtered and unfiltered aliases should return all results (unfiltered):
-        SearchResponse searchResponse = client().prepareSearch("foo", "bar").get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("foo", "bar"), "1", "2");
         // Searching the data stream name and the filtered alias should return all results (unfiltered):
-        searchResponse = client().prepareSearch("foo", dataStreamName).get();
-        assertSearchHits(searchResponse, "1", "2");
+        assertSearchHits(prepareSearch("foo", dataStreamName), "1", "2");
     }
 
     public void testRandomDataSteamAliasesUpdate() throws Exception {
@@ -1176,7 +1168,7 @@ public class DataStreamIT extends ESIntegTestCase {
         String dataStream = "logs-foobar";
         IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
             .opType(DocWriteRequest.OpType.CREATE);
-        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
 
         // Index doc with custom routing that targets the data stream
@@ -1238,7 +1230,7 @@ public class DataStreamIT extends ESIntegTestCase {
         IndexRequest indexRequest = new IndexRequest(dataStream).source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
             .opType(DocWriteRequest.OpType.CREATE)
             .routing("custom");
-        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), backingIndexEqualTo(dataStream, 1));
         // Index doc with custom routing that targets the data stream
         IndexRequest indexRequestWithRouting = new IndexRequest(dataStream).source("@timestamp", System.currentTimeMillis())
@@ -1266,7 +1258,7 @@ public class DataStreamIT extends ESIntegTestCase {
         // Index doc that triggers creation of a data stream
         IndexRequest indexRequest = new IndexRequest("logs-foobar").source("{\"@timestamp\": \"2020-12-12\"}", XContentType.JSON)
             .opType(DocWriteRequest.OpType.CREATE);
-        IndexResponse indexResponse = client().index(indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().index(indexRequest).actionGet();
         assertThat(indexResponse.getIndex(), backingIndexEqualTo("logs-foobar", 1));
         String backingIndex = indexResponse.getIndex();
 
@@ -1277,7 +1269,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .id(indexResponse.getId())
             .setIfPrimaryTerm(indexResponse.getPrimaryTerm())
             .setIfSeqNo(indexResponse.getSeqNo());
-        IndexResponse response = client().index(indexRequestWithRouting).actionGet();
+        DocWriteResponse response = client().index(indexRequestWithRouting).actionGet();
         assertThat(response.getIndex(), equalTo(backingIndex));
     }
 
@@ -1303,8 +1295,7 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs("metrics-foo", numDocsRolledFoo);
 
         SearchRequest searchRequest = new SearchRequest("*");
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, is((long) numDocsBar + numDocsFoo + numDocsRolledFoo));
+        assertHitCount(client().search(searchRequest), numDocsBar + numDocsFoo + numDocsRolledFoo);
     }
 
     public void testGetDataStream() throws Exception {
@@ -1320,11 +1311,17 @@ public class DataStreamIT extends ESIntegTestCase {
         ).actionGet();
         assertThat(response.getDataStreams().size(), is(1));
         DataStreamInfo metricsFooDataStream = response.getDataStreams().get(0);
-        assertThat(metricsFooDataStream.getDataStream().getName(), is("metrics-foo"));
+        DataStream dataStream = metricsFooDataStream.getDataStream();
+        assertThat(dataStream.getName(), is("metrics-foo"));
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
-        assertThat(metricsFooDataStream.getDataStream().getLifecycle(), is(lifecycle));
+        assertThat(dataStream.getLifecycle(), is(lifecycle));
+        assertThat(metricsFooDataStream.templatePreferIlmValue(), is(true));
+        GetDataStreamAction.Response.IndexProperties indexProperties = metricsFooDataStream.getIndexSettingsValues()
+            .get(dataStream.getWriteIndex());
+        assertThat(indexProperties.ilmPolicyName(), is(nullValue()));
+        assertThat(indexProperties.preferIlm(), is(true));
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
@@ -1473,9 +1470,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         SearchRequest searchRequest = new SearchRequest("*");
         searchRequest.source().query(new TermQueryBuilder("_index", "metrics-foo"));
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+        assertHitCount(client().search(searchRequest), 1);
     }
 
     public void testDataStreamMetadata() throws Exception {
@@ -1850,7 +1845,7 @@ public class DataStreamIT extends ESIntegTestCase {
             client().execute(
                 ModifyDataStreamsAction.INSTANCE,
                 new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
-            ).actionGet()
+            )
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));
@@ -1888,7 +1883,7 @@ public class DataStreamIT extends ESIntegTestCase {
             }
         } else {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
-                assertHitCount(searchRequestBuilder.get(), expectedCount);
+                assertHitCount(searchRequestBuilder, expectedCount);
             } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
                 MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
                 assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(false));
@@ -2161,11 +2156,11 @@ public class DataStreamIT extends ESIntegTestCase {
 
         for (String nodeId : failingIndicesStatsNodeIds) {
             String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeName);
-            transportService.addRequestHandlingBehavior(
-                IndicesStatsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
-            );
+            MockTransportService.getInstance(nodeName)
+                .addRequestHandlingBehavior(
+                    IndicesStatsAction.NAME + "[n]",
+                    (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
+                );
         }
 
         logger.info(
@@ -2227,14 +2222,11 @@ public class DataStreamIT extends ESIntegTestCase {
             .currentNodeId();
 
         final String nodeName = clusterStateBeforeRollover.nodes().resolveNode(assignedShardNodeId).getName();
-        final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeName
-        );
-        transportService.addRequestHandlingBehavior(
-            IndicesStatsAction.NAME + "[n]",
-            (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
-        );
+        MockTransportService.getInstance(nodeName)
+            .addRequestHandlingBehavior(
+                IndicesStatsAction.NAME + "[n]",
+                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
+            );
 
         assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 

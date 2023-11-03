@@ -11,7 +11,6 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -20,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -135,7 +135,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 checkpointProvider,
                 initialState,
                 initialPosition,
-                mock(Client.class),
+                mock(ParentTaskAssigningClient.class),
                 jobStats,
                 transformConfig,
                 /* TransformProgress */ null,
@@ -257,8 +257,8 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         }
 
         @Override
-        protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
+        protected void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
         }
 
         @Override

@@ -13,7 +13,9 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import java.util.BitSet;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -21,19 +23,18 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Methods.appendMethod;
+import static org.elasticsearch.compute.gen.Methods.buildFromFactory;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_CONVERT_FUNCTION_EVALUATOR;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
-import static org.elasticsearch.compute.gen.Types.arrayBlockType;
-import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
-import static org.elasticsearch.compute.gen.Types.constantVectorType;
+import static org.elasticsearch.compute.gen.Types.builderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class ConvertEvaluatorImplementer {
@@ -84,6 +85,7 @@ public class ConvertEvaluatorImplementer {
         builder.addMethod(evalValue(true));
         builder.addMethod(evalBlock());
         builder.addMethod(evalValue(false));
+        builder.addType(factory());
         return builder.build();
     }
 
@@ -91,7 +93,8 @@ public class ConvertEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addParameter(SOURCE, "source");
-        builder.addStatement("super($N, $N)", "field", "source");
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("super(driverContext, field, source)");
         return builder.build();
     }
 
@@ -120,9 +123,9 @@ public class ConvertEvaluatorImplementer {
         {
             builder.beginControlFlow("try");
             {
-                var constVectType = constantVectorType(resultType);
+                var constVectType = blockType(resultType);
                 builder.addStatement(
-                    "return new $T($N, positionCount).asBlock()",
+                    "return driverContext.blockFactory().newConstant$TWith($N, positionCount)",
                     constVectType,
                     evalValueCall("vector", "0", scratchPadName)
                 );
@@ -130,56 +133,36 @@ public class ConvertEvaluatorImplementer {
             builder.nextControlFlow("catch (Exception e)");
             {
                 builder.addStatement("registerException(e)");
-                builder.addStatement("return Block.constantNullBlock(positionCount)");
+                builder.addStatement("return driverContext.blockFactory().newConstantNullBlock(positionCount)");
             }
             builder.endControlFlow();
         }
         builder.endControlFlow();
 
-        builder.addStatement("$T nullsMask = null", BitSet.class);
-        if (resultType.equals(BYTES_REF)) {
-            builder.addStatement(
-                "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)", // TODO: see note in MvEvaluatorImplementer
-                BYTES_REF_ARRAY,
-                BYTES_REF_ARRAY,
-                BIG_ARRAYS
-            );
-        } else {
-            builder.addStatement("$T[] values = new $T[positionCount]", resultType, resultType);
-        }
-        builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
+        ClassName resultBuilderType = builderType(blockType(resultType));
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            resultBuilderType,
+            buildFromFactory(resultBuilderType)
+        );
         {
-            builder.beginControlFlow("try");
+            builder.beginControlFlow("for (int p = 0; p < positionCount; p++)");
             {
-                if (resultType.equals(BYTES_REF)) {
-                    builder.addStatement("values.append($N)", evalValueCall("vector", "p", scratchPadName));
-                } else {
-                    builder.addStatement("values[p] = $N", evalValueCall("vector", "p", scratchPadName));
-                }
-            }
-            builder.nextControlFlow("catch (Exception e)");
-            {
-                builder.addStatement("registerException(e)");
-                builder.beginControlFlow("if (nullsMask == null)");
+                builder.beginControlFlow("try");
                 {
-                    builder.addStatement("nullsMask = new BitSet(positionCount)");
+                    builder.addStatement("builder.$L($N)", appendMethod(resultType), evalValueCall("vector", "p", scratchPadName));
+                }
+                builder.nextControlFlow("catch (Exception e)");
+                {
+                    builder.addStatement("registerException(e)");
+                    builder.addStatement("builder.appendNull()");
                 }
                 builder.endControlFlow();
-                builder.addStatement("nullsMask.set(p)");
             }
             builder.endControlFlow();
+            builder.addStatement("return builder.build()");
         }
         builder.endControlFlow();
-
-        builder.addStatement(
-            """
-                return nullsMask == null
-                  ? new $T(values, positionCount).asBlock()
-                  // UNORDERED, since whatever ordering there is, it isn't necessarily preserved
-                  : new $T(values, positionCount, null, nullsMask, Block.MvOrdering.UNORDERED)""",
-            arrayVectorType(resultType),
-            arrayBlockType(resultType)
-        );
 
         return builder.build();
     }
@@ -191,8 +174,12 @@ public class ConvertEvaluatorImplementer {
         TypeName blockType = blockType(argumentType);
         builder.addStatement("$T block = ($T) b", blockType, blockType);
         builder.addStatement("int positionCount = block.getPositionCount()");
-        TypeName resultBlockType = blockType(resultType);
-        builder.addStatement("$T.Builder builder = $T.newBlockBuilder(positionCount)", resultBlockType, resultBlockType);
+        TypeName resultBuilderType = builderType(blockType(resultType));
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            resultBuilderType,
+            buildFromFactory(resultBuilderType)
+        );
         String scratchPadName = null;
         if (argumentType.equals(BYTES_REF)) {
             scratchPadName = "scratchPad";
@@ -242,6 +229,7 @@ public class ConvertEvaluatorImplementer {
         builder.endControlFlow();
 
         builder.addStatement("return builder.build()");
+        builder.endControlFlow();
 
         return builder.build();
     }
@@ -279,6 +267,51 @@ public class ConvertEvaluatorImplementer {
 
         builder.addStatement("return $T.$N(value)", declarationType, processFunction.getSimpleName());
 
+        return builder.build();
+    }
+
+    private TypeSpec factory() {
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
+        builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
+        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+        builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+        builder.addField(EXPRESSION_EVALUATOR_FACTORY, "field", Modifier.PRIVATE, Modifier.FINAL);
+
+        builder.addMethod(factoryCtor());
+        builder.addMethod(factoryGet());
+        builder.addMethod(factoryToString());
+        return builder.build();
+    }
+
+    private MethodSpec factoryCtor() {
+        MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        builder.addParameter(EXPRESSION_EVALUATOR_FACTORY, "field");
+        builder.addParameter(SOURCE, "source");
+        builder.addStatement("this.field = field");
+        builder.addStatement("this.source = source");
+        return builder.build();
+    }
+
+    private MethodSpec factoryGet() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("get").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "context");
+        builder.returns(implementation);
+
+        List<String> args = new ArrayList<>();
+        args.add("field.get(context)");
+        args.add("source");
+        args.add("context");
+        builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
+        return builder.build();
+    }
+
+    private MethodSpec factoryToString() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("toString").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.returns(String.class);
+        builder.addStatement("return $S + field + $S", declarationType.getSimpleName() + extraName + "Evaluator[field=", "]");
         return builder.build();
     }
 }

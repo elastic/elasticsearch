@@ -11,8 +11,8 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
@@ -54,6 +54,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -138,7 +139,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             );
             return null;
         }).when(client).execute(eq(CreateApiKeyAction.INSTANCE), any(CreateApiKeyRequest.class), anyActionListener());
-        doAnswer(this::answerWithInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerWithInfo).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
     }
 
     public void testCreationSuccess() {
@@ -180,7 +181,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             nodeInfoApiCalls += 1;
             responseActionListener.onFailure(new Exception("error"));
             return null;
-        }).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -195,7 +196,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         doAnswer(this::answerNullHttpInfo).doAnswer(this::answerNullHttpInfo)
             .doAnswer(this::answerWithInfo)
             .when(client)
-            .execute(eq(NodesInfoAction.INSTANCE), any(), any());
+            .execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -211,7 +212,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     public void testRetryButFailToGetNodesHttpInfo() {
         // Answer with null HTTP info every time
-        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(TransportNodesInfoAction.TYPE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
@@ -233,6 +234,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         Version.CURRENT,
                         TransportVersion.current(),
                         IndexVersion.current(),
+                        Map.of(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,
@@ -267,6 +269,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                         Version.CURRENT,
                         TransportVersion.current(),
                         IndexVersion.current(),
+                        Map.of(),
                         null,
                         DiscoveryNodeUtils.builder("1").name("node-name").roles(Set.of()).build(),
                         null,

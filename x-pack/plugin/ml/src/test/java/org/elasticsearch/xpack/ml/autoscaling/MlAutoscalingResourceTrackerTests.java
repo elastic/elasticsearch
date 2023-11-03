@@ -8,68 +8,41 @@
 package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlJobRequirements;
+import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlAutoscalingResourceTrackerTests extends ESTestCase {
-
-    public void testGetMlNodeStatsForNoMlNode() throws InterruptedException {
-        AtomicBoolean clientGotCalled = new AtomicBoolean();
-
-        try (Client client = new NoOpClient(getTestName()) {
-
-            @SuppressWarnings("unchecked")
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                clientGotCalled.set(true);
-                listener.onResponse(
-                    (Response) new NodesStatsResponse(new ClusterName("_name"), Collections.emptyList(), Collections.emptyList())
-                );
-            }
-        }) {
-            this.<Map<String, OsStats>>assertAsync(
-                listener -> MlAutoscalingResourceTracker.getMlNodeStats(Strings.EMPTY_ARRAY, client, TimeValue.MAX_VALUE, listener),
-                response -> {
-                    assertFalse(clientGotCalled.get());
-                }
-            );
-
-            this.<Map<String, OsStats>>assertAsync(
-                listener -> MlAutoscalingResourceTracker.getMlNodeStats(new String[] { "ml-1" }, client, TimeValue.MAX_VALUE, listener),
-                response -> {
-                    assertTrue(clientGotCalled.get());
-                }
-            );
-        }
-    }
 
     public void testGetMemoryAndProcessors() throws InterruptedException {
         MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
@@ -80,24 +53,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-2",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-1", memory, "ml-2", memory),
                 memory / 2,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -117,24 +73,7 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
             listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
                 mlAutoscalingContext,
                 mockTracker,
-                Map.of(
-                    "ml-1",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    ),
-                    "ml-2",
-                    new OsStats(
-                        randomNonNegativeLong(),
-                        new OsStats.Cpu(randomShort(), null),
-                        new OsStats.Mem(2 * memory, 2 * memory, randomLongBetween(0, 2 * memory)),
-                        new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
-                        null
-                    )
-                ),
+                Map.of("ml-1", randomLongBetween(0, memory), "ml-2", randomLongBetween(0, memory)),
                 memory / 2,
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
@@ -145,6 +84,137 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.nodes());
                 assertEquals(0, stats.minNodes());
                 assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    public void testGetMemoryAndProcessorsScaleUpGivenAwaitingLazyAssignment() throws InterruptedException {
+        long memory = 1000000000;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0"
+        );
+        String jobId = "lazy-job";
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(
+                new PersistentTasksCustomMetadata.PersistentTask<>(
+                    MlTasks.jobTaskId(jobId),
+                    MlTasks.JOB_TASK_NAME,
+                    new OpenJobAction.JobParams(jobId),
+                    1,
+                    AWAITING_LAZY_ASSIGNMENT
+                )
+            ),
+            List.of(),
+            List.of(),
+            Map.of(),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-1")
+                    .name("ml-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-2")
+                    .name("ml-2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+        when(mockTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(memory / 4);
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-1", memory, "ml-2", memory),
+                memory / 2,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(2, stats.nodes());
+                assertEquals(1, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(memory / 4, stats.extraSingleNodeModelMemoryInBytes());
+                assertEquals(memory / 4, stats.extraModelMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    public void testGetMemoryAndProcessorsScaleUpGivenAwaitingLazyAssignmentButFailed() throws InterruptedException {
+        long memory = 1000000000;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0"
+        );
+        String jobId = "lazy-job";
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(
+                new PersistentTasksCustomMetadata.PersistentTask<>(
+                    new PersistentTasksCustomMetadata.PersistentTask<>(
+                        MlTasks.jobTaskId(jobId),
+                        MlTasks.JOB_TASK_NAME,
+                        new OpenJobAction.JobParams(jobId),
+                        1,
+                        AWAITING_LAZY_ASSIGNMENT
+                    ),
+                    new JobTaskState(JobState.FAILED, 1, "a nasty bug")
+                )
+            ),
+            List.of(),
+            List.of(),
+            Map.of(),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-1")
+                    .name("ml-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-2")
+                    .name("ml-2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+        when(mockTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(memory / 4);
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-1", memory, "ml-2", memory),
+                memory / 2,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(2, stats.nodes());
+                assertEquals(0, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(0, stats.extraSingleNodeModelMemoryInBytes());
+                assertEquals(0, stats.extraModelMemoryInBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }
         );
@@ -864,6 +934,145 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 10,
                 MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE
             )
+        );
+    }
+
+    public void testGetMemoryAndProcessorsScaleDownToZero() throws InterruptedException {
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext();
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        long memory = randomLongBetween(100, 1_000_000);
+        long perNodeAvailableModelMemoryInBytes = memory / 2;
+
+        // scale to zero
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-1", memory),
+                perNodeAvailableModelMemoryInBytes,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(1, stats.nodes());
+                assertEquals(0, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(memory, stats.removeNodeMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+
+        // 3 nodes with no jobs
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-1", memory, "ml-2", memory, "ml-3", memory),
+                perNodeAvailableModelMemoryInBytes,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(3, stats.nodes());
+                assertEquals(0, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(memory, stats.removeNodeMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    // scenario: 3 ml nodes, but only 2 have assigned models
+    public void testGetMemoryAndProcessorsScaleDown() throws InterruptedException {
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            "1000000000",
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0"
+        );
+
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(
+                "model-1",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "model-1",
+                        "model-1-deployment",
+                        400,
+                        1,
+                        2,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    )
+                ).addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build(),
+                "model-2",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "model-2",
+                        "model-2-deployment",
+                        400,
+                        1,
+                        2,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    )
+                ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
+            ),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-node-1")
+                    .name("ml-node-name-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-node-3")
+                    .name("ml-node-name-3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        long memory = 1000000000;
+        long perNodeAvailableModelMemoryInBytes = 600000000;
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-node-1", memory, "ml-node-2", memory, "ml-node-3", memory),
+                perNodeAvailableModelMemoryInBytes,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(3, stats.nodes());
+                assertEquals(1, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(memory, stats.removeNodeMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
         );
     }
 

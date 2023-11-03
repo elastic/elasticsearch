@@ -11,10 +11,10 @@ package org.elasticsearch.discovery;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,7 +42,6 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -170,7 +169,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                     indexRequestBuilder.setCreate(true);
                                 }
 
-                                IndexResponse response = indexRequestBuilder.get(timeout);
+                                DocWriteResponse response = indexRequestBuilder.get(timeout);
                                 assertThat(response.getResult(), is(oneOf(CREATED, UPDATED)));
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}], response [{}]", name, id, node, response);
@@ -293,7 +292,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(2, notIsolatedNode);
         assertFalse(client(notIsolatedNode).admin().cluster().prepareHealth("test").setWaitForYellowStatus().get().isTimedOut());
 
-        IndexResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
+        DocWriteResponse indexResponse = internalCluster().client(notIsolatedNode).prepareIndex("test").setSource("field", "value").get();
         assertThat(indexResponse.getVersion(), equalTo(1L));
 
         logger.info("Verifying if document exists via node[{}]", notIsolatedNode);
@@ -483,7 +482,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 while (stopped.get() == false && docID.get() < 5000) {
                     String id = Integer.toString(docID.incrementAndGet());
                     try {
-                        IndexResponse response = client().prepareIndex(index)
+                        DocWriteResponse response = client().prepareIndex(index)
                             .setId(id)
                             .setSource(Map.of("f" + randomIntBetween(1, 10), randomNonNegativeLong()), XContentType.JSON)
                             .get();
@@ -567,23 +566,20 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException e) {
-                        throw new AssertionError("unexpected", e);
+                        fail(e);
                     }
                 }
             }
         });
 
-        final MockTransportService dataTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            dataNode
-        );
-        dataTransportService.addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
-            if (removedNode.isDone() == false) {
-                channel.sendResponse(new ElasticsearchException("simulated check failure"));
-            } else {
-                handler.messageReceived(request, channel, task);
-            }
-        });
+        MockTransportService.getInstance(dataNode)
+            .addRequestHandlingBehavior(FollowersChecker.FOLLOWER_CHECK_ACTION_NAME, (handler, request, channel, task) -> {
+                if (removedNode.isDone() == false) {
+                    channel.sendResponse(new ElasticsearchException("simulated check failure"));
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            });
 
         removedNode.actionGet(10, TimeUnit.SECONDS);
         ensureStableCluster(2);

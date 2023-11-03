@@ -11,8 +11,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +30,9 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
@@ -207,15 +213,10 @@ public class LinearizabilityChecker {
     }
 
     /**
-     * Checks whether the provided history is linearizable with respect to the given sequential specification
-     *
-     * @param spec the sequential specification of the datatype
-     * @param history the history of events to check for linearizability
-     * @param missingResponseGenerator used to complete the history with missing responses
-     * @return true iff the history is linearizable w.r.t. the given spec
+     * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
      */
-    public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
-        return isLinearizable(spec, history, missingResponseGenerator, () -> false);
+    public static boolean isLinearizable(SequentialSpec spec, History history) throws LinearizabilityCheckAborted {
+        return isLinearizable(spec, history, o -> { throw new AssertionError("history is not complete"); });
     }
 
     /**
@@ -224,22 +225,38 @@ public class LinearizabilityChecker {
      * @param spec the sequential specification of the datatype
      * @param history the history of events to check for linearizability
      * @param missingResponseGenerator used to complete the history with missing responses
-     * @param terminateEarly a condition upon which to terminate early
      * @return true iff the history is linearizable w.r.t. the given spec
      */
-    public boolean isLinearizable(
-        SequentialSpec spec,
-        History history,
-        Function<Object, Object> missingResponseGenerator,
-        BooleanSupplier terminateEarly
-    ) {
-        history = history.clone(); // clone history before completing it
-        history.complete(missingResponseGenerator); // complete history
-        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
-        return partitions.stream().allMatch(h -> isLinearizable(spec, h, terminateEarly));
+    public static boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator)
+        throws LinearizabilityCheckAborted {
+        final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
+        final AtomicBoolean abort = new AtomicBoolean();
+        try {
+            history = history.clone(); // clone history before completing it
+            history.complete(missingResponseGenerator); // complete history
+            final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
+            // Large histories can be problematic and have the linearizability checker run OOM
+            // Bound the time how long the checker can run on such histories (Values empirically determined)
+            if (history.size() > 300 || partitions.stream().anyMatch(p -> p.size() > 25)) {
+                logger.warn("Detected large history or partition for linearizable check. Limiting execution time");
+                scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
+            }
+            var allLinearizable = partitions.stream().allMatch(h -> isLinearizable(spec, h, abort::get));
+            if (abort.get()) {
+                throw new LinearizabilityCheckAborted();
+            }
+            return allLinearizable;
+        } finally {
+            ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
+        }
     }
 
-    private boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
+    /**
+     * This exception is thrown if the check could not be completed due to timeout or OOM (that could be caused by long event history)
+     */
+    public static final class LinearizabilityCheckAborted extends Exception {}
+
+    private static boolean isLinearizable(SequentialSpec spec, List<Event> history, BooleanSupplier terminateEarly) {
         logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
@@ -285,13 +302,6 @@ public class LinearizabilityChecker {
             }
         }
         return true;
-    }
-
-    /**
-     * Convenience method for {@link #isLinearizable(SequentialSpec, History, Function)} that requires the history to be complete
-     */
-    public boolean isLinearizable(SequentialSpec spec, History history) {
-        return isLinearizable(spec, history, o -> { throw new IllegalArgumentException("history is not complete"); });
     }
 
     /**

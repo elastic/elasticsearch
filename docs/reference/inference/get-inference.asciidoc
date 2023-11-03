@@ -1,0 +1,81 @@
+[role="xpack"]
+[[get-inference-api]]
+=== Get {infer} API
+
+experimental[]
+
+Retrieves {infer} model information.
+
+[discrete]
+[[get-inference-api-request]]
+==== {api-request-title}
+
+`GET /_inference/_all`
+
+`GET /_inference/<task_type>/_all`
+
+`GET /_inference/<task_type>/<model_id>`
+
+[discrete]
+[[get-inference-api-prereqs]]
+==== {api-prereq-title}
+
+* Requires the `manage` <<privileges-list-cluster,cluster privilege>>.
+
+[discrete]
+[[get-inference-api-desc]]
+==== {api-description-title}
+
+You can get information in a single API request for:
+
+* a single {infer} model by providing the task type and the model ID,
+* all of the {infer} models for a certain task type by providing the task type
+and a wildcard expression,
+* all of the {infer} models by using a wildcard expression.
+
+
+[discrete]
+[[get-inference-api-path-params]]
+==== {api-path-parms-title}
+
+`<model_id>`::
+(Optional, string)
+The unique identifier of the {infer} model.
+
+
+`<task_type>`::
+(Optional, string)
+The type of {infer} task that the model performs.
+
+
+[discrete]
+[[get-inference-api-example]]
+==== {api-examples-title}
+
+The following API call retrives information about the `my-elser-model` {infer}
+model that can perform `sparse_embedding` tasks.
+
+
+[source,console]
+------------------------------------------------------------
+GET _inference/sparse_embedding/my-elser-model
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+
+The API returns the following response:
+
+[source,console-result]
+------------------------------------------------------------
+{
+  "model_id": "my-elser-model",
+  "task_type": "sparse_embedding",
+  "service": "elser",
+  "service_settings": {
+    "num_allocations": 1,
+    "num_threads": 1
+  },
+  "task_settings": {}
+}
+------------------------------------------------------------
+// NOTCONSOLE

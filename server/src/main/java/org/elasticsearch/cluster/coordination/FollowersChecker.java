@@ -61,7 +61,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
  * considering a follower to be faulty, to allow for a brief network partition or a long GC cycle to occur without triggering the removal of
  * a node and the consequent shard reallocation.
  */
-public class FollowersChecker {
+public final class FollowersChecker {
 
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 

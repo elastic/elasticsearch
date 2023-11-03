@@ -70,7 +70,9 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         if (types != null) {
             for (int i = 0; i < types.size(); i++) {
                 if (supplied.getData().get(i).type() != types.get(i)) {
-                    throw new IllegalStateException("supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i));
+                    throw new IllegalStateException(
+                        name + ": supplier/data type mismatch " + supplied.getData().get(i).type() + "/" + types.get(i)
+                    );
                 }
             }
         }
@@ -633,7 +635,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         );
     }
 
-    private static List<TypedDataSupplier> stringCases(DataType type) {
+    public static List<TypedDataSupplier> stringCases(DataType type) {
         List<TypedDataSupplier> result = new ArrayList<>();
         result.add(new TypedDataSupplier("<empty " + type + ">", () -> new BytesRef(""), type));
         result.add(
@@ -766,6 +768,10 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
 
         public List<Expression> getDataAsFields() {
             return data.stream().map(t -> AbstractFunctionTestCase.field(t.name(), t.type())).collect(Collectors.toList());
+        }
+
+        public List<Expression> getDataAsDeepCopiedFields() {
+            return data.stream().map(t -> AbstractFunctionTestCase.deepCopyOfField(t.name(), t.type())).collect(Collectors.toList());
         }
 
         public List<Expression> getDataAsLiterals() {

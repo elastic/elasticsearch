@@ -14,7 +14,6 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
@@ -29,6 +28,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -36,19 +36,19 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.aggregation.CountAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntArrayVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.ValueSourceInfo;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -61,13 +61,10 @@ import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -79,7 +76,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.INITIAL;
@@ -145,8 +141,11 @@ public class OperatorTests extends MapperServiceTestCase {
         }
     }
 
-    // @Repeat(iterations = 1)
     public void testGroupingWithOrdinals() throws Exception {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        BigArrays bigArrays = driverContext.bigArrays();
+
         final String gField = "g";
         final int numDocs = 2856; // between(100, 10000);
         final Map<BytesRef, Long> expectedCounts = new HashMap<>();
@@ -162,7 +161,6 @@ public class OperatorTests extends MapperServiceTestCase {
             }
             writer.commit();
             Map<BytesRef, Long> actualCounts = new HashMap<>();
-            BigArrays bigArrays = bigArrays();
             boolean shuffleDocs = randomBoolean();
             Operator shuffleDocsOperator = new AbstractPageMappingOperator() {
                 @Override
@@ -174,19 +172,23 @@ public class OperatorTests extends MapperServiceTestCase {
                     int positionCount = docVector.getPositionCount();
                     IntVector shards = docVector.shards();
                     if (randomBoolean()) {
-                        IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
-                        for (int i = 0; i < positionCount; i++) {
-                            builder.appendInt(shards.getInt(i));
+                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
+                            for (int i = 0; i < positionCount; i++) {
+                                builder.appendInt(shards.getInt(i));
+                            }
+                            shards.close();
+                            shards = builder.build();
                         }
-                        shards = builder.build();
                     }
                     IntVector segments = docVector.segments();
                     if (randomBoolean()) {
-                        IntVector.Builder builder = IntVector.newVectorBuilder(positionCount);
-                        for (int i = 0; i < positionCount; i++) {
-                            builder.appendInt(segments.getInt(i));
+                        try (IntVector.Builder builder = IntVector.newVectorBuilder(positionCount)) {
+                            for (int i = 0; i < positionCount; i++) {
+                                builder.appendInt(segments.getInt(i));
+                            }
+                            segments.close();
+                            segments = builder.build();
                         }
-                        segments = builder.build();
                     }
                     IntVector docs = docVector.docs();
                     if (randomBoolean()) {
@@ -195,7 +197,8 @@ public class OperatorTests extends MapperServiceTestCase {
                             ids.add(docs.getInt(i));
                         }
                         Collections.shuffle(ids, random());
-                        docs = new IntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
+                        docs.close();
+                        docs = blockFactory.newIntArrayVector(ids.stream().mapToInt(n -> n).toArray(), positionCount);
                     }
                     Block[] blocks = new Block[page.getBlockCount()];
                     blocks[0] = new DocVector(shards, segments, docs, false).asBlock();
@@ -212,8 +215,6 @@ public class OperatorTests extends MapperServiceTestCase {
             };
 
             try (DirectoryReader reader = writer.getReader()) {
-                DriverContext driverContext = driverContext();
-
                 Driver driver = new Driver(
                     driverContext,
                     luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT).get(driverContext),
@@ -230,13 +231,9 @@ public class OperatorTests extends MapperServiceTestCase {
                     },
                         new OrdinalsGroupingOperator(
                             List.of(
-                                new ValueSourceInfo(
-                                    CoreValuesSourceType.KEYWORD,
-                                    randomBoolean() ? getOrdinalsValuesSource(gField) : getBytesValuesSource(gField),
-                                    ElementType.BYTES_REF,
-                                    reader
-                                )
+                                BlockReaderFactories.loaderToFactory(reader, new KeywordFieldMapper.KeywordFieldType("g").blockLoader(null))
                             ),
+                            ElementType.BYTES_REF,
                             0,
                             gField,
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1)).groupingAggregatorFactory(INITIAL)),
@@ -248,7 +245,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             List.of(CountAggregatorFunction.supplier(bigArrays, List.of(1, 2)).groupingAggregatorFactory(FINAL)),
                             () -> BlockHash.build(
                                 List.of(new HashAggregationOperator.GroupSpec(0, ElementType.BYTES_REF)),
-                                bigArrays,
+                                driverContext,
                                 randomPageSize(),
                                 false
                             ),
@@ -263,8 +260,7 @@ public class OperatorTests extends MapperServiceTestCase {
                             keys.getBytesRef(i, spare);
                             actualCounts.put(BytesRef.deepCopyOf(spare), counts.getLong(i));
                         }
-                        // System.out.println("HEGO: keys.getPositionCount=" + keys.getPositionCount());
-                        // Releasables.close(keys);
+                        page.releaseBlocks();
                     }),
                     () -> {}
                 );
@@ -274,6 +270,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 org.elasticsearch.common.util.MockBigArrays.ensureAllArraysAreReleased();
             }
         }
+        assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
     public void testLimitOperator() {
@@ -286,7 +283,7 @@ public class OperatorTests extends MapperServiceTestCase {
         try (
             var driver = new Driver(
                 driverContext,
-                new SequenceLongBlockSourceOperator(values, 100),
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                 List.of((new LimitOperator.Factory(limit)).get(driverContext)),
                 new PageConsumerOperator(page -> {
                     LongBlock block = page.getBlock(0);
@@ -332,61 +329,6 @@ public class OperatorTests extends MapperServiceTestCase {
         return docIds;
     }
 
-    static ValuesSource.Bytes.WithOrdinals getOrdinalsValuesSource(String field) {
-        return new ValuesSource.Bytes.WithOrdinals() {
-
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                return getBytesValuesSource(field).bytesValues(context);
-            }
-
-            @Override
-            public SortedSetDocValues ordinalsValues(LeafReaderContext context) throws IOException {
-                return context.reader().getSortedSetDocValues(field);
-            }
-
-            @Override
-            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public boolean supportsGlobalOrdinalsMapping() {
-                return false;
-            }
-
-            @Override
-            public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    static ValuesSource.Bytes getBytesValuesSource(String field) {
-        return new ValuesSource.Bytes() {
-            @Override
-            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                final SortedSetDocValues dv = context.reader().getSortedSetDocValues(field);
-                return new SortedBinaryDocValues() {
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        return dv.advanceExact(doc);
-                    }
-
-                    @Override
-                    public int docValueCount() {
-                        return dv.docValueCount();
-                    }
-
-                    @Override
-                    public BytesRef nextValue() throws IOException {
-                        return dv.lookupOrd(dv.nextOrd());
-                    }
-                };
-            }
-        };
-    }
-
     /**
      * Creates a {@link BigArrays} that tracks releases but doesn't throw circuit breaking exceptions.
      */
@@ -398,7 +340,8 @@ public class OperatorTests extends MapperServiceTestCase {
      * A {@link DriverContext} that won't throw {@link CircuitBreakingException}.
      */
     protected final DriverContext driverContext() {
-        return new DriverContext(bigArrays());
+        var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()));
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

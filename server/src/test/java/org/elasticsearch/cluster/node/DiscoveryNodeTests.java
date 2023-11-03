@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -144,7 +145,10 @@ public class DiscoveryNodeTests extends ESTestCase {
     }
 
     private void runTestDiscoveryNodeIsRemoteClusterClient(final Settings settings, final boolean expected) {
-        final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
+        final DiscoveryNode node = DiscoveryNodeUtils.builder("node")
+            .applySettings(settings)
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200))
+            .build();
         assertThat(node.isRemoteClusterClient(), equalTo(expected));
         if (expected) {
             assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
@@ -222,7 +226,7 @@ public class DiscoveryNodeTests extends ESTestCase {
                     transportAddress,
                     withExternalId ? "test-external-id" : "test-name",
                     Version.CURRENT,
-                    IndexVersion.MINIMUM_COMPATIBLE,
+                    IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersion.current()
                 )
             )

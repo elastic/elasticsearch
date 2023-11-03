@@ -325,6 +325,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             Version.CURRENT,
             TransportVersion.current(),
             IndexVersion.current(),
+            Map.of(),
             Build.current(),
             DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress()),
             settings.build(),

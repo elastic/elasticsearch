@@ -9,7 +9,6 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -19,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link MinDoubleAggregator}.
@@ -33,14 +33,18 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   private final List<Integer> channels;
 
-  public MinDoubleGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state) {
+  private final DriverContext driverContext;
+
+  public MinDoubleGroupingAggregatorFunction(List<Integer> channels, DoubleArrayState state,
+      DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
   }
 
   public static MinDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays) {
-    return new MinDoubleGroupingAggregatorFunction(channels, new DoubleArrayState(bigArrays, MinDoubleAggregator.init()));
+      DriverContext driverContext) {
+    return new MinDoubleGroupingAggregatorFunction(channels, new DoubleArrayState(driverContext.bigArrays(), MinDoubleAggregator.init()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -55,20 +59,7 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    DoubleBlock valuesBlock = (DoubleBlock) uncastValuesBlock;
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     DoubleVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
@@ -184,12 +175,13 @@ public final class MinDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = state.toValuesBlock(selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = state.toValuesBlock(selected, driverContext);
   }
 
   @Override

@@ -36,6 +36,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -402,7 +403,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
@@ -427,7 +428,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
@@ -779,7 +780,7 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
 
             appender.assertAllExpectationsMatched();
         } finally {

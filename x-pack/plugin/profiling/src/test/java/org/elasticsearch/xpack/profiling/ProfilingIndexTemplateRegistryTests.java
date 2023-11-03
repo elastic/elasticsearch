@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
@@ -307,6 +308,87 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             // we've changed one policy that should be upgraded
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
+    }
+
+    public void testAllResourcesPresentButOutdated() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            // outdated version
+            componentTemplates.put(templateName, randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            // outdated version
+            composableTemplates.put(templateName, randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            // make a copy as we're modifying the version mapping
+            Map<String, Object> metadata = new HashMap<>(policy.getMetadata());
+            // outdated version
+            metadata.put("version", randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
+            policies.put(
+                policy.getName(),
+                new LifecyclePolicy(
+                    TimeseriesLifecycleType.INSTANCE,
+                    policy.getName(),
+                    policy.getPhases(),
+                    metadata,
+                    policy.getDeprecated()
+                )
+            );
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testAllResourcesPresentAndCurrent() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            composableTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            policies.put(policy.getName(), policy);
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertTrue(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
+    }
+
+    public void testSomeResourcesMissing() {
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
+        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
+        Map<String, Integer> componentTemplates = new HashMap<>();
+        Map<String, Integer> composableTemplates = new HashMap<>();
+        Map<String, LifecyclePolicy> policies = new HashMap<>();
+        for (String templateName : registry.getComponentTemplateConfigs().keySet()) {
+            if (rarely()) {
+                componentTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            }
+        }
+        for (String templateName : registry.getComposableTemplateConfigs().keySet()) {
+            if (rarely()) {
+                composableTemplates.put(templateName, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION);
+            }
+        }
+        for (LifecyclePolicy policy : registry.getLifecyclePolicies()) {
+            if (rarely()) {
+                policies.put(policy.getName(), policy);
+            }
+        }
+        ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
+
+        assertFalse(ProfilingIndexTemplateRegistry.isAllResourcesCreated(clusterState, Settings.EMPTY));
     }
 
     private ActionResponse verifyComposableTemplateInstalled(

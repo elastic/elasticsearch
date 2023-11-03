@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -75,6 +74,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.DOC_TYPE_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor.Fields.APPLICATION;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
@@ -190,11 +191,11 @@ public class NativePrivilegeStore {
     private void innerGetPrivileges(Collection<String> applications, ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
         assert applications != null && applications.size() > 0 : "Application names are required (found " + applications + ")";
 
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyList());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
 
@@ -368,9 +369,9 @@ public class NativePrivilegeStore {
         ActionListener<Map<String, List<String>>> listener
     ) {
         securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
+            ActionListener<DocWriteResponse> groupListener = new GroupedActionListener<>(
                 privileges.size(),
-                ActionListener.wrap((Collection<IndexResponse> responses) -> {
+                ActionListener.wrap((Collection<DocWriteResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()
                         .filter(r -> r.getResult() == DocWriteResponse.Result.CREATED)
                         .map(r -> r.getId())
@@ -392,7 +393,7 @@ public class NativePrivilegeStore {
     private void innerPutPrivilege(
         ApplicationPrivilegeDescriptor privilege,
         WriteRequest.RefreshPolicy refreshPolicy,
-        ActionListener<IndexResponse> listener
+        ActionListener<DocWriteResponse> listener
     ) {
         try {
             final String name = privilege.getName();
@@ -420,11 +421,11 @@ public class NativePrivilegeStore {
         WriteRequest.RefreshPolicy refreshPolicy,
         ActionListener<Map<String, List<String>>> listener
     ) {
-        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.freeze();
+        final SecurityIndexManager frozenSecurityIndex = securityIndexManager.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             listener.onResponse(Collections.emptyMap());
-        } else if (frozenSecurityIndex.isAvailable() == false) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
+            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             securityIndexManager.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 ActionListener<DeleteResponse> groupListener = new GroupedActionListener<>(names.size(), ActionListener.wrap(responses -> {

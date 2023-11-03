@@ -274,7 +274,7 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      */
-    public static class Builder implements Writeable, ToXContentObject {
+    public static final class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
         // Using LinkedHashSets to preserve the order of insertion, that makes the results

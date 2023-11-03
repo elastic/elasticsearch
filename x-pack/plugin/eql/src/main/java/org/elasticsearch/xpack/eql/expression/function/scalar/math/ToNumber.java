@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 /**
  * EQL specific function for parsing strings into numbers.
  */
-public class ToNumber extends ScalarFunction implements OptionalArgument {
+public final class ToNumber extends ScalarFunction implements OptionalArgument {
 
     private final Expression value, base;
 

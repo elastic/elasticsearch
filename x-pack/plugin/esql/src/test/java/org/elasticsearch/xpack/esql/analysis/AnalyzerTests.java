@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -36,12 +39,14 @@ import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -53,6 +58,9 @@ public class AnalyzerTests extends ESTestCase {
         new TableIdentifier(EMPTY, null, "idx"),
         List.of()
     );
+
+    private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
 
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -821,12 +829,58 @@ public class AnalyzerTests extends ESTestCase {
             """, "d", "last_name");
     }
 
-    public void testExplicitProjectAndLimit() {
+    public void testImplicitLimit() {
         var plan = analyze("""
             from test
             """);
         var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
         as(limit.child(), EsRelation.class);
+    }
+
+    public void testImplicitMaxLimitAfterLimit() {
+        for (int i = -1; i <= 1; i++) {
+            var plan = analyze("from test | limit " + (MAX_LIMIT + i));
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            limit = as(limit.child(), Limit.class);
+            as(limit.child(), EsRelation.class);
+        }
+    }
+
+    /*
+    Limit[10000[INTEGER]]
+    \_Filter[s{r}#3 > 0[INTEGER]]
+      \_Eval[[salary{f}#10 * 10[INTEGER] AS s]]
+        \_Limit[10000[INTEGER]]
+          \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     */
+    public void testImplicitMaxLimitAfterLimitAndNonLimit() {
+        for (int i = -1; i <= 1; i++) {
+            var plan = analyze("from test | limit " + (MAX_LIMIT + i) + " | eval s = salary * 10 | where s > 0");
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+            var filter = as(limit.child(), Filter.class);
+            var eval = as(filter.child(), Eval.class);
+            limit = as(eval.child(), Limit.class);
+            as(limit.child(), EsRelation.class);
+        }
+    }
+
+    public void testImplicitDefaultLimitAfterLimitAndBreaker() {
+        for (var breaker : List.of("stats c = count(salary) by last_name", "sort salary")) {
+            var plan = analyze("from test | limit 100000 | " + breaker);
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(), equalTo(MAX_LIMIT));
+        }
+    }
+
+    public void testImplicitDefaultLimitAfterBreakerAndNonBreakers() {
+        for (var breaker : List.of("stats c = count(salary) by last_name", "eval c = salary | sort c")) {
+            var plan = analyze("from test | " + breaker + " | eval cc = c * 10 | where cc > 0");
+            var limit = as(plan, Limit.class);
+            assertThat(limit.limit().fold(), equalTo(DEFAULT_LIMIT));
+        }
     }
 
     private static final String[] COMPARISONS = new String[] { "==", "!=", "<", "<=", ">", ">=" };
@@ -975,27 +1029,6 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | eval date_trunc(1, date)
             """, "second argument of [date_trunc(1, date)] must be [dateperiod or timeduration], found value [1] type [integer]");
-    }
-
-    public void testDateExtractWithSwappedArguments() {
-        verifyUnsupported("""
-            from test
-            | eval date_extract(date, "year")
-            """, "function definition has been updated, please swap arguments in [date_extract(date, \"year\")]");
-    }
-
-    public void testDateFormatWithSwappedArguments() {
-        verifyUnsupported("""
-            from test
-            | eval date_format(date, "yyyy-MM-dd")
-            """, "function definition has been updated, please swap arguments in [date_format(date, \"yyyy-MM-dd\")]");
-    }
-
-    public void testDateTruncWithSwappedArguments() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(date, 1 month)
-            """, "function definition has been updated, please swap arguments in [date_trunc(date, 1 month)]");
     }
 
     public void testDateTruncWithDateInterval() {
@@ -1203,6 +1236,14 @@ public class AnalyzerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
     }
 
+    public void testNonExistingEnrichNoMatchField() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | enrich foo
+            """));
+        assertThat(e.getMessage(), containsString("unresolved enrich policy [foo]"));
+    }
+
     public void testNonExistingEnrichPolicyWithSimilarName() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -1233,7 +1274,7 @@ public class AnalyzerTests extends ESTestCase {
             """));
         assertThat(
             e.getMessage(),
-            containsString("Unsupported type [INTEGER]  for enrich matching field [languages]; only KEYWORD allowed")
+            containsString("Unsupported type [INTEGER] for enrich matching field [languages]; only KEYWORD allowed")
         );
     }
 
@@ -1314,4 +1355,10 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains(names));
     }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
+    }
+
 }

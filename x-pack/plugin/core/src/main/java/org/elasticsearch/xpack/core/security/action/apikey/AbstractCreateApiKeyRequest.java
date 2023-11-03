@@ -39,6 +39,7 @@ public abstract class AbstractCreateApiKeyRequest extends ActionRequest {
         this.id = UUIDs.base64UUID(); // because auditing can currently only catch requests but not responses,
     }
 
+    @SuppressWarnings("this-escape")
     public AbstractCreateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.id = doReadId(in);

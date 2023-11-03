@@ -15,7 +15,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-public class InvalidIndexNameException extends ElasticsearchException {
+public final class InvalidIndexNameException extends ElasticsearchException {
 
     public InvalidIndexNameException(String name, String desc) {
         super("Invalid index name [" + name + "], " + desc);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.profiling;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -21,6 +22,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -71,6 +73,18 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
         this.templatesEnabled = templatesEnabled;
     }
 
+    private static boolean isMixedVersionCluster(DiscoveryNodes nodes) {
+        Version version = null;
+        for (var n : nodes) {
+            if (version == null) {
+                version = n.getVersion();
+            } else if (version.equals(n.getVersion()) == false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public final void clusterChanged(ClusterChangedEvent event) {
         if (templatesEnabled == false) {
@@ -86,7 +100,7 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
             return;
         }
 
-        if (event.state().nodes().getMaxNodeVersion().after(event.state().nodes().getSmallestNonClientNodeVersion())) {
+        if (isMixedVersionCluster(event.state().nodes())) {
             logger.debug("Skipping up-to-date check as cluster has mixed versions");
             return;
         }

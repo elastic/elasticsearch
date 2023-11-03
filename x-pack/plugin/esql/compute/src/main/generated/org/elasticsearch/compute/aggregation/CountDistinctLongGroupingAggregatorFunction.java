@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link CountDistinctLongAggregator}.
@@ -33,21 +34,25 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   private final List<Integer> channels;
 
+  private final DriverContext driverContext;
+
   private final BigArrays bigArrays;
 
   private final int precision;
 
   public CountDistinctLongGroupingAggregatorFunction(List<Integer> channels,
-      HllStates.GroupingState state, BigArrays bigArrays, int precision) {
+      HllStates.GroupingState state, DriverContext driverContext, BigArrays bigArrays,
+      int precision) {
     this.channels = channels;
     this.state = state;
+    this.driverContext = driverContext;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
   public static CountDistinctLongGroupingAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctLongGroupingAggregatorFunction(channels, CountDistinctLongAggregator.initGrouping(bigArrays, precision), bigArrays, precision);
+      DriverContext driverContext, BigArrays bigArrays, int precision) {
+    return new CountDistinctLongGroupingAggregatorFunction(channels, CountDistinctLongAggregator.initGrouping(bigArrays, precision), driverContext, bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,20 +67,7 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    Block uncastValuesBlock = page.getBlock(channels.get(0));
-    if (uncastValuesBlock.areAllValuesNull()) {
-      state.enableGroupIdTracking(seenGroupIds);
-      return new GroupingAggregatorFunction.AddInput() {
-        @Override
-        public void add(int positionOffset, IntBlock groupIds) {
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-        }
-      };
-    }
-    LongBlock valuesBlock = (LongBlock) uncastValuesBlock;
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
     LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
@@ -186,12 +178,13 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   @Override
   public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-    state.toIntermediate(blocks, offset, selected);
+    state.toIntermediate(blocks, offset, selected, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset, IntVector selected) {
-    blocks[offset] = CountDistinctLongAggregator.evaluateFinal(state, selected);
+  public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
+      DriverContext driverContext) {
+    blocks[offset] = CountDistinctLongAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

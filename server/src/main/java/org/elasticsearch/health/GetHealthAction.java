@@ -14,13 +14,15 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.stats.HealthApiStats;
@@ -45,7 +47,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static final String NAME = "cluster:monitor/health_api";
 
     private GetHealthAction() {
-        super(NAME, GetHealthAction.Response::new);
+        super(NAME, Writeable.Reader.localOnly());
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContent {
@@ -54,10 +56,6 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Nullable
         private final HealthStatus status;
         private final List<HealthIndicatorResult> indicators;
-
-        public Response(StreamInput in) {
-            throw new AssertionError("GetHealthAction should not be sent over the wire.");
-        }
 
         public Response(final ClusterName clusterName, final List<HealthIndicatorResult> indicators, boolean showTopLevelStatus) {
             this.indicators = indicators;
@@ -90,7 +88,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new AssertionError("GetHealthAction should not be sent over the wire.");
+            TransportAction.localOnly();
         }
 
         @Override
@@ -173,9 +171,14 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportAction.localOnly();
+        }
     }
 
-    public static class TransportAction extends org.elasticsearch.action.support.TransportAction<Request, Response> {
+    public static class LocalAction extends TransportAction<Request, Response> {
 
         private final ClusterService clusterService;
         private final HealthService healthService;
@@ -183,7 +186,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final HealthApiStats healthApiStats;
 
         @Inject
-        public TransportAction(
+        public LocalAction(
             ActionFilters actionFilters,
             TransportService transportService,
             ClusterService clusterService,
@@ -201,8 +204,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> responseListener) {
             assert task instanceof CancellableTask;
+            final CancellableTask cancellableTask = (CancellableTask) task;
+            if (cancellableTask.notifyIfCancelled(responseListener)) {
+                return;
+            }
+
             healthService.getHealth(
-                client,
+                new ParentTaskAssigningClient(client, clusterService.localNode(), task),
                 request.indicatorName,
                 request.verbose,
                 request.size,

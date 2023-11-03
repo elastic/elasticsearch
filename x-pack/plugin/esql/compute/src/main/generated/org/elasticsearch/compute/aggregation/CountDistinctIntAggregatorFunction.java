@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link CountDistinctIntAggregator}.
@@ -27,6 +28,8 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("hll", ElementType.BYTES_REF)  );
 
+  private final DriverContext driverContext;
+
   private final HllStates.SingleState state;
 
   private final List<Integer> channels;
@@ -35,17 +38,18 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   private final int precision;
 
-  public CountDistinctIntAggregatorFunction(List<Integer> channels, HllStates.SingleState state,
-      BigArrays bigArrays, int precision) {
+  public CountDistinctIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      HllStates.SingleState state, BigArrays bigArrays, int precision) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
     this.bigArrays = bigArrays;
     this.precision = precision;
   }
 
-  public static CountDistinctIntAggregatorFunction create(List<Integer> channels,
-      BigArrays bigArrays, int precision) {
-    return new CountDistinctIntAggregatorFunction(channels, CountDistinctIntAggregator.initSingle(bigArrays, precision), bigArrays, precision);
+  public static CountDistinctIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels, BigArrays bigArrays, int precision) {
+    return new CountDistinctIntAggregatorFunction(driverContext, channels, CountDistinctIntAggregator.initSingle(bigArrays, precision), bigArrays, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -59,11 +63,7 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -95,6 +95,10 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     BytesRefVector hll = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     assert hll.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
@@ -107,8 +111,8 @@ public final class CountDistinctIntAggregatorFunction implements AggregatorFunct
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
-    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state);
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+    blocks[offset] = CountDistinctIntAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

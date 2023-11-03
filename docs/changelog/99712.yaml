@@ -1,0 +1,5 @@
+pr: 99712
+summary: Make downsample target index replicas configurable
+area: Downsampling
+type: bug
+issues: []

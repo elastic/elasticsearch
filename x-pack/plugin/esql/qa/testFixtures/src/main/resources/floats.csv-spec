@@ -62,7 +62,7 @@ ROW str1 = "5.20128E11", str2 = "foo"
 // end::to_double-str[]
 ;
 warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.NumberFormatException: For input string: \"foo\"
+warning:Line 2:72: java.lang.NumberFormatException: For input string: \"foo\"
 
 // tag::to_double-str-result[]
 str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double
@@ -274,7 +274,7 @@ ROW a=12.0
 | EVAL acos=ACOS(a)
 ;
 warning:Line 2:13: evaluation of [ACOS(a)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: Acos input out of range
+warning:Line 2:13: java.lang.ArithmeticException: Acos input out of range
 
 a:double | acos:double
       12 | null
@@ -324,7 +324,7 @@ ROW a=12.0
 | EVAL asin=ASIN(a)
 ;
 warning:Line 2:13: evaluation of [ASIN(a)] failed, treating result as null. Only first 20 failures recorded.
-warning:java.lang.ArithmeticException: Asin input out of range
+warning:Line 2:13: java.lang.ArithmeticException: Asin input out of range
 
 a:double | asin:double
       12 | null

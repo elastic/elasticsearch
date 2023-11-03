@@ -47,7 +47,7 @@ import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
  * An aggregator of string values that hashes the strings on the fly rather
  * than up front like the {@link GlobalOrdinalsStringTermsAggregator}.
  */
-public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
+public final class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     private final CollectorSource collectorSource;
     private final ResultStrategy<?, ?> resultStrategy;
     private final BytesKeyedBucketOrds bucketOrds;

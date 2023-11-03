@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -34,7 +35,7 @@ public class ETests extends AbstractScalarFunctionTestCase {
         return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("E Test", () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
-                "LiteralsEvaluator[block=2.718281828459045]",
+                "LiteralsEvaluator[lit=2.718281828459045]",
                 DataTypes.DOUBLE,
                 equalTo(Math.E)
             );
@@ -59,5 +60,10 @@ public class ETests extends AbstractScalarFunctionTestCase {
     @Override
     protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
         assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Math.E));
+    }
+
+    @Override
+    protected Matcher<Object> allNullsMatcher() {
+        return equalTo(Math.E);
     }
 }

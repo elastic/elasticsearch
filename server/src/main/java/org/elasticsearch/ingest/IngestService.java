@@ -172,6 +172,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @SuppressWarnings("this-escape")
     public IngestService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -721,7 +722,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
                         indexRequest.setPipelinesHaveRun();
 
-                        documentParsingObserver.setIndexName(indexRequest.index());
+                        assert actionRequest.index() != null;
+                        documentParsingObserver.setIndexName(actionRequest.index());
                         documentParsingObserver.close();
 
                         i++;
@@ -822,7 +824,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-
+            indexRequest.addPipeline(pipelineId);
             final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
@@ -940,7 +942,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private void executePipeline(
+    private static void executePipeline(
         final IngestDocument ingestDocument,
         final Pipeline pipeline,
         final BiConsumer<Boolean, Exception> handler

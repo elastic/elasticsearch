@@ -523,7 +523,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             && Objects.equals(this.explanation, that.explanation);
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private int numLinesAnalyzed;
         private int numMessagesAnalyzed;

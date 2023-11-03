@@ -12,8 +12,11 @@ import java.nio.file.Files
 
 String buildNumber = System.getenv('BUILD_NUMBER') ?: System.getenv('BUILDKITE_BUILD_NUMBER')
 String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
-if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false) {
-  File uploadFile = file("build/${buildNumber}.tar.bz2")
+Boolean isNested = System.getProperty("scan.tag.NESTED") != null
+
+if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(project) == false && isNested == false) {
+  def uploadFilePath = "build/${buildNumber}.tar.bz2"
+  File uploadFile = file(uploadFilePath)
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
     if (uploadFile.exists()) {
@@ -28,6 +31,7 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             include("**/build/testrun/*/temp/**")
+            include("**/build/**/hs_err_pid*.log")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")
             exclude("**/build/testclusters/**/repo/**")
@@ -62,6 +66,28 @@ if (buildNumber && performanceTest == null && GradleUtils.isIncludedBuild(projec
       }
     } catch (Exception e) {
       logger.lifecycle("Failed to archive additional logs", e)
+    }
+
+    if (uploadFile.exists() && System.getenv("BUILDKITE") == "true") {
+      try {
+        println "Uploading buildkite artifact: ${uploadFilePath}..."
+        new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
+          .start()
+          .waitFor()
+
+        println "Generating buildscan link for artifact..."
+
+        def process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv('BUILDKITE_JOB_ID'), "--format", "%i").start()
+        process.waitFor()
+        def artifactUuid = (process.text ?: "").trim()
+
+        println "Artifact UUID: ${artifactUuid}"
+        if (artifactUuid) {
+          buildScan.link 'Artifact Upload', "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
+        }
+      } catch (Exception e) {
+        logger.lifecycle("Failed to upload buildkite artifact", e)
+      }
     }
   }
 }

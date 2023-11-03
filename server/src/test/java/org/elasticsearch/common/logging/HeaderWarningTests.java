@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.logging.HeaderWarning.WARNING_HEADER_PATTERN;
@@ -309,6 +310,7 @@ public class HeaderWarningTests extends ESTestCase {
                 + ".ml-stats,.monitoring-beats-mb,.monitoring-ent-search-mb,.monitoring-es-mb,.monitoring-kibana-mb,"
                 + ".monitoring-logstash-mb,.profiling-ilm-lock,.slm-history,.watch-history-16,behavioral_analytics-events-default,"
                 + "ilm-history,logs,metrics,profiling-events,profiling-executables,profiling-metrics,profiling-returnpads-private,"
+                + "profiling-costs"
                 + "profiling-sq-executables,profiling-sq-leafframes,profiling-stackframes,profiling-stacktraces,"
                 + "profiling-symbols,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.*],"
                 + ".fleet-file-data => [.fleet-file-data-*-*],.fleet-files => [.fleet-files-*-*],.ml-anomalies- => [.ml-anomalies-*],"
@@ -321,6 +323,7 @@ public class HeaderWarningTests extends ESTestCase {
                 + "logs => [logs-*-*],metrics => [metrics-*-*],profiling-events => [profiling-events*],profiling-executables => "
                 + "[profiling-executables*],profiling-metrics => [profiling-metrics*],profiling-returnpads-private => "
                 + "[.profiling-returnpads-private*],profiling-sq-executables => [.profiling-sq-executables*],"
+                + "profiling-costs => [.profiling-costs*],"
                 + "profiling-sq-leafframes => [.profiling-sq-leafframes*],profiling-stackframes => [profiling-stackframes*],"
                 + "profiling-stacktraces => [profiling-stacktraces*],profiling-symbols => [.profiling-symbols*],synthetics => "
                 + "[synthetics-*-*]); this template [global] may be ignored in favor of a composable template at index creation time"
@@ -346,6 +349,24 @@ public class HeaderWarningTests extends ESTestCase {
         HeaderWarning.addWarning(threadContexts, "\"");
         HeaderWarning.addWarning(threadContexts, "\\");
         HeaderWarning.addWarning(threadContexts, allNotAllowedChars());
+    }
+
+    public void testWarnAgentValidationStateful() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-8.11.0-SNAPSHOT-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateful/on-prem should match pattern with semantic version", matcher.matches());
+    }
+
+    public void testWarnAgentValidationStateless() {
+        var sampleWarningWithFullAgent = "299 Elasticsearch-e4ccab7b7122041b8315194941bef592410916d0 "
+            + "\"[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.\"";
+
+        var pattern = HeaderWarning.getPatternWithoutSemanticVersion();
+        final Matcher matcher = pattern.matcher(sampleWarningWithFullAgent);
+        assertTrue("Warning on stateless should match pattern without semantic version", matcher.matches());
     }
 
     private String allNotAllowedChars() {

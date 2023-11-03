@@ -16,10 +16,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodeWithStatus;
+import org.elasticsearch.cluster.metadata.MetadataFeatures;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,9 +37,9 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
     private final int desiredNodesVersion;
 
-    public DesiredNodesUpgradeIT(@Name("upgradeNode") Integer upgradeNode) {
-        super(upgradeNode);
-        desiredNodesVersion = Objects.requireNonNullElse(upgradeNode, -1) + 2;
+    public DesiredNodesUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
+        super(upgradedNodes);
+        desiredNodesVersion = upgradedNodes + 1;
     }
 
     private enum ProcessorsPrecision {
@@ -51,9 +50,11 @@ public class DesiredNodesUpgradeIT extends ParameterizedRollingUpgradeTestCase {
     public void testUpgradeDesiredNodes() throws Exception {
         assumeTrue("Desired nodes was introduced in 8.1", getOldClusterVersion().onOrAfter(Version.V_8_1_0));
 
-        if (getOldClusterVersion().onOrAfter(Processors.DOUBLE_PROCESSORS_SUPPORT_VERSION)) {
+        var featureVersions = new MetadataFeatures().getHistoricalFeatures();
+
+        if (getOldClusterVersion().onOrAfter(featureVersions.get(DesiredNode.DOUBLE_PROCESSORS_SUPPORTED))) {
             assertUpgradedNodesCanReadDesiredNodes();
-        } else if (getOldClusterVersion().onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+        } else if (getOldClusterVersion().onOrAfter(featureVersions.get(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED))) {
             assertDesiredNodesUpdatedWithRoundedUpFloatsAreIdempotent();
         } else {
             assertDesiredNodesWithFloatProcessorsAreRejectedInOlderVersions();

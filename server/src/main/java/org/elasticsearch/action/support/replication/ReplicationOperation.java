@@ -661,7 +661,7 @@ public class ReplicationOperation<
 
     }
 
-    public static class RetryOnPrimaryException extends ElasticsearchException {
+    public static final class RetryOnPrimaryException extends ElasticsearchException {
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
         }

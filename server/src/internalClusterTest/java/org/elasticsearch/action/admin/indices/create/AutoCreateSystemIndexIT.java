@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -117,7 +116,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -136,7 +135,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(AutoCreateAction.INSTANCE, request).get();
         }
 
-        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        DocWriteResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
         assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
     }
 
@@ -170,7 +169,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(List.of(indexName + "*"))
                 .addAlias(new Alias(indexName + "-legacy-alias"))
-                .get()
         );
 
         String nonPrimaryIndex = indexName + "-2";
@@ -223,7 +221,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
-            ).get()
+            )
         );
 
         String nonPrimaryIndex = indexName + "-2";
@@ -247,7 +245,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+            )
         );
     }
 
@@ -270,7 +268,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+            )
         );
     }
 

@@ -46,7 +46,7 @@ import java.util.function.Supplier;
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
  */
-public class FetchPhase {
+public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;

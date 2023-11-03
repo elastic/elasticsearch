@@ -52,7 +52,6 @@ public class RemoteClusterClientTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97080")
     public void testConnectAndExecuteRequest() throws Exception {
         Settings remoteSettings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster")
@@ -236,11 +235,7 @@ public class RemoteClusterClientTests extends ESTestCase {
             ) {
                 CountDownLatch latch = new CountDownLatch(1);
                 service.addConnectBehavior(remoteTransport, (transport, discoveryNode, profile, listener) -> {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     listener.onFailure(new ConnectTransportException(discoveryNode, "simulated"));
                 });
                 service.start();

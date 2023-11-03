@@ -1727,6 +1727,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
 
         private final Map<String, MappingMetadata> mappingsByHash;
 
+        @SuppressWarnings("this-escape")
         public Builder() {
             this(Map.of(), 0);
         }
@@ -1749,6 +1750,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             this.reservedStateMetadata = new HashMap<>(metadata.reservedStateMetadata);
         }
 
+        @SuppressWarnings("this-escape")
         private Builder(Map<String, MappingMetadata> mappingsByHash, int indexCountHint) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = ImmutableOpenMap.builder(indexCountHint);

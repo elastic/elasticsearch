@@ -100,11 +100,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     @Before
     public void setupClient() {
         threadPool = new TestThreadPool(getTestName());
-
-        // TODO: temporary, remove in #97879
         transportService = mock(TransportService.class);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         client = mock(Client.class);
         idxReqReference = new AtomicReference<>();
         authenticationService = mock(AuthenticationService.class);

@@ -31,17 +31,17 @@ import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.getMethod;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
-import static org.elasticsearch.compute.gen.Types.BLOCK;
+import static org.elasticsearch.compute.gen.Types.BLOCK_REF;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
-import static org.elasticsearch.compute.gen.Types.BYTES_REF_ARRAY;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
+import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
-import static org.elasticsearch.compute.gen.Types.VECTOR;
 import static org.elasticsearch.compute.gen.Types.WARNINGS;
-import static org.elasticsearch.compute.gen.Types.arrayVectorType;
 import static org.elasticsearch.compute.gen.Types.blockType;
+import static org.elasticsearch.compute.gen.Types.builderType;
+import static org.elasticsearch.compute.gen.Types.vectorFixedBuilderType;
+import static org.elasticsearch.compute.gen.Types.vectorType;
 
 public class MvEvaluatorImplementer {
     private final TypeElement declarationType;
@@ -148,6 +148,8 @@ public class MvEvaluatorImplementer {
             builder.addMethod(evalAscending("evalAscendingNullable", true));
             builder.addMethod(evalAscending("evalAscendingNotNullable", false));
         }
+
+        builder.addType(factory());
         return builder.build();
     }
 
@@ -182,7 +184,7 @@ public class MvEvaluatorImplementer {
         Consumer<MethodSpec.Builder> body
     ) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(name);
-        builder.returns(nullable ? BLOCK : VECTOR).addParameter(BLOCK, "fieldVal");
+        builder.returns(BLOCK_REF).addParameter(BLOCK_REF, "ref");
         if (override) {
             builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         } else {
@@ -193,21 +195,22 @@ public class MvEvaluatorImplementer {
 
         preflight.accept(builder);
 
-        builder.addStatement("$T v = ($T) fieldVal", blockType, blockType);
+        builder.beginControlFlow("try (ref)");
+        builder.addStatement("$T v = ($T) ref.block()", blockType, blockType);
         builder.addStatement("int positionCount = v.getPositionCount()");
+        TypeName builderType;
         if (nullable) {
-            TypeName resultBlockType = blockType(resultType);
-            builder.addStatement("$T.Builder builder = $T.newBlockBuilder(positionCount)", resultBlockType, resultBlockType);
+            builderType = builderType(blockType(resultType));
         } else if (resultType.equals(BYTES_REF)) {
-            builder.addStatement(
-                "$T values = new $T(positionCount, $T.NON_RECYCLING_INSTANCE)",  // TODO blocks should use recycling array
-                BYTES_REF_ARRAY,
-                BYTES_REF_ARRAY,
-                BIG_ARRAYS
-            );
+            builderType = builderType(vectorType(resultType));
         } else {
-            builder.addStatement("$T[] values = new $T[positionCount]", resultType, resultType);
+            builderType = vectorFixedBuilderType(resultType);
         }
+        builder.beginControlFlow(
+            "try ($T builder = driverContext.blockFactory().$L(positionCount))",
+            builderType,
+            Methods.buildFromFactory(builderType)
+        );
 
         if (false == workType.equals(fieldType) && workType.isPrimitive() == false) {
             builder.addStatement("$T work = new $T()", workType, workType);
@@ -244,11 +247,9 @@ public class MvEvaluatorImplementer {
         }
         builder.endControlFlow();
 
-        if (nullable) {
-            builder.addStatement("return builder.build()");
-        } else {
-            builder.addStatement("return new $T(values, positionCount)", arrayVectorType(resultType));
-        }
+        builder.addStatement("return Block.Ref.floating(builder.build()$L)", nullable ? "" : ".asBlock()");
+        builder.endControlFlow();
+        builder.endControlFlow();
         return builder.build();
     }
 
@@ -258,8 +259,8 @@ public class MvEvaluatorImplementer {
             if (ascendingFunction == null) {
                 return;
             }
-            builder.beginControlFlow("if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING)");
-            builder.addStatement("return $L(fieldVal)", name.replace("eval", "evalAscending"));
+            builder.beginControlFlow("if (ref.block().mvSortedAscending())");
+            builder.addStatement("return $L(ref)", name.replace("eval", "evalAscending"));
             builder.endControlFlow();
         }, builder -> {
             builder.addStatement("int first = v.getFirstValueIndex(p)");
@@ -268,7 +269,7 @@ public class MvEvaluatorImplementer {
                 builder.beginControlFlow("if (valueCount == 1)");
                 fetch(builder, "value", fieldType, "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
                 singleValueFunction.call(builder);
-                writeResult(builder, nullable);
+                writeResult(builder);
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
@@ -302,7 +303,7 @@ public class MvEvaluatorImplementer {
                 builder.endControlFlow();
                 finishFunction.call(builder, "work");
             }
-            writeResult(builder, nullable);
+            writeResult(builder);
         });
     }
 
@@ -313,7 +314,7 @@ public class MvEvaluatorImplementer {
             builder.addStatement("int first = v.getFirstValueIndex(p)");
             fetch(builder, "value", fieldType, "first", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
             singleValueFunction.call(builder);
-            writeResult(builder, nullable);
+            writeResult(builder);
         });
     }
 
@@ -332,18 +333,69 @@ public class MvEvaluatorImplementer {
         return evalShell(name, false, nullable, javadoc, builder -> {}, builder -> {
             builder.addStatement("int first = v.getFirstValueIndex(p)");
             ascendingFunction.call(builder);
-            writeResult(builder, nullable);
+            writeResult(builder);
         });
     }
 
-    private void writeResult(MethodSpec.Builder builder, boolean nullable) {
-        if (nullable) {
-            builder.addStatement("builder.$L(result)", appendMethod(resultType));
-        } else if (fieldType.equals(BYTES_REF)) {
-            builder.addStatement("values.append(result)");
+    private void writeResult(MethodSpec.Builder builder) {
+        if (fieldType.equals(BYTES_REF)) {
+            builder.addStatement("builder.appendBytesRef(result)");
         } else {
-            builder.addStatement("values[p] = result");
+            builder.addStatement("builder.$L(result)", appendMethod(resultType));
         }
+    }
+
+    private TypeSpec factory() {
+        TypeSpec.Builder builder = TypeSpec.classBuilder("Factory");
+        builder.addSuperinterface(EXPRESSION_EVALUATOR_FACTORY);
+        builder.addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+        if (warnExceptions.isEmpty() == false) {
+            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+        }
+        builder.addField(EXPRESSION_EVALUATOR_FACTORY, "field", Modifier.PRIVATE, Modifier.FINAL);
+
+        builder.addMethod(factoryCtor());
+        builder.addMethod(factoryGet());
+        builder.addMethod(factoryToString());
+        return builder.build();
+    }
+
+    private MethodSpec factoryCtor() {
+        MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(SOURCE, "source");
+        }
+        builder.addParameter(EXPRESSION_EVALUATOR_FACTORY, "field");
+        if (warnExceptions.isEmpty() == false) {
+            builder.addStatement("this.source = source");
+        }
+        builder.addStatement("this.field = field");
+        return builder.build();
+    }
+
+    private MethodSpec factoryGet() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("get").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "context");
+        builder.returns(implementation);
+
+        List<String> args = new ArrayList<>();
+        if (warnExceptions.isEmpty() == false) {
+            args.add("source");
+        }
+        args.add("field.get(context)");
+        args.add("context");
+        builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
+        return builder.build();
+    }
+
+    private MethodSpec factoryToString() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("toString").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC);
+        builder.returns(String.class);
+        builder.addStatement("return $S + field + $S", declarationType.getSimpleName() + "[field=", "]");
+        return builder.build();
     }
 
     /**

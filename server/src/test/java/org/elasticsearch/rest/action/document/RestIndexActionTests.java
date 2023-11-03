@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestIndexActionTests extends RestActionTestCase {
+public final class RestIndexActionTests extends RestActionTestCase {
 
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 

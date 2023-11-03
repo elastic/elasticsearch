@@ -86,7 +86,7 @@ public class TaskRecoveryIT extends ESIntegTestCase {
         } finally {
             // Release the EngineTestPlugin, which will allow translog recovery to complete
             StreamSupport.stream(internalCluster().getInstances(PluginsService.class).spliterator(), false)
-                .flatMap(ps -> ps.filterPlugins(EnginePlugin.class).stream())
+                .flatMap(ps -> ps.filterPlugins(EnginePlugin.class))
                 .map(EngineTestPlugin.class::cast)
                 .forEach(EngineTestPlugin::release);
         }
@@ -109,11 +109,7 @@ public class TaskRecoveryIT extends ESIntegTestCase {
 
                 @Override
                 public void skipTranslogRecovery() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeAwait(latch);
                     super.skipTranslogRecovery();
                 }
             });

@@ -16,7 +16,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-public class RemoteClusterResolver extends RemoteClusterAware {
+public final class RemoteClusterResolver extends RemoteClusterAware {
     private final CopyOnWriteArraySet<String> clusters;
 
     public RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {

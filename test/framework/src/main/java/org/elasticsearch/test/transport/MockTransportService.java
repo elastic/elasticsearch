@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,6 +39,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,6 +74,8 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.junit.Assert.assertNotNull;
 
 /**
  * A mock delegate service that allows to simulate different network topology failures.
@@ -175,16 +179,23 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            boundAddress -> new DiscoveryNode(
-                Node.NODE_NAME_SETTING.get(settings),
-                UUIDs.randomBase64UUID(),
-                boundAddress.publishAddress(),
-                Node.NODE_ATTRIBUTES.getAsMap(settings),
-                DiscoveryNode.getRolesFromSettings(settings),
-                version
-            ),
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .name(Node.NODE_NAME_SETTING.get(settings))
+                .address(boundAddress.publishAddress())
+                .attributes(Node.NODE_ATTRIBUTES.getAsMap(settings))
+                .roles(DiscoveryNode.getRolesFromSettings(settings))
+                .version(version)
+                .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, taskHeaders, Tracer.NOOP)
+        );
+    }
+
+    public static MockTransportService getInstance(String nodeName) {
+        assertNotNull("nodeName must not be null", nodeName);
+        return ESTestCase.asInstanceOf(
+            MockTransportService.class,
+            ESIntegTestCase.internalCluster().getInstance(TransportService.class, nodeName)
         );
     }
 
@@ -209,11 +220,10 @@ public class MockTransportService extends TransportService {
             new StubbableTransport(transport),
             threadPool,
             interceptor,
-            (boundAddress) -> DiscoveryNode.createLocal(
-                settings,
-                boundAddress.publishAddress(),
-                settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID())
-            ),
+            (boundAddress) -> DiscoveryNodeUtils.builder(settings.get(Node.NODE_NAME_SETTING.getKey(), UUIDs.randomBase64UUID()))
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
             clusterSettings,
             createTaskManager(settings, threadPool, Set.of(), Tracer.NOOP)
         );

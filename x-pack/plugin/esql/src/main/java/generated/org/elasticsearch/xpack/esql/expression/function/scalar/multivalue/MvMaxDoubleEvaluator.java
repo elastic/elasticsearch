@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleArrayVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 
@@ -34,93 +33,123 @@ public final class MvMaxDoubleEvaluator extends AbstractMultivalueFunction.Abstr
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Block evalNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
-      return evalAscendingNullable(fieldVal);
+  public Block.Ref evalNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNullable(ref);
     }
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          double value = v.getDouble(first);
+          for (int i = first + 1; i < end; i++) {
+            double next = v.getDouble(i);
+            value = MvMax.process(value, next);
+          }
+          double result = value;
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build());
       }
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      double value = v.getDouble(first);
-      for (int i = first + 1; i < end; i++) {
-        double next = v.getDouble(i);
-        value = MvMax.process(value, next);
-      }
-      double result = value;
-      builder.appendDouble(result);
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field.
    */
   @Override
-  public Vector evalNotNullable(Block fieldVal) {
-    if (fieldVal.mvOrdering() == Block.MvOrdering.ASCENDING) {
-      return evalAscendingNotNullable(fieldVal);
+  public Block.Ref evalNotNullable(Block.Ref ref) {
+    if (ref.block().mvSortedAscending()) {
+      return evalAscendingNotNullable(ref);
     }
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int end = first + valueCount;
-      double value = v.getDouble(first);
-      for (int i = first + 1; i < end; i++) {
-        double next = v.getDouble(i);
-        value = MvMax.process(value, next);
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int end = first + valueCount;
+          double value = v.getDouble(first);
+          for (int i = first + 1; i < end; i++) {
+            double next = v.getDouble(i);
+            value = MvMax.process(value, next);
+          }
+          double result = value;
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
       }
-      double result = value;
-      values[p] = result;
     }
-    return new DoubleArrayVector(values, positionCount);
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Block evalAscendingNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount);
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      if (valueCount == 0) {
-        builder.appendNull();
-        continue;
+  private Block.Ref evalAscendingNullable(Block.Ref ref) {
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          if (valueCount == 0) {
+            builder.appendNull();
+            continue;
+          }
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMax.ascendingIndex(valueCount);
+          double result = v.getDouble(first + idx);
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build());
       }
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMax.ascendingIndex(valueCount);
-      double result = v.getDouble(first + idx);
-      builder.appendDouble(result);
     }
-    return builder.build();
   }
 
   /**
    * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
    */
-  private Vector evalAscendingNotNullable(Block fieldVal) {
-    DoubleBlock v = (DoubleBlock) fieldVal;
-    int positionCount = v.getPositionCount();
-    double[] values = new double[positionCount];
-    for (int p = 0; p < positionCount; p++) {
-      int valueCount = v.getValueCount(p);
-      int first = v.getFirstValueIndex(p);
-      int idx = MvMax.ascendingIndex(valueCount);
-      double result = v.getDouble(first + idx);
-      values[p] = result;
+  private Block.Ref evalAscendingNotNullable(Block.Ref ref) {
+    try (ref) {
+      DoubleBlock v = (DoubleBlock) ref.block();
+      int positionCount = v.getPositionCount();
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+        for (int p = 0; p < positionCount; p++) {
+          int valueCount = v.getValueCount(p);
+          int first = v.getFirstValueIndex(p);
+          int idx = MvMax.ascendingIndex(valueCount);
+          double result = v.getDouble(first + idx);
+          builder.appendDouble(result);
+        }
+        return Block.Ref.floating(builder.build().asBlock());
+      }
     }
-    return new DoubleArrayVector(values, positionCount);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxDoubleEvaluator get(DriverContext context) {
+      return new MvMaxDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
+    }
   }
 }

@@ -37,6 +37,7 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.MultiValueMode;
@@ -57,6 +58,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    @Override
+    protected ScriptFactory parseFromSource() {
+        return BooleanFieldScript.PARSE_FROM_SOURCE;
+    }
+
+    @Override
+    protected ScriptFactory dummyScript() {
+        return BooleanFieldScriptTests.DUMMY;
+    }
 
     @Override
     public void testDocValues() throws IOException {
@@ -120,41 +131,52 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
-
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                {
+                    SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                    assertThat(
+                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                             @Override
-                            public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
-                                return booleans.get(0) ? 3 : 0;
+                            public boolean needs_score() {
+                                return false;
                             }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
-                            public double execute(ExplanationHolder explanation) {
-                                BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
-                                return booleans.getInternal(0) ? 3 : 0;
+                            public ScoreScript newInstance(DocReader docReader) {
+                                return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                    @Override
+                                    public double execute(ExplanationHolder explanation) {
+                                        ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
+                                        return booleans.get(0) ? 3 : 0;
+                                    }
+                                };
                             }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())), equalTo(1));
+                        }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                        equalTo(1)
+                    );
+                }
+                {
+                    SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
+                    assertThat(
+                        searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
+                            @Override
+                            public boolean needs_score() {
+                                return false;
+                            }
+
+                            @Override
+                            public ScoreScript newInstance(DocReader docReader) {
+                                return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                    @Override
+                                    public double execute(ExplanationHolder explanation) {
+                                        BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
+                                        return booleans.getInternal(0) ? 3 : 0;
+                                    }
+                                };
+                            }
+                        }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                        equalTo(1)
+                    );
+                }
             }
         }
     }
@@ -384,6 +406,19 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     simpleMappedFieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext()),
                     ootb.fieldType().rangeQuery(low, high, includeLow, includeHigh, null, null, null, mockContext())
                 );
+            }
+        }
+    }
+
+    public void testBlockLoader() throws IOException {
+        try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            try (DirectoryReader reader = iw.getReader()) {
+                BooleanScriptFieldType fieldType = build("xor_param", Map.of("param", false), OnScriptError.FAIL);
+                List<Boolean> expected = List.of(false, true);
+                assertThat(blockLoaderReadValues(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromSingleDoc(reader, fieldType), equalTo(expected));
             }
         }
     }

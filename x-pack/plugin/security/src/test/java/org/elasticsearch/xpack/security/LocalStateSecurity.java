@@ -74,6 +74,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
         }
     }
 
+    @SuppressWarnings("this-escape")
     public LocalStateSecurity(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateSecurity thisVar = this;

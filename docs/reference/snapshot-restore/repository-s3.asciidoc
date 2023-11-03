@@ -224,18 +224,49 @@ covered by the {es} test suite.
 Note that some storage systems claim to be S3-compatible but do not faithfully
 emulate S3's behaviour in full. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer consistency
-and performance at least as good as S3 even when accessed concurrently by
-multiple nodes. You will need to work with the supplier of your storage system
-to address any incompatibilities you encounter.
+endpoints, return the same errors in case of failures, and offer consistency and
+performance at least as good as S3 even when accessed concurrently by multiple
+nodes. You will need to work with the supplier of your storage system to address
+any incompatibilities you encounter. Please do not report {es} issues involving
+storage systems which claim to be S3-compatible unless you can demonstrate that
+the same issue exists when using a genuine AWS S3 repository.
 
 You can perform some basic checks of the suitability of your storage system
 using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
 does not complete successfully, or indicates poor performance, then your
 storage system is not fully compatible with AWS S3 and therefore unsuitable for
 use as a snapshot repository. However, these checks do not guarantee full
-compatibility. Incompatible error codes and consistency or performance issues
-may be rare and hard to reproduce.
+compatibility.
+
+Most storage systems can be configured to log the details of their interaction
+with {es}. If you are investigating a suspected incompatibility with AWS S3, it
+is usually simplest to collect these logs and provide them to the supplier of
+your storage system for further analysis. If the incompatibility is not clear
+from the logs emitted by the storage system, configure {es} to log every
+request it makes to the S3 API by <<configuring-logging-levels,setting the
+logging level>> of the `com.amazonaws.request` logger to `DEBUG`:
+
+[source,console]
+----
+PUT /_cluster/settings
+{
+  "persistent": {
+    "logger.com.amazonaws.request": "DEBUG"
+  }
+}
+----
+// TEST[skip:we don't really want to change this logger]
+
+Collect the Elasticsearch logs covering the time period of the failed analysis
+from all nodes in your cluster and share them with the supplier of your storage
+system along with the analysis response so they can use them to determine the
+problem. See the
+https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/java-dg-logging.html[AWS Java SDK]
+documentation for further information, including details about other loggers
+that can be used to obtain even more verbose logs. When you have finished
+collecting the logs needed by your supplier, set the logger settings back to
+`null` to return to the default logging configuration. See <<cluster-logger>>
+and <<cluster-update-settings>> for more information.
 
 [[repository-s3-repository]]
 ==== Repository settings

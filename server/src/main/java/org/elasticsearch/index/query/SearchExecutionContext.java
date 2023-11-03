@@ -48,9 +48,9 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
@@ -98,6 +98,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final Map<String, Query> namedQueries = new HashMap<>();
     private NestedScope nestedScope;
 
+    private QueryBuilder aliasFilter;
+
     /**
      * Build a {@linkplain SearchExecutionContext}.
      */
@@ -110,7 +112,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
-        ScriptService scriptService,
+        ScriptCompiler scriptService,
         XContentParserConfiguration parserConfiguration,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
@@ -183,7 +185,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
-        ScriptService scriptService,
+        ScriptCompiler scriptService,
         XContentParserConfiguration parserConfig,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
@@ -226,6 +228,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.lookup = null;
         this.namedQueries.clear();
         this.nestedScope = new NestedScope();
+    }
+
+    // Set alias filter, so it can be applied for queries that need it (e.g. knn query)
+    public void setAliasFilter(QueryBuilder aliasFilter) {
+        this.aliasFilter = aliasFilter;
+    }
+
+    public QueryBuilder getAliasFilter() {
+        return aliasFilter;
     }
 
     /**
@@ -396,9 +407,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceProvider sourceProvider = isSourceSynthetic() ? (ctx, doc) -> {
-                throw new IllegalArgumentException("Cannot access source from scripts in synthetic mode");
-            } : SourceProvider.fromStoredFields();
+            SourceProvider sourceProvider = isSourceSynthetic()
+                ? SourceProvider.fromSyntheticSource(mappingLookup.getMapping())
+                : SourceProvider.fromStoredFields();
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;

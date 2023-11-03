@@ -68,6 +68,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BytesRef apply(long ord) throws IOException;
     }
 
+    @SuppressWarnings("this-escape")
     public GlobalOrdinalsStringTermsAggregator(
         String name,
         AggregatorFactories factories,
@@ -97,6 +98,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         } else {
             this.collectionStrategy = cardinality.map(estimate -> {
                 if (estimate > 1) {
+                    // This is a 500 class error, because we should never be able to reach it.
                     throw new AggregationExecutionException("Dense ords don't know how to collect from many buckets");
                 }
                 return new DenseGlobalOrds();

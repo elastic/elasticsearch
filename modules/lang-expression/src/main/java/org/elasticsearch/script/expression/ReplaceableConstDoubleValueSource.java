@@ -38,13 +38,8 @@ final class ReplaceableConstDoubleValueSource extends DoubleValuesSource {
     }
 
     @Override
-    public Explanation explain(LeafReaderContext ctx, int docId, Explanation scoreExplanation) throws IOException {
-        // TODO where is this explain called? I bet it's never tested, and probably never called.
-        ReplaceableConstDoubleValues fv = specialValues.get(ctx);
-        if (fv.advanceExact(docId)) {
-            return Explanation.match((float) fv.doubleValue(), "ReplaceableConstDoubleValues");
-        }
-        return Explanation.noMatch("ReplaceableConstDoubleValues");
+    public Explanation explain(LeafReaderContext ctx, int docId, Explanation scoreExplanation) {
+        throw new UnsupportedOperationException("explain is not supported for _value and should never be called");
     }
 
     @Override

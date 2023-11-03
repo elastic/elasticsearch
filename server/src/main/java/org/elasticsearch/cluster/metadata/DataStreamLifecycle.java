@@ -57,8 +57,6 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
-    public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
-
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
@@ -176,7 +174,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
             out.writeOptionalWriteable(dataRetention);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_026)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             out.writeOptionalWriteable(downsampling);
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
@@ -190,7 +188,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         } else {
             dataRetention = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_026)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_040)) {
             downsampling = in.readOptionalWriteable(Downsampling::read);
         } else {
             downsampling = null;

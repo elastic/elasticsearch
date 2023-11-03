@@ -19,7 +19,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 
-public class DayTimes implements Times {
+public final class DayTimes implements Times {
 
     public static final DayTimes NOON = new DayTimes("noon", new int[] { 12 }, new int[] { 0 });
     public static final DayTimes MIDNIGHT = new DayTimes("midnight", new int[] { 0 }, new int[] { 0 });

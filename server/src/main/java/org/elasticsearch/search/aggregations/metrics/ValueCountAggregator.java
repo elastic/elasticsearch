@@ -31,7 +31,7 @@ import java.util.Map;
  * This aggregator works in a multi-bucket mode, that is, when serves as a sub-aggregator, a single aggregator instance aggregates the
  * counts for all buckets owned by the parent aggregator)
  */
-public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
     final ValuesSource valuesSource;
 

@@ -124,7 +124,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -709,6 +708,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final RecoverySettings recoverySettings = new RecoverySettings(Settings.EMPTY, service);
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
         when(shard.segmentStats(anyBoolean(), anyBoolean())).thenReturn(mock(SegmentsStats.class));
         when(shard.isRelocatedPrimary()).thenReturn(true);
@@ -716,7 +716,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class));
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("test")
             .settings(
@@ -799,11 +799,12 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
         when(shard.isRelocatedPrimary()).thenReturn(false);
+        when(shard.getThreadPool()).thenReturn(threadPool);
         doAnswer(invocation -> {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
             return null;
-        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
+        }).when(shard).acquirePrimaryOperationPermit(any(), any(Executor.class));
 
         Thread cancelingThread = new Thread(() -> cancellableThreads.cancel("test"));
         cancelingThread.start();

@@ -15,13 +15,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,10 +53,10 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -335,11 +335,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         client.respondStats((request, listener) -> {
             CountDownLatch latch = new CountDownLatch(1);
             threads.add(startThread(() -> {
-                try {
-                    assertThat(latch.await(10, TimeUnit.SECONDS), is(true));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 listener.onResponse(response);
             }));
             threads.add(startThread(() -> {
@@ -452,6 +448,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             Version.CURRENT,
             TransportVersion.current(),
             IndexVersion.current(),
+            Map.of(),
             Build.current(),
             node,
             null,
@@ -525,8 +522,11 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            assertThat(action, anyOf(Matchers.sameInstance(NodesStatsAction.INSTANCE), Matchers.sameInstance(NodesInfoAction.INSTANCE)));
-            if (action == NodesStatsAction.INSTANCE) {
+            assertThat(
+                action,
+                anyOf(Matchers.sameInstance(TransportNodesStatsAction.TYPE), Matchers.sameInstance(TransportNodesInfoAction.TYPE))
+            );
+            if (action == TransportNodesStatsAction.TYPE) {
                 NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
                 assertThat(nodesStatsRequest.timeout(), equalTo(fetchTimeout));
                 assertThat(responderStats, notNullValue());
@@ -569,13 +569,12 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {
-        return new DiscoveryNode(
-            node.getName(),
-            node.getId(),
-            node.getAddress(),
-            node.getAttributes(),
-            node.getRoles(),
-            node.getVersionInformation()
-        );
+        return DiscoveryNodeUtils.builder(node.getId())
+            .name(node.getName())
+            .address(node.getAddress())
+            .attributes(node.getAttributes())
+            .roles(node.getRoles())
+            .version(node.getVersionInformation())
+            .build();
     }
 }

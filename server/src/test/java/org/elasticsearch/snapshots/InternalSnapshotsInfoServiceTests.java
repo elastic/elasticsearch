@@ -128,16 +128,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                try {
-                    assertThat(indexId.getName(), equalTo(indexName));
-                    assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
-                    latch.await();
-                    getShardSnapshotStatusCount.incrementAndGet();
-                    return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+                assertThat(indexId.getName(), equalTo(indexName));
+                assertThat(shardId.id(), allOf(greaterThanOrEqualTo(0), lessThan(numberOfShards)));
+                safeAwait(latch);
+                getShardSnapshotStatusCount.incrementAndGet();
+                return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, expectedShardSizes[shardId.id()], null);
             }
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
@@ -196,7 +192,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
                     new Snapshot("_repo", snapshotId),
                     indexId,
@@ -284,7 +280,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 return IndexShardSnapshotStatus.newDone(0L, 0L, 0, 0, 0L, randomNonNegativeLong(), null);
             }
         };
@@ -320,7 +316,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     public void testCleanUpSnapshotShardSizes() throws Exception {
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
-            public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+            public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
                 if (randomBoolean()) {
                     throw new SnapshotException(new Snapshot("_repo", snapshotId), "simulated");
                 } else {

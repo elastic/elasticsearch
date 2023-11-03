@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
-public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
+public final class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
 
@@ -85,7 +85,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays
     ) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())

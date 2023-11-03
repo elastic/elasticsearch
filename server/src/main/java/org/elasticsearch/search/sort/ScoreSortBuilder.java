@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
+public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
@@ -167,5 +167,10 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     @Override
     public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
         return this;
+    }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        return true;
     }
 }

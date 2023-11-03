@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -60,6 +61,7 @@ public class AsyncOperatorTests extends ESTestCase {
     }
 
     public void testBasic() {
+        DriverContext driverContext = driverContext();
         int positions = randomIntBetween(0, 10_000);
         List<Long> ids = new ArrayList<>(positions);
         Map<Long, String> dict = new HashMap<>();
@@ -70,7 +72,7 @@ public class AsyncOperatorTests extends ESTestCase {
                 dict.computeIfAbsent(id, k -> randomAlphaOfLength(5));
             }
         }
-        SourceOperator sourceOperator = new AbstractBlockSourceOperator(randomIntBetween(10, 1000)) {
+        SourceOperator sourceOperator = new AbstractBlockSourceOperator(driverContext.blockFactory(), randomIntBetween(10, 1000)) {
             @Override
             protected int remaining() {
                 return ids.size() - currentPosition;
@@ -118,14 +120,8 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(
-            driverContext(),
-            sourceOperator,
-            List.of(asyncOperator),
-            outputOperator,
-            () -> assertFalse(it.hasNext())
-        );
-        Driver.start(threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
+        Driver driver = new Driver(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, () -> assertFalse(it.hasNext()));
+        Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), future);
         future.actionGet();
     }
 
@@ -214,7 +210,8 @@ public class AsyncOperatorTests extends ESTestCase {
      */
     DriverContext driverContext() {
         return new DriverContext(
-            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking()
+            new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
+            BlockFactory.getNonBreakingInstance()
         );
     }
 }

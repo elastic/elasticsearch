@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSou
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedMinAggregator extends NumericMetricsAggregator.SingleValue {
+public final class HistoBackedMinAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
     final DocValueFormat format;

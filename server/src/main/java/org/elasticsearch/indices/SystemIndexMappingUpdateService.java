@@ -92,7 +92,8 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
         }
 
         // if we're in a mixed-version cluster, exit
-        if (state.hasMixedSystemIndexVersions()) {
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getSmallestNonClientNodeVersion())) {
+            assert state.hasMixedSystemIndexVersions() == false : "Version equality should imply system index mapping version equality";
             logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }

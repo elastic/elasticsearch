@@ -251,8 +251,9 @@ Infra/REST API::
 * Return a 410 (Gone) status code for unavailable API endpoints {es-pull}97397[#97397]
 
 Machine Learning::
+* Add an option for trained models to be platform specific {es-pull}99584[#99584]
 * Add new _inference API {es-pull}99224[#99224]
-* Adding an option for trained models to be platform specific {es-pull}99584[#99584]
+* Add support for PyTorch models quantized with Intel Extension for PyTorch (this feature is _only_ available on `linux_x86_64`) {ml-pull}2547[#2547]
 * Log warnings for jobs unassigned for a long time {es-pull}100154[#100154]
 * Simplify the Inference Ingest Processor configuration {es-pull}100205[#100205]
 

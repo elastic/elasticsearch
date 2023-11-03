@@ -340,23 +340,24 @@ public class ClusterModule extends AbstractModule {
     ) {
         // collect deciders by class so that we can detect duplicates
         Map<Class<?>, AllocationDecider> deciders = new LinkedHashMap<>();
-        addAllocationDecider(deciders, new MaxRetryAllocationDecider());
-        addAllocationDecider(deciders, new ResizeAllocationDecider());
+        // computationally cheaper deciders should be ordered first to skip more expensive ones in case of NO or THROTTLE decision
+        addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new SameShardAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ReplicaAfterPrimaryActiveAllocationDecider());
+        addAllocationDecider(deciders, new MaxRetryAllocationDecider());
+        addAllocationDecider(deciders, new ShardsLimitAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new RebalanceOnlyWhenActiveAllocationDecider());
         addAllocationDecider(deciders, new ClusterRebalanceAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new ConcurrentRebalanceAllocationDecider(clusterSettings));
-        addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
+        addAllocationDecider(deciders, new ResizeAllocationDecider());
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
         addAllocationDecider(deciders, new NodeReplacementAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
-        addAllocationDecider(deciders, new SameShardAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(clusterSettings));
-        addAllocationDecider(deciders, new ShardsLimitAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
 
         clusterPlugins.stream()

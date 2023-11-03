@@ -8,6 +8,7 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 
 import java.io.Closeable;
@@ -76,4 +77,10 @@ public interface InferenceService extends Closeable {
     default boolean isInClusterService() {
         return false;
     }
+
+    /**
+     * Defines the version required across all clusters to use this service
+     * @return {@link TransportVersion} specifying the version
+     */
+    TransportVersion getMinimalSupportedVersion();
 }

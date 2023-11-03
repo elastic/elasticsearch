@@ -27,14 +27,12 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
         super(NAME, Response::new);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
-        @SuppressWarnings("this-escape")
         public Request() {
             setAllowNoResources(true);
         }
 
-        @SuppressWarnings("this-escape")
         public Request(String filterId) {
             setResourceId(filterId);
             setAllowNoResources(true);

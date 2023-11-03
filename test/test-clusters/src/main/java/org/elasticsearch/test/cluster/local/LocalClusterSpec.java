@@ -27,12 +27,14 @@ public class LocalClusterSpec implements ClusterSpec {
     private final String name;
     private final List<User> users;
     private final List<Resource> roleFiles;
+    private final boolean shared;
     private List<LocalNodeSpec> nodes;
 
-    public LocalClusterSpec(String name, List<User> users, List<Resource> roleFiles) {
+    public LocalClusterSpec(String name, List<User> users, List<Resource> roleFiles, boolean shared) {
         this.name = name;
         this.users = users;
         this.roleFiles = roleFiles;
+        this.shared = shared;
     }
 
     public String getName() {
@@ -49,6 +51,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
     public List<LocalNodeSpec> getNodes() {
         return nodes;
+    }
+
+    public boolean isShared() {
+        return shared;
     }
 
     public void setNodes(List<LocalNodeSpec> nodes) {
@@ -281,7 +287,7 @@ public class LocalClusterSpec implements ClusterSpec {
          * @return a new local node spec
          */
         private LocalNodeSpec getFilteredSpec(SettingsProvider filteredProvider, SettingsProvider filteredKeystoreProvider) {
-            LocalClusterSpec newCluster = new LocalClusterSpec(cluster.name, cluster.users, cluster.roleFiles);
+            LocalClusterSpec newCluster = new LocalClusterSpec(cluster.name, cluster.users, cluster.roleFiles, cluster.shared);
 
             List<LocalNodeSpec> nodeSpecs = cluster.nodes.stream()
                 .map(

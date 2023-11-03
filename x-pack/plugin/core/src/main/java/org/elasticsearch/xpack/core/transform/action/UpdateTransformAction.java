@@ -42,7 +42,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         super(NAME, Response::new);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
 
         private final TransformConfigUpdate update;
         private final String id;
@@ -50,7 +50,6 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         private TransformConfig config;
         private AuthorizationState authState;
 
-        @SuppressWarnings("this-escape")
         public Request(TransformConfigUpdate update, String id, boolean deferValidation, TimeValue timeout) {
             this.update = update;
             this.id = id;

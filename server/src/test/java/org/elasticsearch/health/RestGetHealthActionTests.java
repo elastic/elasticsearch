@@ -6,8 +6,15 @@
  * Side Public License, v 1.
  */
 
-/**
- * Aggregations module
- */
-package org.elasticsearch.search.aggregations.bucket;
+package org.elasticsearch.health;
 
+import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.is;
+
+public class RestGetHealthActionTests extends ESTestCase {
+
+    public void testHealthReportAPIDoesNotTripCircuitBreakers() {
+        assertThat(new RestGetHealthAction().canTripCircuitBreaker(), is(false));
+    }
+}

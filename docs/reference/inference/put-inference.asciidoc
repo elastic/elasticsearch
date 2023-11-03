@@ -2,6 +2,8 @@
 [[put-inference-api]]
 === Create {infer} API
 
+experimental[]
+
 Creates a model to perform an {infer} task.
 
 

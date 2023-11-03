@@ -405,8 +405,8 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
-            org.elasticsearch.features.FeaturesSupportedSpecification,
-            org.elasticsearch.health.HealthFeature,
+            org.elasticsearch.features.FeatureInfrastructureFeatures,
+            org.elasticsearch.health.HealthFeatures,
             org.elasticsearch.cluster.metadata.MetadataFeatures,
             org.elasticsearch.rest.RestFeatures;
 

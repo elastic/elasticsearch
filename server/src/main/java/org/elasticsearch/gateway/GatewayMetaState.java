@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RemoveBeforeV9;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.IndexVersions;
@@ -184,8 +185,7 @@ public class GatewayMetaState implements Closeable {
         long currentTerm = onDiskState.currentTerm;
 
         if (onDiskState.empty()) {
-            assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "legacy metadata loader is not needed anymore from v9 onwards";
-            final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
+            final Tuple<Manifest, Metadata> legacyState = loadLegacyMetadata(metaStateService);
             if (legacyState.v1().isEmpty() == false) {
                 metadata = legacyState.v2();
                 lastAcceptedVersion = legacyState.v1().clusterStateVersion();
@@ -232,6 +232,11 @@ public class GatewayMetaState implements Closeable {
         }
 
         return persistedState;
+    }
+
+    @RemoveBeforeV9
+    private static Tuple<Manifest, Metadata> loadLegacyMetadata(MetaStateService metaStateService) throws IOException {
+        return metaStateService.loadFullState();
     }
 
     private PersistedState createInMemoryPersistedState(

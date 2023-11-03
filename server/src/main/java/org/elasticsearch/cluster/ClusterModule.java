@@ -65,6 +65,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RemoveBeforeV9;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -373,6 +374,7 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
+    @RemoveBeforeV9 // in v9 there is only one allocator
     private static ShardsAllocator createShardsAllocator(
         Settings settings,
         ClusterSettings clusterSettings,
@@ -404,7 +406,6 @@ public class ClusterModule extends AbstractModule {
             });
         }
         String allocatorName = SHARDS_ALLOCATOR_TYPE_SETTING.get(settings);
-        assert Version.CURRENT.major == Version.V_7_17_0.major + 1; // in v9 there is only one allocator
         Supplier<ShardsAllocator> allocatorSupplier = allocators.get(allocatorName);
         if (allocatorSupplier == null) {
             throw new IllegalArgumentException("Unknown ShardsAllocator [" + allocatorName + "]");

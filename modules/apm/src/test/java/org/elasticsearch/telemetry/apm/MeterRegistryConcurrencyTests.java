@@ -110,8 +110,8 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         // finish long-running registration
         registerLatch.countDown();
         // wait for everything to quiesce, registerLatch.countDown() doesn't ensure lock has been released
-        assertBusy(setProviderThread::join);
-        assertBusy(registerThread::join);
+        setProviderThread.join();
+        registerThread.join();
         // assert that a meter was overriden
         assertThat(meterRegistrar.getMeter(), sameInstance(noopMeter));
     }

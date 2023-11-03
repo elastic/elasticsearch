@@ -20,5 +20,6 @@
     "description": "default pipeline for the logs index template installed by x-pack",
     "managed": true
   },
-  "version": ${xpack.stack.template.version}
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
 }

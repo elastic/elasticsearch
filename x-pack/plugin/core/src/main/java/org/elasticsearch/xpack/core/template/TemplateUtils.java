@@ -98,7 +98,7 @@ public class TemplateUtils {
         }
     }
 
-    private static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
+    public static String replaceVariables(String input, String version, String versionProperty, Map<String, String> variables) {
         String template = replaceVariable(input, versionProperty, version);
         for (Map.Entry<String, String> variable : variables.entrySet()) {
             template = replaceVariable(template, variable.getKey(), variable.getValue());

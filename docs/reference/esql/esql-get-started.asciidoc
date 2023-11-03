@@ -198,10 +198,10 @@ rows.
 [[esql-getting-started-eval]]
 === Compute values
 
-Use the <<esql-eval>> command to append rows to a table, with calculated values.
-For example, the following query appends a `duration_ms` column. The values in
-the column are computed by dividing `event.duration` by 1,000,000. In other
-words: `event.duration` converted from nanoseconds to milliseconds.
+Use the <<esql-eval>> command to append columns to a table, with calculated
+values. For example, the following query appends a `duration_ms` column. The
+values in the column are computed by dividing `event.duration` by 1,000,000. In
+other words: `event.duration` converted from nanoseconds to milliseconds.
 
 [source,esql]
 ----
@@ -360,7 +360,7 @@ command:
 FROM sample_data
 | KEEP @timestamp, client.ip, event.duration
 | EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy
+| ENRICH clientip_policy ON client.ip WITH env
 ----
 
 You can use the new `env` column that's added by the `ENRICH` command in
@@ -372,7 +372,7 @@ environment:
 FROM sample_data
 | KEEP @timestamp, client.ip, event.duration
 | EVAL client.ip = TO_STRING(client.ip)
-| ENRICH clientip_policy
+| ENRICH clientip_policy ON client.ip WITH env
 | STATS median_duration = MEDIAN(event.duration) BY env
 ----
 
@@ -412,7 +412,7 @@ FROM sample_data
 This adds a `server.ip` column to those rows that have a `message` that matches
 this pattern. For other rows, the value of `server.ip` is `null`.
 
-You can use the new `server.ip` column that's added by the `ENRICH` command in
+You can use the new `server.ip` column that's added by the `DISSECT` command in
 subsequent commands. For example, to determine how many connections each server
 has accepted:
 

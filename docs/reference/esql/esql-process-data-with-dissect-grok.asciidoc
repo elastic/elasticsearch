@@ -21,7 +21,7 @@ use the {esql} <<esql-dissect>> and <<esql-grok>> commands.
 ==== `DISSECT` or `GROK`? Or both?
 
 `DISSECT` works by breaking up a string using a delimiter-based pattern. `GROK`
-works similarly, but uses regular expressions. This make `GROK` more powerful,
+works similarly, but uses regular expressions. This makes `GROK` more powerful,
 but generally also slower. `DISSECT` works well when data is reliably repeated.
 `GROK` is a better choice when you really need the power of regular expressions,
 for example when the structure of your text varies from row to row.

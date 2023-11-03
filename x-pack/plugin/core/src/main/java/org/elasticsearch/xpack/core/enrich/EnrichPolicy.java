@@ -222,9 +222,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(MATCH_FIELD.getPreferredName(), matchField);
         builder.array(ENRICH_FIELDS.getPreferredName(), enrichFields.toArray(new String[0]));
-        if (params.paramAsBoolean("include_version", false) && elasticsearchVersion != null) {
-            builder.field(ELASTICSEARCH_VERSION.getPreferredName(), elasticsearchVersion.toString());
-        }
     }
 
     @Override

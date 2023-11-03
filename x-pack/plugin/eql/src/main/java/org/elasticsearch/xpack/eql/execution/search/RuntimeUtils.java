@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.eql.EqlClientException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
@@ -156,7 +157,7 @@ public final class RuntimeUtils {
                 hitNames.add(he.hitName());
 
                 if (hitNames.size() > 1) {
-                    throw new EqlIllegalArgumentException("Multi-level nested fields [{}] not supported yet", hitNames);
+                    throw new EqlClientException("Multi-level nested fields [{}] not supported yet", hitNames);
                 }
 
                 return new HitExtractorInput(l.source(), l.expression(), he);

@@ -215,6 +215,7 @@ public class MessagesTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101733")
     public void testJoinRequestEqualsHashCodeSerialization() {
         Join initialJoin = new Join(
             createNode(randomAlphaOfLength(10)),

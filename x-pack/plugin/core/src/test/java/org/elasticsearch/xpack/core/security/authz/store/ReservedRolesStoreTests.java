@@ -432,6 +432,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/put", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/execute", request, authentication), is(true));
         assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/get", request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/delete", request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check("cluster:admin/xpack/enrich/stats", request, authentication), is(true));
 
         // SAML and token
         assertThat(kibanaRole.cluster().check(SamlPrepareAuthenticationAction.NAME, request, authentication), is(true));

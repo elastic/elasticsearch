@@ -201,16 +201,16 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         );
     }
 
-    private void restoreSecurityIndexAvailability() throws IOException {
-        Request openRequest = new Request("POST", "/.security/_open");
-        openRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
-        assertOK(adminClient().performRequest(openRequest));
-    }
-
     private void makeSecurityIndexUnavailable() throws IOException {
         Request closeRequest = new Request("POST", "/.security/_close");
         closeRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
         assertOK(adminClient().performRequest(closeRequest));
+    }
+
+    private void restoreSecurityIndexAvailability() throws IOException {
+        Request openRequest = new Request("POST", "/.security/_open");
+        openRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
+        assertOK(adminClient().performRequest(openRequest));
     }
 
     private RequestOptions.Builder systemIndexWarningHandlerOptions(String index) {

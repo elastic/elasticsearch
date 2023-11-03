@@ -14,10 +14,10 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -89,6 +89,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
+    public static final Setting<Boolean> CACHE_LAST_SUCCESSFUL_LOAD_SETTING = Setting.boolSetting(
+        "xpack.security.authc.role_mapping.cache_last_successful_load",
+        false,
+        Setting.Property.NodeScope
+    );
+
     private final Settings settings;
     private final Client client;
     private final SecurityIndexManager securityIndex;
@@ -98,7 +104,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final AtomicReference<List<ExpressionRoleMapping>> lastSuccessfulLoadRef = new AtomicReference<>(null);
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
-        this(settings, client, securityIndex, scriptService, DiscoveryNode.isStateless(settings));
+        this(settings, client, securityIndex, scriptService, CACHE_LAST_SUCCESSFUL_LOAD_SETTING.get(settings));
     }
 
     NativeRoleMappingStore(
@@ -153,9 +159,11 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 request,
                 new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
                     final List<ExpressionRoleMapping> mappingList = mappings.stream().filter(Objects::nonNull).toList();
-                    logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
+                    // TODO
+                    logger.info("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
                     if (shouldCacheSuccessfulLoad) {
-                        logger.debug("caching loaded role-mapping(s)");
+                        // TODO
+                        logger.info("caching loaded role-mapping(s) [{}]", mappingList);
                         lastSuccessfulLoadRef.set(mappingList);
                     }
                     listener.onResponse(mappingList);
@@ -366,12 +374,24 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
-        if (isMoveFromRedToNonRed(previousState, currentState)
-            || isIndexDeleted(previousState, currentState)
-            || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
-            || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
+        final boolean moveFromRedToNonRed = isMoveFromRedToNonRed(previousState, currentState);
+        final boolean indexDeleted = isIndexDeleted(previousState, currentState);
+        final boolean uuidChanged = Objects.equals(previousState.indexUUID, currentState.indexUUID) == false;
+        final boolean indexNotUpToDateChanged = previousState.isIndexUpToDate != currentState.isIndexUpToDate;
+        if (moveFromRedToNonRed || indexDeleted || uuidChanged || indexNotUpToDateChanged) {
             refreshRealms(ActionListener.noop(), null);
-            lastSuccessfulLoadRef.set(null);
+            // TODO to clear or not to clear...
+            if (shouldCacheSuccessfulLoad && false == indexDeleted) {
+                logger.debug(
+                    "Clearing role mapping cache."
+                        + " moveFromRedToNonRed [{}] indexDeleted [{}] uuidChanged [{}] indexNotUpToDateChanged [{}]",
+                    moveFromRedToNonRed,
+                    indexDeleted,
+                    uuidChanged,
+                    indexNotUpToDateChanged
+                );
+                lastSuccessfulLoadRef.set(null);
+            }
         }
     }
 

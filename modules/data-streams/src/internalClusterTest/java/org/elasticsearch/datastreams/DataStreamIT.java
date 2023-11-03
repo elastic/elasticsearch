@@ -436,7 +436,9 @@ public class DataStreamIT extends ESIntegTestCase {
                 }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName))
+            new ComposableIndexTemplate.Builder()
+                // use no wildcard, so that backing indices don't match just by name
+                .indexPatterns(List.of(dataStreamName))
                 .template(new Template(null, new CompressedXContent(mapping), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
@@ -661,8 +663,11 @@ public class DataStreamIT extends ESIntegTestCase {
         // Now replace it with a higher-priority template and delete the old one
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("metrics-foobar*"))
+            new ComposableIndexTemplate.Builder()
+                // Match the other data stream with a slightly different pattern
+                .indexPatterns(Collections.singletonList("metrics-foobar*"))
                 .template(new Template(null, null, null))
+                // Higher priority than the other composable template
                 .priority(2L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()

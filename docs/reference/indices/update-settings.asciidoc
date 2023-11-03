@@ -66,9 +66,9 @@ be updated on closed indices will be updated by automatically closing and reopen
 the affected indices. If `false`, attempts to update static settings on open indices
 will fail. Defaults to `false`.
 
-WARNING: Changing index settings on an automatically closed index using the `reopen`
-parameter could result in incorrect settings that are impossible to rectify without
-deleting and recreating the index.
+NOTE: Changing index settings on an automatically closed index using the `reopen`
+parameter will result in the index becoming unavailable momentarily while the index
+is in the process of reopening.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 

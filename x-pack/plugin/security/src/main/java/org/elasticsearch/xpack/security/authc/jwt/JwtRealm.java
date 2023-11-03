@@ -201,6 +201,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             return null;
         }
 
+        // a lightweight pre-check for JWTs
+        if (containsAtLeastTwoDots(userCredentials) == false) {
+            return null;
+        }
+
         // custom realms can also consume the Bearer credentials scheme
         final SignedJWT signedJWT;
         try {
@@ -567,5 +572,22 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             Objects.requireNonNull(user, "User must not be null");
             Objects.requireNonNull(exp, "Expiration date must not be null");
         }
+    }
+
+    /**
+     * This is a lightweight pre-check for the JWT token format.
+     * If this returns {@code true}, the token MIGHT be a JWT. Otherwise, the token is definitely not a JWT.
+     */
+    private static boolean containsAtLeastTwoDots(SecureString secureString) {
+        if (secureString == null || secureString.length() < 2) {
+            return false;
+        }
+        int ndots = 0;
+        for (int i = 0; i < secureString.length(); i++) {
+            if (secureString.charAt(i) == '.' && ndots++ >= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 }

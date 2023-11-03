@@ -134,7 +134,7 @@ public interface Authenticator {
         /**
          * Context constructor where authentication looks for credentials in the thread context.
          */
-        Context(
+        public Context(
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,
             User fallbackUser,

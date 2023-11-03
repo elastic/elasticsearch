@@ -147,14 +147,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
-        MockTransportService blueTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            blueNodeName
-        );
-        MockTransportService redTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
+        final var blueTransportService = MockTransportService.getInstance(blueNodeName);
+        final var redTransportService = MockTransportService.getInstance(redNodeName);
 
         final AtomicBoolean recoveryStarted = new AtomicBoolean(false);
         final AtomicBoolean finalizeReceived = new AtomicBoolean(false);
@@ -251,14 +245,8 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
-        MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            blueNodeName
-        );
-        MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
+        final var blueMockTransportService = MockTransportService.getInstance(blueNodeName);
+        final var redMockTransportService = MockTransportService.getInstance(redNodeName);
         TransportService redTransportService = internalCluster().getInstance(TransportService.class, redNodeName);
         TransportService blueTransportService = internalCluster().getInstance(TransportService.class, blueNodeName);
         final CountDownLatch requestFailed = new CountDownLatch(1);
@@ -348,18 +336,9 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             createSnapshotThatCanBeUsedDuringRecovery(indexName);
         }
 
-        MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            masterNodeName
-        );
-        MockTransportService blueMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            blueNodeName
-        );
-        MockTransportService redMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            redNodeName
-        );
+        final var masterTransportService = MockTransportService.getInstance(masterNodeName);
+        final var blueMockTransportService = MockTransportService.getInstance(blueNodeName);
+        final var redMockTransportService = MockTransportService.getInstance(redNodeName);
 
         redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
@@ -500,7 +479,6 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                         .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), true)
                         .put("compress", false)
                 )
-                .get()
         );
 
         // create snapshot

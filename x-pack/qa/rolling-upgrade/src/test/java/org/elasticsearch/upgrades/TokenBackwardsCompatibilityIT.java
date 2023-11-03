@@ -8,7 +8,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -43,7 +42,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     @Before
     private void collectClientsByVersion() throws IOException {
-        Map<Version, RestClient> clientsByVersion = getRestClientByVersion();
+        Map<String, RestClient> clientsByVersion = getRestClientByVersion();
         if (clientsByVersion.size() == 2) {
             // usual case, clients have different versions
             twoClients = clientsByVersion.values();
@@ -316,20 +315,20 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<Version, RestClient> getRestClientByVersion() throws IOException {
+    private Map<String, RestClient> getRestClientByVersion() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        Map<Version, List<HttpHost>> hostsByVersion = new HashMap<>();
+        Map<String, List<HttpHost>> hostsByVersion = new HashMap<>();
         for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
             Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
-            Version version = Version.fromString((String) nodeDetails.get("version"));
+            String version = (String) nodeDetails.get("version");
             Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
             hostsByVersion.computeIfAbsent(version, k -> new ArrayList<>()).add(HttpHost.create((String) httpInfo.get("publish_address")));
         }
-        Map<Version, RestClient> clientsByVersion = new HashMap<>();
-        for (Map.Entry<Version, List<HttpHost>> entry : hostsByVersion.entrySet()) {
+        Map<String, RestClient> clientsByVersion = new HashMap<>();
+        for (Map.Entry<String, List<HttpHost>> entry : hostsByVersion.entrySet()) {
             clientsByVersion.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
         }
         return clientsByVersion;

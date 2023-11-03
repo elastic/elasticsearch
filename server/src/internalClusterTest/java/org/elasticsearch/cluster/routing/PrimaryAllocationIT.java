@@ -86,7 +86,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startDataOnlyNodes(2);
 
         assertAcked(
-            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s")).get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.global_checkpoint_sync.interval", "1s"))
         );
         ensureGreen();
 
@@ -399,9 +399,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            indicesAdmin().prepareCreate("test")
-                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
-                .get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         ensureGreen("test");
@@ -430,9 +428,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNode(Settings.EMPTY);
         assertAcked(
-            indicesAdmin().prepareCreate("test")
-                .setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
-                .get()
+            indicesAdmin().prepareCreate("test").setSettings(indexSettings(1, 1).put("index.unassigned.node_left.delayed_timeout", "0ms"))
         );
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         ensureGreen("test");

@@ -11,9 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -79,16 +77,12 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var values = children().stream().map(toEvaluator).toList();
-        return dvrCtx -> new ConcatEvaluator(
-            new BreakingBytesRefBuilder(dvrCtx.breaker(), "concat"),
-            values.stream().map(fac -> fac.get(dvrCtx)).toArray(EvalOperator.ExpressionEvaluator[]::new),
-            dvrCtx
-        );
+        var values = children().stream().map(toEvaluator).toArray(ExpressionEvaluator.Factory[]::new);
+        return new ConcatEvaluator.Factory(context -> new BreakingBytesRefBuilder(context.breaker(), "concat"), values);
     }
 
     @Evaluator
-    static BytesRef process(@Fixed(includeInToString = false) BreakingBytesRefBuilder scratch, BytesRef[] values) {
+    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef[] values) {
         scratch.grow(checkedTotalLength(values));
         scratch.clear();
         for (int i = 0; i < values.length; i++) {
@@ -103,12 +97,7 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
             length += v.length;
         }
         if (length > MAX_CONCAT_LENGTH) {
-            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported") {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.BAD_REQUEST; // return a 400 response
-                }
-            };
+            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
         }
         return length;
     }

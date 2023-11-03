@@ -597,7 +597,6 @@ public class DateRangeIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("date", "type=date")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,

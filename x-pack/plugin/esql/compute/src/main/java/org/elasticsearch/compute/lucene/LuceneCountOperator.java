@@ -13,11 +13,13 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -62,7 +64,7 @@ public class LuceneCountOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneCountOperator(sliceQueue, limit);
+            return new LuceneCountOperator(driverContext.blockFactory(), sliceQueue, limit);
         }
 
         @Override
@@ -80,8 +82,8 @@ public class LuceneCountOperator extends LuceneOperator {
         }
     }
 
-    public LuceneCountOperator(LuceneSliceQueue sliceQueue, int limit) {
-        super(PAGE_SIZE, sliceQueue);
+    public LuceneCountOperator(BlockFactory blockFactory, LuceneSliceQueue sliceQueue, int limit) {
+        super(blockFactory, PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.leafCollector = new LeafCollector() {
             @Override
@@ -155,11 +157,17 @@ public class LuceneCountOperator extends LuceneOperator {
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
                 pagesEmitted++;
-                page = new Page(
-                    PAGE_SIZE,
-                    LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE),
-                    BooleanBlock.newConstantBlockWith(true, PAGE_SIZE)
-                );
+                LongBlock count = null;
+                BooleanBlock seen = null;
+                try {
+                    count = LongBlock.newConstantBlockWith(totalHits, PAGE_SIZE, blockFactory);
+                    seen = BooleanBlock.newConstantBlockWith(true, PAGE_SIZE, blockFactory);
+                    page = new Page(PAGE_SIZE, count, seen);
+                } finally {
+                    if (page == null) {
+                        Releasables.closeExpectNoException(count, seen);
+                    }
+                }
             }
             return page;
         } catch (IOException e) {

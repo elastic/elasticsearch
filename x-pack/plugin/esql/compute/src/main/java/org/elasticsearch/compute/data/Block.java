@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
@@ -24,16 +26,9 @@ import java.util.List;
  * or dense data. A Block can represent either single or multi valued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
- * TODO: update comment
- * <p> All Blocks share the same set of data retrieval methods, but actual concrete implementations
- * effectively support a subset of these, throwing {@code UnsupportedOperationException} where a
- * particular data retrieval method is not supported. For example, a Block of primitive longs may
- * not support retrieval as an integer, {code getInt}. This greatly simplifies Block usage and
- * avoids cumbersome use-site casting.
- *
  * <p> Block are immutable and can be passed between threads.
  */
-public interface Block extends Accountable, NamedWriteable, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, Releasable {
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -146,12 +141,19 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
     /**
      * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
+     * @deprecated use {@link BlockFactory#newConstantNullBlock}
      */
     // Eventually, this should use the GLOBAL breaking instance
+    @Deprecated
     static Block constantNullBlock(int positions) {
         return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
     }
 
+    /**
+     * {@return a constant null block with the given number of positions}.
+     * @deprecated use {@link BlockFactory#newConstantNullBlock}
+     */
+    @Deprecated
     static Block constantNullBlock(int positions, BlockFactory blockFactory) {
         return blockFactory.newConstantNullBlock(positions);
     }
@@ -160,7 +162,7 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
-    interface Builder extends Releasable {
+    interface Builder extends BlockLoader.Builder, Releasable {
 
         /**
          * Appends a null value to the block.
@@ -207,6 +209,24 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
          * Builds the block. This method can be called multiple times.
          */
         Block build();
+
+        /**
+         * Build many {@link Block}s at once, releasing any partially built blocks
+         * if any fail.
+         */
+        static Block[] buildAll(Block.Builder... builders) {
+            Block[] blocks = new Block[builders.length];
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = builders[b].build();
+                }
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+            return blocks;
+        }
     }
 
     /**

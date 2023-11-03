@@ -2,7 +2,8 @@
 - job:
     name: elastic+elasticsearch+%BRANCH%+periodic+single-processor-node-tests
     display-name: "elastic / elasticsearch # %BRANCH% - single processor node tests"
-    description: "Testing with node.processors set to '1' for the Elasticsearch %BRANCH% branch.\n"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     node: "general-purpose && docker"
     builders:
       - inject:

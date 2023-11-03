@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -38,7 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(ClusterRebalanceRoutingTests.class);
 
     public void testAlways() {
         AllocationService strategy = createAllocationService(

@@ -62,7 +62,7 @@ public class HttpRequestSenderFactory {
      */
     public static final class HttpRequestSender implements Sender {
         private static final Logger logger = LogManager.getLogger(HttpRequestSender.class);
-        private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(1);
+        private static final TimeValue START_COMPLETED_WAIT_TIME = TimeValue.timeValueSeconds(5);
 
         /**
          * The maximum time a request can take. The timer starts once a request is enqueued and continues until a response is
@@ -83,7 +83,7 @@ public class HttpRequestSenderFactory {
         private volatile TimeValue maxRequestTimeout;
         private final CountDownLatch startCompleted = new CountDownLatch(1);
 
-        protected HttpRequestSender(
+        private HttpRequestSender(
             String serviceName,
             ThreadPool threadPool,
             HttpClientManager httpClientManager,

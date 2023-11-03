@@ -134,7 +134,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param metadata Metadata for the cluster
      * @return A new ShardAllocationStatus that has not yet been filled.
      */
-    ShardAllocationStatus createNewStatus(Metadata metadata) {
+    public ShardAllocationStatus createNewStatus(Metadata metadata) {
         return new ShardAllocationStatus(metadata);
     }
 
@@ -861,7 +861,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         final ShardAllocationCounts replicas = new ShardAllocationCounts();
         final Metadata clusterMetadata;
 
-        ShardAllocationStatus(Metadata clusterMetadata) {
+        public ShardAllocationStatus(Metadata clusterMetadata) {
             this.clusterMetadata = clusterMetadata;
         }
 

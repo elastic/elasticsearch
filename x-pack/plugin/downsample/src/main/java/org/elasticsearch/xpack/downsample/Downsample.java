@@ -43,7 +43,7 @@ import java.util.function.Supplier;
 
 public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPlugin {
 
-    public static final String DOWSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
+    public static final String DOWNSAMPLE_TASK_THREAD_POOL_NAME = "downsample_indexing";
     private static final int DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE = 256;
     public static final String DOWNSAMPLE_MIN_NUMBER_OF_REPLICAS_NAME = "downsample.min_number_of_replicas";
 
@@ -51,7 +51,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         final FixedExecutorBuilder downsample = new FixedExecutorBuilder(
             settings,
-            DOWSAMPLE_TASK_THREAD_POOL_NAME,
+            DOWNSAMPLE_TASK_THREAD_POOL_NAME,
             ThreadPool.oneEighthAllocatedProcessors(EsExecutors.allocatedProcessors(settings)),
             DOWNSAMPLE_TASK_THREAD_POOL_QUEUE_SIZE,
             "xpack.downsample.thread_pool",
@@ -93,7 +93,7 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new DownsampleShardPersistentTaskExecutor(client, DownsampleShardTask.TASK_NAME, DOWSAMPLE_TASK_THREAD_POOL_NAME));
+        return List.of(new DownsampleShardPersistentTaskExecutor(client, DownsampleShardTask.TASK_NAME, DOWNSAMPLE_TASK_THREAD_POOL_NAME));
     }
 
     @Override

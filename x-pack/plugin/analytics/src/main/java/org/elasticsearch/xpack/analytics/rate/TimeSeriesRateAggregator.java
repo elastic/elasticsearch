@@ -28,15 +28,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 
-public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
+public final class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleValue {
 
-    protected final ValuesSource.Numeric valuesSource;
+    private final ValuesSource.Numeric valuesSource;
 
-    protected DoubleArray startValues;
-    protected DoubleArray endValues;
-    protected LongArray startTimes;
-    protected LongArray endTimes;
-    protected DoubleArray resetCompensations;
+    private DoubleArray startValues;
+    private DoubleArray endValues;
+    private LongArray startTimes;
+    private LongArray endTimes;
+    private DoubleArray resetCompensations;
 
     private long currentBucket = -1;
     private long currentEndTime = -1;
@@ -49,8 +49,7 @@ public class TimeSeriesRateAggregator extends NumericMetricsAggregator.SingleVal
     private final Rounding.DateTimeUnit rateUnit;
 
     // Unused parameters are so that the constructor implements `RateAggregatorSupplier`
-    @SuppressWarnings("this-escape")
-    protected TimeSeriesRateAggregator(
+    TimeSeriesRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,

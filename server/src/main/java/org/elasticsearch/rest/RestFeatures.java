@@ -6,20 +6,18 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health;
+package org.elasticsearch.rest;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 
 import java.util.Map;
 
-public class HealthFeature implements FeatureSpecification {
-
-    public static final NodeFeature SUPPORTS_HEALTH = new NodeFeature("supports_health");
-
+public class RestFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(SUPPORTS_HEALTH, Version.V_8_5_0);
+        return Map.of(RestClusterGetSettingsAction.SUPPORTS_GET_SETTINGS_ACTION, Version.V_8_3_0);
     }
 }

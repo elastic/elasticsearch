@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.shards;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,6 +25,13 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;

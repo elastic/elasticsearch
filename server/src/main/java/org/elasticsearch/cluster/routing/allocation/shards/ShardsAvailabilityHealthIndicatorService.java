@@ -682,7 +682,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param clusterState the current cluster state.
      * @return A list of diagnoses for the provided unassigned shard
      */
-    List<Diagnosis.Definition> checkDataTierRelatedIssues(
+    public List<Diagnosis.Definition> checkDataTierRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
         ClusterState clusterState
@@ -1156,7 +1156,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    static class SearchableSnapshotsState {
+    public static class SearchableSnapshotsState {
         private final Set<String> searchableSnapshotWithUnavailableShard = new HashSet<>();
         private final Set<String> searchableSnapshotWithOriginalIndexAvailable = new HashSet<>();
 
@@ -1168,7 +1168,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             searchableSnapshotWithOriginalIndexAvailable.add(indexName);
         }
 
-        Set<String> getRedSearchableSnapshots() {
+        public Set<String> getRedSearchableSnapshots() {
             return Sets.difference(searchableSnapshotWithUnavailableShard, searchableSnapshotWithOriginalIndexAvailable);
         }
 

@@ -138,7 +138,7 @@ and that the next generation index will also be managed by {ilm-init}:
 <2> For each backing index we display the value of the <<index-lifecycle-prefer-ilm, prefer_ilm>> 
 configuration which will indicate if {ilm-init} takes precedence over data stream lifecycle in case
 both systems are configured for an index.
-<3> The {ilm-ini} policy configured for this index.
+<3> The {ilm-init} policy configured for this index.
 <4> The system that manages this index (possible values are "Index Lifecycle Management", 
 "Data stream lifecycle", or "Unmanaged")
 <5> The system that will manage the next generation index (the new write index of this 

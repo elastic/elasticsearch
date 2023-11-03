@@ -68,7 +68,7 @@ public class PrioritizedThrottledTaskRunnerTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 

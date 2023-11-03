@@ -54,7 +54,7 @@ GET /_search
         "max_expansions": 50,
         "prefix_length": 0,
         "transpositions": true,
-        "rewrite": "constant_score"
+        "rewrite": "constant_score_blended"
       }
     }
   }

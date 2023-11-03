@@ -16,7 +16,7 @@ import java.util.Objects;
 /**
  * {@link Vector} where each entry references a lucene document.
  */
-public class DocVector extends AbstractVector implements Vector {
+public final class DocVector extends AbstractVector implements Vector {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
 

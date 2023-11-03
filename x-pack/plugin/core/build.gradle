@@ -44,6 +44,7 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
+  testImplementation project(path: ':modules:data-streams')
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'

@@ -422,7 +422,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    class ShardAllocationCounts {
+    public class ShardAllocationCounts {
         int unassigned = 0;
         int unassigned_new = 0;
         int unassigned_restarting = 0;

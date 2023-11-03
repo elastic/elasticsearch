@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,6 +45,22 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
         return Collections.singletonList(
             new QuerySpec<>(RankFeatureQueryBuilder.NAME, RankFeatureQueryBuilder::new, p -> RankFeatureQueryBuilder.PARSER.parse(p, null))
         );
+    }
+
+    @Override
+    public List<AggregationSpec> getAggregations() {
+        List<AggregationSpec> specs = new ArrayList<>();
+        specs.add(
+            new AggregationSpec(
+                CountedTermsAggregationBuilder.NAME,
+                CountedTermsAggregationBuilder::new,
+                CountedTermsAggregationBuilder.PARSER
+            )
+                // .addResultReader(StringTerms.NAME, StringTerms::new)
+                // TODO: Not sure if I did this correctly but we somehow need to have that method called
+                .setAggregatorRegistrar(CountedTermsAggregationBuilder::registerAggregators)
+        );
+        return List.copyOf(specs);
     }
 
 }

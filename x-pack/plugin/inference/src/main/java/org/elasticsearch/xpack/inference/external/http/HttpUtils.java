@@ -34,31 +34,12 @@ public class HttpUtils {
         }
     }
 
-    private static void checkForEmptyBody(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result) {
+    public static void checkForEmptyBody(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result) {
         if (result.isBodyEmpty()) {
             String message = format("Response body was empty for request [%s]", request.getRequestLine());
             throttlerManager.warn(logger, message);
             throw new IllegalStateException(message);
         }
-    }
-
-    private static void logException(
-        ThrottlerManager throttlerManager,
-        Logger logger,
-        HttpRequestBase request,
-        HttpResult result,
-        Exception exception
-    ) {
-        throttlerManager.warn(
-            logger,
-            format(
-                "Failed to process the response for request [%s] status [%s] [%s]",
-                request.getRequestLine(),
-                result.response().getStatusLine().getStatusCode(),
-                result.response().getStatusLine().getReasonPhrase()
-            ),
-            exception
-        );
     }
 
     private HttpUtils() {}

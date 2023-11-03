@@ -97,9 +97,6 @@ public class ThrottlerManagerTests extends ESTestCase {
     }
 
     public static ThrottlerManager mockThrottlerManager() {
-        var mockManager = mock(ThrottlerManager.class);
-        when(mockManager.getThrottler()).thenReturn(mock(Throttler.class));
-
-        return mockManager;
+        return mock(ThrottlerManager.class);
     }
 }

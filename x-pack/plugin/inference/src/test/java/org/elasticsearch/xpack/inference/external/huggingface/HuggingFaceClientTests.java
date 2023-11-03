@@ -19,6 +19,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.junit.After;
@@ -125,7 +126,11 @@ public class HuggingFaceClientTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(sender, mockThrottlerManager());
+            HuggingFaceClient huggingFaceClient = new HuggingFaceClient(
+                sender,
+                mockThrottlerManager(),
+                new RetrySettings(0, TimeValue.timeValueNanos(1))
+            );
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             huggingFaceClient.send(createRequest(getUrl(webServer), "secret", "abc"), listener);
@@ -133,7 +138,7 @@ public class HuggingFaceClientTests extends ESTestCase {
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is(format("Failed to parse the Hugging Face ELSER response for request [POST %s HTTP/1.1]", getUrl(webServer)))
+                is(format("Failed sending request [POST %s HTTP/1.1] after [0] retries", getUrl(webServer)))
             );
 
             assertThat(webServer.requests(), hasSize(1));

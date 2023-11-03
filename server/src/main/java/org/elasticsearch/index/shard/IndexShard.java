@@ -690,6 +690,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardStateUpdated.countDown();
         }
         if (currentRouting.active() == false && newRouting.active()) {
+            checkAndCallWaitForPrimaryTermAndGenerationListeners();
             indexEventListener.afterIndexShardStarted(this);
         }
         if (newRouting.equals(currentRouting) == false) {
@@ -1658,6 +1659,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 synchronized (mutex) {
                     changeState(IndexShardState.CLOSED, reason);
                 }
+                checkAndCallWaitForPrimaryTermAndGenerationListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -4181,10 +4183,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         waitForPrimaryTermAndGeneration(getOperationPrimaryTerm(), segmentGeneration, listener);
     }
 
+    private final SubscribableListener<Void> waitForPrimaryTermAndGenerationListeners = new SubscribableListener<Void>();
+
+    private void checkAndCallWaitForPrimaryTermAndGenerationListeners() {
+        if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
+            waitForPrimaryTermAndGenerationListeners.onResponse(null);
+        }
+    }
+
     /**
      * Registers a listener for an event when the shard advances to the provided primary term and segment generation
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, listener);
+        waitForPrimaryTermAndGenerationListeners.addListener(
+            ActionListener.wrap(
+                (ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, listener),
+                listener::onFailure
+            )
+        );
+        checkAndCallWaitForPrimaryTermAndGenerationListeners();
     }
+
 }

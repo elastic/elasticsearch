@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWK;
@@ -23,8 +24,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -48,7 +51,40 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 
+@TestCaseOrdering(AnnotationTestOrdering.class)
 public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
+
+    private static final MutableSettingsProvider mutableSettings = new MutableSettingsProvider() {
+        {
+            put("xpack.ml.enabled", "false");
+            put("xpack.license.self_generated.type", "trial");
+            put("xpack.security.enabled", "true");
+            put("xpack.security.http.ssl.enabled", "true");
+            put("xpack.security.transport.ssl.enabled", "false");
+            put("xpack.security.authc.token.enabled", "true");
+            put("xpack.security.authc.api_key.enabled", "true");
+            put("xpack.security.http.ssl.enabled", "true");
+            put("xpack.security.http.ssl.certificate", "http.crt");
+            put("xpack.security.http.ssl.key", "http.key");
+            put("xpack.security.http.ssl.key_passphrase", "http-password");
+            put("xpack.security.http.ssl.certificate_authorities", "ca.crt");
+            put("xpack.security.http.ssl.client_authentication", "optional");
+            put("xpack.security.authc.realms.jwt.jwt1.order", "1");
+            put("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/");
+            put("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/");
+            put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub");
+            put("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn");
+            put("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id");
+            put("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0");
+            put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE");
+            put("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset");
+        }
+    };
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
@@ -58,34 +94,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .configFile("rsa.jwkset", Resource.fromClasspath("jwk/rsa-public-jwkset.json"))
-        .setting("xpack.ml.enabled", "false")
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "true")
-        .setting("xpack.security.http.ssl.enabled", "true")
-        .setting("xpack.security.transport.ssl.enabled", "false")
-        .setting("xpack.security.authc.token.enabled", "true")
-        .setting("xpack.security.authc.api_key.enabled", "true")
-
-        .setting("xpack.security.http.ssl.enabled", "true")
-        .setting("xpack.security.http.ssl.certificate", "http.crt")
-        .setting("xpack.security.http.ssl.key", "http.key")
-        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
-        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
-        .setting("xpack.security.http.ssl.client_authentication", "optional")
-
-        .setting("xpack.security.authc.realms.file.admin_file.order", "0")
-
-        .setting("xpack.security.authc.realms.jwt.jwt1.order", "1")
-        .setting("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/")
-        .setting("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/")
-        .setting("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub")
-        .setting("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn")
-        .setting("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id")
-        .setting("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0")
-        .setting("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE")
-        .setting("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset")
-
-        .setting("xpack.security.authc.role_mapping.fallback_cache.enabled", "true")
+        .settings(mutableSettings)
         .user("admin_user", "admin-password")
         .build();
 
@@ -137,7 +146,8 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         return adminSecurityClient;
     }
 
-    public void testAuthenticateWithCachedRoleMappingSucceedsWithoutAccessToSecurityIndex() throws Exception {
+    @AnnotationTestOrdering.Order(10)
+    public void testRoleMappingWithoutCacheFailsWithoutAccessToSecurityIndex() throws Exception {
         final String dn = randomDn();
 
         final String rules = Strings.format("""
@@ -149,14 +159,13 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
         final List<String> roles = randomRoles();
         final String roleMappingName = createRoleMapping(roles, rules);
+        final String principal = randomPrincipal();
 
         try {
             {
-                final String principal = randomPrincipal();
                 final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
-                final TestSecurityClient client = getSecurityClient(jwt);
 
-                final Map<String, Object> response = client.authenticate();
+                final Map<String, Object> response = getSecurityClient(jwt).authenticate();
 
                 assertAuthenticationHasUsernameAndRoles(response, principal, roles);
             }
@@ -164,7 +173,50 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
             makeSecurityIndexUnavailable();
 
             {
-                final String principal = randomPrincipal();
+                final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
+
+                final Map<String, Object> response = getSecurityClient(jwt).authenticate();
+
+                assertAuthenticationHasUsernameAndRoles(response, principal, List.of());
+            }
+        } finally {
+            makeSecurityIndexAvailable();
+            deleteRoleMapping(roleMappingName);
+
+            mutableSettings.put("xpack.security.authc.role_mapping.successful_load_cache.enabled", "true");
+            cluster.restart(false);
+            closeClients();
+            adminSecurityClient = null;
+        }
+    }
+
+    @AnnotationTestOrdering.Order(20)
+    public void testRoleMappingWithCacheSucceedsWithoutAccessToSecurityIndex() throws Exception {
+        final String dn = randomDn();
+
+        final String rules = Strings.format("""
+            { "all": [
+                { "field": { "realm.name": "jwt1" } },
+                { "field": { "dn": "%s" } }
+            ] }
+            """, dn);
+
+        final List<String> roles = randomRoles();
+        final String roleMappingName = createRoleMapping(roles, rules);
+        final String principal = randomPrincipal();
+
+        try {
+            {
+                final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
+
+                final Map<String, Object> response = getSecurityClient(jwt).authenticate();
+
+                assertAuthenticationHasUsernameAndRoles(response, principal, roles);
+            }
+
+            makeSecurityIndexUnavailable();
+
+            {
                 final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
 
                 final Map<String, Object> response = getSecurityClient(jwt).authenticate();
@@ -173,7 +225,6 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
             }
 
             {
-                final String principal = randomPrincipal();
                 final SignedJWT jwt = buildAndSignJwt(principal, randomValueOtherThan(dn, this::randomDn), Instant.now());
 
                 final Map<String, Object> response = getSecurityClient(jwt).authenticate();
@@ -182,7 +233,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
                 assertAuthenticationHasUsernameAndRoles(response, principal, List.of());
             }
         } finally {
-            restoreSecurityIndexAvailability();
+            makeSecurityIndexAvailable();
             deleteRoleMapping(roleMappingName);
         }
     }
@@ -207,7 +258,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(closeRequest));
     }
 
-    private void restoreSecurityIndexAvailability() throws IOException {
+    private void makeSecurityIndexAvailable() throws IOException {
         Request openRequest = new Request("POST", "/.security/_open");
         openRequest.setOptions(systemIndexWarningHandlerOptions(".security-7"));
         assertOK(adminClient().performRequest(openRequest));
@@ -285,5 +336,4 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
     private void deleteRoleMapping(String name) throws IOException {
         getAdminSecurityClient().deleteRoleMapping(name);
     }
-
 }

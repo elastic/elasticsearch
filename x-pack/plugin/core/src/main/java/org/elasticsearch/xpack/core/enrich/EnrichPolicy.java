@@ -108,7 +108,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
-    private final Version elasticsearchVersion;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -122,10 +121,14 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     }
 
     public EnrichPolicy(String type, QuerySource query, List<String> indices, String matchField, List<String> enrichFields) {
-        this(type, query, indices, matchField, enrichFields, Version.CURRENT);
+        this.type = type;
+        this.query = query;
+        this.indices = indices;
+        this.matchField = matchField;
+        this.enrichFields = enrichFields;
     }
 
-    public EnrichPolicy(
+    private EnrichPolicy(
         String type,
         QuerySource query,
         List<String> indices,
@@ -133,12 +136,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         List<String> enrichFields,
         Version elasticsearchVersion
     ) {
-        this.type = type;
-        this.query = query;
-        this.indices = indices;
-        this.matchField = matchField;
-        this.enrichFields = enrichFields;
-        this.elasticsearchVersion = elasticsearchVersion != null ? elasticsearchVersion : Version.CURRENT;
+        // for backwards compatibility reasons, it is possible to pass in an elasticsearchVersion -- that version is
+        // completely ignored and does nothing.
+        this(type, query, indices, matchField, enrichFields);
     }
 
     public String getType() {
@@ -159,10 +159,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public List<String> getEnrichFields() {
         return enrichFields;
-    }
-
-    public Version getElasticsearchVersion() {
-        return elasticsearchVersion;
     }
 
     public static String getBaseName(String policyName) {
@@ -202,7 +198,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(matchField);
         out.writeStringCollection(enrichFields);
-        Version.writeVersion(elasticsearchVersion, out);
+        Version.writeVersion(Version.CURRENT, out);
     }
 
     @Override
@@ -233,13 +229,12 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             && Objects.equals(query, policy.query)
             && indices.equals(policy.indices)
             && matchField.equals(policy.matchField)
-            && enrichFields.equals(policy.enrichFields)
-            && elasticsearchVersion.equals(policy.elasticsearchVersion);
+            && enrichFields.equals(policy.enrichFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(type, query, indices, matchField, enrichFields, elasticsearchVersion);
+        return Objects.hash(type, query, indices, matchField, enrichFields);
     }
 
     public String toString() {

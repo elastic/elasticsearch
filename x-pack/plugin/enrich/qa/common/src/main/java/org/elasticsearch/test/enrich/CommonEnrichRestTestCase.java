@@ -7,7 +7,6 @@
 package org.elasticsearch.test.enrich;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -262,9 +262,9 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
             source.field("enrich_fields", new String[] { "globalRank", "tldRank", "tld" });
 
             // technically it's possible to include an elasticsearch_version here. if the field is present,
-            // the value must be the current version. none of this is documented anywhere.
+            // the value must be parseable as an elasticsearch version. none of this is documented anywhere.
             if (randomBoolean()) {
-                source.field("elasticsearch_version", Version.CURRENT);
+                source.field("elasticsearch_version", VersionUtils.randomVersion(random()));
             }
         }
         source.endObject().endObject();

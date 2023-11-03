@@ -314,6 +314,98 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testAllReplicasUnassigned() {
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), AVAILABLE)
+                    )
+                ),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
+                        new ShardAllocation(randomNodeId(), AVAILABLE)
+                    )
+                ),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertFalse(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(
+                    index(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE),
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)),
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING))
+                    )
+                ),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+        {
+            ClusterState clusterState = createClusterStateWith(
+                List.of(
+                    indexWithTwoPrimaryOneReplicaShard(
+                        "myindex",
+                        new ShardAllocation(randomNodeId(), AVAILABLE), // Primary 1
+                        new ShardAllocation(randomNodeId(), AVAILABLE), // Replica 1
+                        new ShardAllocation(randomNodeId(), AVAILABLE), // Primary 2
+                        new ShardAllocation(randomNodeId(), randomFrom(UNAVAILABLE, INITIALIZING)) // Replica 2
+                    )
+                ),
+                List.of()
+            );
+            var service = createShardsAvailabilityIndicatorService(clusterState);
+            ShardAllocationStatus status = service.createNewStatus(clusterState.metadata());
+            ShardsAvailabilityHealthIndicatorService.updateShardAllocationStatus(
+                status,
+                clusterState,
+                NodesShutdownMetadata.EMPTY,
+                randomBoolean()
+            );
+            assertTrue(status.replicas.doAnyIndicesHaveAllUnavailable());
+        }
+    }
+
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndNoReplicas() {
         var clusterState = createClusterStateWith(List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE))), List.of());
         var service = createShardsAvailabilityIndicatorService(clusterState);
@@ -1944,22 +2036,28 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private static IndexRoutingTable frozenIndex(String name, ShardAllocation primaryState, String originalIndex) {
-        return index(
-            IndexMetadata.builder(name)
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY, originalIndex)
-                        .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
-                        .put(SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, randomBoolean())
-                        .build()
-                )
-                .numberOfShards(1)
-                .numberOfReplicas(0)
-                .build(),
-            primaryState
-        );
+    private static IndexRoutingTable indexWithTwoPrimaryOneReplicaShard(
+        String name,
+        ShardAllocation primary1State,
+        ShardAllocation replica1State,
+        ShardAllocation primary2State,
+        ShardAllocation replica2State
+    ) {
+        var indexMetadata = IndexMetadata.builder(name)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+            .numberOfShards(2)
+            .numberOfReplicas(1)
+            .build();
+        var index = indexMetadata.getIndex();
+        var shard1Id = new ShardId(index, 0);
+        var shard2Id = new ShardId(index, 1);
+
+        var builder = IndexRoutingTable.builder(index);
+        builder.addShard(createShardRouting(shard1Id, true, primary1State));
+        builder.addShard(createShardRouting(shard2Id, true, primary2State));
+        builder.addShard(createShardRouting(shard1Id, false, replica1State));
+        builder.addShard(createShardRouting(shard2Id, false, replica2State));
+        return builder.build();
     }
 
     private static IndexRoutingTable index(IndexMetadata indexMetadata, ShardAllocation primaryState, ShardAllocation... replicaStates) {

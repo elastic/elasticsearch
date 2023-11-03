@@ -45,6 +45,7 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -811,6 +812,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
+    public static Boolean randomOptionalBoolean() {
+        return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
+    }
+
     public static byte randomByte() {
         return (byte) random().nextInt();
     }
@@ -1001,6 +1006,10 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomIdentifier() {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
+    }
+
+    public static String randomUUID() {
+        return UUIDs.randomBase64UUID(random());
     }
 
     public static String randomUnicodeOfLengthBetween(int minCodeUnits, int maxCodeUnits) {

@@ -70,7 +70,7 @@ import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.M
 
 public final class CompositeAggregator extends BucketsAggregator implements SizedBucketAggregator {
 
-    private final Logger logger = LogManager.getLogger(CompositeAggregator.class);
+    private static final Logger logger = LogManager.getLogger(CompositeAggregator.class);
     private final int size;
     private final List<String> sourceNames;
     private final int[] reverseMuls;

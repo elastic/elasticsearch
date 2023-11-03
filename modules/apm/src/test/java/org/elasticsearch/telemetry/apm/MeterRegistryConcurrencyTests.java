@@ -90,7 +90,6 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101725")
     public void testLockingWhenRegistering() throws Exception {
         APMMeterRegistry meterRegistrar = new APMMeterRegistry(lockingMeter);
 
@@ -106,12 +105,14 @@ public class MeterRegistryConcurrencyTests extends ESTestCase {
         // assert that a thread is waiting for a lock during long-running registration
         assertBusy(() -> assertThat(setProviderThread.getState(), equalTo(Thread.State.WAITING)));
         // assert that the old lockingMeter is still in place
-        assertBusy(() -> assertThat(meterRegistrar.getMeter(), sameInstance(lockingMeter)));
+        assertThat(meterRegistrar.getMeter(), sameInstance(lockingMeter));
 
         // finish long-running registration
         registerLatch.countDown();
+        // wait for everything to quiesce, registerLatch.countDown() doesn't ensure lock has been released
+        setProviderThread.join();
+        registerThread.join();
         // assert that a meter was overriden
-        assertBusy(() -> assertThat(meterRegistrar.getMeter(), sameInstance(lockingMeter)));
-
+        assertThat(meterRegistrar.getMeter(), sameInstance(noopMeter));
     }
 }

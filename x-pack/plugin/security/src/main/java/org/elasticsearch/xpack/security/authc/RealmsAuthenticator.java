@@ -38,14 +38,14 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
-class RealmsAuthenticator implements Authenticator {
+public class RealmsAuthenticator implements Authenticator {
 
     private static final Logger logger = LogManager.getLogger(RealmsAuthenticator.class);
 
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
 
-    RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
+    public RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
     }

@@ -429,11 +429,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         int initializing = 0;
         int started = 0;
         int relocating = 0;
-        protected final Set<String> indicesWithUnavailableShards = new HashSet<>();
-        protected final Set<String> indicesWithAllShardsUnavailable = new HashSet<>();
+        public final Set<String> indicesWithUnavailableShards = new HashSet<>();
+        public final Set<String> indicesWithAllShardsUnavailable = new HashSet<>();
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
-        protected SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
+        public SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
         final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.recovery;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -47,7 +45,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
-    private final Logger logger = LogManager.getLogger(RecoveryWhileUnderLoadIT.class);
 
     public static final class RetentionLeaseSyncIntervalSettingPlugin extends Plugin {
 

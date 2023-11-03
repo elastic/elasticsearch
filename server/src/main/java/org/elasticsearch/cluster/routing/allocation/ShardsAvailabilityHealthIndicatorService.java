@@ -60,6 +60,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
@@ -119,12 +120,38 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return NAME;
     }
 
+    /**
+     * Creates a new {@link ShardAllocationStatus} that will be used to track
+     * primary and replica availability, providing the color, diagnosis, and
+     * messages about the available or unavailable shards in the cluster.
+     * @param metadata Metadata for the cluster
+     * @return A new ShardAllocationStatus that has not yet been filled.
+     */
+    ShardAllocationStatus createNewStatus(Metadata metadata) {
+        return new ShardAllocationStatus(metadata);
+    }
+
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
-        var status = new ShardAllocationStatus(state.getMetadata());
+        var status = createNewStatus(state.getMetadata());
+        updateShardAllocationStatus(status, state, shutdown, verbose);
+        return createIndicator(
+            status.getStatus(),
+            status.getSymptom(),
+            status.getDetails(verbose),
+            status.getImpacts(),
+            status.getDiagnosis(verbose, maxAffectedResourcesCount)
+        );
+    }
 
+    static void updateShardAllocationStatus(
+        ShardAllocationStatus status,
+        ClusterState state,
+        NodesShutdownMetadata shutdown,
+        boolean verbose
+    ) {
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
@@ -136,13 +163,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         status.updateSearchableSnapshotsOfAvailableIndices();
-        return createIndicator(
-            status.getStatus(),
-            status.getSymptom(),
-            status.getDetails(verbose),
-            status.getImpacts(),
-            status.getDiagnosis(verbose, maxAffectedResourcesCount)
-        );
     }
 
     // Impact IDs
@@ -395,22 +415,27 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    private class ShardAllocationCounts {
-        private int unassigned = 0;
-        private int unassigned_new = 0;
-        private int unassigned_restarting = 0;
-        private int initializing = 0;
-        private int started = 0;
-        private int relocating = 0;
-        private final Set<String> indicesWithUnavailableShards = new HashSet<>();
+    class ShardAllocationCounts {
+        int unassigned = 0;
+        int unassigned_new = 0;
+        int unassigned_restarting = 0;
+        int initializing = 0;
+        int started = 0;
+        int relocating = 0;
+        final Set<String> indicesWithUnavailableShards = new HashSet<>();
+        final Set<String> indicesWithAllShardsUnavailable = new HashSet<>();
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
-        private final SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
-        private final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
+        SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
+        final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
             boolean isNew = isUnassignedDueToNewInitialization(routing, state);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
+            boolean allUnavailable = areAllShardsOfThisTypeUnavailable(routing, state);
+            if (allUnavailable) {
+                indicesWithAllShardsUnavailable.add(routing.getIndexName());
+            }
             if ((routing.active() || isRestarting || isNew) == false) {
                 String indexName = routing.getIndexName();
                 Settings indexSettings = state.getMetadata().index(indexName).getSettings();
@@ -451,9 +476,29 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return indicesWithUnavailableShards.isEmpty();
         }
 
+        public boolean doAnyIndicesHaveAllUnavailable() {
+            return indicesWithAllShardsUnavailable.isEmpty() == false;
+        }
+
         private void addDefinition(Diagnosis.Definition diagnosisDefinition, String indexName) {
             diagnosisDefinitions.computeIfAbsent(diagnosisDefinition, (k) -> new HashSet<>()).add(indexName);
         }
+    }
+
+    /**
+     * Returns true if all the shards of the same type (primary or replica) are unassigned. For
+     * example: if a replica is passed then this will return true if ALL replicas are unassigned,
+     * but if at least one is assigned, it will return false.
+     */
+    private boolean areAllShardsOfThisTypeUnavailable(ShardRouting routing, ClusterState state) {
+        return StreamSupport.stream(
+            state.routingTable().allActiveShardsGrouped(new String[] { routing.getIndexName() }, true).spliterator(),
+            false
+        )
+            .flatMap(shardIter -> shardIter.getShardRoutings().stream())
+            .filter(sr -> sr.shardId().equals(routing.shardId()))
+            .filter(sr -> sr.primary() == routing.primary())
+            .allMatch(ShardRouting::unassigned);
     }
 
     private static boolean isUnassignedDueToTimelyRestart(ShardRouting routing, NodesShutdownMetadata shutdowns) {
@@ -805,9 +850,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     class ShardAllocationStatus {
-        private final ShardAllocationCounts primaries = new ShardAllocationCounts();
-        private final ShardAllocationCounts replicas = new ShardAllocationCounts();
-        private final Metadata clusterMetadata;
+        final ShardAllocationCounts primaries = new ShardAllocationCounts();
+        final ShardAllocationCounts replicas = new ShardAllocationCounts();
+        final Metadata clusterMetadata;
 
         ShardAllocationStatus(Metadata clusterMetadata) {
             this.clusterMetadata = clusterMetadata;

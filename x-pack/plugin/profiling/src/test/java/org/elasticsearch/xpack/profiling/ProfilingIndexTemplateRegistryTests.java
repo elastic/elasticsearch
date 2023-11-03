@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
@@ -328,7 +329,16 @@ public class ProfilingIndexTemplateRegistryTests extends ESTestCase {
             Map<String, Object> metadata = new HashMap<>(policy.getMetadata());
             // outdated version
             metadata.put("version", randomIntBetween(1, ProfilingIndexTemplateRegistry.INDEX_TEMPLATE_VERSION - 1));
-            policies.put(policy.getName(), new LifecyclePolicy(policy.getName(), policy.getPhases(), metadata));
+            policies.put(
+                policy.getName(),
+                new LifecyclePolicy(
+                    TimeseriesLifecycleType.INSTANCE,
+                    policy.getName(),
+                    policy.getPhases(),
+                    metadata,
+                    policy.getDeprecated()
+                )
+            );
         }
         ClusterState clusterState = createClusterState(Settings.EMPTY, componentTemplates, composableTemplates, policies, nodes);
 

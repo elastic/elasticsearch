@@ -1,0 +1,30 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  description 'Apm integration plugin'
+  classname 'org.elasticsearch.test.apmintegration.ApmIntegrationPlugin'
+}
+
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
+
+tasks.named("test").configure {
+  enabled = false
+}
+
+tasks.named("yamlRestTest").configure {
+  enabled = false
+}
+
+tasks.named('javaRestTest').configure {
+  it.onlyIf("snapshot build") { BuildParams.isSnapshotBuild() }
+}
+
+
+dependencies {
+  clusterModules project(':modules:apm')
+}

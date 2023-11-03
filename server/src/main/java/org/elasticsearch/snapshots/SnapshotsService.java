@@ -69,6 +69,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -129,7 +130,7 @@ import static org.elasticsearch.core.Strings.format;
  * deletion.
  * See package level documentation of {@link org.elasticsearch.snapshots} for details.
  */
-public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
+public final class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
     public static final IndexVersion SHARD_GEN_IN_REPO_DATA_VERSION = IndexVersions.V_7_6_0;
 
@@ -163,7 +164,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     /**
      * Listeners for snapshot deletion keyed by delete uuid as returned from {@link SnapshotDeletionsInProgress.Entry#uuid()}
      */
-    private final Map<String, List<ActionListener<Void>>> snapshotDeletionListeners = new HashMap<>();
+    private final Map<String, List<ActionListener<Void>>> snapshotDeletionListeners = new ConcurrentHashMap<>();
 
     // Set of repositories currently running either a snapshot finalization or a snapshot delete.
     private final Set<String> currentlyFinalizing = Collections.synchronizedSet(new HashSet<>());
@@ -199,7 +200,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private volatile int maxConcurrentOperations;
 
-    @SuppressWarnings("this-escape")
     public SnapshotsService(
         Settings settings,
         ClusterService clusterService,
@@ -3015,9 +3015,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // updates that were used to update an existing in-progress shard snapshot
         private final Set<ShardSnapshotUpdate> executedUpdates = new HashSet<>();
 
-        SnapshotShardsUpdateContext(ClusterStateTaskExecutor.BatchExecutionContext<SnapshotTask> batchExecutionContext) {
+        // enqueues a reroute because some shard snapshots finished
+        private final Runnable rerouteRunnable;
+
+        SnapshotShardsUpdateContext(
+            ClusterStateTaskExecutor.BatchExecutionContext<SnapshotTask> batchExecutionContext,
+            Runnable rerouteRunnable
+        ) {
             this.batchExecutionContext = batchExecutionContext;
             this.initialState = batchExecutionContext.initialState();
+            this.rerouteRunnable = new RunOnce(rerouteRunnable); // RunOnce to avoid enqueueing O(#shards) listeners
             this.updatesByRepo = new HashMap<>();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 if (taskContext.getTask() instanceof ShardSnapshotUpdate task) {
@@ -3058,7 +3065,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 final var result = new ShardSnapshotUpdateResult(initialState.metadata(), snapshotsInProgress);
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
                     if (taskContext.getTask() instanceof ShardSnapshotUpdate task) {
-                        taskContext.success(() -> task.listener.onResponse(result));
+                        taskContext.success(() -> {
+                            rerouteRunnable.run();
+                            task.listener.onResponse(result);
+                        });
                     }
                 }
             }
@@ -3666,7 +3676,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         @Override
         public ClusterState execute(BatchExecutionContext<SnapshotTask> batchExecutionContext) throws Exception {
             final ClusterState state = batchExecutionContext.initialState();
-            final SnapshotShardsUpdateContext shardsUpdateContext = new SnapshotShardsUpdateContext(batchExecutionContext);
+            final SnapshotShardsUpdateContext shardsUpdateContext = new SnapshotShardsUpdateContext(
+                batchExecutionContext,
+                () -> clusterService.getRerouteService().reroute("after shards snapshot update", Priority.NORMAL, ActionListener.noop())
+            );
             final SnapshotsInProgress initialSnapshots = SnapshotsInProgress.get(state);
             SnapshotsInProgress snapshotsInProgress = shardsUpdateContext.computeUpdatedState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {

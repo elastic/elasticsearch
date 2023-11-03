@@ -584,7 +584,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
         int ndots = 0;
         for (int i = 0; i < secureString.length(); i++) {
-            if (secureString.charAt(i) == '.' && ndots++ >= 2) {
+            if (secureString.charAt(i) == '.' && ++ndots >= 2) {
                 return true;
             }
         }

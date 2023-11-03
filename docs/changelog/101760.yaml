@@ -1,0 +1,5 @@
+pr: 101760
+summary: Prefer using builder for `ComposableIndexTemplate`
+area: Indices APIs
+type: tech debt
+issues: []

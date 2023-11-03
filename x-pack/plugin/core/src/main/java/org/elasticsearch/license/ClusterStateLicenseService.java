@@ -9,7 +9,7 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -242,10 +242,10 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                    final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
-                    if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
+                    final TransportVersion oldestTransportVersion = currentState.getMinTransportVersion();
+                    if (licenseIsCompatible(newLicense, oldestTransportVersion) == false) {
                         throw new IllegalStateException(
-                            "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
+                            "The provided license is not compatible with transport version [" + oldestTransportVersion + "]"
                         );
                     }
                     Metadata currentMetadata = currentState.metadata();
@@ -267,7 +267,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private static boolean licenseIsCompatible(License license, Version version) {
+    private static boolean licenseIsCompatible(License license, TransportVersion version) {
         final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
         return license.version() <= maxVersion;
     }
@@ -456,7 +456,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             if (currentClusterState.getNodes().isLocalNodeElectedMaster()
                 && (noLicense
                     || LicenseUtils.licenseNeedsExtended(currentLicense)
-                    || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
+                    || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState))) {
                 registerOrUpdateSelfGeneratedLicense();
             }
         } else if (logger.isDebugEnabled()) {

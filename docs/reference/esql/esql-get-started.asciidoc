@@ -5,7 +5,7 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-This guide shows you can use {esql} to query and aggregate your data.
+This guide shows how you can use {esql} to query and aggregate your data.
 
 TIP: To get started with {esql} without setting up your own deployment, visit
 the public {esql} demo environment at

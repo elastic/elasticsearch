@@ -24,6 +24,9 @@ sort order.
 Two rows with the same sort key are considered equal. You can provide additional
 sort expressions to act as tie breakers.
 
+Sorting on multivalued columns uses the lowest value when sorting ascending and
+the highest value when sorting descending.
+
 By default, `null` values are treated as being larger than any other value. With
 an ascending sort order, `null` values are sorted last, and with a descending
 sort order, `null` values are sorted first. You can change that by providing

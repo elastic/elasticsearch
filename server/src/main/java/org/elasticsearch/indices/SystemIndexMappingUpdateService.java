@@ -97,8 +97,6 @@ public class SystemIndexMappingUpdateService implements ClusterStateListener {
             return;
         }
 
-        assert state.hasMixedSystemIndexVersions() == false : "Version equality should imply system index mapping version equality";
-
         if (isUpgradeInProgress.compareAndSet(false, true)) {
             // Use a RefCountingRunnable so that we only release the lock once all upgrade attempts have succeeded or failed.
             // The failures are logged in upgradeIndexMetadata(), so we don't actually care about them here.

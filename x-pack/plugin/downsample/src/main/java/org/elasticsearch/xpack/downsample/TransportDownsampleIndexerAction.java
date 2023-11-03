@@ -69,7 +69,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             indexNameExpressionResolver,
             DownsampleIndexerAction.Request::new,
             DownsampleIndexerAction.ShardDownsampleRequest::new,
-            transportService.getThreadPool().executor(Downsample.DOWSAMPLE_TASK_THREAD_POOL_NAME)
+            transportService.getThreadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME)
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.clusterService = clusterService;

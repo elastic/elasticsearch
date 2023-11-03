@@ -21,13 +21,18 @@ import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -44,7 +49,7 @@ import static org.elasticsearch.core.Strings.format;
  * attempting to execute a task (aka waiting for the connection manager to lease a connection). See
  * {@link org.apache.http.client.config.RequestConfig.Builder#setConnectionRequestTimeout} for more info.
  */
-class HttpRequestExecutorService extends AbstractExecutorService {
+class HttpRequestExecutorService implements ExecutorService {
     private static final Logger logger = LogManager.getLogger(HttpRequestExecutorService.class);
 
     private final String serviceName;
@@ -230,6 +235,63 @@ class HttpRequestExecutorService extends AbstractExecutorService {
      */
     @Override
     public void execute(Runnable runnable) {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public <T> Future<T> submit(Callable<T> task) {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public <T> Future<T> submit(Runnable task, T result) {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public Future<?> submit(Runnable task) {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks) throws InterruptedException {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public <T> List<Future<T>> invokeAll(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public <T> T invokeAny(Collection<? extends Callable<T>> tasks) throws InterruptedException, ExecutionException {
+        throw new UnsupportedOperationException("use send instead");
+    }
+
+    /**
+     * This method is not supported. Use {@link #send} instead.
+     */
+    @Override
+    public <T> T invokeAny(Collection<? extends Callable<T>> tasks, long timeout, TimeUnit unit) throws InterruptedException,
+        ExecutionException, TimeoutException {
         throw new UnsupportedOperationException("use send instead");
     }
 }

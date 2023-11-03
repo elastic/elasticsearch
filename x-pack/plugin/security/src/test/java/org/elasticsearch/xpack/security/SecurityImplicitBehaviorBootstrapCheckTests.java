@@ -19,6 +19,7 @@ import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -38,7 +39,10 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
-        Metadata metadata = createLicensesMetadata(previousVersion, randomFrom("basic", "trial"));
+        Metadata metadata = createLicensesMetadata(
+            TrialLicenseVersion.fromXContent(previousVersion.toString()),
+            randomFrom("basic", "trial")
+        );
         License license = mock(License.class);
         when(licenseService.getLicense(metadata)).thenReturn(license);
         when(license.operationMode()).thenReturn(randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL));
@@ -70,7 +74,10 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(10), previousVersion, IndexVersion.current());
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
-        Metadata metadata = createLicensesMetadata(previousVersion, randomFrom("gold", "platinum"));
+        Metadata metadata = createLicensesMetadata(
+            TrialLicenseVersion.fromXContent(previousVersion.toString()),
+            randomFrom("gold", "platinum")
+        );
         License license = mock(License.class);
         when(licenseService.getLicense(metadata)).thenReturn(license);
         when(license.operationMode()).thenReturn(randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM));
@@ -91,7 +98,7 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(previousVersion, randomFrom("basic", "trial"))
+                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));
@@ -103,7 +110,10 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         nodeMetadata = nodeMetadata.upgradeToCurrentVersion();
         ClusterStateLicenseService licenseService = mock(ClusterStateLicenseService.class);
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
-            createTestContext(Settings.EMPTY, createLicensesMetadata(previousVersion, randomFrom("basic", "trial")))
+            createTestContext(
+                Settings.EMPTY,
+                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
+            )
         );
         assertThat(result.isSuccess(), is(true));
     }
@@ -116,14 +126,14 @@ public class SecurityImplicitBehaviorBootstrapCheckTests extends AbstractBootstr
         BootstrapCheck.BootstrapCheckResult result = new SecurityImplicitBehaviorBootstrapCheck(nodeMetadata, licenseService).check(
             createTestContext(
                 Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build(),
-                createLicensesMetadata(previousVersion, randomFrom("basic", "trial"))
+                createLicensesMetadata(TrialLicenseVersion.fromXContent(previousVersion.toString()), randomFrom("basic", "trial"))
             )
         );
         assertThat(result.isSuccess(), is(true));
     }
 
-    private Metadata createLicensesMetadata(Version version, String licenseMode) throws Exception {
+    private Metadata createLicensesMetadata(TrialLicenseVersion era, String licenseMode) throws Exception {
         License license = TestUtils.generateSignedLicense(licenseMode, TimeValue.timeValueHours(2));
-        return Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, version)).build();
+        return Metadata.builder().putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, era)).build();
     }
 }

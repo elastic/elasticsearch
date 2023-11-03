@@ -50,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
+public final class ReportingAttachmentParser implements EmailAttachmentParser<ReportingAttachment> {
 
     public static final String TYPE = "reporting";
 
@@ -137,7 +137,6 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     private boolean warningEnabled = REPORT_WARNING_ENABLED_SETTING.getDefault(Settings.EMPTY);
     private final Map<String, String> customWarnings = new ConcurrentHashMap<>(1);
 
-    @SuppressWarnings("this-escape")
     public ReportingAttachmentParser(
         Settings settings,
         WebhookService webhookService,

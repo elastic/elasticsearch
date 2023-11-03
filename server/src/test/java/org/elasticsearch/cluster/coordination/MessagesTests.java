@@ -215,7 +215,6 @@ public class MessagesTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101733")
     public void testJoinRequestEqualsHashCodeSerialization() {
         Join initialJoin = new Join(
             createNode(randomAlphaOfLength(10)),
@@ -258,7 +257,7 @@ public class MessagesTests extends ESTestCase {
                 case 2 -> new JoinRequest(
                     joinRequest.getSourceNode(),
                     joinRequest.getCompatibilityVersions(),
-                    Set.of(generateRandomStringArray(10, 10, false)),
+                    randomValueOtherThan(joinRequest.getFeatures(), () -> Set.of(generateRandomStringArray(10, 10, false))),
                     joinRequest.getMinimumTerm(),
                     joinRequest.getOptionalJoin()
                 );

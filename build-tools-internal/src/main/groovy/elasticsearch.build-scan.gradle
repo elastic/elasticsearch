@@ -9,7 +9,6 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.gradle.initialization.BuildRequestMetaData
 
 buildScan {
   URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
@@ -135,14 +134,13 @@ buildScan {
         buildScanPublished { scan ->
           // Attach build scan link as build metadata
           // See: https://buildkite.com/docs/pipelines/build-meta-data
-          new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
-            .start()
-            .waitFor()
+          ['buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}"].execute().waitFor()
 
           // Add a build annotation
           // See: https://buildkite.com/docs/agent/v3/cli-annotate
           def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failure ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
-          new ProcessBuilder(
+          def command = OS.current() == OS.WINDOWS ? ['cmd', '/c'] : []
+          (command + [
             'buildkite-agent',
             'annotate',
             '--context',
@@ -151,9 +149,7 @@ buildScan {
             '--style',
             result.failure ? 'error' : 'info',
             body
-          )
-            .start()
-            .waitFor()
+          ]).execute().waitFor()
         }
       }
     } else {

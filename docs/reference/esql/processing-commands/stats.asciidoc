@@ -34,11 +34,12 @@ include::../functions/aggregation-functions.asciidoc[tag=agg_list]
 
 NOTE: `STATS` without any groups is much much faster than adding a group.
 
-NOTE: Grouping on a single field is currently much more optimized than grouping
-      on many fields. In some tests we have seen grouping on a single `keyword`
-      field to be five times faster than grouping on two `keyword` fields. Do not
-      try to work around this combining the two fields together with something
-      like <<esql-concat>> and then grouping - that is not going to be faster.
+NOTE: Grouping on a single column is currently much more optimized than grouping
+      on many column. In some tests we have seen grouping on a single `keyword`
+      column to be five times faster than grouping on two `keyword` columns. Do 
+      not try to work around this combining the two columns together with 
+      something like <<esql-concat>> and then grouping - that is not going to be
+      faster.
 
 *Examples*
 

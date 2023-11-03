@@ -20,6 +20,8 @@ The `LIMIT` processing command enables you to limit the number of rows that are
 returned. If not specified, `LIMIT` defaults to `500`.
 
 A query does not return more than 10,000 rows, regardless of the `LIMIT` value.
+You can change this with the `esql.query.result_truncation_max_size` static
+cluster setting.
 
 *Example*
 

@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.index.mapper.extras;
+package org.elasticsearch.xpack.countedkeyword;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -112,7 +111,6 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        // TODO: Do we need a new source type now or is this good enough?
         return CoreValuesSourceType.KEYWORD;
     }
 

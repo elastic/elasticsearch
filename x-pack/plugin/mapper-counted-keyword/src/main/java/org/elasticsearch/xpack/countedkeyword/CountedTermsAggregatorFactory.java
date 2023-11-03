@@ -1,12 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.index.mapper.extras;
+package org.elasticsearch.xpack.countedkeyword;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.rest.RestStatus;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
-    // TODO: Do we need to make this configurable? Is this a good default? Or should it be "key"?
     private final BucketOrder order = BucketOrder.count(false);
     private final CountedTermsAggregatorSupplier supplier;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -52,16 +50,7 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
      * including those that need global ordinals
      */
     static CountedTermsAggregatorSupplier bytesSupplier() {
-        return (
-            name,
-            factories,
-            valuesSourceConfig,
-            order,
-            bucketCountThresholds,
-            context,
-            parent,
-            cardinality,
-            metadata) -> {
+        return (name, factories, valuesSourceConfig, order, bucketCountThresholds, context, parent, cardinality, metadata) -> {
 
             assert valuesSourceConfig.getValuesSource() instanceof ValuesSource.Bytes.WithOrdinals;
             ValuesSource.Bytes.WithOrdinals ordinalsValuesSource = (ValuesSource.Bytes.WithOrdinals) valuesSourceConfig.getValuesSource();
@@ -117,7 +106,6 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
     protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
-        // TODO: We can probably get rid of this check
         // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
         // This is because we cannot be sure about their relative scale when sampled
         if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
@@ -134,16 +122,6 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
         }
         bucketCountThresholds.ensureValidity();
 
-        return supplier.build(
-            name,
-            factories,
-            config,
-            order,
-            bucketCountThresholds,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
+        return supplier.build(name, factories, config, order, bucketCountThresholds, context, parent, cardinality, metadata);
     }
 }

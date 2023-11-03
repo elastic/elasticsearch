@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
-package org.elasticsearch.index.mapper.extras;
+package org.elasticsearch.xpack.countedkeyword;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -33,7 +31,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -133,7 +130,7 @@ public class CountedTermsAggregator extends TermsAggregator {
             } else {
                 reduceOrder = order;
             }
-            result[ordIdx] =  new StringTerms(
+            result[ordIdx] = new StringTerms(
                 name,
                 reduceOrder,
                 order,
@@ -198,16 +195,9 @@ public class CountedTermsAggregator extends TermsAggregator {
         add.accept("total_buckets", bucketOrds.size());
     }
 
-    @SuppressForbidden(
-        reason = "enabled temporarily to avoid new module dependencies - will be removed once this moves to a dedicated module"
-    )
     @Override
     protected void doClose() {
-        try {
-            IOUtils.close(bucketOrds);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        Releasables.close(bucketOrds);
     }
 
 }

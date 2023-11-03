@@ -42,6 +42,12 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+/**
+ * This is the REST endpoint for the simulate ingest API. This API executes all pipelines for a document (or documents) that would be
+ * executed if that document were sent to the given index. The JSON that would be indexed is returned to the user, along with the list of
+ * pipelines that were executed. The API allows the user to optionally send in substitute definitions for pipelines so that changes can be
+ * tried out without actually modifying the cluster state.
+ */
 @ServerlessScope(Scope.PUBLIC)
 public class RestSimulateIngestAction extends BaseRestHandler {
 
@@ -63,10 +69,8 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         }
         SimulateBulkRequest bulkRequest = new SimulateBulkRequest();
         String defaultIndex = request.param("index");
-        String defaultRouting = null;
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
-        Boolean defaultRequireAlias = null;
         Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         Map<String, Object> sourceMap = XContentHelper.convertToMap(sourceTuple.v2(), false, sourceTuple.v1()).v2();
         bulkRequest.setPipelineSubstitutions((Map<String, Map<String, Object>>) sourceMap.remove("pipeline_substitutions"));
@@ -74,10 +78,10 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         bulkRequest.add(
             transformedData,
             defaultIndex,
-            defaultRouting,
+            null,
             defaultFetchSourceContext,
             defaultPipeline,
-            defaultRequireAlias,
+            null,
             true,
             true,
             request.getXContentType(),
@@ -86,6 +90,11 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         return channel -> client.execute(SimulateBulkAction.INSTANCE, bulkRequest, new SimulateIngestRestToXContentListener(channel));
     }
 
+    /*
+     * The simulate ingest API is intended to have inputs and outputs that are formatted similarly to the simulate pipeline API for the
+     * sake of consistency. But internally it uses the same code as the _bulk API, so that we have confidence that we are simulating what
+     * really happens on ingest. This method transforms simulate-style inputs into an input that the bulk API can accept.
+     */
     private BytesReference convertToBulkRequestXContentBytes(Map<String, Object> sourceMap) throws IOException {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, sourceMap, "docs");
         if (docs.isEmpty()) {
@@ -93,27 +102,19 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         }
         ByteBuffer[] buffers = new ByteBuffer[2 * docs.size()];
         int bufferCount = 0;
-        for (Object object : docs) {
-            if ((object instanceof Map) == false) {
+        for (Map<String, Object> doc : docs) {
+            if ((doc != null) == false) {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
-            @SuppressWarnings("unchecked")
-            Map<String, Object> dataMap = (Map<String, Object>) object;
-            Map<String, Object> document = ConfigurationUtils.readMap(null, null, dataMap, "_source");
+            Map<String, Object> document = ConfigurationUtils.readMap(null, null, doc, "_source");
             String index = ConfigurationUtils.readStringOrIntProperty(
                 null,
                 null,
-                dataMap,
+                doc,
                 IngestDocument.Metadata.INDEX.getFieldName(),
                 "_index"
             );
-            String id = ConfigurationUtils.readStringOrIntProperty(null, null, dataMap, IngestDocument.Metadata.ID.getFieldName(), "_id");
-            String routing = ConfigurationUtils.readOptionalStringOrIntProperty(
-                null,
-                null,
-                dataMap,
-                IngestDocument.Metadata.ROUTING.getFieldName()
-            );
+            String id = ConfigurationUtils.readStringOrIntProperty(null, null, doc, IngestDocument.Metadata.ID.getFieldName(), "_id");
             XContentBuilder actionXContentBuilder = XContentFactory.contentBuilder(XContentType.JSON).lfAtEnd();
             actionXContentBuilder.startObject().field("index").startObject();
             if ("_index".equals(index) == false) {
@@ -135,21 +136,26 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         return BytesReference.fromByteBuffers(buffers);
     }
 
-    private class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
+    /**
+     * The simulate ingest API is intended to have inputs and outputs that are formatted similarly to the simulate pipeline API for the
+     * sake of consistency. But internally it uses the same code as the _bulk API, so that we have confidence that we are simulating what
+     * really happens on ingest. This class is used in place of RestToXContentListener to transform simulate-style outputs into an
+     * simulate-style xcontent.
+     */
+    private static class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
 
         SimulateIngestRestToXContentListener(RestChannel channel) {
             super(channel);
         }
 
         public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
-            assert response.isFragment() == false; // would be nice if we could make default methods final
+            assert response.isFragment() == false;
             toXContent(response, builder, channel.request());
             RestStatus restStatus = statusFunction.apply(response);
             return new RestResponse(restStatus, builder);
         }
 
-        private static XContentBuilder toXContent(BulkResponse response, XContentBuilder builder, ToXContent.Params params)
-            throws IOException {
+        private static void toXContent(BulkResponse response, XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.startArray("docs");
             for (BulkItemResponse item : response) {
@@ -169,7 +175,6 @@ public class RestSimulateIngestAction extends BaseRestHandler {
             }
             builder.endArray();
             builder.endObject();
-            return builder;
         }
     }
 }

@@ -44,7 +44,8 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         SystemIndices systemIndices
     ) {
         super(
-            SimulateBulkAction.NAME,
+            SimulateBulkAction.INSTANCE,
+            SimulateBulkRequest::new,
             threadPool,
             transportService,
             clusterService,

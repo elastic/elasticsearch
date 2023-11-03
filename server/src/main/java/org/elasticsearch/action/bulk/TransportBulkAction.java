@@ -18,6 +18,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
@@ -46,6 +47,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
@@ -93,6 +95,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
 
+    private final ActionType<BulkResponse> bulkAction;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
@@ -143,7 +146,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         LongSupplier relativeTimeProvider
     ) {
         this(
-            BulkAction.NAME,
+            BulkAction.INSTANCE,
+            BulkRequest::new,
             threadPool,
             transportService,
             clusterService,
@@ -158,7 +162,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     TransportBulkAction(
-        String actionName,
+        ActionType<BulkResponse> bulkAction,
+        Writeable.Reader<BulkRequest> requestReader,
         ThreadPool threadPool,
         TransportService transportService,
         ClusterService clusterService,
@@ -170,8 +175,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         SystemIndices systemIndices,
         LongSupplier relativeTimeProvider
     ) {
-        super(actionName, transportService, actionFilters, BulkRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Objects.requireNonNull(relativeTimeProvider);
+        this.bulkAction = bulkAction;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
@@ -331,7 +337,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (clusterService.localNode().isIngestNode()) {
                     processBulkIndexIngestRequest(task, bulkRequest, executorName, l);
                 } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, l);
+                    ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
             });
             return;
@@ -853,8 +859,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
+        int numberOfActions = original.numberOfActions();
         getIngestService(original).executeBulkRequest(
-            original.numberOfActions(),
+            numberOfActions,
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
             bulkRequestModifier::markItemAsFailed,

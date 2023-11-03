@@ -375,7 +375,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             ".system-data-stream",
             "test system datastream",
             Type.EXTERNAL,
-            new ComposableIndexTemplate(List.of(".system-data-stream"), null, null, null, null, null, new DataStreamTemplate()),
+            new ComposableIndexTemplate.Builder().indexPatterns(List.of(".system-data-stream"))
+                .dataStreamTemplate(new DataStreamTemplate())
+                .build(),
             Map.of(),
             List.of("stack"),
             ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS

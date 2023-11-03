@@ -329,7 +329,9 @@ public final class DataStreamTestHelper {
     ) {
         builder.put(
             "template_1",
-            new ComposableIndexTemplate(List.of("*"), null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate())
+            new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
 
         List<IndexMetadata> allIndices = new ArrayList<>();

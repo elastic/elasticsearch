@@ -279,15 +279,9 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate(
-                            List.of(dataStreamName + "*"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        )
+                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
                     )
             )
             .build();
@@ -341,15 +335,9 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate(
-                            List.of(dataStreamName + "*"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        )
+                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
                     )
             )
             .build();
@@ -403,15 +391,9 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate(
-                            List.of(dataStreamName + "*"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        )
+                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build()
                     )
             )
             .build();

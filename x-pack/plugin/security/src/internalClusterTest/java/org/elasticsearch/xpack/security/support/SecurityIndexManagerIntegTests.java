@@ -125,22 +125,21 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                 )
         );
         // create an new-style template
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            securityIndexNames,
-            new Template(
-                Settings.builder()
-                    .put("index.refresh_interval", "1234s")
-                    .put("index.priority", "9876")
-                    .put("index.number_of_replicas", "8")
-                    .build(),
-                null,
-                null
-            ),
-            null,
-            4L,
-            5L,
-            null
-        );
+        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(securityIndexNames)
+            .template(
+                new Template(
+                    Settings.builder()
+                        .put("index.refresh_interval", "1234s")
+                        .put("index.priority", "9876")
+                        .put("index.number_of_replicas", "8")
+                        .build(),
+                    null,
+                    null
+                )
+            )
+            .priority(4L)
+            .version(5L)
+            .build();
         assertAcked(
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,

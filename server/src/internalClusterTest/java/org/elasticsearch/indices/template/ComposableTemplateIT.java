@@ -33,9 +33,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct)).get();
 
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList("coleslaw"),
-            new Template(null, new CompressedXContent("""
+        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("coleslaw"))
+            .template(new Template(null, new CompressedXContent("""
                 {
                   "dynamic": false,
                   "properties": {
@@ -43,12 +42,12 @@ public class ComposableTemplateIT extends ESIntegTestCase {
                       "type": "keyword"
                     }
                   }
-                }"""), null),
-            Collections.singletonList("my-ct"),
-            4L,
-            5L,
-            Collections.singletonMap("egg", "bread")
-        );
+                }"""), null))
+            .componentTemplates(Collections.singletonList("my-ct"))
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.singletonMap("egg", "bread"))
+            .build();
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit)
@@ -68,9 +67,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct2)).get();
 
-        ComposableIndexTemplate cit2 = new ComposableIndexTemplate(
-            Collections.singletonList("coleslaw"),
-            new Template(null, new CompressedXContent("""
+        ComposableIndexTemplate cit2 = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("coleslaw"))
+            .template(new Template(null, new CompressedXContent("""
                 {
                   "dynamic": true,
                   "properties": {
@@ -78,12 +76,12 @@ public class ComposableTemplateIT extends ESIntegTestCase {
                       "type": "integer"
                     }
                   }
-                }"""), null),
-            Collections.singletonList("my-ct"),
-            4L,
-            5L,
-            Collections.singletonMap("egg", "bread")
-        );
+                }"""), null))
+            .componentTemplates(Collections.singletonList("my-ct"))
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.singletonMap("egg", "bread"))
+            .build();
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("my-it").indexTemplate(cit2)

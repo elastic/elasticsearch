@@ -679,16 +679,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     public void testFindDefaultPipelineFromV2TemplateMatch() {
         Exception exception = new Exception("fake exception");
 
-        ComposableIndexTemplate t1 = new ComposableIndexTemplate(
-            Collections.singletonList("missing_*"),
-            new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate t1 = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("missing_*"))
+            .template(new Template(Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "pipeline2").build(), null, null))
+            .build();
 
         ClusterState state = clusterService.state();
         Metadata metadata = Metadata.builder().put("my-template", t1).build();

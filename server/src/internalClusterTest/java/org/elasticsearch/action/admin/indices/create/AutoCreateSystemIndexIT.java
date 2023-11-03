@@ -205,18 +205,19 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     }
 
     private String autoCreateSystemAliasViaComposableTemplate(String indexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(indexName + "*"),
-            new Template(
-                null,
-                null,
-                Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
-            ),
-            Collections.emptyList(),
-            4L,
-            5L,
-            Collections.emptyMap()
-        );
+        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(indexName + "*"))
+            .template(
+                new Template(
+                    null,
+                    null,
+                    Map.of(indexName + "-composable-alias", AliasMetadata.builder(indexName + "-composable-alias").build())
+                )
+            )
+            .componentTemplates(Collections.emptyList())
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.emptyMap())
+            .build();
         assertAcked(
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,

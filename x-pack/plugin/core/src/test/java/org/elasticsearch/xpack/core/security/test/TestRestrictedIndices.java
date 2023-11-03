@@ -110,15 +110,9 @@ public class TestRestrictedIndices {
                         ".fleet-actions-results",
                         "fleet actions results",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate(
-                            List.of(".fleet-actions-results"),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new ComposableIndexTemplate.DataStreamTemplate()
-                        ),
+                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(".fleet-actions-results"))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
                         Map.of(),
                         List.of("fleet", "kibana"),
                         null

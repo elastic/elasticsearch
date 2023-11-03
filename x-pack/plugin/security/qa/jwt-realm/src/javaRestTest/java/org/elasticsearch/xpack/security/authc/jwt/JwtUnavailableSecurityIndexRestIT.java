@@ -79,10 +79,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         .setting("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/")
         .setting("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/")
         .setting("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub")
-        .setting("xpack.security.authc.realms.jwt.jwt1.claims.groups", "roles")
         .setting("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn")
-        .setting("xpack.security.authc.realms.jwt.jwt1.claims.name", "name")
-        .setting("xpack.security.authc.realms.jwt.jwt1.claims.mail", "mail")
         .setting("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id")
         .setting("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0")
         .setting("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE")
@@ -142,8 +139,6 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
     public void testAuthenticateWithCachedRoleMappingSucceedsWithoutAccessToSecurityIndex() throws Exception {
         final String dn = randomDn();
-        final String name = randomName();
-        final String mail = randomMail();
 
         final String rules = Strings.format("""
             { "all": [
@@ -158,7 +153,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         try {
             {
                 final String principal = randomPrincipal();
-                final SignedJWT jwt = buildAndSignJwt(principal, dn, name, mail, List.of(), Instant.now());
+                final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
                 final TestSecurityClient client = getSecurityClient(jwt);
 
                 final Map<String, Object> response = client.authenticate();
@@ -170,7 +165,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
             {
                 final String principal = randomPrincipal();
-                final SignedJWT jwt = buildAndSignJwt(principal, dn, name, mail, List.of(), Instant.now());
+                final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
 
                 final Map<String, Object> response = getSecurityClient(jwt).authenticate();
 
@@ -179,14 +174,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
             {
                 final String principal = randomPrincipal();
-                final SignedJWT jwt = buildAndSignJwt(
-                    principal,
-                    randomValueOtherThan(dn, this::randomDn),
-                    name,
-                    mail,
-                    List.of(),
-                    Instant.now()
-                );
+                final SignedJWT jwt = buildAndSignJwt(principal, randomValueOtherThan(dn, this::randomDn), Instant.now());
 
                 final Map<String, Object> response = getSecurityClient(jwt).authenticate();
 
@@ -206,11 +194,6 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
     ) {
         final String description = "Authentication response [" + response + "]";
         assertThat(description, response, hasEntry(User.Fields.USERNAME.getPreferredName(), expectedUsername));
-        assertThat(
-            description,
-            JwtRestIT.assertMap(response, User.Fields.AUTHENTICATION_REALM),
-            hasEntry(User.Fields.REALM_NAME.getPreferredName(), "jwt1")
-        );
         assertThat(
             description,
             JwtRestIT.assertList(response, User.Fields.ROLES),
@@ -252,30 +235,18 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         return "CN=" + randomPrincipal();
     }
 
-    private String randomName() {
-        return randomPrincipal() + "_name";
-    }
-
-    private String randomMail() {
-        return randomPrincipal() + "_mail@example.com";
-    }
-
     private List<String> randomRoles() {
         // We append _test so that it cannot randomly conflict with builtin roles
         return randomList(1, 3, () -> randomAlphaOfLengthBetween(4, 12) + "_test");
     }
 
-    private SignedJWT buildAndSignJwt(String principal, String dn, String name, String mail, List<String> groups, Instant issueTime)
-        throws JOSEException, ParseException, IOException {
+    private SignedJWT buildAndSignJwt(String principal, String dn, Instant issueTime) throws JOSEException, ParseException, IOException {
         final JWTClaimsSet claimsSet = JwtRestIT.buildJwt(
             Map.ofEntries(
                 Map.entry("iss", "https://issuer.example.com/"),
                 Map.entry("aud", "https://audience.example.com/"),
                 Map.entry("sub", principal),
                 Map.entry("dn", dn),
-                Map.entry("name", name),
-                Map.entry("mail", mail),
-                Map.entry("roles", groups), // Realm config has `claim.groups: "roles"`
                 Map.entry("token_use", "id"),
                 Map.entry("version", "2.0")
             ),

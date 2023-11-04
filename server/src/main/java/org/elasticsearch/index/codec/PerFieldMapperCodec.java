@@ -107,7 +107,7 @@ public final class PerFieldMapperCodec extends Lucene95Codec {
     }
 
     boolean useTSDBDocValuesFormat(final String field) {
-        if (mapperService != null) {
+        if (mapperService != null && mapperService.getIndexSettings().isES87TSDBCodecEnabled() && isTimeSeriesModeIndex()) {
             final MappingLookup mappingLookup = mapperService.mappingLookup();
             if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
                 return true;
@@ -120,32 +120,10 @@ public final class PerFieldMapperCodec extends Lucene95Codec {
             }
         }
         return false;
-        /*return /.getIndexSettings().isES87TSDBCodecEnabled()
-               && isTimeSeriesModeIndex()
-               && isNotSpecialField(field);*/
     }
 
     private boolean isTimeSeriesModeIndex() {
         return IndexMode.TIME_SERIES.equals(mapperService.getIndexSettings().getMode());
     }
 
-    private boolean isCounterOrGaugeMetricType(String field) {
-        if (mapperService != null) {
-            final MappingLookup mappingLookup = mapperService.mappingLookup();
-            if (mappingLookup.getMapper(field) instanceof NumberFieldMapper) {
-                final MappedFieldType fieldType = mappingLookup.getFieldType(field);
-                return TimeSeriesParams.MetricType.COUNTER.equals(fieldType.getMetricType())
-                    || TimeSeriesParams.MetricType.GAUGE.equals(fieldType.getMetricType());
-            }
-        }
-        return false;
-    }
-
-    private static boolean isTimestampField(String field) {
-        return "@timestamp".equals(field);
-    }
-
-    private static boolean isNotSpecialField(String field) {
-        return field.startsWith("_") == false;
-    }
 }

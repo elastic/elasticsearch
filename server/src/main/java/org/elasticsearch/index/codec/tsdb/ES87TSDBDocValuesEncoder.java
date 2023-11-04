@@ -178,19 +178,40 @@ public class ES87TSDBDocValuesEncoder {
         deltaEncode(0, 0, in, out);
     }
 
+    /**
+     * Optimizes for encoding sorted fields where we expect a block to mostly either be the same value
+     * or to make a transition from one value to a second one.
+     * <p>
+     * Encodes blocks in the following format:
+     * <ul>
+     *     <li>byte 0: 1/2 bits header+6/7 bits data</li>
+     *     <li>byte 1..n: data</li>
+     * </ul>
+     * The header (first 1 or 2 bits) describes how the data is encoded:
+     * <ul>
+     *     <li>?0 block has a single value (vlong), 2nd bit already contains data</li>
+     *     <li>
+     *         01 block has two runs, data contains value 1 (vlong), run-length (vint) of value 1,
+     *         and delta from first to second value (zlong)
+     *     </li>
+     *     <li>11 block is bit-packed</li>
+     * </ul>
+     */
     void encodeOrdinals(long[] in, DataOutput out, int bitsPerOrd) throws IOException {
         assert in.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
         int numRuns = 1;
         for (int i = 1; i < in.length; ++i) {
-            if (in[i - 1] != in[1]) {
+            if (in[i - 1] != in[i]) {
                 numRuns++;
             }
         }
-        if (numRuns == 1) {
+        if (numRuns == 1 && bitsPerOrd < 63) {
             long value = in[0];
-            out.writeVLong(value << 2);
-        } else if (numRuns == 2) {
-            out.writeVLong((in[0] << 2) | 0x01);
+            // set first bit to 0 to indicate the block has a single run
+            out.writeVLong(value << 1);
+        } else if (numRuns == 2 && bitsPerOrd < 62) {
+            // set first two bits to 01 to indicate the block has two runs
+            out.writeVLong((in[0] << 2) | 0b01);
             int firstRunLen = in.length;
             for (int i = 1; i < in.length; ++i) {
                 if (in[i] != in[0]) {
@@ -201,7 +222,8 @@ public class ES87TSDBDocValuesEncoder {
             out.writeVInt(firstRunLen);
             out.writeZLong(in[in.length - 1] - in[0]);
         } else {
-            out.writeVLong(0x02);
+            // set first two bits to 11 to indicate the block is bit-packed
+            out.writeVLong(0b11);
             forUtil.encode(in, bitsPerOrd, out);
         }
     }
@@ -209,17 +231,20 @@ public class ES87TSDBDocValuesEncoder {
     void decodeOrdinals(DataInput in, long[] out, int bitsPerOrd) throws IOException {
         assert out.length == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE : out.length;
 
-        long header = in.readVLong();
-        int token = (int) (header & 0x03L);
-        if (token == 0) {
-            Arrays.fill(out, header >>> 2);
-        } else if (token == 1) {
-            long v1 = header >>> 2;
+        long v1 = in.readVLong();
+        int header = (int) (v1 & 0b11L);
+        if (header == 0b00 || header == 0b10) {
+            // first bit is zero -> single run
+            Arrays.fill(out, v1 >>> 1);
+        } else if (header == 0b01) {
+            // first two bits are 01 -> two runs
+            v1 = v1 >>> 2;
             int runLen = in.readVInt();
             long v2 = v1 + in.readZLong();
             Arrays.fill(out, 0, runLen, v1);
             Arrays.fill(out, runLen, out.length, v2);
         } else {
+            // first two bits are 11 -> bit-packed
             forUtil.decode(bitsPerOrd, in, out);
         }
     }

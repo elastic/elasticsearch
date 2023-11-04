@@ -191,30 +191,63 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         }
     }
 
-    public void testEncodeOrdinalsSmall() throws IOException {
+    public void testEncodeOrdinalsSingleValueSmall() throws IOException {
         long[] arr = new long[blockSize];
-        for (int i = 0; i < 64; ++i) {
-            arr[i] = 1;
-        }
-        for (int i = 64; i < blockSize; ++i) {
-            arr[i] = 2;
-        }
-        final long expectedNumBytes = 2 // 2 zig-zag-encoded ordinals
-            + 2; // 2 zig-zag-encoded negative longs, indicating repetitions
+        Arrays.fill(arr, 63);
+        final long expectedNumBytes = 1;
 
         doTestOrdinals(arr, expectedNumBytes);
     }
 
-    public void testEncodeOrdinalsSmallLarge() throws IOException {
+    public void testEncodeOrdinalsSingleValueMedium() throws IOException {
         long[] arr = new long[blockSize];
-        for (int i = 0; i < 64; ++i) {
-            arr[i] = Long.MAX_VALUE - 1;
-        }
-        for (int i = 64; i < blockSize; ++i) {
-            arr[i] = Long.MAX_VALUE;
-        }
-        final long expectedNumBytes = 10 * 2 // 2 zig-zag-encoded ordinals
-            + 1 * 2; // 2 zig-zag-encoded negative longs, indicating repetitions
+        Arrays.fill(arr, 64);
+        final long expectedNumBytes = 2;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsSingleValueLarge() throws IOException {
+        long[] arr = new long[blockSize];
+        final long expectedNumBytes = 3;
+        // each byte of a vlong can store 7 bits (first bit is continuation bit)
+        // first byte can only store 6 bits as the first bit is the header
+        Arrays.fill(arr, (1 << 6 + 7 + 7) -1);
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsSingleValueGrande() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, Long.MAX_VALUE);
+        final long expectedNumBytes = 1 + blockSize * Long.BYTES;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsTwoValuesSmall() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, 63);
+        arr[0] = 1;
+        final long expectedNumBytes = 3;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsTwoValuesLarge() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, Long.MAX_VALUE >> 2);
+        arr[0] = (Long.MAX_VALUE >> 2) - 1;
+        final long expectedNumBytes = 11;
+
+        doTestOrdinals(arr, expectedNumBytes);
+    }
+
+    public void testEncodeOrdinalsTwoValuesGrande() throws IOException {
+        long[] arr = new long[blockSize];
+        Arrays.fill(arr, Long.MAX_VALUE);
+        arr[0] = Long.MAX_VALUE - 1;
+        final long expectedNumBytes = 1 + blockSize * Long.BYTES;
 
         doTestOrdinals(arr, expectedNumBytes);
     }
@@ -224,13 +257,13 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         for (int i = 0; i < blockSize; ++i) {
             arr[i] = i;
         }
-        doTestOrdinals(arr, 192);
+        doTestOrdinals(arr, 113);
     }
 
     private void doTestOrdinals(long[] arr, long expectedNumBytes) throws IOException {
         long maxOrd = 0;
         for (long ord : arr) {
-            maxOrd = Math.max(maxOrd, ord + 1);
+            maxOrd = Math.max(maxOrd, ord);
         }
         final int bitsPerOrd = PackedInts.bitsRequired(maxOrd - 1);
         final long[] expected = arr.clone();

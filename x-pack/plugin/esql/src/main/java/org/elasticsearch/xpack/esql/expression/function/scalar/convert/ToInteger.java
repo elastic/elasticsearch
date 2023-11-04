@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -68,7 +70,7 @@ public class ToInteger extends AbstractConvertFunction {
         return bool ? 1 : 0;
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { NumberFormatException.class })
     static int fromKeyword(BytesRef in) {
         String asString = in.utf8ToString();
         try {
@@ -82,17 +84,17 @@ public class ToInteger extends AbstractConvertFunction {
         }
     }
 
-    @ConvertEvaluator(extraName = "FromDouble")
+    @ConvertEvaluator(extraName = "FromDouble", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
     static int fromDouble(double dbl) {
         return fromLong(safeDoubleToLong(dbl));
     }
 
-    @ConvertEvaluator(extraName = "FromUnsignedLong")
+    @ConvertEvaluator(extraName = "FromUnsignedLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
     static int fromUnsignedLong(long lng) {
         return fromLong(ToLong.fromUnsignedLong(lng));
     }
 
-    @ConvertEvaluator(extraName = "FromLong")
+    @ConvertEvaluator(extraName = "FromLong", warnExceptions = { InvalidArgumentException.class, QlIllegalArgumentException.class })
     static int fromLong(long lng) {
         return safeToInt(lng);
     }

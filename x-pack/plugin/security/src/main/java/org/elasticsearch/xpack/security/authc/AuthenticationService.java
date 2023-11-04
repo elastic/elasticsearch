@@ -267,7 +267,7 @@ public class AuthenticationService {
         return numInvalidation.get();
     }
 
-    abstract static class AuditableRequest {
+    public abstract static class AuditableRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;

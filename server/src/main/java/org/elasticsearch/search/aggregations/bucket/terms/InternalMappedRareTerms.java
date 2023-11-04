@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,8 +40,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
 
     final SetBackedScalingCuckooFilter filter;
 
-    protected final Logger logger = LogManager.getLogger(getClass());
-
     InternalMappedRareTerms(
         String name,
         BucketOrder order,
@@ -57,10 +53,6 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
         this.format = format;
         this.buckets = buckets;
         this.filter = filter;
-    }
-
-    public long getMaxDocCount() {
-        return maxDocCount;
     }
 
     SetBackedScalingCuckooFilter getFilter() {

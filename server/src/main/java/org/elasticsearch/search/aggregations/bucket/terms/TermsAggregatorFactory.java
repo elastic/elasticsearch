@@ -407,10 +407,18 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 IncludeExclude.StringFilter filter = includeExclude == null
                     ? null
                     : includeExclude.convertToStringFilter(valuesSourceConfig.format());
+
+                MapStringTermsAggregator.CollectorSource collectorSource;
+                if (valuesSourceConfig.hasOrdinals() && valuesSourceConfig.fieldType().isDimension()) {
+                    collectorSource = new MapStringTermsAggregator.SegmentOrdinalsCollectorSource(valuesSourceConfig);
+                } else {
+                    collectorSource = new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig);
+                }
+
                 return new MapStringTermsAggregator(
                     name,
                     factories,
-                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig),
+                    collectorSource,
                     a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource()),
                     order,
                     valuesSourceConfig.format(),

@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -51,7 +52,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     private final CollectorSource collectorSource;
     private final ResultStrategy<?, ?> resultStrategy;
     private final BytesKeyedBucketOrds bucketOrds;
-    private final IncludeExclude.StringFilter includeExclude;
+    final IncludeExclude.StringFilter includeExclude;
 
     public MapStringTermsAggregator(
         String name,
@@ -89,7 +90,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         return resultStrategy.wrapCollector(
             collectorSource.getLeafCollector(
-                includeExclude,
+                this,
                 aggCtx.getLeafReaderContext(),
                 sub,
                 this::addRequestCircuitBreakerBytes,
@@ -101,6 +102,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                     } else {
                         collectBucket(s, doc, bucketOrdinal);
                     }
+                    return bucketOrdinal;
                 }
             )
         );
@@ -156,7 +158,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Build the collector.
          */
         LeafBucketCollector getLeafCollector(
-            IncludeExclude.StringFilter includeExclude,
+            MapStringTermsAggregator aggregator,
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
@@ -166,7 +168,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
     @FunctionalInterface
     public interface CollectConsumer {
-        void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
+        long accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
     }
 
     /**
@@ -194,12 +196,13 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
 
         @Override
         public LeafBucketCollector getLeafCollector(
-            IncludeExclude.StringFilter includeExclude,
+            MapStringTermsAggregator aggregator,
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
+            IncludeExclude.StringFilter includeExclude = aggregator.includeExclude;
             SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 final BytesRefBuilder previous = new BytesRefBuilder();
@@ -224,6 +227,78 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                         }
                         previous.copyBytes(bytes);
                         consumer.accept(sub, doc, owningBucketOrd, bytes);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void close() {}
+    }
+
+    /**
+     * A collector source for map execution that uses segments ordinals to speed execution.
+     * This is done by recording the segment ordinal and bucket ordinal for subsequent collections.
+     * This is beneficial when index is sorted by the terms agg's field. For example for
+     * time series dimension fields.
+     */
+    public static class SegmentOrdinalsCollectorSource implements CollectorSource {
+
+        private final ValuesSourceConfig valuesSourceConfig;
+        private final ValuesSource.Bytes.WithOrdinals withOrdinals;
+
+        public SegmentOrdinalsCollectorSource(ValuesSourceConfig valuesSourceConfig) {
+            this.valuesSourceConfig = valuesSourceConfig;
+            this.withOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSourceConfig.getValuesSource();
+        }
+
+        @Override
+        public String describe() {
+            return "segment ordinals from " + valuesSourceConfig.getDescription();
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {}
+
+        @Override
+        public boolean needsScores() {
+            return valuesSourceConfig.getValuesSource().needsScores();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(
+            MapStringTermsAggregator aggregator,
+            LeafReaderContext ctx,
+            LeafBucketCollector sub,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CollectConsumer consumer
+        ) throws IOException {
+            IncludeExclude.StringFilter includeExclude = aggregator.includeExclude;
+            SortedSetDocValues values = withOrdinals.ordinalsValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+
+                private long previousOrdinal = -1;
+                private long previousBucketOrdinal = -1;
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (values.advanceExact(doc) == false) {
+                        return;
+                    }
+                    int valuesCount = values.docValueCount();
+                    for (int i = 0; i < valuesCount; i++) {
+                        long ord = values.nextOrd();
+                        if (previousOrdinal == ord) {
+                            aggregator.collectExistingBucket(sub, doc, previousBucketOrdinal);
+                            continue;
+                        }
+
+                        BytesRef bytes = values.lookupOrd(ord);
+                        if (includeExclude != null && false == includeExclude.accept(bytes)) {
+                            continue;
+                        }
+                        previousBucketOrdinal = consumer.accept(sub, doc, owningBucketOrd, bytes);
+                        previousOrdinal = ord;
                     }
                 }
             };

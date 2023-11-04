@@ -9,17 +9,26 @@
 package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.document.DoubleDocValuesField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.FloatDocValuesField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.aggregations.bucket.AggregationTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -27,10 +36,15 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -63,7 +77,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             writeTS(iw, startTime + 6, new Object[] { "dim1", "aaa", "dim2", "yyy" }, new Object[] { "val1", 6 });
             writeTS(iw, startTime + 7, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] { "val1", 7 });
             writeTS(iw, startTime + 8, new Object[] { "dim1", "bbb", "dim2", "zzz" }, new Object[] { "val1", 8 });
-        }, ts -> {
+        }, (Consumer<InternalTimeSeries>) ts -> {
             assertThat(ts.getBuckets(), hasSize(3));
 
             assertThat(ts.getBucketByKey("{dim1=aaa, dim2=xxx}").docCount, equalTo(2L));
@@ -74,6 +88,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             assertThat(((Sum) ts.getBucketByKey("{dim1=bbb, dim2=zzz}").getAggregations().get("sum")).value(), equalTo(22.0));
 
         },
+            true,
             new KeywordFieldMapper.KeywordFieldType("dim1"),
             new KeywordFieldMapper.KeywordFieldType("dim2"),
             new NumberFieldMapper.NumberFieldType("val1", NumberFieldMapper.NumberType.INTEGER)
@@ -86,10 +101,14 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
         for (int i = 0; i < dimensions.length; i += 2) {
+            String fieldName = dimensions[i].toString();
             if (dimensions[i + 1] instanceof Number n) {
-                builder.addLong(dimensions[i].toString(), n.longValue());
+                builder.addLong(fieldName, n.longValue());
+                fields.add(new SortedNumericDocValuesField(fieldName, n.longValue()));
             } else {
-                builder.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                String value = dimensions[i + 1].toString();
+                builder.addString(fieldName, value);
+                fields.add(new SortedSetDocValuesField(fieldName, new BytesRef(value)));
             }
         }
         for (int i = 0; i < metrics.length; i += 2) {
@@ -177,7 +196,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         dateBuilder.fixedInterval(DateHistogramInterval.seconds(1));
         TimeSeriesAggregationBuilder tsBuilder = new TimeSeriesAggregationBuilder("by_tsid");
         tsBuilder.subAggregation(dateBuilder);
-        timeSeriesTestCase(tsBuilder, new MatchAllDocsQuery(), buildIndex, verifier);
+        timeSeriesTestCase(tsBuilder, new MatchAllDocsQuery(), buildIndex, verifier, true);
     }
 
     public void testAggregationSize() throws IOException {
@@ -201,7 +220,37 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
 
             TimeSeriesAggregationBuilder limitedTsBuilder = new TimeSeriesAggregationBuilder("by_tsid");
             limitedTsBuilder.setSize(i);
-            timeSeriesTestCase(limitedTsBuilder, new MatchAllDocsQuery(), buildIndex, limitedVerifier);
+            timeSeriesTestCase(limitedTsBuilder, new MatchAllDocsQuery(), buildIndex, limitedVerifier, true);
+        }
+    }
+
+    public void testTimeSeriesTerms() throws IOException {
+        var buildIndex = multiTsWriter();
+        {
+            var dimField = createDimensionFieldType("dim1");
+            var termsAgg = new TermsAggregationBuilder("by_dim1").field("dim1");
+            this.<StringTerms>debugTestCase(termsAgg, new MatchAllDocsQuery(), buildIndex, (terms, impl, debug) -> {
+                assertThat(impl, equalTo(MapStringTermsAggregator.class));
+                assertThat(
+                    debug.get("by_dim1").get("collection_strategy"),
+                    equalTo("segment ordinals from Field [dim1] of type [keyword]")
+                );
+
+                assertThat(terms.getBuckets(), hasSize(2));
+                assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("aaa"));
+                assertThat(terms.getBuckets().get(1).getKeyAsString(), equalTo("bbb"));
+            }, dimField);
+        }
+        {
+            Consumer<StringTerms> verifier = terms -> {
+                assertThat(terms.getBuckets(), hasSize(3));
+                assertThat(terms.getBuckets().get(0).getKeyAsString(), equalTo("zzz"));
+                assertThat(terms.getBuckets().get(1).getKeyAsString(), equalTo("xxx"));
+                assertThat(terms.getBuckets().get(2).getKeyAsString(), equalTo("yyy"));
+            };
+            var dimField = createDimensionFieldType("dim2");
+            var termsAgg = new TermsAggregationBuilder("by_dim2").field("dim2");
+            timeSeriesTestCase(termsAgg, new MatchAllDocsQuery(), buildIndex, verifier, false, dimField);
         }
     }
 
@@ -219,11 +268,12 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         };
     }
 
-    private void timeSeriesTestCase(
-        TimeSeriesAggregationBuilder builder,
+    private <I extends InternalAggregation> void timeSeriesTestCase(
+        AggregationBuilder builder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        Consumer<InternalTimeSeries> verify,
+        Consumer<I> verify,
+        boolean cacheable,
         MappedFieldType... fieldTypes
     ) throws IOException {
         MappedFieldType[] newFieldTypes = new MappedFieldType[fieldTypes.length + 2];
@@ -231,7 +281,39 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         newFieldTypes[1] = new DateFieldMapper.DateFieldType("@timestamp");
         System.arraycopy(fieldTypes, 0, newFieldTypes, 2, fieldTypes.length);
 
-        testCase(buildIndex, verify, new AggTestConfig(builder, newFieldTypes).withQuery(query));
+        testCase(buildIndex, verify, new AggTestConfig(builder, newFieldTypes).withQuery(query).withShouldBeCached(cacheable));
+    }
+
+    private static KeywordFieldMapper.KeywordFieldType createDimensionFieldType(String name) {
+        var builder = new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true);
+        return new KeywordFieldMapper.KeywordFieldType(
+            name,
+            new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE),
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
+            Lucene.KEYWORD_ANALYZER,
+            builder,
+            true
+        );
+    }
+
+    protected IndexSettings createIndexSettings() {
+        return new IndexSettings(
+            IndexMetadata.builder("_index")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00Z")
+                        .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim1")
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
     }
 
 }

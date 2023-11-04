@@ -289,12 +289,13 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
 
         @Override
         public LeafBucketCollector getLeafCollector(
-            StringFilter includeExclude,
+            MapStringTermsAggregator aggregator,
             LeafReaderContext ctx,
             LeafBucketCollector sub,
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
+            StringFilter includeExclude = aggregator.includeExclude;
             return new LeafBucketCollectorBase(sub, null) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -461,7 +462,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 (subCollector, d, o, bytes) -> {
                     collectAnalyzed.start();
                     try {
-                        consumer.accept(subCollector, d, o, bytes);
+                        return consumer.accept(subCollector, d, o, bytes);
                     } finally {
                         collectAnalyzed.stop();
                     }

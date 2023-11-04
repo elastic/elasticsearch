@@ -127,7 +127,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new SettingsConfig.Builder().setUsePit(true).build()
         ).build();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -220,7 +221,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             new SettingsConfig.Builder().setUsePit(true).build()
         ).build();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), false)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, false);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -296,7 +298,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         TransformConfig config = TransformConfigTests.randomTransformConfig();
         boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -359,7 +362,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             .build();
         boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
 
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
                 new TransformServices(
@@ -413,7 +417,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
     public void testHandlePitIndexNotFound() throws InterruptedException {
         // simulate a deleted index due to ILM
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("deleted-index");
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
@@ -425,7 +430,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
 
         // simulate a deleted index that is essential, search must fail (after a retry without pit)
-        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new PitMockClient(threadPool, true);
             ClientTransformIndexer indexer = createTestIndexer(new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")));
             SearchRequest searchRequest = new SearchRequest("essential-deleted-index");
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
@@ -483,8 +489,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
         private final boolean pitSupported;
         private AtomicLong pitContextCounter = new AtomicLong();
 
-        PitMockClient(String testName, boolean pitSupported) {
-            super(testName);
+        PitMockClient(ThreadPool threadPool, boolean pitSupported) {
+            super(threadPool);
             this.pitSupported = pitSupported;
         }
 

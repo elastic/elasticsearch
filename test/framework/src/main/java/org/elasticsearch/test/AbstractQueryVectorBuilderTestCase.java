@@ -23,6 +23,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.Before;
 
@@ -114,7 +115,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
                 KnnSearchBuilder::new,
                 TransportVersion.current()
             );
-            try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new AssertingClient(threadPool, expected, queryVectorBuilder);
                 QueryRewriteContext context = new QueryRewriteContext(null, client, null);
                 PlainActionFuture<KnnSearchBuilder> future = new PlainActionFuture<>();
                 Rewriteable.rewriteAndFetch(randomFrom(serialized, searchBuilder), context, future);
@@ -128,7 +130,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
     public final void testVectorFetch() throws Exception {
         float[] expected = randomVector(randomIntBetween(10, 1024));
         T queryVectorBuilder = createTestInstance(expected);
-        try (NoOpClient client = new AssertingClient(expected, queryVectorBuilder)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new AssertingClient(threadPool, expected, queryVectorBuilder);
             PlainActionFuture<float[]> future = new PlainActionFuture<>();
             queryVectorBuilder.buildVector(client, future);
             assertThat(future.get(), equalTo(expected));
@@ -163,8 +166,8 @@ public abstract class AbstractQueryVectorBuilderTestCase<T extends QueryVectorBu
         private final float[] array;
         private final T queryVectorBuilder;
 
-        AssertingClient(float[] array, T queryVectorBuilder) {
-            super("query_vector_builder_tests");
+        AssertingClient(ThreadPool threadPool, float[] array, T queryVectorBuilder) {
+            super(threadPool);
             this.array = array;
             this.queryVectorBuilder = queryVectorBuilder;
         }

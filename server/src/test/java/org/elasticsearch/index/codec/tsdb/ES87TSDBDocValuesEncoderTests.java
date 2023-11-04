@@ -212,7 +212,7 @@ public class ES87TSDBDocValuesEncoderTests extends LuceneTestCase {
         final long expectedNumBytes = 3;
         // each byte of a vlong can store 7 bits (first bit is continuation bit)
         // first byte can only store 6 bits as the first bit is the header
-        Arrays.fill(arr, (1 << 6 + 7 + 7) -1);
+        Arrays.fill(arr, (1 << 6 + 7 + 7) - 1);
 
         doTestOrdinals(arr, expectedNumBytes);
     }

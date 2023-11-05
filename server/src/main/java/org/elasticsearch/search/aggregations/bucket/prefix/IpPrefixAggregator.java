@@ -53,22 +53,6 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             this.netmask = netmask;
         }
 
-        public boolean isIpv6() {
-            return isIpv6;
-        }
-
-        public int getPrefixLength() {
-            return prefixLength;
-        }
-
-        public boolean appendPrefixLength() {
-            return appendPrefixLength;
-        }
-
-        public BytesRef getNetmask() {
-            return netmask;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

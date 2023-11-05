@@ -65,13 +65,6 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
         return (AF) this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);

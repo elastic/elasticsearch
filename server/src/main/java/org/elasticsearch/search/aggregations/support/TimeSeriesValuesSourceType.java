@@ -84,10 +84,6 @@ public enum TimeSeriesValuesSourceType implements ValuesSourceType {
         }
     };
 
-    public static ValuesSourceType fromString(String name) {
-        return valueOf(name.trim().toUpperCase(Locale.ROOT));
-    }
-
     public String value() {
         return name().toLowerCase(Locale.ROOT);
     }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.shards;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,6 +25,13 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -127,7 +134,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param metadata Metadata for the cluster
      * @return A new ShardAllocationStatus that has not yet been filled.
      */
-    ShardAllocationStatus createNewStatus(Metadata metadata) {
+    public ShardAllocationStatus createNewStatus(Metadata metadata) {
         return new ShardAllocationStatus(metadata);
     }
 
@@ -415,18 +422,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             )
         );
 
-    class ShardAllocationCounts {
+    public class ShardAllocationCounts {
         int unassigned = 0;
         int unassigned_new = 0;
         int unassigned_restarting = 0;
         int initializing = 0;
         int started = 0;
         int relocating = 0;
-        final Set<String> indicesWithUnavailableShards = new HashSet<>();
-        final Set<String> indicesWithAllShardsUnavailable = new HashSet<>();
+        public final Set<String> indicesWithUnavailableShards = new HashSet<>();
+        public final Set<String> indicesWithAllShardsUnavailable = new HashSet<>();
         // We keep the searchable snapshots separately as long as the original index is still available
         // This is checked during the post-processing
-        SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
+        public SearchableSnapshotsState searchableSnapshotsState = new SearchableSnapshotsState();
         final Map<Diagnosis.Definition, Set<String>> diagnosisDefinitions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean verbose) {
@@ -675,7 +682,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param clusterState the current cluster state.
      * @return A list of diagnoses for the provided unassigned shard
      */
-    List<Diagnosis.Definition> checkDataTierRelatedIssues(
+    public List<Diagnosis.Definition> checkDataTierRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
         ClusterState clusterState
@@ -849,12 +856,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    class ShardAllocationStatus {
-        final ShardAllocationCounts primaries = new ShardAllocationCounts();
-        final ShardAllocationCounts replicas = new ShardAllocationCounts();
-        final Metadata clusterMetadata;
+    public class ShardAllocationStatus {
+        protected final ShardAllocationCounts primaries = new ShardAllocationCounts();
+        protected final ShardAllocationCounts replicas = new ShardAllocationCounts();
+        protected final Metadata clusterMetadata;
 
-        ShardAllocationStatus(Metadata clusterMetadata) {
+        public ShardAllocationStatus(Metadata clusterMetadata) {
             this.clusterMetadata = clusterMetadata;
         }
 
@@ -1149,7 +1156,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
     }
 
-    static class SearchableSnapshotsState {
+    public static class SearchableSnapshotsState {
         private final Set<String> searchableSnapshotWithUnavailableShard = new HashSet<>();
         private final Set<String> searchableSnapshotWithOriginalIndexAvailable = new HashSet<>();
 
@@ -1161,7 +1168,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             searchableSnapshotWithOriginalIndexAvailable.add(indexName);
         }
 
-        Set<String> getRedSearchableSnapshots() {
+        public Set<String> getRedSearchableSnapshots() {
             return Sets.difference(searchableSnapshotWithUnavailableShard, searchableSnapshotWithOriginalIndexAvailable);
         }
 

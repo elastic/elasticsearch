@@ -7,7 +7,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -247,6 +249,9 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         private final ValuesSourceConfig valuesSourceConfig;
         private final ValuesSource.Bytes.WithOrdinals withOrdinals;
 
+        protected int segmentsWithSingleValuedOrds = 0;
+        protected int segmentsWithMultiValuedOrds = 0;
+
         public SegmentOrdinalsCollectorSource(ValuesSourceConfig valuesSourceConfig) {
             this.valuesSourceConfig = valuesSourceConfig;
             this.withOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSourceConfig.getValuesSource();
@@ -258,7 +263,10 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        public void collectDebugInfo(BiConsumer<String, Object> add) {}
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            add.accept("segments_with_single_valued_ords", segmentsWithSingleValuedOrds);
+            add.accept("segments_with_multi_valued_ords", segmentsWithMultiValuedOrds);
+        }
 
         @Override
         public boolean needsScores() {
@@ -275,33 +283,114 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         ) throws IOException {
             IncludeExclude.StringFilter includeExclude = aggregator.includeExclude;
             SortedSetDocValues values = withOrdinals.ordinalsValues(ctx);
-            return new LeafBucketCollectorBase(sub, values) {
+            SortedDocValues singleValues = DocValues.unwrapSingleton(values);
+            if (singleValues != null) {
+                segmentsWithSingleValuedOrds++;
+                if (includeExclude != null) {
+                    return new LeafBucketCollectorBase(sub, singleValues) {
 
-                private long previousOrdinal = -1;
-                private long previousBucketOrdinal = -1;
+                        private long previousOrdinal = -1;
+                        private long previousBucketOrdinal = -1;
 
-                @Override
-                public void collect(int doc, long owningBucketOrd) throws IOException {
-                    if (values.advanceExact(doc) == false) {
-                        return;
-                    }
-                    int valuesCount = values.docValueCount();
-                    for (int i = 0; i < valuesCount; i++) {
-                        long ord = values.nextOrd();
-                        if (previousOrdinal == ord) {
-                            aggregator.collectExistingBucket(sub, doc, previousBucketOrdinal);
-                            continue;
+                        @Override
+                        public void collect(int doc, long owningBucketOrd) throws IOException {
+                            if (singleValues.advanceExact(doc) == false) {
+                                return;
+                            }
+                            long ord = singleValues.ordValue();
+                            if (previousOrdinal == ord) {
+                                aggregator.collectExistingBucket(sub, doc, previousBucketOrdinal);
+                                return;
+                            }
+
+                            BytesRef bytes = values.lookupOrd(ord);
+                            if (includeExclude.accept(bytes) == false) {
+                                return;
+                            }
+                            previousBucketOrdinal = consumer.accept(sub, doc, owningBucketOrd, bytes);
+                            previousOrdinal = ord;
                         }
+                    };
+                } else {
+                    return new LeafBucketCollectorBase(sub, singleValues) {
 
-                        BytesRef bytes = values.lookupOrd(ord);
-                        if (includeExclude != null && false == includeExclude.accept(bytes)) {
-                            continue;
+                        private long previousOrdinal = -1;
+                        private long previousBucketOrdinal = -1;
+
+                        @Override
+                        public void collect(int doc, long owningBucketOrd) throws IOException {
+                            if (singleValues.advanceExact(doc) == false) {
+                                return;
+                            }
+                            long ord = singleValues.ordValue();
+                            if (previousOrdinal == ord) {
+                                aggregator.collectExistingBucket(sub, doc, previousBucketOrdinal);
+                                return;
+                            }
+
+                            BytesRef bytes = values.lookupOrd(ord);
+                            previousBucketOrdinal = consumer.accept(sub, doc, owningBucketOrd, bytes);
+                            previousOrdinal = ord;
                         }
-                        previousBucketOrdinal = consumer.accept(sub, doc, owningBucketOrd, bytes);
-                        previousOrdinal = ord;
-                    }
+                    };
                 }
-            };
+            } else {
+                segmentsWithMultiValuedOrds++;
+                if (includeExclude != null) {
+                    return new LeafBucketCollectorBase(sub, values) {
+
+                        private long previousOrdinal = -1;
+                        private long previousBucketOrdinal = -1;
+
+                        @Override
+                        public void collect(int doc, long owningBucketOrd) throws IOException {
+                            if (values.advanceExact(doc) == false) {
+                                return;
+                            }
+                            int valuesCount = values.docValueCount();
+                            for (int i = 0; i < valuesCount; i++) {
+                                long ord = values.nextOrd();
+                                if (previousOrdinal == ord) {
+                                    aggregator.collectExistingBucket(sub, doc, previousBucketOrdinal);
+                                    continue;
+                                }
+
+                                BytesRef bytes = values.lookupOrd(ord);
+                                if (includeExclude.accept(bytes) == false) {
+                                    continue;
+                                }
+                                previousBucketOrdinal = consumer.accept(sub, doc, owningBucketOrd, bytes);
+                                previousOrdinal = ord;
+                            }
+                        }
+                    };
+                } else {
+                    return new LeafBucketCollectorBase(sub, values) {
+
+                        private long previousOrdinal = -1;
+                        private long previousBucketOrdinal = -1;
+
+                        @Override
+                        public void collect(int doc, long owningBucketOrd) throws IOException {
+                            if (values.advanceExact(doc) == false) {
+                                return;
+                            }
+                            int valuesCount = values.docValueCount();
+                            for (int i = 0; i < valuesCount; i++) {
+                                long ord = values.nextOrd();
+                                if (previousOrdinal == ord) {
+                                    aggregator.collectExistingBucket(sub, doc, previousBucketOrdinal);
+                                    continue;
+                                }
+
+                                BytesRef bytes = values.lookupOrd(ord);
+                                previousBucketOrdinal = consumer.accept(sub, doc, owningBucketOrd, bytes);
+                                previousOrdinal = ord;
+                            }
+                        }
+                    };
+                }
+            }
         }
 
         @Override

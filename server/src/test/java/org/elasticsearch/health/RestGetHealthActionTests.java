@@ -6,13 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
+package org.elasticsearch.health;
 
-import java.util.concurrent.TimeUnit;
+import org.elasticsearch.test.ESTestCase;
 
-/**
- * An aggregator capable of reporting bucket sizes in milliseconds. Used by RateAggregator for calendar-based buckets.
- */
-public interface SizedBucketAggregatorBuilder {
-    double calendarDivider(TimeUnit timeUnit);
+import static org.hamcrest.Matchers.is;
+
+public class RestGetHealthActionTests extends ESTestCase {
+
+    public void testHealthReportAPIDoesNotTripCircuitBreakers() {
+        assertThat(new RestGetHealthAction().canTripCircuitBreaker(), is(false));
+    }
 }

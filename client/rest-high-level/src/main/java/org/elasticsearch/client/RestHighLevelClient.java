@@ -302,17 +302,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Executes a bulk request using the Bulk API.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
-     * @param bulkRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response
-     */
-    public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
-    }
-
-    /**
      * Asynchronously executes a bulk request using the Bulk API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html">Bulk API on elastic.co</a>
      * @param bulkRequest the request

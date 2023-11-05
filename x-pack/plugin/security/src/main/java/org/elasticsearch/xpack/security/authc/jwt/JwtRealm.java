@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -54,6 +56,8 @@ import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.C
  * For security, it is recommended to authenticate the client too.
  */
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
+
+    private static final Logger logger = LogManager.getLogger(JwtRealm.class);
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "ES-Client-Authentication";
@@ -180,19 +184,14 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
-        if (userCredentials == null) {
+        if (userCredentials == null || userCredentials.isEmpty()) {
             return null;
         }
-        if (userCredentials.isEmpty()) {
-            throw new IllegalArgumentException("JWT bearer token must be non-empty");
-        }
 
-        final SecureString clientCredentials = JwtUtil.getHeaderValue(
-            threadContext,
-            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-            true
-        );
+        // a lightweight pre-check for JWTs
+        if (containsAtLeastTwoDots(userCredentials) == false) {
+            return null;
+        }
 
         // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
         final SignedJWT signedJWT;
@@ -201,8 +200,17 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // trigger claim set parsing
             signedJWT.getJWTClaimsSet();
         } catch (ParseException e) {
-            throw new IllegalArgumentException("Failed to parse JWT bearer token", e);
+            logger.debug("Failed to parse JWT bearer token", e);
+            // custom realms can also consume the Bearer credentials scheme
+            return null;
         }
+
+        final SecureString clientCredentials = JwtUtil.getHeaderValue(
+                threadContext,
+                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+                true
+        );
 
         return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
     }
@@ -471,5 +479,22 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             Objects.requireNonNull(user, "User must not be null");
             Objects.requireNonNull(exp, "Expiration date must not be null");
         }
+    }
+
+    /**
+     * This is a lightweight pre-check for the JWT token format.
+     * If this returns {@code true}, the token MIGHT be a JWT. Otherwise, the token is definitely not a JWT.
+     */
+    private static boolean containsAtLeastTwoDots(SecureString secureString) {
+        if (secureString == null || secureString.length() < 2) {
+            return false;
+        }
+        int ndots = 0;
+        for (int i = 0; i < secureString.length(); i++) {
+            if (secureString.charAt(i) == '.' && ++ndots >= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 }

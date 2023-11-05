@@ -206,10 +206,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         final SecureString clientCredentials = JwtUtil.getHeaderValue(
-                threadContext,
-                JwtRealm.HEADER_CLIENT_AUTHENTICATION,
-                JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
-                true
+            threadContext,
+            JwtRealm.HEADER_CLIENT_AUTHENTICATION,
+            JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
+            true
         );
 
         return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);

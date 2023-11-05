@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -90,8 +91,8 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
-    public static final Setting<Boolean> SUCCESSFUL_LOAD_CACHE_ENABLED_SETTING = Setting.boolSetting(
-        "xpack.security.authc.role_mapping.successful_load_cache.enabled",
+    public static final Setting<Boolean> LAST_LOAD_CACHE_ENABLED_SETTING = Setting.boolSetting(
+        "xpack.security.authc.role_mapping.last_load_cache.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Filtered
@@ -102,15 +103,15 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private final SecurityIndexManager securityIndex;
     private final ScriptService scriptService;
     private final List<String> realmsToRefresh = new CopyOnWriteArrayList<>();
-    private final boolean successfulLoadCacheEnabled;
-    private final AtomicReference<List<ExpressionRoleMapping>> lastSuccessfulLoadRef = new AtomicReference<>(null);
+    private final boolean lastLoadCacheEnabled;
+    private final AtomicReference<List<ExpressionRoleMapping>> lastLoadRef = new AtomicReference<>(null);
 
     public NativeRoleMappingStore(Settings settings, Client client, SecurityIndexManager securityIndex, ScriptService scriptService) {
         this.settings = settings;
         this.client = client;
         this.securityIndex = securityIndex;
         this.scriptService = scriptService;
-        this.successfulLoadCacheEnabled = SUCCESSFUL_LOAD_CACHE_ENABLED_SETTING.get(settings);
+        this.lastLoadCacheEnabled = LAST_LOAD_CACHE_ENABLED_SETTING.get(settings);
     }
 
     private static String getNameFromId(String id) {
@@ -118,7 +119,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         return id.substring(ID_PREFIX.length());
     }
 
-    private static String getIdForName(String name) {
+    static String getIdForName(String name) {
         return ID_PREFIX + name;
     }
 
@@ -152,9 +153,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 new ContextPreservingActionListener<>(supplier, ActionListener.wrap((Collection<ExpressionRoleMapping> mappings) -> {
                     final List<ExpressionRoleMapping> mappingList = mappings.stream().filter(Objects::nonNull).toList();
                     logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
-                    if (successfulLoadCacheEnabled) {
+                    if (lastLoadCacheEnabled) {
                         logger.debug("caching loaded role-mapping(s)");
-                        lastSuccessfulLoadRef.set(mappingList);
+                        lastLoadRef.set(mappingList);
                     }
                     listener.onResponse(mappingList);
                 }, ex -> {
@@ -315,25 +316,25 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             listener.onResponse(Collections.emptyList());
             return;
         }
-        final List<ExpressionRoleMapping> lastSuccessfulLoad = lastSuccessfulLoadRef.get();
+        final List<ExpressionRoleMapping> lastLoad = lastLoadRef.get();
         if (frozenSecurityIndex.indexIsClosed()) {
-            if (lastSuccessfulLoad != null) {
-                assert successfulLoadCacheEnabled;
+            if (lastLoad != null) {
+                assert lastLoadCacheEnabled;
                 logger.debug("The security index exists but is closed - returning previously cached role mappings");
-                listener.onResponse(lastSuccessfulLoad);
+                listener.onResponse(lastLoad);
             } else {
                 logger.debug("The security index exists but is closed - no role mappings can be loaded");
                 listener.onResponse(Collections.emptyList());
             }
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             final ElasticsearchException unavailableReason = frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS);
-            if (lastSuccessfulLoad != null) {
-                assert successfulLoadCacheEnabled;
+            if (lastLoad != null) {
+                assert lastLoadCacheEnabled;
                 logger.debug(
                     "The security index exists but is not available - returning previously cached role mappings",
                     unavailableReason
                 );
-                listener.onResponse(lastSuccessfulLoad);
+                listener.onResponse(lastLoad);
             } else {
                 logger.debug("The security index exists but is not available - no role mappings can be loaded");
                 listener.onFailure(unavailableReason);
@@ -341,6 +342,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             loadMappings(listener);
         }
+    }
+
+    // package-private for testing
+    @Nullable
+    List<ExpressionRoleMapping> getLastLoad() {
+        return lastLoadRef.get();
     }
 
     /**

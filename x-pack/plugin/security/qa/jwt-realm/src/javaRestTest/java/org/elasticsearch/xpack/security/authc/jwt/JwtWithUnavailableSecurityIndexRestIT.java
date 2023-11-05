@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
-public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
+public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
     private static final MutableSettingsProvider mutableSettings = new MutableSettingsProvider() {
         {
@@ -107,7 +107,7 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
     }
 
     private static Path findResource(String name) throws FileNotFoundException, URISyntaxException {
-        final URL resource = JwtUnavailableSecurityIndexRestIT.class.getResource(name);
+        final URL resource = JwtWithUnavailableSecurityIndexRestIT.class.getResource(name);
         if (resource == null) {
             throw new FileNotFoundException("Cannot find classpath resource " + name);
         }
@@ -183,8 +183,10 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
             makeSecurityIndexAvailable();
             deleteRoleMapping(roleMappingName);
 
-            mutableSettings.put("xpack.security.authc.role_mapping.successful_load_cache.enabled", "true");
+            // Enable last load caching for next test (setting is not dynamic and requires cluster restart)
+            mutableSettings.put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true");
             cluster.restart(false);
+
             closeClients();
             adminSecurityClient = null;
         }
@@ -235,6 +237,9 @@ public class JwtUnavailableSecurityIndexRestIT extends ESRestTestCase {
         } finally {
             makeSecurityIndexAvailable();
             deleteRoleMapping(roleMappingName);
+
+            closeClients();
+            adminSecurityClient = null;
         }
     }
 

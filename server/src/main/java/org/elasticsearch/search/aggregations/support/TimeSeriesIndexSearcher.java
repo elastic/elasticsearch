@@ -240,8 +240,6 @@ public class TimeSeriesIndexSearcher {
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
         private final BytesRefBuilder scratch = new BytesRefBuilder();
 
-        private final Scorer scorer;
-
         int docId = -1;
         int tsidOrd;
         long timestamp;
@@ -252,7 +250,6 @@ public class TimeSeriesIndexSearcher {
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
-            this.scorer = scorer;
             iterator = scorer.iterator();
             tsids = DocValues.getSorted(context.reader(), TimeSeriesIdFieldMapper.NAME);
             timestamps = DocValues.getSortedNumeric(context.reader(), DataStream.TIMESTAMP_FIELD_NAME);

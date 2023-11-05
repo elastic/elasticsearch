@@ -116,11 +116,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     /**
      * Return whether to include the probability distribution of each character in the results.
      * {@code showDistribution} is true, distribution will be included.

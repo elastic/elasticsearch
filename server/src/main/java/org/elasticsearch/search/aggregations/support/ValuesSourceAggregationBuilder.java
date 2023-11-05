@@ -375,14 +375,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     /**
-     * Gets the value to use when the aggregation finds a missing value in a
-     * document
-     */
-    public Object missing() {
-        return missing;
-    }
-
-    /**
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
@@ -421,8 +413,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
-
-    protected abstract ValuesSourceRegistry.RegistryKey<?> getRegistryKey();
 
     /**
      * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver

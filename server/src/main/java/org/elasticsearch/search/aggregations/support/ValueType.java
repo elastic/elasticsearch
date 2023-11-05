@@ -49,7 +49,7 @@ public enum ValueType implements Writeable {
     final ValuesSourceType valuesSourceType;
     final DocValueFormat defaultFormat;
     private final byte id;
-    private String preferredName;
+    private final String preferredName;
 
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
@@ -99,10 +99,6 @@ public enum ValueType implements Writeable {
 
     public boolean isNotA(ValueType valueType) {
         return isA(valueType) == false;
-    }
-
-    public DocValueFormat defaultFormat() {
-        return defaultFormat;
     }
 
     public static ValueType lenientParse(String type) {

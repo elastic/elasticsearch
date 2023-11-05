@@ -74,10 +74,9 @@ public abstract class PipelineAggregationBuilder
          */
         public static ValidationContext forTreeRoot(
             Collection<AggregationBuilder> siblingAggregations,
-            Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
             ActionRequestValidationException validationFailuresSoFar
         ) {
-            return new ForTreeRoot(siblingAggregations, siblingPipelineAggregations, validationFailuresSoFar);
+            return new ForTreeRoot(siblingAggregations, validationFailuresSoFar);
         }
 
         /**
@@ -95,16 +94,10 @@ public abstract class PipelineAggregationBuilder
 
         private static class ForTreeRoot extends ValidationContext {
             private final Collection<AggregationBuilder> siblingAggregations;
-            private final Collection<PipelineAggregationBuilder> siblingPipelineAggregations;
 
-            ForTreeRoot(
-                Collection<AggregationBuilder> siblingAggregations,
-                Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
-                ActionRequestValidationException validationFailuresSoFar
-            ) {
+            ForTreeRoot(Collection<AggregationBuilder> siblingAggregations, ActionRequestValidationException validationFailuresSoFar) {
                 super(validationFailuresSoFar);
                 this.siblingAggregations = Objects.requireNonNull(siblingAggregations);
-                this.siblingPipelineAggregations = Objects.requireNonNull(siblingPipelineAggregations);
             }
 
             @Override

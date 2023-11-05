@@ -151,11 +151,6 @@ public abstract class AggregationContext implements Releasable {
     public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
-     * Returns true if the field identified by the provided name is mapped, false otherwise
-     */
-    public abstract boolean isFieldMapped(String field);
-
-    /**
      * Compile a script.
      */
     public abstract <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context);
@@ -472,11 +467,6 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> getMatchingFieldNames(String pattern) {
             return context.getMatchingFieldNames(pattern);
-        }
-
-        @Override
-        public boolean isFieldMapped(String field) {
-            return context.isFieldMapped(field);
         }
 
         @Override

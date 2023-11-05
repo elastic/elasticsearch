@@ -73,11 +73,6 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
         }
 
         @Override
-        public Number getKeyAsNumber() {
-            return term;
-        }
-
-        @Override
         protected XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
             builder.field(CommonFields.KEY.getPreferredName(), term);
             if (format != DocValueFormat.RAW) {

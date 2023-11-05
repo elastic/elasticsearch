@@ -119,11 +119,6 @@ public final class GeoHexGridAggregationBuilder extends GeoGridAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_1_0;
     }

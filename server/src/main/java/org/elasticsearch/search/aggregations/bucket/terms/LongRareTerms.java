@@ -58,11 +58,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
         }
 
         @Override
-        public Number getKeyAsNumber() {
-            return term;
-        }
-
-        @Override
         public int compareKey(Bucket other) {
             return Long.compare(term, other.term);
         }

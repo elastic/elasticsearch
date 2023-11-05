@@ -421,11 +421,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean isFieldMapped(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public SearchLookup lookup() {
                 return lookupSupplier.get();
             }

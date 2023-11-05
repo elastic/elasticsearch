@@ -54,47 +54,40 @@ import static org.hamcrest.Matchers.instanceOf;
 @TestCaseOrdering(AnnotationTestOrdering.class)
 public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
-    private static final MutableSettingsProvider mutableSettings = new MutableSettingsProvider() {
-        {
-            put("xpack.ml.enabled", "false");
-            put("xpack.license.self_generated.type", "trial");
-            put("xpack.security.enabled", "true");
-            put("xpack.security.http.ssl.enabled", "true");
-            put("xpack.security.transport.ssl.enabled", "false");
-            put("xpack.security.authc.token.enabled", "true");
-            put("xpack.security.authc.api_key.enabled", "true");
-            put("xpack.security.http.ssl.enabled", "true");
-            put("xpack.security.http.ssl.certificate", "http.crt");
-            put("xpack.security.http.ssl.key", "http.key");
-            put("xpack.security.http.ssl.key_passphrase", "http-password");
-            put("xpack.security.http.ssl.certificate_authorities", "ca.crt");
-            put("xpack.security.http.ssl.client_authentication", "optional");
-            put("xpack.security.authc.realms.jwt.jwt1.order", "1");
-            put("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/");
-            put("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/");
-            put("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub");
-            put("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn");
-            put("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id");
-            put("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0");
-            put("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE");
-            put("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset");
-        }
-    };
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
-    }
+    // Using this to first run a test without caching, then one with caching. Since caching is controlled by a static setting, we need
+    // a MutableSettingsProvider instance
+    private static final MutableSettingsProvider mutableSettingsForLastLoadCache = new MutableSettingsProvider();
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .distribution(DistributionType.DEFAULT)
+        .setting("xpack.ml.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "true")
+        .setting("xpack.security.transport.ssl.enabled", "false")
+        .setting("xpack.security.authc.token.enabled", "true")
+        .setting("xpack.security.authc.api_key.enabled", "true")
+        .setting("xpack.security.http.ssl.enabled", "true")
+        .setting("xpack.security.http.ssl.certificate", "http.crt")
+        .setting("xpack.security.http.ssl.key", "http.key")
+        .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+        .setting("xpack.security.http.ssl.certificate_authorities", "ca.crt")
+        .setting("xpack.security.http.ssl.client_authentication", "optional")
+        .setting("xpack.security.authc.realms.jwt.jwt1.order", "1")
+        .setting("xpack.security.authc.realms.jwt.jwt1.allowed_issuer", "https://issuer.example.com/")
+        .setting("xpack.security.authc.realms.jwt.jwt1.allowed_audiences", "https://audience.example.com/")
+        .setting("xpack.security.authc.realms.jwt.jwt1.claims.principal", "sub")
+        .setting("xpack.security.authc.realms.jwt.jwt1.claims.dn", "dn")
+        .setting("xpack.security.authc.realms.jwt.jwt1.required_claims.token_use", "id")
+        .setting("xpack.security.authc.realms.jwt.jwt1.required_claims.version", "2.0")
+        .setting("xpack.security.authc.realms.jwt.jwt1.client_authentication.type", "NONE")
+        .setting("xpack.security.authc.realms.jwt.jwt1.pkc_jwkset_path", "rsa.jwkset")
+        .settings(mutableSettingsForLastLoadCache)
         .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
         .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
         .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
         .configFile("rsa.jwkset", Resource.fromClasspath("jwk/rsa-public-jwkset.json"))
-        .settings(mutableSettings)
         .user("admin_user", "admin-password")
         .build();
 
@@ -104,6 +97,11 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
     @BeforeClass
     public static void findTrustStore() throws Exception {
         httpCertificateAuthority = findResource("/ssl/ca.crt");
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
     private static Path findResource(String name) throws FileNotFoundException, URISyntaxException {
@@ -184,11 +182,11 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
             deleteRoleMapping(roleMappingName);
 
             // Enable last load caching for next test (setting is not dynamic and requires cluster restart)
-            mutableSettings.put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true");
+            mutableSettingsForLastLoadCache.put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true");
             cluster.restart(false);
 
-            closeClients();
             adminSecurityClient = null;
+            closeClients();
         }
     }
 
@@ -198,8 +196,8 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
         final String rules = Strings.format("""
             { "all": [
-                { "field": { "realm.name": "jwt1" } },
-                { "field": { "dn": "%s" } }
+            { "field": { "realm.name": "jwt1" } },
+            { "field": { "dn": "%s" } }
             ] }
             """, dn);
 
@@ -238,8 +236,8 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
             makeSecurityIndexAvailable();
             deleteRoleMapping(roleMappingName);
 
-            closeClients();
             adminSecurityClient = null;
+            closeClients();
         }
     }
 

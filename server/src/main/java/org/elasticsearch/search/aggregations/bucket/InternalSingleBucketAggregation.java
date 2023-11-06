@@ -32,8 +32,8 @@ import java.util.function.Function;
  */
 public abstract class InternalSingleBucketAggregation extends InternalAggregation implements SingleBucketAggregation {
 
-    private long docCount;
-    private InternalAggregations aggregations;
+    private final long docCount;
+    private final InternalAggregations aggregations;
 
     /**
      * Creates a single bucket aggregation.

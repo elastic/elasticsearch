@@ -1,0 +1,7 @@
+pr: 101778
+summary: Don't update system index mappings in mixed clusters
+area: Infra/Core
+type: bug
+issues:
+ - 101331
+ - 99778

@@ -61,6 +61,7 @@ ES|QL::
 * Better management of not stored TEXT fiels with synthetic source {es-pull}99695[#99695]
 * Continue resolving attributes for Eval {es-pull}99601[#99601] (issue: {es-issue}99576[#99576])
 * Create a Vector when needed for IN {es-pull}99382[#99382] (issue: {es-issue}99347[#99347])
+* ESQL: Fix unreleased block in topn {es-pull}101648[#101648] (issue: {es-issue}101588[#101588])
 * ESQL: check type before casting {es-pull}101492[#101492] (issue: {es-issue}101489[#101489])
 * Fix NPE when aggregating literals {es-pull}99827[#99827]
 * Fix escaping of backslash in LIKE operator {es-pull}101120[#101120] (issue: {es-issue}101106[#101106])
@@ -89,10 +90,12 @@ Geo::
 
 Health::
 * Fix NPE in `StableMasterHealthIndicatorService` {es-pull}98635[#98635]
+* Health report infrastructure doesn't trip the circuit breakers {es-pull}101629[#101629]
 * Propagate cancellation in `GetHealthAction` {es-pull}100273[#100273]
 
 Highlighting::
 * Correctly handle `ScriptScoreQuery` in plain highlighter {es-pull}99804[#99804] (issue: {es-issue}99700[#99700])
+* Disable `weight_matches` when kNN query is present {es-pull}101713[#101713]
 
 ILM+SLM::
 * Compute SLM retention from `RepositoryData` {es-pull}100092[#100092] (issue: {es-issue}99953[#99953])
@@ -100,6 +103,7 @@ ILM+SLM::
 
 Infra/Core::
 * Add `java.net.NetPermission` to APM module's permissions {es-pull}99474[#99474]
+* Don't update system index mappings in mixed clusters {es-pull}101778[#101778] (issues: {es-issue}101331[#101331], {es-issue}99778[#99778])
 * Revert "Kibana system index does not allow user templates to affect it" {es-pull}98888[#98888]
 * Specify correct current `IndexVersion` after 8.10 release {es-pull}98574[#98574] (issue: {es-issue}98555[#98555])
 * Tracing: Use `doPriv` when working with spans, use `SpanId` {es-pull}100232[#100232]
@@ -150,6 +154,7 @@ Security::
 * Fix NullPointerException in RotableSecret {es-pull}100779[#100779] (issue: {es-issue}99759[#99759])
 
 Snapshot/Restore::
+* Fix race condition in `SnapshotsService` {es-pull}101652[#101652]
 * Fix snapshot double finalization {es-pull}101497[#101497]
 * Fix thread context in `getRepositoryData` {es-pull}99627[#99627]
 * Frozen index input clone copy cache file {es-pull}98930[#98930]
@@ -222,6 +227,7 @@ ES|QL::
 * Log query and execution time {es-pull}99058[#99058]
 * Log start and end of queries {es-pull}99746[#99746]
 * Lower the implicit limit, if none is user-provided {es-pull}99816[#99816] (issue: {es-issue}99458[#99458])
+* Make settings dynamic {es-pull}101516[#101516]
 * Mark counter fields as unsupported {es-pull}99054[#99054]
 * Remove the swapped-args check for date_xxx() {es-pull}101362[#101362] (issue: {es-issue}99562[#99562])
 * Serialize the source in expressions {es-pull}99956[#99956]
@@ -251,9 +257,8 @@ Infra/REST API::
 * Return a 410 (Gone) status code for unavailable API endpoints {es-pull}97397[#97397]
 
 Machine Learning::
-* Add an option for trained models to be platform specific {es-pull}99584[#99584]
 * Add new _inference API {es-pull}99224[#99224]
-* Add support for PyTorch models quantized with Intel Extension for PyTorch (this feature is _only_ available on `linux_x86_64`) {ml-pull}2547[#2547]
+* Adding an option for trained models to be platform specific {es-pull}99584[#99584]
 * Log warnings for jobs unassigned for a long time {es-pull}100154[#100154]
 * Simplify the Inference Ingest Processor configuration {es-pull}100205[#100205]
 

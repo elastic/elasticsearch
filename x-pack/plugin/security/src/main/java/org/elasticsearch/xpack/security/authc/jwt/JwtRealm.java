@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -276,7 +277,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 return; // FAILED (secret is missing or mismatched)
             }
 
-            final BytesArray jwtCacheKey = isCacheEnabled() ? new BytesArray(jwtAuthenticationToken.getUserCredentialsHash()) : null;
+            final BytesArray jwtCacheKey = isCacheEnabled()
+                ? new BytesArray(new BytesRef(jwtAuthenticationToken.getUserCredentialsHash()), true)
+                : null;
             if (jwtCacheKey != null) {
                 final User cachedUser = tryAuthenticateWithCache(tokenPrincipal, jwtCacheKey);
                 if (cachedUser != null) {
@@ -474,6 +477,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     private boolean isCacheEnabled() {
         return jwtCache != null && jwtCacheHelper != null;
+    }
+
+    // package private for testing
+    Cache<BytesArray, ExpiringUser> getJwtCache() {
+        return jwtCache;
     }
 
     /**

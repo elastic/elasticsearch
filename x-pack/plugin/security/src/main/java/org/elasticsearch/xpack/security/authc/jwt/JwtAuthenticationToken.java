@@ -15,9 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
-import java.util.TreeSet;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
@@ -42,7 +40,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         @Nullable final SecureString clientAuthenticationSharedSecret
     ) {
         this.signedJWT = Objects.requireNonNull(signedJWT);
-        this.principal = buildTokenPrincipal();
+        this.principal = signedJWT.getPayload().toString();
         this.userCredentialsHash = Objects.requireNonNull(userCredentialsHash);
         if ((clientAuthenticationSharedSecret != null) && (clientAuthenticationSharedSecret.isEmpty())) {
             throw new IllegalArgumentException("Client shared secret must be non-empty");
@@ -68,8 +66,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         try {
             return signedJWT.getJWTClaimsSet();
         } catch (ParseException e) {
-            assert false : "The JWT claims set should have already been successfully parsed before building the JWT authentication token";
-            throw new IllegalStateException(e);
+            throw new IllegalArgumentException(e);
         }
     }
 
@@ -93,48 +90,5 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     @Override
     public String toString() {
         return JwtAuthenticationToken.class.getSimpleName() + "=" + this.principal;
-    }
-
-    private String buildTokenPrincipal() {
-        JWTClaimsSet jwtClaimsSet = getJWTClaimsSet();
-        StringBuilder principalBuilder = new StringBuilder();
-        claimsLoop: for (String claimName : new TreeSet<>(jwtClaimsSet.getClaims().keySet())) {
-            Object claimValue = jwtClaimsSet.getClaim(claimName);
-            if (claimValue == null) {
-                continue;
-            }
-            // only use String or String[] claim values to assemble the principal
-            if (claimValue instanceof String) {
-                if (principalBuilder.isEmpty() == false) {
-                    principalBuilder.append(' ');
-                }
-                principalBuilder.append('\'').append(claimName).append(':').append((String) claimValue).append('\'');
-            } else if (claimValue instanceof List<?>) {
-                List<?> claimValuesList = (List<?>) claimValue;
-                if (claimValuesList.isEmpty()) {
-                    continue;
-                }
-                for (Object claimValueElem : claimValuesList) {
-                    if (claimValueElem instanceof String == false) {
-                        continue claimsLoop;
-                    }
-                }
-                if (principalBuilder.isEmpty() == false) {
-                    principalBuilder.append(' ');
-                }
-                principalBuilder.append('\'').append(claimName).append(':');
-                for (int i = 0; i < claimValuesList.size(); i++) {
-                    if (i > 0) {
-                        principalBuilder.append(',');
-                    }
-                    principalBuilder.append((String) claimValuesList.get(i));
-                }
-                principalBuilder.append('\'');
-            }
-        }
-        if (principalBuilder.isEmpty()) {
-            return "<unrecognized JWT token>";
-        }
-        return principalBuilder.toString();
     }
 }

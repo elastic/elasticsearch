@@ -67,29 +67,21 @@ public class JwtAuthenticator implements Releasable {
         final String tokenPrincipal = jwtAuthenticationToken.principal();
         // JWT cache
         final SignedJWT signedJWT = jwtAuthenticationToken.getSignedJWT();
-        final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJWTClaimsSet();
         final JWSHeader jwsHeader = signedJWT.getHeader();
-
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "Realm [{}] successfully parsed JWT token [{}] with header [{}] and claimSet [{}]",
-                realmConfig.name(),
-                tokenPrincipal,
-                jwsHeader,
-                jwtClaimsSet
-            );
-        }
-
-        for (JwtFieldValidator jwtFieldValidator : jwtFieldValidators) {
-            try {
-                jwtFieldValidator.validate(jwsHeader, jwtClaimsSet);
-            } catch (Exception e) {
-                listener.onFailure(e);
-                return;
-            }
-        }
-
         try {
+            final JWTClaimsSet jwtClaimsSet = jwtAuthenticationToken.getJWTClaimsSet();
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "Realm [{}] successfully parsed JWT token [{}] with header [{}] and claimSet [{}]",
+                    realmConfig.name(),
+                    tokenPrincipal,
+                    jwsHeader,
+                    jwtClaimsSet
+                );
+            }
+            for (JwtFieldValidator jwtFieldValidator : jwtFieldValidators) {
+                jwtFieldValidator.validate(jwsHeader, jwtClaimsSet);
+            }
             validateSignature(tokenPrincipal, signedJWT, listener.map(ignored -> jwtClaimsSet));
         } catch (Exception e) {
             listener.onFailure(e);

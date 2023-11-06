@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -198,8 +199,14 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             final SignedJWT signedJWT1 = getSignedJWT(Map.of("iss", iss, "aud", aud, "sub", sub));
             final ThreadContext threadContext1 = prepareThreadContext(signedJWT1, sharedSecret);
             final var token1 = (JwtAuthenticationToken) jwtRealm.token(threadContext1);
-            final String principal1 = Strings.format("'aud:%s,%s' 'iss:%s' 'sub:%s'", aud.get(0), aud.get(1), iss, sub);
-            assertJwtToken(token1, principal1, sharedSecret, signedJWT1);
+            assertJwtToken(
+                token1,
+                sharedSecret,
+                signedJWT1,
+                Strings.format("\"iss\":\"%s\"", iss),
+                Strings.format("\"sub\":\"%s\"", sub),
+                Strings.format("\"aud\":[\"%s\",\"%s\"]", aud.get(0), aud.get(1))
+            );
 
             // JWT2, JWT3, and JWT4 don't have the sub claim.
             // Some realms define fallback claims for the sub claim (which themselves might not exist),
@@ -208,35 +215,65 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             final SignedJWT signedJWT2 = getSignedJWT(Map.of("iss", iss, "aud", aud, "client_id", sub, "appid", appId));
             final ThreadContext threadContext2 = prepareThreadContext(signedJWT2, sharedSecret);
             final var token2 = (JwtAuthenticationToken) jwtRealm.token(threadContext2);
-            final String principal2 = Strings.format(
-                "'appid:%s' 'aud:%s,%s' 'client_id:%s' 'iss:%s'",
-                appId,
-                aud.get(0),
-                aud.get(1),
-                sub,
-                iss
+            assertJwtToken(
+                token2,
+                sharedSecret,
+                signedJWT2,
+                Strings.format("\"appid\":\"%s\"", appId),
+                Strings.format("\"client_id\":\"%s\"", sub),
+                Strings.format("\"iss\":\"%s\"", iss),
+                Strings.format("\"aud\":[\"%s\",\"%s\"]", aud.get(0), aud.get(1))
             );
-            assertJwtToken(token2, principal2, sharedSecret, signedJWT2);
 
             final String email = randomAlphaOfLengthBetween(5, 18) + "@example.com";
             final SignedJWT signedJWT3 = getSignedJWT(Map.of("iss", iss, "aud", aud, "oid", sub, "email", email));
             final ThreadContext threadContext3 = prepareThreadContext(signedJWT3, sharedSecret);
             final var token3 = (JwtAuthenticationToken) jwtRealm.token(threadContext3);
-            final String principal3 = Strings.format("'aud:%s,%s' 'email:%s' 'iss:%s' 'oid:%s'", aud.get(0), aud.get(1), email, iss, sub);
-            assertJwtToken(token3, principal3, sharedSecret, signedJWT3);
+            assertJwtToken(
+                token3,
+                sharedSecret,
+                signedJWT3,
+                Strings.format("\"email\":\"%s\"", email),
+                Strings.format("\"oid\":\"%s\"", sub),
+                Strings.format("\"iss\":\"%s\"", iss),
+                Strings.format("\"aud\":[\"%s\",\"%s\"]", aud.get(0), aud.get(1))
+            );
 
             final SignedJWT signedJWT4 = getSignedJWT(Map.of("iss", iss, "aud", aud, "azp", sub, "email", email));
             final ThreadContext threadContext4 = prepareThreadContext(signedJWT4, sharedSecret);
             final var token4 = (JwtAuthenticationToken) jwtRealm.token(threadContext4);
-            final String principal4 = Strings.format("'aud:%s,%s' 'azp:%s' 'email:%s' 'iss:%s'", aud.get(0), aud.get(1), sub, email, iss);
-            assertJwtToken(token4, principal4, sharedSecret, signedJWT4);
+            assertJwtToken(
+                token4,
+                sharedSecret,
+                signedJWT4,
+                Strings.format("\"email\":\"%s\"", email),
+                Strings.format("\"azp\":\"%s\"", sub),
+                Strings.format("\"iss\":\"%s\"", iss),
+                Strings.format("\"aud\":[\"%s\",\"%s\"]", aud.get(0), aud.get(1))
+            );
 
             // JWT5 does not have an issuer.
             final SignedJWT signedJWT5 = getSignedJWT(Map.of("aud", aud, "sub", sub));
             final ThreadContext threadContext5 = prepareThreadContext(signedJWT5, sharedSecret);
             final var token5 = (JwtAuthenticationToken) jwtRealm.token(threadContext5);
-            final String principal5 = Strings.format("'aud:%s,%s' 'sub:%s'", aud.get(0), aud.get(1), sub);
-            assertJwtToken(token5, principal5, sharedSecret, signedJWT5);
+            assertJwtToken(
+                token5,
+                sharedSecret,
+                signedJWT5,
+                Strings.format("\"sub\":\"%s\"", sub),
+                Strings.format("\"aud\":[\"%s\",\"%s\"]", aud.get(0), aud.get(1))
+            );
+
+            // JWT6 Payload is not JSON
+            final SignedJWT signedJWT6 = new SignedJWT(
+                JWSHeader.parse(Map.of("alg", randomAlphaOfLengthBetween(5, 10))).toBase64URL(),
+                Base64URL.encode("payload"),
+                Base64URL.encode("signature")
+            );
+            final ThreadContext threadContext6 = prepareThreadContext(null, sharedSecret);
+            threadContext6.putHeader("Authorization", "Bearer " + signedJWT6.serialize());
+            final var token6 = (JwtAuthenticationToken) jwtRealm.token(threadContext6);
+            assertJwtToken(token6, sharedSecret, signedJWT6, "payload");
         }
     }
 
@@ -255,7 +292,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(jwtRealm.token(threadContext2), nullValue());
     }
 
-    public void testJwtRealmThrowsErrorOnJwtParsingFailure() throws ParseException {
+    public void testJwtRealmThrowsErrorOnParsingNonJwt() throws ParseException {
         final List<JwtRealm> jwtRealms = getJwtRealms();
         final JwtRealm jwtRealm = randomFrom(jwtRealms);
         final String sharedSecret = randomBoolean() ? randomAlphaOfLengthBetween(10, 20) : null;
@@ -264,16 +301,6 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         final ThreadContext threadContext1 = prepareThreadContext(null, sharedSecret);
         threadContext1.putHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(40, 60));
         assertThat(jwtRealm.token(threadContext1), nullValue());
-
-        // Payload is not JSON
-        final SignedJWT signedJWT2 = new SignedJWT(
-            JWSHeader.parse(Map.of("alg", randomAlphaOfLengthBetween(5, 10))).toBase64URL(),
-            Base64URL.encode("payload"),
-            Base64URL.encode("signature")
-        );
-        final ThreadContext threadContext2 = prepareThreadContext(null, sharedSecret);
-        threadContext2.putHeader("Authorization", "Bearer " + signedJWT2.serialize());
-        assertThat(jwtRealm.token(threadContext2), nullValue());
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:DEBUG", reason = "failures can be very difficult to troubleshoot")
@@ -402,14 +429,23 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return realm.getConfig().getConcreteSetting(CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD).get(realm.getConfig().settings());
     }
 
-    private void assertJwtToken(JwtAuthenticationToken token, String tokenPrincipal, String sharedSecret, SignedJWT signedJWT)
+    private void assertJwtToken(JwtAuthenticationToken token, String sharedSecret, SignedJWT signedJWT, String... tokenPrincipalParts)
         throws ParseException {
-        assertThat(token.principal(), equalTo(tokenPrincipal));
         assertThat(token.getClientAuthenticationSharedSecret(), equalTo(sharedSecret));
-        assertThat(token.getJWTClaimsSet(), equalTo(signedJWT.getJWTClaimsSet()));
+        for (String tokenPrincipal : tokenPrincipalParts) {
+            assertThat(token.principal(), containsString(tokenPrincipal));
+        }
         assertThat(token.getSignedJWT().getHeader().toJSONObject(), equalTo(signedJWT.getHeader().toJSONObject()));
         assertThat(token.getSignedJWT().getSignature(), equalTo(signedJWT.getSignature()));
-        assertThat(token.getSignedJWT().getJWTClaimsSet(), equalTo(token.getJWTClaimsSet()));
+        try {
+            JWTClaimsSet jwtClaimsSet = token.getJWTClaimsSet();
+            assertThat(jwtClaimsSet, equalTo(signedJWT.getJWTClaimsSet()));
+            assertThat(token.getJWTClaimsSet(), equalTo(signedJWT.getJWTClaimsSet()));
+            assertThat(token.getSignedJWT().getJWTClaimsSet(), equalTo(token.getJWTClaimsSet()));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getCause(), instanceOf(ParseException.class));
+            expectThrows(ParseException.class, () -> signedJWT.getJWTClaimsSet());
+        }
     }
 
     private List<JwtRealm> getJwtRealms() {

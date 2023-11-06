@@ -53,16 +53,21 @@ public class CrossClusterAccessAuthenticationService {
     }
 
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
-        final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
-        final ThreadContext threadContext = authcContext.getThreadContext();
-
+        final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
+        final Authenticator.Context authcContext;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
             final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
-            authcContext.addAuthenticationToken(apiKeyCredentials);
+            // authn must verify only the provided api key and not try to extract any other credential from the thread context
+            authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
+        } catch (Exception ex) {
+            withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
+            return;
+        }
+        try {
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);

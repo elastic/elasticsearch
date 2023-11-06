@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -60,17 +61,23 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
         final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<>(request.items.size());
         final Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<>();
+        // single item cache that maps the provided index name to the resolved one
+        Tuple<String, String> lastResolvedIndex = Tuple.tuple(null, null);
 
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
 
             ShardId shardId;
             try {
-                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
+                String concreteSingleIndex;
+                if (item.index().equals(lastResolvedIndex.v1())) {
+                    concreteSingleIndex = lastResolvedIndex.v2();
+                } else {
+                    concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
+                    lastResolvedIndex = Tuple.tuple(item.index(), concreteSingleIndex);
+                }
                 item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
-                shardId = clusterService.operationRouting()
-                    .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null)
-                    .shardId();
+                shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex, item.id(), item.routing());
             } catch (RoutingMissingException e) {
                 responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
                 continue;

@@ -20,6 +20,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -35,17 +37,19 @@ import java.util.function.BiFunction;
  */
 public abstract class RestActionTestCase extends ESTestCase {
     private RestController controller;
+    private TestThreadPool threadPool;
     protected VerifyingClient verifyingClient;
 
     @Before
     public void setUpController() {
-        verifyingClient = new VerifyingClient(this.getTestName());
+        threadPool = createThreadPool();
+        verifyingClient = new VerifyingClient(threadPool);
         controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), Tracer.NOOP);
     }
 
     @After
     public void tearDownController() {
-        verifyingClient.close();
+        threadPool.close();
     }
 
     /**
@@ -74,13 +78,12 @@ public abstract class RestActionTestCase extends ESTestCase {
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
      * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
-    public static class VerifyingClient extends NoOpNodeClient {
+    public static final class VerifyingClient extends NoOpNodeClient {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
-        @SuppressWarnings("this-escape")
-        public VerifyingClient(String testName) {
-            super(testName);
+        public VerifyingClient(ThreadPool threadPool) {
+            super(threadPool);
             reset();
         }
 

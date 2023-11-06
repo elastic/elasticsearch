@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -37,7 +39,7 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
     if (vector.isConstant()) {
       try {
         return driverContext.blockFactory().newConstantIntBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
+      } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
         registerException(e);
         return driverContext.blockFactory().newConstantNullBlock(positionCount);
       }
@@ -46,7 +48,7 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
       for (int p = 0; p < positionCount; p++) {
         try {
           builder.appendInt(evalValue(vector, p));
-        } catch (Exception e) {
+        } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
           registerException(e);
           builder.appendNull();
         }
@@ -80,7 +82,7 @@ public final class ToIntegerFromUnsignedLongEvaluator extends AbstractConvertFun
             }
             builder.appendInt(value);
             valuesAppended = true;
-          } catch (Exception e) {
+          } catch (InvalidArgumentException | QlIllegalArgumentException  e) {
             registerException(e);
           }
         }

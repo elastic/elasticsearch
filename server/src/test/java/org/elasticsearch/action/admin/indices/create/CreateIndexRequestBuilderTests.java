@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,19 +29,21 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
 
     private static final String KEY = "my.settings.key";
     private static final String VALUE = "my.settings.value";
+    private TestThreadPool threadPool;
     private NoOpClient testClient;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        this.testClient = new NoOpClient(getTestName());
+        this.threadPool = createThreadPool();
+        this.testClient = new NoOpClient(threadPool);
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
-        this.testClient.close();
+        this.threadPool.close();
         super.tearDown();
     }
 

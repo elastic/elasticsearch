@@ -12,7 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
@@ -41,14 +40,15 @@ public class RestSearchScrollActionTests extends ESTestCase {
 
     public void testBodyParamsOverrideQueryStringParams() throws Exception {
         SetOnce<Boolean> scrollCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-                scrollCalled.set(true);
-                assertThat(request.scrollId(), equalTo("BODY"));
-                assertThat(request.scroll().keepAlive().getStringRep(), equalTo("1m"));
-            }
-        }) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool) {
+                @Override
+                public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
+                    scrollCalled.set(true);
+                    assertThat(request.scrollId(), equalTo("BODY"));
+                    assertThat(request.scroll().keepAlive().getStringRep(), equalTo("1m"));
+                }
+            };
             RestSearchScrollAction action = new RestSearchScrollAction();
             Map<String, String> params = new HashMap<>();
             params.put("scroll_id", "QUERY_STRING");

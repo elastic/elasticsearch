@@ -64,7 +64,7 @@ public class RollupJobTaskTests extends ESTestCase {
     private ThreadPool pool;
 
     @Before
-    public void createThreadPool() {
+    public void createSuiteThreadPool() {
         pool = new TestThreadPool("test");
     }
 
@@ -291,7 +291,8 @@ public class RollupJobTaskTests extends ESTestCase {
 
         final CountDownLatch block = new CountDownLatch(1);
         final CountDownLatch unblock = new CountDownLatch(1);
-        try (NoOpClient client = getEmptySearchResponseClient(block, unblock)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getEmptySearchResponseClient(threadPool, block, unblock);
             SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
 
             AtomicInteger counter = new AtomicInteger(0);
@@ -949,7 +950,8 @@ public class RollupJobTaskTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         final CountDownLatch block = new CountDownLatch(1);
         final CountDownLatch unblock = new CountDownLatch(1);
-        try (NoOpClient client = getEmptySearchResponseClient(block, unblock)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getEmptySearchResponseClient(threadPool, block, unblock);
             SchedulerEngine schedulerEngine = mock(SchedulerEngine.class);
 
             AtomicInteger counter = new AtomicInteger(0);
@@ -1118,8 +1120,8 @@ public class RollupJobTaskTests extends ESTestCase {
         }
     }
 
-    private NoOpClient getEmptySearchResponseClient(CountDownLatch unblock, CountDownLatch block) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getEmptySearchResponseClient(ThreadPool threadPool, CountDownLatch unblock, CountDownLatch block) {
+        return new NoOpClient(threadPool) {
             @SuppressWarnings("unchecked")
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(

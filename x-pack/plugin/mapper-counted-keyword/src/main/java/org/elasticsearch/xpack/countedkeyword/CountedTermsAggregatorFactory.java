@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final BucketOrder order = BucketOrder.count(false);
     private final CountedTermsAggregatorSupplier supplier;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -70,7 +70,7 @@ public class CountedTermsAggregatorFactory extends ValuesSourceAggregatorFactory
         };
     }
 
-    public CountedTermsAggregatorFactory(
+    CountedTermsAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,

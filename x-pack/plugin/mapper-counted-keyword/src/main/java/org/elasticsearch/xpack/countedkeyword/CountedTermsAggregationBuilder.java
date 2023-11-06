@@ -29,7 +29,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 
-public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<CountedTermsAggregationBuilder> {
+class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuilder<CountedTermsAggregationBuilder> {
     public static final String NAME = "counted_terms";
     public static final ValuesSourceRegistry.RegistryKey<CountedTermsAggregatorSupplier> REGISTRY_KEY =
         new ValuesSourceRegistry.RegistryKey<>(NAME, CountedTermsAggregatorSupplier.class);
@@ -79,8 +79,7 @@ public class CountedTermsAggregationBuilder extends ValuesSourceAggregationBuild
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO: Create a new transport version and use that
-        return TransportVersions.ZERO;
+        return TransportVersions.COUNTED_KEYWORD_ADDED;
     }
 
     @Override

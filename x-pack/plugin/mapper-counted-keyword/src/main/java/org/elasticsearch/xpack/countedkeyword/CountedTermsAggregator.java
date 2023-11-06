@@ -40,12 +40,12 @@ import static java.util.Collections.emptyList;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
-public class CountedTermsAggregator extends TermsAggregator {
+class CountedTermsAggregator extends TermsAggregator {
     private final BytesKeyedBucketOrds bucketOrds;
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
     @SuppressWarnings("this-escape")
-    public CountedTermsAggregator(
+    CountedTermsAggregator(
         String name,
         AggregatorFactories factories,
         ValuesSource.Bytes.WithOrdinals valuesSource,

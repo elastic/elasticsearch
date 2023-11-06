@@ -1298,13 +1298,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
          * field or return {@link Optional#empty()} to signal that this
          * field doesn't support fields scripts.
          */
-        abstract ScriptFactory emptyFieldScript();
+        protected abstract ScriptFactory emptyFieldScript();
 
         /**
          * Create a script that can be run to produce some value value for this
          * field or return {@link Optional#empty()} to signal that this
          * field doesn't support fields scripts.
          */
-        abstract ScriptFactory nonEmptyFieldScript();
+        protected abstract ScriptFactory nonEmptyFieldScript();
     }
 }

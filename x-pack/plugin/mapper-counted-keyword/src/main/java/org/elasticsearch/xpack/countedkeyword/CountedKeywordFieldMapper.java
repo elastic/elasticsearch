@@ -60,25 +60,17 @@ import java.util.TreeMap;
 import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
 
 /**
+ * A special field mapper for multi-valued keywords that may contain duplicate values. If the associated <code>counted_terms</code>
+ * aggregation is used, duplicates are considered in aggregation results. Consider the following values:
  *
- * Example:
+ * <ul>
+ *     <li><code>["a", "a", "b"]</code></li>
+ *     <li><code>["a", "b", "b"]</code></li>
+ * </ul>
  *
- * PUT /test
- * {
- *   "settings": {
- *     "number_of_shards": 1
- *   },
- *   "mappings": {
- *     "properties": {
- *       "profiler_stack_trace_ids": { "type": "counted_keyword" }
- *     }
- *   }
- * }
- *
- * POST test/_doc
- * {
- *   "profiler_stack_trace_ids": ["a", "a", "a", "b", "c"]
- * }
+ * While a regular <code>keyword</code> and the corresponding <code>terms</code> aggregation deduplicates values and reports a count of
+ * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
+ * the actual count and report a count of 3 for each key.
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
@@ -115,7 +107,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // Copied from HistogramFieldMapper
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -244,7 +235,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public long nextOrd() throws IOException {
+        public long nextOrd() {
             if (ordsForThisDoc.hasNext()) {
                 return ordsForThisDoc.next();
             } else {
@@ -271,11 +262,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        /**
-         * Creates a new Builder with a field name
-         *
-         * @param name
-         */
         protected Builder(String name) {
             super(name);
         }
@@ -298,7 +284,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     false,
                     true,
                     new TextSearchInfo(FIELD_TYPE, null, KEYWORD_ANALYZER, KEYWORD_ANALYZER),
-                    // TODO: Is this correct?
                     meta.getValue(),
                     countFieldMapper.fieldType()
                 ),
@@ -311,7 +296,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));
 
-    private FieldType fieldType;
+    private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
 
     protected CountedKeywordFieldMapper(
@@ -335,7 +320,6 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         XContentParser parser = context.parser();
-        // TODO: Can we use a more efficient data structure?
         SortedMap<String, Integer> values = new TreeMap<>();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
@@ -370,6 +354,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 } else {
                     values.put(value, values.get(value) + 1);
                 }
+            } else if (token == XContentParser.Token.VALUE_NULL) {
+                // ignore null values
             } else {
                 throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
             }

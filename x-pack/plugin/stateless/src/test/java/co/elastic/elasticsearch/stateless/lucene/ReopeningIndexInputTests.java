@@ -24,6 +24,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -42,6 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,6 +60,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.pageAligned;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 
@@ -105,6 +109,7 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 // number of operations to allow before the file is uploaded to the object store and deleted from disk
                 final CountDown operationsCountDown = new CountDown(randomIntBetween(1, 25));
 
+                var uploadedToObjectStore = false;
                 try (IndexInput indexInput = indexDirectory.openInput(fileName, randomIOContext())) {
                     assertEquals(bytes.length, indexInput.length());
                     assertEquals(0, indexInput.getFilePointer());
@@ -119,17 +124,99 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                     );
                     byte[] output = randomReadAndSlice(input, bytes.length);
                     assertArrayEquals(bytes, output);
+                    uploadedToObjectStore = input.isCountedDown();
 
-                    if (input.isCountedDown()) {
-                        expectThrowsAnyOf(
-                            List.of(FileNotFoundException.class, NoSuchFileException.class),
-                            () -> indexDirectory.getDelegate().fileLength(fileName)
-                        );
+                    if (uploadedToObjectStore) {
+                        assertThat(indexDirectory.fileLength(fileName), equalTo((long) bytes.length));
                     }
+                }
+
+                if (operationsCountDown.isCountedDown()) {
+                    expectThrowsAnyOf(
+                        List.of(FileNotFoundException.class, NoSuchFileException.class),
+                        () -> indexDirectory.getDelegate().fileLength(fileName)
+                    );
                 }
             }
         } finally {
             assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testReadsAfterDelete() throws IOException {
+        final Path dataPath = createTempDir();
+        final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
+        final ThreadPool threadPool = new TestThreadPool("testReadsAfterDelete");
+        final ByteSizeValue cacheSize = ByteSizeValue.ofBytes(randomLongBetween(0, 10_000_000));
+        final var settings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(
+                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
+            )
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .build();
+        final Path indexDataPath = dataPath.resolve("index");
+        final Path blobStorePath = PathUtils.get(createTempDir().toString());
+        try (
+            NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            SharedBlobCacheService<FileCacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                ThreadPool.Names.GENERIC
+            );
+            FsBlobStore blobStore = new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false);
+            IndexDirectory indexDirectory = new IndexDirectory(
+                newFSDirectory(indexDataPath),
+                sharedBlobCacheService,
+                shardId,
+                MeterRegistry.NOOP
+            )
+        ) {
+            final FsBlobContainer blobContainer = new FsBlobContainer(blobStore, BlobPath.EMPTY, blobStorePath);
+            indexDirectory.getSearchDirectory().setBlobContainer(value -> blobContainer);
+
+            final int fileLength = randomIntBetween(1024, 10240);
+            assertThat(fileLength, greaterThanOrEqualTo(BlobCacheBufferedIndexInput.BUFFER_SIZE));
+            final byte[] bytes = randomByteArrayOfLength(fileLength);
+
+            final String fileName = "file." + randomFrom(LuceneFilesExtensions.values()).getExtension();
+            try (IndexOutput output = indexDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+                output.writeBytes(bytes, fileLength);
+            }
+            assertThat(indexDirectory.fileLength(fileName), equalTo((long) fileLength));
+
+            final IndexInput input = indexDirectory.openInput(fileName, IOContext.DEFAULT);
+            final IndexInput clone = input.clone();
+            indexDirectory.deleteFile(fileName);
+
+            assertThat(indexDirectory.getDelegate().fileLength(fileName), equalTo((long) fileLength));
+            expectThrows(NoSuchFileException.class, () -> indexDirectory.fileLength(fileName));
+
+            randomRead(input, bytes);
+            randomRead(clone, bytes);
+
+            input.close();
+
+            expectThrows(NoSuchFileException.class, () -> indexDirectory.getDelegate().fileLength(fileName));
+            expectThrows(NoSuchFileException.class, () -> indexDirectory.fileLength(fileName));
+
+        } finally {
+            assertTrue(ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS));
+        }
+    }
+
+    private void randomRead(IndexInput input, byte[] bytes) throws IOException {
+        int pos = (int) input.getFilePointer();
+        int remaining = (int) (input.length() - pos);
+        if (remaining > 1) {
+            int len = randomIntBetween(1, remaining);
+            byte[] actual = randomReadAndSlice(input, len);
+            byte[] expected = new byte[len];
+            System.arraycopy(bytes, Math.toIntExact(pos), expected, 0, len);
+            assertArrayEquals(expected, actual);
         }
     }
 
@@ -218,7 +305,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
 
         @Override
         public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            return new SimulateUploadIndexInput(
+            maybeUpload();
+            var slice = new SimulateUploadIndexInput(
                 fileName,
                 fileLength,
                 directory,
@@ -226,6 +314,8 @@ public class ReopeningIndexInputTests extends ESIndexInputTestCase {
                 operationsCountDown,
                 blobContainer
             );
+            slice.isClone = true;
+            return slice;
         }
 
         @Override

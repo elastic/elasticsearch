@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -56,13 +57,16 @@ public class RestAliasAction extends AbstractCatAction {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
 
         if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.critical(
-                DeprecationCategory.API,
-                "cat-aliases-local",
-                "the [?local={}] query parameter to cat-aliases requests has no effect and will be removed in a future version",
-                // consume the param for the message
-                request.paramAsBoolean("local", false)
-            );
+            // consume this param just for validation
+            final var localParam = request.paramAsBoolean("local", false);
+            if (request.getRestApiVersion() != RestApiVersion.V_7) {
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.API,
+                    "cat-aliases-local",
+                    "the [?local={}] query parameter to cat-aliases requests has no effect and will be removed in a future version",
+                    localParam
+                );
+            }
         }
 
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()

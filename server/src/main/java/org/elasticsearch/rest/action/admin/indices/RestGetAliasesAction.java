@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -208,13 +209,16 @@ public class RestGetAliasesAction extends BaseRestHandler {
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
 
         if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.critical(
-                DeprecationCategory.API,
-                "get-aliases-local",
-                "the [?local={}] query parameter to get-aliases requests has no effect and will be removed in a future version",
-                // consume the param for the message
-                request.paramAsBoolean("local", false)
-            );
+            // consume this param just for validation
+            final var localParam = request.paramAsBoolean("local", false);
+            if (request.getRestApiVersion() != RestApiVersion.V_7) {
+                DEPRECATION_LOGGER.critical(
+                    DeprecationCategory.API,
+                    "get-aliases-local",
+                    "the [?local={}] query parameter to get-aliases requests has no effect and will be removed in a future version",
+                    localParam
+                );
+            }
         }
 
         // we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will

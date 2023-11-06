@@ -83,10 +83,10 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         body.accept(builder);
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
-        provisioningClient().performRequest(request);
+        legacyProvisioningClient().performRequest(request);
     }
 
-    public static void delete(String index, String documentId) throws IOException {
+    public void delete(String index, String documentId) throws IOException {
         Request request = new Request("DELETE", "/" + index + "/_doc/" + documentId);
         request.addParameter("refresh", "true");
         provisioningClient().performRequest(request);
@@ -116,7 +116,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         return connectionProperties;
     }
 
-    protected static void createIndexWithSettingsAndMappings(String index) throws IOException {
+    protected void createIndexWithSettingsAndMappings(String index) throws IOException {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -135,7 +135,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         provisioningClient().performRequest(request);
     }
 
-    protected static void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+    protected void updateMapping(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_mapping");
         XContentBuilder updateMapping = JsonXContent.contentBuilder().startObject();
         updateMapping.startObject("properties");

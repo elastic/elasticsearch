@@ -1,3 +1,8 @@
+dependencies {
+  javaRestTestImplementation project(path: xpackModule('ql:test-fixtures'))
+}
+
+/*
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -53,4 +58,10 @@ tasks.named("javaRestTest").configure {
     nonInputProperties.systemProperty 'tests.rest.cluster.multi.password', "x-pack-test-password"
   }
 }
+*/
+
 tasks.named("check").configure {dependsOn("javaRestTest") } // run these tests as part of the "check" task
+
+dependencies {
+  clusterPlugins project(':x-pack:qa:freeze-plugin')
+}

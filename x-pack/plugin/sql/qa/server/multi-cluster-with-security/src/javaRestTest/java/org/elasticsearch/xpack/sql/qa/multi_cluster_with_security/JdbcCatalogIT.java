@@ -36,7 +36,7 @@ public class JdbcCatalogIT extends JdbcIntegrationTestCase {
 
     @AfterClass
     static void cleanupIndex() throws IOException {
-        provisioningClient().performRequest(new Request("DELETE", "/" + INDEX_NAME));
+        legacyProvisioningClient().performRequest(new Request("DELETE", "/" + INDEX_NAME));
     }
 
     public void testJdbcSetCatalog() throws Exception {

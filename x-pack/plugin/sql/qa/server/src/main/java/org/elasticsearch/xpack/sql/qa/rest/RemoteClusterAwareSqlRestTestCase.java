@@ -24,13 +24,12 @@ import java.io.IOException;
 import static org.elasticsearch.common.Strings.hasText;
 
 public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
-
     private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accommodate for max measured throughput decline
 
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
-    // gradle defines
+    // gradle defines for legacy test framework
     public static final String AUTH_USER = System.getProperty("tests.rest.cluster.multi.user");
     public static final String AUTH_PASS = System.getProperty("tests.rest.cluster.multi.password");
 
@@ -77,10 +76,15 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
         return TimeValue.timeValueSeconds(CLIENT_TIMEOUT);
     }
 
+    // When using the legacy test framework, returns a client to the remote cluster if it exists - otherwise returns client().
+    public static RestClient legacyProvisioningClient() {
+        return remoteClient == null ? client() : remoteClient;
+    }
+
     // returned client is used to load the test data, either in the local cluster (for rest/javaRestTests) or a remote one (for
     // multi-cluster). note: the client()/adminClient() will always connect to the local cluster.
-    protected static RestClient provisioningClient() {
-        return remoteClient == null ? client() : remoteClient;
+    protected RestClient provisioningClient() {
+        return legacyProvisioningClient();
     }
 
     @Override

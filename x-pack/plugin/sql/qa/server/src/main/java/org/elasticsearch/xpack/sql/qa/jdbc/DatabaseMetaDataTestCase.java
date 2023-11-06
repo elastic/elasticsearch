@@ -17,6 +17,7 @@ import java.sql.SQLException;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert.assertResultSets;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.createDataStream;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.deleteDataStream;
+import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.legacyProvisioningClient;
 
 /**
  * Tests for our implementation of {@link DatabaseMetaData}.
@@ -129,7 +130,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
 
     private void expectDataStreamTable(String dataStreamName, String tableNamePattern, String[] types) throws SQLException, IOException {
         try {
-            createDataStream(dataStreamName);
+            createDataStream(dataStreamName, legacyProvisioningClient());
             try (Connection es = esJdbc(); ResultSet rs = es.getMetaData().getTables("%", "%", tableNamePattern, types)) {
                 assertTrue(rs.next());
                 assertEquals(dataStreamName, rs.getString(3));
@@ -137,7 +138,7 @@ public class DatabaseMetaDataTestCase extends JdbcIntegrationTestCase {
                 assertFalse(rs.next());
             }
         } finally {
-            deleteDataStream(dataStreamName);
+            deleteDataStream(dataStreamName, legacyProvisioningClient());
         }
     }
 

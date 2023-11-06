@@ -6,13 +6,101 @@
  */
 package org.elasticsearch.xpack.sql.qa.multi_cluster_with_security;
 
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
+import org.junit.ClassRule;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+
+import java.io.IOException;
 
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class RestSqlIT extends RestSqlTestCase {
+    @ClassRule
+    public static TestClusterWithRemote clusterAndRemote = new TestClusterWithRemote();
 
-    public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster"; // gradle defined
+    public static class TestClusterWithRemote implements TestRule {
+        private ElasticsearchCluster cluster;
+        private final ElasticsearchCluster remote = SqlTestRemoteCluster.getCluster();
+
+        public Statement apply(Statement base, Description description) {
+            Statement startCluster = new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    // Remote address will look like [::1]:12345 - elasticsearch.yml does not like the square brackets.
+                    String remoteAddress = remote.getTransportEndpoint(0).replaceAll("\\[|\\]", "");
+                    cluster = SqlTestCluster.getCluster(remoteAddress);
+                    cluster.apply(base, description).evaluate();
+                }
+            };
+
+            return remote.apply(startCluster, null);
+        }
+
+        public ElasticsearchCluster cluster() {
+            return cluster;
+        }
+
+        public Settings clusterAuthSettings() {
+            return clientAuthSettings();
+        }
+
+        public ElasticsearchCluster remote() {
+            return remote;
+        }
+
+        public Settings remoteAuthSettings() {
+            return clientAuthSettings();
+        }
+
+        /**
+         * Auth settings for both the cluster and the remote.
+         *
+         * @return
+         */
+        private static Settings clientAuthSettings() {
+            final String value = basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()));
+            return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
+        }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return clusterAndRemote.cluster().getHttpAddress(0);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return clusterAndRemote.clusterAuthSettings();
+    }
+
+    @Override
+    protected RestClient provisioningClient() {
+        String crossClusterHost = clusterAndRemote.remote().getHttpAddress(0);
+        int portSeparator = crossClusterHost.lastIndexOf(':');
+        if (portSeparator < 0) {
+            throw new IllegalArgumentException("Illegal cluster url [" + crossClusterHost + "]");
+        }
+        String host = crossClusterHost.substring(0, portSeparator);
+        int port = Integer.parseInt(crossClusterHost.substring(portSeparator + 1));
+        HttpHost[] remoteHttpHosts = new HttpHost[] { new HttpHost(host, port) };
+
+        try {
+            return clientBuilder(clusterAndRemote.remoteAuthSettings(), remoteHttpHosts);
+        } catch (IOException e) {
+            // TODO: create and close the client correctly using a test rule.
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
 
     @Override
     protected String indexPattern(String pattern) {

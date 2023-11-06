@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -122,6 +123,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Base class of ML integration tests that use a native autodetect process
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/101808")
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override

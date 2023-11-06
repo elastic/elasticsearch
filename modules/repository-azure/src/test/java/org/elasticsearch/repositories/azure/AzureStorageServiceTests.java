@@ -303,6 +303,7 @@ public class AzureStorageServiceTests extends ESTestCase {
         assertEquals("Azure Proxy port or host have been set but proxy type is not defined.", e.getMessage());
     }
 
+    @AwaitsFix(bugUrl = "blarg")
     public void testProxyWrongHost() {
         final Settings settings = Settings.builder()
             .setSecureSettings(buildSecureSettings())

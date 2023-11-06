@@ -194,13 +194,6 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     }
 
     /**
-     * Get whether the XContent response should be keyed
-     */
-    public boolean keyed() {
-        return keyed;
-    }
-
-    /**
      * Expert: set the number of significant digits in the values. Only relevant
      * when using {@link PercentilesMethod#HDR}.
      *

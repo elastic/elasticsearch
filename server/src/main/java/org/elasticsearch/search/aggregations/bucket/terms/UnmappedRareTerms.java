@@ -112,8 +112,4 @@ public class UnmappedRareTerms extends InternalRareTerms<UnmappedRareTerms, Unma
         return null;
     }
 
-    @Override
-    protected UnmappedRareTerms.Bucket[] createBucketsArray(int size) {
-        return new UnmappedRareTerms.Bucket[size];
-    }
 }

@@ -55,10 +55,6 @@ public class AggregationInfo implements ReportingService.Info {
         out.writeMap(aggs, StreamOutput::writeStringCollection);
     }
 
-    public Map<String, Set<String>> getAggregations() {
-        return aggs;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("aggregations");

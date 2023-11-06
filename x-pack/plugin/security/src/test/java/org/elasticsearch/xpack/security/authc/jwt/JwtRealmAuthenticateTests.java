@@ -67,15 +67,24 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, jwtAuthcCount);
     }
 
-    // this test is mostly a duplicate of others tests but this test guarantees the cache is used which invoke downstream assertions
-    // https://github.com/elastic/elasticsearch/issues/101752
     public void testJwtCache() throws Exception {
         jwtIssuerAndRealms = generateJwtIssuerRealmPairs(1, 1, 1, 1, 1, 1, 99, false);
+        JwtRealm realm = jwtIssuerAndRealms.get(0).realm();
+        realm.expireAll();
+        assertThat(realm.getJwtCache().count(), is(0));
         final JwtIssuerAndRealm jwtIssuerAndRealm = randomJwtIssuerRealmPair();
-        final User user = randomUser(jwtIssuerAndRealm.issuer());
-        final SecureString jwt = randomJwt(jwtIssuerAndRealm, user);
         final SecureString clientSecret = JwtRealmInspector.getClientAuthenticationSharedSecret(jwtIssuerAndRealm.realm());
-        doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwt, clientSecret, 10);
+        for (int i = 1; i <= randomIntBetween(2, 10); i++) {
+            User user = randomUser(jwtIssuerAndRealm.issuer());
+            doMultipleAuthcAuthzAndVerifySuccess(
+                jwtIssuerAndRealm.realm(),
+                user,
+                randomJwt(jwtIssuerAndRealm, user),
+                clientSecret,
+                randomIntBetween(2, 10)
+            );
+            assertThat(realm.getJwtCache().count(), is(i));
+        }
     }
 
     /**

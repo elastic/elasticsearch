@@ -34,21 +34,11 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     DoubleVector vector = (DoubleVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return driverContext.blockFactory().newConstantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantDoubleBlockWith(evalValue(vector, 0), positionCount);
     }
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        try {
-          builder.appendDouble(evalValue(vector, p));
-        } catch (Exception e) {
-          registerException(e);
-          builder.appendNull();
-        }
+        builder.appendDouble(evalValue(vector, p));
       }
       return builder.build();
     }
@@ -71,17 +61,13 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            double value = evalValue(block, i);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendDouble(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          double value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendDouble(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

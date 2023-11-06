@@ -405,8 +405,10 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
-            org.elasticsearch.features.FeaturesSupportedSpecification,
-            org.elasticsearch.health.HealthFeature;
+            org.elasticsearch.features.FeatureInfrastructureFeatures,
+            org.elasticsearch.health.HealthFeatures,
+            org.elasticsearch.cluster.metadata.MetadataFeatures,
+            org.elasticsearch.rest.RestFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
     uses RestExtension;
@@ -417,4 +419,6 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat,
             org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
     provides org.apache.lucene.codecs.DocValuesFormat with ES87TSDBDocValuesFormat;
+
+    exports org.elasticsearch.cluster.routing.allocation.shards to org.elasticsearch.shardhealth, org.elasticsearch.serverless.shardhealth;
 }

@@ -33,6 +33,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
@@ -244,7 +245,12 @@ class NodeConstruction {
         List<Closeable> closeables = new ArrayList<>();
         try {
             NodeConstruction constructor = new NodeConstruction(closeables);
-            constructor.construct(initialEnvironment, serviceProvider, forbidPrivateIndexSettings);
+            Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
+            ThreadPool threadPool = constructor.createThreadPool(settings);
+            SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+
+            constructor.construct(threadPool, settingsModule, serviceProvider, forbidPrivateIndexSettings);
+
             return constructor;
         } catch (IOException e) {
             IOUtils.closeWhileHandlingException(closeables);
@@ -344,13 +350,12 @@ class NodeConstruction {
         return Optional.of(plugin);
     }
 
-    private void construct(Environment initialEnvironment, NodeServiceProvider serviceProvider, boolean forbidPrivateIndexSettings)
-        throws IOException {
+    private Settings createEnvironment(Environment initialEnvironment, NodeServiceProvider serviceProvider) {
         // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
-        DeprecationLogger.initialize(initialEnvironment.settings());
-        Settings environmentSettings = initialEnvironment.settings();
+        Settings envSettings = initialEnvironment.settings();
+        DeprecationLogger.initialize(envSettings);
 
-        final JvmInfo jvmInfo = JvmInfo.jvmInfo();
+        JvmInfo jvmInfo = JvmInfo.jvmInfo();
         logger.info(
             "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
             Build.current().qualifiedVersion(),
@@ -374,7 +379,7 @@ class NodeConstruction {
                 Build.current().qualifiedVersion()
             );
         }
-        if (Environment.PATH_SHARED_DATA_SETTING.exists(environmentSettings)) {
+        if (Environment.PATH_SHARED_DATA_SETTING.exists(envSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
             deprecationLogger.warn(
@@ -393,7 +398,7 @@ class NodeConstruction {
                     + "multiple disks. This feature will be removed in a future release."
             );
         }
-        if (Environment.dataPathUsesList(environmentSettings)) {
+        if (Environment.dataPathUsesList(envSettings)) {
             // already checked for multiple values above, so if this is a list it is a single valued list
             deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
@@ -417,8 +422,8 @@ class NodeConstruction {
             (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
         );
 
-        pluginsService = serviceProvider.newPluginService(initialEnvironment, environmentSettings);
-        final Settings settings = Node.mergePluginSettings(pluginsService.pluginMap(), environmentSettings);
+        pluginsService = serviceProvider.newPluginService(initialEnvironment, envSettings);
+        Settings settings = Node.mergePluginSettings(pluginsService.pluginMap(), envSettings);
 
         /*
          * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -427,15 +432,68 @@ class NodeConstruction {
         environment = new Environment(settings, initialEnvironment.configFile());
         Environment.assertEquivalent(initialEnvironment, environment);
 
-        final List<ExecutorBuilder<?>> executorBuilders = pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toList();
+        return settings;
+    }
 
-        final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder<?>[0]));
+    private ThreadPool createThreadPool(Settings settings) throws IOException {
+        ThreadPool threadPool = new ThreadPool(
+            settings,
+            pluginsService.flatMap(p -> p.getExecutorBuilders(settings)).toArray(ExecutorBuilder<?>[]::new)
+        );
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-        final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
-        resourcesToClose.add(resourceWatcherService);
+
         // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
         resourcesToClose.add(() -> HeaderWarning.removeThreadContext(threadPool.getThreadContext()));
+
+        return threadPool;
+    }
+
+    private SettingsModule validateSettings(Settings envSettings, Settings settings, ThreadPool threadPool) throws IOException {
+        // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
+        List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
+        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
+            additionalSettings.addAll(builder.getRegisteredSettings());
+        }
+        SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
+
+        // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
+        // so we might be late here already
+        SettingsModule settingsModule = new SettingsModule(
+            settings,
+            additionalSettings,
+            pluginsService.flatMap(Plugin::getSettingsFilter).toList()
+        );
+
+        // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
+        // after settings validation.
+        nodeEnvironment = new NodeEnvironment(envSettings, environment);
+        logger.info(
+            "node name [{}], node ID [{}], cluster name [{}], roles {}",
+            Node.NODE_NAME_SETTING.get(envSettings),
+            nodeEnvironment.nodeId(),
+            ClusterName.CLUSTER_NAME_SETTING.get(envSettings).value(),
+            DiscoveryNode.getRolesFromSettings(settings)
+                .stream()
+                .map(DiscoveryNodeRole::roleName)
+                .collect(Collectors.toCollection(LinkedHashSet::new))
+        );
+        resourcesToClose.add(nodeEnvironment);
+
+        return settingsModule;
+    }
+
+    private void construct(
+        ThreadPool threadPool,
+        SettingsModule settingsModule,
+        NodeServiceProvider serviceProvider,
+        boolean forbidPrivateIndexSettings
+    ) throws IOException {
+
+        Settings settings = settingsModule.getSettings();
+
+        final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
+        resourcesToClose.add(resourceWatcherService);
 
         final Set<String> taskHeaders = Stream.concat(
             pluginsService.filterPlugins(ActionPlugin.class).flatMap(p -> p.getTaskHeaders().stream()),
@@ -449,12 +507,6 @@ class NodeConstruction {
 
         final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
-        // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
-        final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
-        for (final ExecutorBuilder<?> builder : threadPool.builders()) {
-            additionalSettings.addAll(builder.getRegisteredSettings());
-        }
-        SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
         client = new NodeClient(settings, threadPool);
 
         final ScriptModule scriptModule = new ScriptModule(settings, pluginsService.filterPlugins(ScriptPlugin.class).toList());
@@ -470,29 +522,6 @@ class NodeConstruction {
             pluginsService.filterPlugins(AnalysisPlugin.class).toList(),
             pluginsService.getStablePluginRegistry()
         );
-        // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
-        // so we might be late here already
-
-        final SettingsModule settingsModule = new SettingsModule(
-            settings,
-            additionalSettings,
-            pluginsService.flatMap(Plugin::getSettingsFilter).toList()
-        );
-
-        // creating `NodeEnvironment` breaks the ability to rollback to 7.x on an 8.0 upgrade (`upgradeLegacyNodeFolders`) so do this
-        // after settings validation.
-        nodeEnvironment = new NodeEnvironment(environmentSettings, environment);
-        logger.info(
-            "node name [{}], node ID [{}], cluster name [{}], roles {}",
-            Node.NODE_NAME_SETTING.get(environmentSettings),
-            nodeEnvironment.nodeId(),
-            ClusterName.CLUSTER_NAME_SETTING.get(environmentSettings).value(),
-            DiscoveryNode.getRolesFromSettings(settings)
-                .stream()
-                .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toCollection(LinkedHashSet::new))
-        );
-        resourcesToClose.add(nodeEnvironment);
         localNodeFactory = new Node.LocalNodeFactory(settings, nodeEnvironment.nodeId());
 
         ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
@@ -1220,7 +1249,10 @@ class NodeConstruction {
         this.xContentRegistry = xContentRegistry;
 
         logger.debug("initializing HTTP handlers ...");
-        actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
+        actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered(), f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        });
         logger.info("initialized");
     }
 

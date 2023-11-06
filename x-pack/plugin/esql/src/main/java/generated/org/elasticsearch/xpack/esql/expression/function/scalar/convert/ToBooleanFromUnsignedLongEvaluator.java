@@ -35,21 +35,11 @@ public final class ToBooleanFromUnsignedLongEvaluator extends AbstractConvertFun
     LongVector vector = (LongVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return driverContext.blockFactory().newConstantNullBlock(positionCount);
-      }
+      return driverContext.blockFactory().newConstantBooleanBlockWith(evalValue(vector, 0), positionCount);
     }
     try (BooleanBlock.Builder builder = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
-        try {
-          builder.appendBoolean(evalValue(vector, p));
-        } catch (Exception e) {
-          registerException(e);
-          builder.appendNull();
-        }
+        builder.appendBoolean(evalValue(vector, p));
       }
       return builder.build();
     }
@@ -72,17 +62,13 @@ public final class ToBooleanFromUnsignedLongEvaluator extends AbstractConvertFun
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            boolean value = evalValue(block, i);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendBoolean(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          boolean value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendBoolean(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();

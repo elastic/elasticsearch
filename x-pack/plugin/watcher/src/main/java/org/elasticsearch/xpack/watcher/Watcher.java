@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -423,7 +424,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     Map<String, String> historyFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
-                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .filter(r -> r.getIndex().startsWith(DataStream.BACKING_INDEX_PREFIX + HistoryStoreField.DATA_STREAM))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (triggeredFailures.isEmpty() == false) {
                         String failure = String.join(", ", triggeredFailures.values());
@@ -444,7 +445,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
                     Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
-                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .filter(r -> r.getIndex().startsWith(DataStream.BACKING_INDEX_PREFIX + HistoryStoreField.DATA_STREAM))
                         .filter(r -> r.getVersion() > 1)
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (overwrittenIds.isEmpty() == false) {

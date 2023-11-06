@@ -363,13 +363,11 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Empty JWT string
         final ThreadContext tc2 = createThreadContext("", clientSecret);
-        final Exception e2 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc2));
-        assertThat(e2.getMessage(), equalTo("JWT bearer token must be non-empty"));
+        assertThat(jwtIssuerAndRealm.realm().token(tc2), nullValue());
 
         // Non-empty whitespace JWT string
-        final ThreadContext tc3 = createThreadContext("", clientSecret);
-        final Exception e3 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc3));
-        assertThat(e3.getMessage(), equalTo("JWT bearer token must be non-empty"));
+        final ThreadContext tc3 = createThreadContext("  ", clientSecret);
+        assertThat(jwtIssuerAndRealm.realm().token(tc3), nullValue());
 
         // Blank client secret
         final ThreadContext tc4 = createThreadContext(jwt, "");
@@ -383,8 +381,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // JWT parse exception
         final ThreadContext tc6 = createThreadContext("Head.Body.Sig", clientSecret);
-        final Exception e6 = expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc6));
-        assertThat(e6.getMessage(), equalTo("Failed to parse JWT bearer token"));
+        assertThat(jwtIssuerAndRealm.realm().token(tc6), nullValue());
 
         // Parse JWT into three parts, for rejecting testing of tampered JWT contents
         final SignedJWT parsedJwt = SignedJWT.parse(jwt.toString());
@@ -395,7 +392,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Verify rejection of unsigned JWT
             final SecureString unsignedJwt = new SecureString(new PlainJWT(validClaimsSet).serialize().toCharArray());
             final ThreadContext tc = createThreadContext(unsignedJwt, clientSecret);
-            expectThrows(IllegalArgumentException.class, () -> jwtIssuerAndRealm.realm().token(tc));
+            assertThat(jwtIssuerAndRealm.realm().token(tc), nullValue());
         }
 
         {   // Verify rejection of a tampered header (flip HMAC=>RSA or RSA/EC=>HMAC)

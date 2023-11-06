@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
@@ -72,18 +71,14 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<FrozenCacheInfoResponse> listener) {
-            if (request.discoveryNode.getVersion().onOrAfter(Version.V_7_12_0)) {
-                transportService.sendChildRequest(
-                    request.discoveryNode,
-                    FrozenCacheInfoNodeAction.NAME,
-                    nodeRequest,
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
-                );
-            } else {
-                listener.onResponse(new FrozenCacheInfoResponse(false));
-            }
+            transportService.sendChildRequest(
+                request.discoveryNode,
+                FrozenCacheInfoNodeAction.NAME,
+                nodeRequest,
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+            );
         }
 
     }

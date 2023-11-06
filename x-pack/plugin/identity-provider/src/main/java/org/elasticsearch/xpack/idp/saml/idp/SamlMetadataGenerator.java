@@ -34,7 +34,7 @@ public class SamlMetadataGenerator {
 
     private final SamlFactory samlFactory;
     private final SamlIdentityProvider idp;
-    private final Logger logger = LogManager.getLogger(SamlMetadataGenerator.class);
+    private static final Logger logger = LogManager.getLogger(SamlMetadataGenerator.class);
 
     public SamlMetadataGenerator(SamlFactory samlFactory, SamlIdentityProvider idp) {
         this.samlFactory = samlFactory;

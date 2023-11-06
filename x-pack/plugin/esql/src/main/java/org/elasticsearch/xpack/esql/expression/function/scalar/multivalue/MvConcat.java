@@ -122,9 +122,6 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         @Override
         public final Block.Ref eval(Page page) {
             try (Block.Ref fieldRef = field.eval(page); Block.Ref delimRef = delim.eval(page)) {
-                if (fieldRef.block().areAllValuesNull() || delimRef.block().areAllValuesNull()) {
-                    return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), context.blockFactory()));
-                }
                 BytesRefBlock fieldVal = (BytesRefBlock) fieldRef.block();
                 BytesRefBlock delimVal = (BytesRefBlock) delimRef.block();
 

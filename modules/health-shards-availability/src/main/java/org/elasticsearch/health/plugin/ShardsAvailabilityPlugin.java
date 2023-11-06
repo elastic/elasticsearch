@@ -9,10 +9,8 @@
 package org.elasticsearch.health.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.health.HealthIndicatorService;
-import org.elasticsearch.plugin.Inject;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -23,8 +21,7 @@ public class ShardsAvailabilityPlugin extends Plugin implements HealthPlugin {
 
     private final SetOnce<ShardsAvailabilityHealthIndicatorService> shardHealthService = new SetOnce<>();
 
-    @Inject
-    public ShardsAvailabilityPlugin(Settings settings) {}
+    public ShardsAvailabilityPlugin() {}
 
     @Override
     public Collection<?> createComponents(PluginServices services) {

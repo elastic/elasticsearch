@@ -19,6 +19,22 @@
               "index": false
             }
           }
+        },
+        {
+          "histogram_metrics": {
+            "mapping": {
+              "type": "histogram"
+            }
+          }
+        },
+        {
+          "summary_metrics": {
+            "mapping": {
+              "type": "aggregate_metric_double",
+              "metrics": ["sum", "value_count"],
+              "default_metric": "value_count"
+            }
+          }
         }
       ],
       "properties": {

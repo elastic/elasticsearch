@@ -1687,7 +1687,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final String message = expectThrows(CorruptStateException.class, () -> persistedClusterStateService.loadBestOnDiskState())
                 .getCause()
                 .getMessage();
-            assertEquals("java.lang.IllegalArgumentException: mapping with hash [" + hash + "] not found", message);
+            assertEquals("java.lang.IllegalArgumentException: mapping of index [test-1] with hash [" + hash + "] not found", message);
         }
     }
 

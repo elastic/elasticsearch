@@ -1,0 +1,6 @@
+pr: 101648
+summary: "ESQL: Fix unreleased block in topn"
+area: ES|QL
+type: bug
+issues:
+ - 101588

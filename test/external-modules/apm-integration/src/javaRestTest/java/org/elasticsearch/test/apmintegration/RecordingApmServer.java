@@ -17,8 +17,10 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 import org.junit.rules.ExternalResource;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -97,7 +99,7 @@ public class RecordingApmServer extends ExternalResource {
 
     private List<String> readJsonMessages(InputStream input) throws IOException {
         // parse NDJSON
-        return Arrays.stream(new String(input.readAllBytes(), StandardCharsets.UTF_8).split(System.lineSeparator())).toList();
+        return new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8)).lines().toList();
     }
 
     public int getPort() {

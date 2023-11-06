@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.PrimaryTermAndGeneration;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -206,8 +207,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                             assert r.segmentGeneration() > -1L;
                             assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
                             indexShard.waitForPrimaryTermAndGeneration(
-                                r.primaryTerm(),
-                                r.segmentGeneration(),
+                                new PrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration()),
                                 listener.delegateFailureAndWrap(
                                     (ll, aLong) -> getExecutor(request, shardId).execute(
                                         ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))

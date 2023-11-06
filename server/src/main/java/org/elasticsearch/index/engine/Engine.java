@@ -62,6 +62,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.PrimaryTermAndGeneration;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
@@ -2114,20 +2115,13 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
-     *
-     * @deprecated use {@link #addPrimaryTermAndGenerationListener(long, long, ActionListener)} instead.
-     */
-    @Deprecated
-    public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
-        addPrimaryTermAndGenerationListener(UNKNOWN_PRIMARY_TERM, minGeneration, listener);
-    }
-
-    /**
      * Allows registering a listener for when the index shard is on a primary term >= minPrimaryTerm
      * and a segment generation >= minGeneration.
      */
-    public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
+    public void addPrimaryTermAndGenerationListener(
+        PrimaryTermAndGeneration primaryTermAndGeneration,
+        ActionListener<PrimaryTermAndGeneration> listener
+    ) {
         throw new UnsupportedOperationException();
     }
 

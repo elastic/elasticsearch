@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -28,7 +29,7 @@ import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
-import org.elasticsearch.compute.operator.ResultPageSinkOperator;
+import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,12 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-
-    @Override
-    protected DriverContext driverContext() {
-        return breakingDriverContext();
-    }
-
     protected abstract AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels);
 
     protected final int aggregatorIntermediateBlockCount() {
@@ -109,7 +104,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple(nonBreakingBigArrays().withCircuitBreaking()).get(driverContext)),
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {
@@ -173,6 +168,39 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         );
         List<Page> results = drive(operators, List.<Page>of().iterator(), driverContext);
 
+        assertThat(results, hasSize(1));
+        assertOutputFromEmpty(results.get(0).getBlock(0));
+    }
+
+    // Returns an intermediate state that is equivalent to what the local execution planner will emit
+    // if it determines that certain shards have no relevant data.
+    final List<Page> nullIntermediateState(BlockFactory blockFactory) {
+        try (var agg = aggregatorFunction(nonBreakingBigArrays(), List.of()).aggregator(driverContext())) {
+            var method = agg.getClass().getMethod("intermediateStateDesc");
+            @SuppressWarnings("unchecked")
+            List<IntermediateStateDesc> intermediateStateDescs = (List<IntermediateStateDesc>) method.invoke(null);
+            List<Block> blocks = new ArrayList<>();
+            for (var interSate : intermediateStateDescs) {
+                try (var wrapper = BlockUtils.wrapperFor(blockFactory, interSate.type(), 1)) {
+                    wrapper.accept(null);
+                    blocks.add(wrapper.builder().build());
+                }
+            }
+            return List.of(new Page(blocks.toArray(Block[]::new)));
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public final void testNullIntermediateFinal() {
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+        List<Page> input = nullIntermediateState(blockFactory);
+        var operators = List.of(
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.INTERMEDIATE).get(driverContext),
+            simpleWithMode(nonBreakingBigArrays().withCircuitBreaking(), AggregatorMode.FINAL).get(driverContext)
+        );
+        List<Page> results = drive(operators, input.iterator(), driverContext);
         assertThat(results, hasSize(1));
         assertOutputFromEmpty(results.get(0).getBlock(0));
     }

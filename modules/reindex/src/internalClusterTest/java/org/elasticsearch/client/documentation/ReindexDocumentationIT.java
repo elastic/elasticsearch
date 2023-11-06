@@ -29,7 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.CancelTests;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.reindex.RethrottleAction;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -56,11 +55,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     // Semaphore used to allow & block indexing operations during the test
     private static final Semaphore ALLOWED_OPERATIONS = new Semaphore(0);
     private static final String INDEX_NAME = "source_index";
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -222,7 +216,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         }
         {
             // tag::update-by-query-rethrottle
-            new RethrottleRequestBuilder(client, RethrottleAction.INSTANCE)
+            new RethrottleRequestBuilder(client, ReindexPlugin.RETHROTTLE_ACTION)
                 .setTargetTaskId(taskId)
                 .setRequestsPerSecond(2.0f)
                 .get();
@@ -283,7 +277,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         );
 
         // Checks that the all documents have been indexed and correctly counted
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numDocs);
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)

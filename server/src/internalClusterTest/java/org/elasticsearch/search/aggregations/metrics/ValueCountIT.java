@@ -37,7 +37,7 @@ import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugi
 import static org.elasticsearch.search.aggregations.metrics.MetricAggScriptPlugin.VALUE_FIELD_SCRIPT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -67,8 +67,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(count("count").field("value"))
             .get();
 
@@ -81,10 +80,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(count("count").field("value"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(count("count").field("value")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -95,8 +91,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldGetProperty() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(global("global").subAggregation(count("count").field("value")))
             .get();
 
@@ -119,8 +114,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(count("count").field("value"))
             .get();
 
@@ -133,10 +127,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
-            .addAggregation(count("count").field("values"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(count("count").field("values")).get();
 
         assertHitCount(searchResponse, 10);
 
@@ -147,8 +138,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.emptyMap()))
             )
@@ -163,8 +153,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedScript() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_VALUES_FIELD_SCRIPT, Collections.emptyMap()))
             )
@@ -180,8 +169,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testSingleValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("field", "value");
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
             .get();
 
@@ -195,8 +183,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testMultiValuedScriptWithParams() throws Exception {
         Map<String, Object> params = Collections.singletonMap("field", "values");
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(count("count").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, SUM_FIELD_PARAMS_SCRIPT, params)))
             .get();
 
@@ -216,7 +203,6 @@ public class ValueCountIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,
@@ -235,13 +221,12 @@ public class ValueCountIT extends ESIntegTestCase {
         );
 
         // Test that a request using a nondeterministic script does not get cached
-        SearchResponse r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        SearchResponse r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 count("foo").field("d").script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, RANDOM_SCRIPT, Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -253,14 +238,13 @@ public class ValueCountIT extends ESIntegTestCase {
         );
 
         // Test that a request using a deterministic script gets cached
-        r = client().prepareSearch("cache_test_idx")
-            .setSize(0)
+        r = prepareSearch("cache_test_idx").setSize(0)
             .addAggregation(
                 count("foo").field("d")
                     .script(new Script(ScriptType.INLINE, METRIC_SCRIPT_ENGINE, VALUE_FIELD_SCRIPT, Collections.emptyMap()))
             )
             .get();
-        assertSearchResponse(r);
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -272,8 +256,8 @@ public class ValueCountIT extends ESIntegTestCase {
         );
 
         // Ensure that non-scripted requests are cached as normal
-        r = client().prepareSearch("cache_test_idx").setSize(0).addAggregation(count("foo").field("d")).get();
-        assertSearchResponse(r);
+        r = prepareSearch("cache_test_idx").setSize(0).addAggregation(count("foo").field("d")).get();
+        assertNoFailures(r);
 
         assertThat(
             indicesAdmin().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
@@ -286,8 +270,7 @@ public class ValueCountIT extends ESIntegTestCase {
     }
 
     public void testOrderByEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("idx").setQuery(matchAllQuery())
             .addAggregation(
                 terms("terms").field("value")
                     .order(BucketOrder.compound(BucketOrder.aggregation("filter>count", true)))

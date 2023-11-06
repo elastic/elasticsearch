@@ -15,11 +15,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -35,6 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -326,25 +329,36 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns the list of {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by other
-     * snapshots) after removing the given snapshot from the repository.
+     * Returns an iterator over {@link IndexId} that have their snapshots updated but not removed (because they are still referenced by
+     * other snapshots) after removing the given snapshot from the repository.
      *
      * @param snapshotIds SnapshotId to remove
-     * @return List of indices that are changed but not removed
+     * @return Iterator over indices that are changed but not removed
      */
-    public List<IndexId> indicesToUpdateAfterRemovingSnapshot(Collection<SnapshotId> snapshotIds) {
-        return indexSnapshots.entrySet().stream().filter(entry -> {
-            final Collection<SnapshotId> existingIds = entry.getValue();
-            if (snapshotIds.containsAll(existingIds)) {
-                return existingIds.size() > snapshotIds.size();
+    public Iterator<IndexId> indicesToUpdateAfterRemovingSnapshot(Collection<SnapshotId> snapshotIds) {
+        return Iterators.flatMap(indexSnapshots.entrySet().iterator(), entry -> {
+            if (isIndexToUpdateAfterRemovingSnapshots(entry.getValue(), snapshotIds)) {
+                return Iterators.single(entry.getKey());
+            } else {
+                return Collections.emptyIterator();
             }
-            for (SnapshotId snapshotId : snapshotIds) {
-                if (entry.getValue().contains(snapshotId)) {
-                    return true;
-                }
+        });
+    }
+
+    private static boolean isIndexToUpdateAfterRemovingSnapshots(
+        Collection<SnapshotId> snapshotsContainingIndex,
+        Collection<SnapshotId> snapshotsToDelete
+    ) {
+        // TODO this method is pretty opaque, let's add some comments
+        if (snapshotsToDelete.containsAll(snapshotsContainingIndex)) {
+            return snapshotsContainingIndex.size() > snapshotsToDelete.size();
+        }
+        for (SnapshotId snapshotId : snapshotsToDelete) {
+            if (snapshotsContainingIndex.contains(snapshotId)) {
+                return true;
             }
-            return false;
-        }).map(Map.Entry::getKey).toList();
+        }
+        return false;
     }
 
     /**
@@ -356,7 +370,7 @@ public final class RepositoryData {
      * @return map of index to index metadata blob id to delete
      */
     public Map<IndexId, Collection<String>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
-        Collection<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotIds);
+        Iterator<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotIds);
         final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet()
             .stream()
             .filter(e -> snapshotIds.contains(e.getKey()) == false)
@@ -364,7 +378,8 @@ public final class RepositoryData {
             .map(indexMetaDataGenerations::getIndexMetaBlobId)
             .collect(Collectors.toSet());
         final Map<IndexId, Collection<String>> toRemove = new HashMap<>();
-        for (IndexId indexId : indicesForSnapshot) {
+        while (indicesForSnapshot.hasNext()) {
+            final var indexId = indicesForSnapshot.next();
             for (SnapshotId snapshotId : snapshotIds) {
                 final String identifier = indexMetaDataGenerations.indexMetaBlobId(snapshotId, indexId);
                 if (allRemainingIdentifiers.contains(identifier) == false) {
@@ -699,7 +714,7 @@ public final class RepositoryData {
             // Likewise if we simply encode the numeric IndexVersion as a string then versions from 8.11.0 onwards will report the exact
             // string in this message, which is not especially helpful to users. Slightly more helpful than the opaque parse error reported
             // by earlier versions, but still not great. TODO rethink this if and when adding a new snapshot repository format version.
-            if (minVersion.before(IndexVersion.V_8_10_0)) {
+            if (minVersion.before(IndexVersions.V_8_10_0)) {
                 // write as a string
                 builder.field(MIN_VERSION, Version.fromId(minVersion.id()).toString());
             } else {
@@ -769,7 +784,7 @@ public final class RepositoryData {
                     numericIndexVersionMarkerPlaceholdersUsed += 1;
                     lastSnapshotWithNumericIndexVersionPlaceholder = snapshot;
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
-                } else if (version.onOrAfter(IndexVersion.FIRST_DETACHED_INDEX_VERSION)) {
+                } else if (version.onOrAfter(IndexVersions.FIRST_DETACHED_INDEX_VERSION)) {
                     builder.field(VERSION, NUMERIC_INDEX_VERSION_MARKER_STRING);
                     builder.field(INDEX_VERSION, version.id());
                 } else {
@@ -869,9 +884,9 @@ public final class RepositoryData {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
                     final var versionString = parser.text();
                     final var version = switch (versionString) {
-                        case "7.12.0" -> IndexVersion.V_7_12_0;
-                        case "7.9.0" -> IndexVersion.V_7_9_0;
-                        case "7.6.0" -> IndexVersion.V_7_6_0;
+                        case "7.12.0" -> IndexVersions.V_7_12_0;
+                        case "7.9.0" -> IndexVersions.V_7_9_0;
+                        case "7.6.0" -> IndexVersions.V_7_6_0;
                         default ->
                             // All (known) versions only ever emit one of the above strings for the format version, so if we see something
                             // else it must be a newer version or else something wholly invalid. Report the raw string rather than trying
@@ -1212,6 +1227,22 @@ public final class RepositoryData {
         @Override
         public int hashCode() {
             return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, slmPolicy);
+        }
+
+        @Override
+        public String toString() {
+            return "SnapshotDetails{"
+                + "snapshotState="
+                + snapshotState
+                + ", version="
+                + version
+                + ", startTimeMillis="
+                + startTimeMillis
+                + ", endTimeMillis="
+                + endTimeMillis
+                + ", slmPolicy='"
+                + slmPolicy
+                + "'}";
         }
 
         public static SnapshotDetails fromSnapshotInfo(SnapshotInfo snapshotInfo) {

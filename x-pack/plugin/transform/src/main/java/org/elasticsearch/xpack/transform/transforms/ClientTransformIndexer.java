@@ -14,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -27,7 +26,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -75,7 +74,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
-    private final Client client;
+    private final ParentTaskAssigningClient client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
@@ -89,7 +88,7 @@ class ClientTransformIndexer extends TransformIndexer {
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
-        Client client,
+        ParentTaskAssigningClient client,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
         TransformProgress transformProgress,
@@ -244,7 +243,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
+    protected void refreshDestinationIndex(ActionListener<Void> responseListener) {
         // note: this gets executed _without_ the headers of the user as the user might not have the rights to call
         // _refresh for performance reasons. However this refresh is an internal detail of transform and this is only
         // called for the transform destination index
@@ -253,7 +252,22 @@ class ClientTransformIndexer extends TransformIndexer {
             ClientHelper.TRANSFORM_ORIGIN,
             RefreshAction.INSTANCE,
             new RefreshRequest(transformConfig.getDestination().getIndex()),
-            responseListener
+            ActionListener.wrap(refreshResponse -> {
+                if (refreshResponse.getFailedShards() > 0) {
+                    logger.warn(
+                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
+                        getJobId()
+                    );
+                }
+                responseListener.onResponse(null);
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    // We ignore IndexNotFound error. A non-existent index does not need refreshing.
+                    responseListener.onResponse(null);
+                    return;
+                }
+                responseListener.onFailure(e);
+            })
         );
     }
 

@@ -1,0 +1,32 @@
+---
+version: ${xpack.apmdata.template.version}
+index_patterns: ["metrics-apm.internal-*"]
+priority: 140
+data_stream: {}
+allow_auto_create: true
+_meta:
+  description: "Index template for metrics-apm.internal-*"
+  managed: true
+composed_of:
+- metrics@mappings
+- apm@mappings
+- apm@settings
+- apm-90d@lifecycle
+- metrics-apm@mappings
+- metrics-apm@settings
+- apm@custom
+- metrics-apm.internal@custom
+- ecs@mappings
+ignore_missing_component_templates:
+- apm@custom
+- metrics-apm.internal@custom
+template:
+  settings:
+    index:
+      default_pipeline: apm@default-pipeline
+      final_pipeline: metrics-apm@pipeline
+  mappings:
+    properties:
+      data_stream.dataset:
+        type: constant_keyword
+        value: apm.internal

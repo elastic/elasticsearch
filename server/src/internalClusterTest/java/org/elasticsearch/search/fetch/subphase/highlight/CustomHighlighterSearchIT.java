@@ -45,8 +45,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
             .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
             .get();
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
@@ -59,8 +58,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         options.put("myFieldOption", "someValue");
         highlightConfig.options(options);
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
             .highlighter(new HighlightBuilder().field(highlightConfig))
             .get();
 
@@ -72,8 +70,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
 
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
             .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
             .get();
 
@@ -82,8 +79,9 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testThatCustomHighlighterReceivesFieldsInOrder() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders.termQuery("name", "arbitrary")))
+        SearchResponse searchResponse = prepareSearch("test").setQuery(
+            QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders.termQuery("name", "arbitrary"))
+        )
             .highlighter(
                 new HighlightBuilder().highlighterType("test-custom")
                     .field("name")

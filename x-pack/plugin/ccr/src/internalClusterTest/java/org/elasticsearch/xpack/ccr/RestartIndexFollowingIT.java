@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -149,7 +149,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     private boolean isRemoteConnected() throws Exception {
-        var infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        var infos = followerClient().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).get().getInfos();
         return infos.size() == 1 && infos.get(0).isConnected();
     }
 
@@ -165,7 +165,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> infos = followerClient().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
                 .get()
                 .getInfos();
             assertThat(infos.size(), equalTo(0));

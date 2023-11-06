@@ -44,7 +44,7 @@ import static org.elasticsearch.xcontent.ObjectParser.fromList;
  *
  * @see org.elasticsearch.search.builder.SearchSourceBuilder#highlight()
  */
-public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
+public final class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilder> {
     /** default for whether to highlight fields based on the source even if stored separately */
     public static final boolean DEFAULT_FORCE_SOURCE = false;
     /** default for whether a field should be highlighted only if a query matches that field */
@@ -124,7 +124,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("this-escape")
     public HighlightBuilder(StreamInput in) throws IOException {
         super(in);
         encoder(in.readOptionalString());
@@ -445,7 +444,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     }
 
-    public static class Field extends AbstractHighlighterBuilder<Field> {
+    public static final class Field extends AbstractHighlighterBuilder<Field> {
         static final NamedObjectParser<Field, Void> PARSER;
         static {
             ObjectParser<Field, Void> parser = new ObjectParser<>("highlight_field");
@@ -475,7 +474,6 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         /**
          * Read from a stream.
          */
-        @SuppressWarnings("this-escape")
         public Field(StreamInput in) throws IOException {
             super(in);
             name = in.readString();

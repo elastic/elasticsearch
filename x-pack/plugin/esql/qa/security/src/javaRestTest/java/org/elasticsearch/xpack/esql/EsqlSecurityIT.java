@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -17,11 +18,13 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -138,8 +141,14 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 new Listen(8, "s3", 0.25),
                 new Listen(8, "s4", 1.25)
             );
-            for (int i = 0; i < listens.size(); i++) {
-                Listen listen = listens.get(i);
+            int numDocs = between(100, 1000);
+            for (int i = 0; i < numDocs; i++) {
+                final Listen listen;
+                if (i < listens.size()) {
+                    listen = listens.get(i);
+                } else {
+                    listen = new Listen(100 + i, "s" + between(1, 5), randomIntBetween(1, 10));
+                }
                 Request indexDoc = new Request("PUT", "/test-enrich/_doc/" + i);
                 String doc = Strings.toString(
                     JsonXContent.contentBuilder()
@@ -153,26 +162,38 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 client().performRequest(indexDoc);
             }
             refresh("test-enrich");
-            for (String user : List.of("user1", "user4")) {
-                Response resp = runESQLCommand(
-                    user,
-                    "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
-                );
-                Map<String, Object> respMap = entityAsMap(resp);
-                assertThat(
-                    respMap.get("values"),
-                    equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
-                );
-            }
 
-            ResponseException resp = expectThrows(
-                ResponseException.class,
-                () -> runESQLCommand(
-                    "user5",
-                    "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
-                )
+            var from = "FROM test-enrich ";
+            var stats = " | stats total_duration = sum(duration) by artist | sort artist ";
+            var enrich = " | ENRICH songs ON song_id ";
+            var topN = " | sort timestamp | limit " + listens.size() + " ";
+            var filter = " | where timestamp <= " + listens.size();
+
+            var commands = List.of(
+                from + enrich + filter + stats,
+                from + filter + enrich + stats,
+                from + topN + enrich + stats,
+                from + enrich + topN + stats
             );
-            assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            for (String command : commands) {
+                for (String user : List.of("user1", "user4")) {
+                    Response resp = runESQLCommand(user, command);
+                    Map<String, Object> respMap = entityAsMap(resp);
+                    assertThat(
+                        respMap.get("values"),
+                        equalTo(List.of(List.of(2.75, "Disturbed"), List.of(10.5, "Eagles"), List.of(8.25, "Linkin Park")))
+                    );
+                }
+
+                ResponseException resp = expectThrows(
+                    ResponseException.class,
+                    () -> runESQLCommand(
+                        "user5",
+                        "FROM test-enrich | ENRICH songs ON song_id | stats total_duration = sum(duration) by artist | sort artist"
+                    )
+                );
+                assertThat(resp.getResponse().getStatusLine().getStatusCode(), equalTo(HttpStatus.SC_FORBIDDEN));
+            }
         } finally {
             removeEnrichPolicy();
         }
@@ -227,6 +248,36 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     private Response runESQLCommand(String user, String command) throws IOException {
+        if (command.toLowerCase(Locale.ROOT).contains("limit") == false) {
+            // add a (high) limit to avoid warnings on default limit
+            command += " | limit 10000000";
+        }
+        Settings pragmas = Settings.EMPTY;
+        if (Build.current().isSnapshot()) {
+            Settings.Builder settings = Settings.builder();
+            if (randomBoolean()) {
+                settings.put("page_size", between(1, 5));
+            }
+            if (randomBoolean()) {
+                settings.put("exchange_buffer_size", between(1, 2));
+            }
+            if (randomBoolean()) {
+                settings.put("data_partitioning", randomFrom("shard", "segment", "doc"));
+            }
+            if (randomBoolean()) {
+                settings.put("enrich_max_workers", between(1, 5));
+            }
+            pragmas = settings.build();
+        }
+        XContentBuilder query = JsonXContent.contentBuilder();
+        query.startObject();
+        query.field("query", command);
+        if (pragmas != Settings.EMPTY) {
+            query.startObject("pragma");
+            query.value(pragmas);
+            query.endObject();
+        }
+        query.endObject();
         Request request = new Request("POST", "_query");
         request.setJsonEntity("{\"query\":\"" + command + "\"}");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("es-security-runas-user", user));

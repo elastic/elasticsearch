@@ -313,7 +313,7 @@ public class SnapshotRetentionConfigurationTests extends ESTestCase {
         meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, REPO);
         final int totalShards = between(1, 20);
         SnapshotInfo snapInfo = new SnapshotInfo(
-            new Snapshot(REPO, new SnapshotId("snap-" + randomAlphaOfLength(3), "uuid")),
+            new Snapshot(REPO, new SnapshotId("snap-" + randomUUID(), "uuid")),
             Collections.singletonList("foo"),
             Collections.singletonList("bar"),
             Collections.emptyList(),

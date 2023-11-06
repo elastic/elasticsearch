@@ -66,11 +66,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         return false; // enable http
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     private void indexDoc(String index, String id, Map<String, Object> source) {
         DocWriteResponse indexResponse = client().prepareIndex(index).setId(id).setSource(source).setCreate(true).get();
         assertEquals(RestStatus.CREATED, indexResponse.status());

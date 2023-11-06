@@ -120,7 +120,8 @@ public class EvaluatorProcessor implements Processor {
                             new ConvertEvaluatorImplementer(
                                 env.getElementUtils(),
                                 (ExecutableElement) evaluatorMethod,
-                                convertEvaluatorAnn.extraName()
+                                convertEvaluatorAnn.extraName(),
+                                warnExceptions(evaluatorMethod)
                             ).sourceFile(),
                             env
                         );
@@ -138,7 +139,10 @@ public class EvaluatorProcessor implements Processor {
         List<TypeMirror> result = new ArrayList<>();
         for (var mirror : evaluatorMethod.getAnnotationMirrors()) {
             String annotationType = mirror.getAnnotationType().toString();
-            if (annotationType.equals(Evaluator.class.getName()) || annotationType.equals(MvEvaluator.class.getName())) {
+            if (annotationType.equals(Evaluator.class.getName())
+                || annotationType.equals(MvEvaluator.class.getName())
+                || annotationType.equals(ConvertEvaluator.class.getName())) {
+
                 for (var e : mirror.getElementValues().entrySet()) {
                     if (false == e.getKey().getSimpleName().toString().equals("warnExceptions")) {
                         continue;

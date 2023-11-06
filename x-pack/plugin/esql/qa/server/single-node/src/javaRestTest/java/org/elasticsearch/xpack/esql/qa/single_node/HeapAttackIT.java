@@ -13,6 +13,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -111,6 +112,7 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100640")
     public void testGroupOnManyLongs() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(
@@ -179,6 +181,7 @@ public class HeapAttackIT extends ESRestTestCase {
     /**
      * Returns many moderately long strings.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100678")
     public void testManyConcat() throws IOException {
         initManyLongs();
         Map<?, ?> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(manyConcat(300).getEntity()), false);
@@ -277,6 +280,7 @@ public class HeapAttackIT extends ESRestTestCase {
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setRequestConfig(RequestConfig.custom().setSocketTimeout(Math.toIntExact(TimeValue.timeValueMinutes(5).millis())).build())
+                .setWarningsHandler(WarningsHandler.PERMISSIVE)
         );
         return client().performRequest(request);
     }
@@ -286,7 +290,6 @@ public class HeapAttackIT extends ESRestTestCase {
         fetchManyBigFields(100);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100528")
     public void testFetchTooManyBigFields() throws IOException {
         initManyBigFieldsIndex(500);
         assertCircuitBreaks(() -> fetchManyBigFields(500));

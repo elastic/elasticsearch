@@ -10,7 +10,6 @@ package org.elasticsearch.health.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -33,6 +32,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
@@ -72,6 +73,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final DiskCheck diskCheck;
     private final Client client;
+    private final FeatureService featureService;
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
@@ -93,7 +95,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterService clusterService,
         NodeService nodeService,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        FeatureService featureService
     ) {
         this.threadPool = threadPool;
         this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
@@ -101,6 +104,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         this.clusterService = clusterService;
         this.client = client;
         this.diskCheck = new DiskCheck(nodeService);
+        this.featureService = featureService;
     }
 
     public static LocalHealthMonitor create(
@@ -108,9 +112,17 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterService clusterService,
         NodeService nodeService,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        FeatureService featureService
     ) {
-        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(settings, clusterService, nodeService, threadPool, client);
+        LocalHealthMonitor localHealthMonitor = new LocalHealthMonitor(
+            settings,
+            clusterService,
+            nodeService,
+            threadPool,
+            client,
+            featureService
+        );
         localHealthMonitor.registerListeners();
         return localHealthMonitor;
     }
@@ -200,7 +212,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 );
             }
         }
-        prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
+        prerequisitesFulfilled = event.state().clusterRecovered()
+            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null
             && currentMasterNode != null;

@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -30,31 +27,21 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 public class ToDatetime extends AbstractConvertFunction {
 
-    private static final Map<
-        DataType,
-        TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>> EVALUATORS = Map.of(
-            DATETIME,
-            (fieldEval, source, driverContext) -> fieldEval,
-            LONG,
-            (fieldEval, source, driverContext) -> fieldEval,
-            KEYWORD,
-            ToDatetimeFromStringEvaluator::new,
-            DOUBLE,
-            ToLongFromDoubleEvaluator::new,
-            UNSIGNED_LONG,
-            ToLongFromUnsignedLongEvaluator::new,
-            INTEGER,
-            ToLongFromIntEvaluator::new // CastIntToLongEvaluator would be a candidate, but not MV'd
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(DATETIME, (field, source) -> field),
+        Map.entry(LONG, (field, source) -> field),
+        Map.entry(KEYWORD, ToDatetimeFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
+    );
 
     public ToDatetime(Source source, Expression field) {
         super(source, field);
     }
 
     @Override
-    protected
-        Map<DataType, TriFunction<EvalOperator.ExpressionEvaluator, Source, DriverContext, EvalOperator.ExpressionEvaluator>>
-        evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -73,7 +60,7 @@ public class ToDatetime extends AbstractConvertFunction {
         return NodeInfo.create(this, ToDatetime::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static long fromKeyword(BytesRef in) {
         return DateParse.process(in, DateParse.DEFAULT_FORMATTER);
     }

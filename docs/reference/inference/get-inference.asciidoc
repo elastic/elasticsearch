@@ -2,6 +2,8 @@
 [[get-inference-api]]
 === Get {infer} API
 
+experimental[]
+
 Retrieves {infer} model information.
 
 [discrete]
@@ -24,10 +26,10 @@ Retrieves {infer} model information.
 [[get-inference-api-desc]]
 ==== {api-description-title}
 
-You can get information in a single API request for: 
+You can get information in a single API request for:
 
 * a single {infer} model by providing the task type and the model ID,
-* all of the {infer} models for a certain task type by providing the task type 
+* all of the {infer} models for a certain task type by providing the task type
 and a wildcard expression,
 * all of the {infer} models by using a wildcard expression.
 
@@ -50,7 +52,7 @@ The type of {infer} task that the model performs.
 [[get-inference-api-example]]
 ==== {api-examples-title}
 
-The following API call retrives information about the `my-elser-model` {infer} 
+The following API call retrives information about the `my-elser-model` {infer}
 model that can perform `sparse_embedding` tasks.
 
 
@@ -68,7 +70,7 @@ The API returns the following response:
 {
   "model_id": "my-elser-model",
   "task_type": "sparse_embedding",
-  "service": "elser_mlnode",
+  "service": "elser",
   "service_settings": {
     "num_allocations": 1,
     "num_threads": 1

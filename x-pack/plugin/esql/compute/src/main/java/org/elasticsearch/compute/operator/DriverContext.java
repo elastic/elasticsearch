@@ -11,6 +11,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -69,7 +70,12 @@ public class DriverContext {
     }
 
     /** A snapshot of the driver context. */
-    public record Snapshot(Set<Releasable> releasables) {}
+    public record Snapshot(Set<Releasable> releasables) implements Releasable {
+        @Override
+        public void close() {
+            Releasables.close(releasables);
+        }
+    }
 
     /**
      * Adds a releasable to this context. Releasables are identified by Object identity.

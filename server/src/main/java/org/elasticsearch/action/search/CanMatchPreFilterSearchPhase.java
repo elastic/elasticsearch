@@ -31,7 +31,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -127,7 +126,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     }
 
     @Override
-    public void run() throws IOException {
+    public void run() {
         assert assertSearchCoordinationThread();
         checkNoMissingShards();
         Version version = request.minCompatibleShardNode();
@@ -159,9 +158,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             );
             final ShardSearchRequest request = canMatchNodeRequest.createShardSearchRequest(buildShardLevelRequest(searchShardIterator));
             if (searchShardIterator.prefiltered()) {
-                CanMatchShardResponse result = new CanMatchShardResponse(searchShardIterator.skip() == false, null);
-                result.setShardIndex(request.shardRequestIndex());
-                results.consumeResult(result, () -> {});
+                consumeResult(searchShardIterator.skip() == false, request);
                 continue;
             }
             boolean canMatch = true;
@@ -178,9 +175,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             if (canMatch) {
                 matchedShardLevelRequests.add(searchShardIterator);
             } else {
-                CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
-                result.setShardIndex(request.shardRequestIndex());
-                results.consumeResult(result, () -> {});
+                consumeResult(false, request);
             }
         }
         if (matchedShardLevelRequests.isEmpty()) {
@@ -190,29 +185,15 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         }
     }
 
+    private void consumeResult(boolean canMatch, ShardSearchRequest request) {
+        CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
+        result.setShardIndex(request.shardRequestIndex());
+        results.consumeResult(result, () -> {});
+    }
+
     private void checkNoMissingShards() {
         assert assertSearchCoordinationThread();
-        assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
-        if (request.allowPartialSearchResults() == false) {
-            final StringBuilder missingShards = new StringBuilder();
-            // Fail-fast verification of all shards being available
-            for (int index = 0; index < shardsIts.size(); index++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(index);
-                if (shardRoutings.size() == 0) {
-                    if (missingShards.length() > 0) {
-                        missingShards.append(", ");
-                    }
-                    missingShards.append(shardRoutings.shardId());
-                }
-            }
-            if (missingShards.length() > 0) {
-                // Status red - shard is missing all copies and would produce partial results for an index search
-                final String msg = "Search rejected due to missing shards ["
-                    + missingShards
-                    + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
-                throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
-            }
-        }
+        doCheckNoMissingShards(getName(), request, shardsIts);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(GroupShardsIterator<SearchShardIterator> shards) {
@@ -425,7 +406,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             }
 
             @Override
-            protected void doRun() throws IOException {
+            protected void doRun() {
                 CanMatchPreFilterSearchPhase.this.run();
             }
         });

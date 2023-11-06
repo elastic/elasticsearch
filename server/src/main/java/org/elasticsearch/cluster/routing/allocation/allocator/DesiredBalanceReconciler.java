@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -145,7 +145,7 @@ public class DesiredBalanceReconciler {
 
             final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
             // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(IndexVersion.V_7_2_0)
+            indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
                 || indexMetadata.getState() == IndexMetadata.State.OPEN
                 || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(
@@ -261,6 +261,12 @@ public class DesiredBalanceReconciler {
                                 // desired node no longer exists
                                 continue;
                             }
+                            if (routingNode.getByShardId(shard.shardId()) != null) {
+                                // node already contains same shard.
+                                // Skipping it allows us to exclude NO decisions from SameShardAllocationDecider and only log more relevant
+                                // NO or THROTTLE decisions of the preventing shard from starting on assigned node
+                                continue;
+                            }
                             final var decision = allocation.deciders().canAllocate(shard, routingNode, allocation);
                             switch (decision.type()) {
                                 case YES -> {
@@ -287,10 +293,10 @@ public class DesiredBalanceReconciler {
                                 case THROTTLE -> {
                                     nodeIdsIterator.wasThrottled = true;
                                     unallocatedStatus = AllocationStatus.DECIDERS_THROTTLED;
-                                    logger.trace("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
+                                    logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
                                 }
                                 case NO -> {
-                                    logger.trace("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
+                                    logger.debug("Couldn't assign shard [{}] to [{}]: {}", shard.shardId(), nodeId, decision);
                                 }
                             }
                         }
@@ -505,11 +511,14 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations);
+            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations, routingNodes.size());
         }
 
-        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations) {
-            if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
+        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations, int nodeCount) {
+            // more shards than cluster can relocate with one reroute
+            final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations;
+            if (allAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
                 undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
                         "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",

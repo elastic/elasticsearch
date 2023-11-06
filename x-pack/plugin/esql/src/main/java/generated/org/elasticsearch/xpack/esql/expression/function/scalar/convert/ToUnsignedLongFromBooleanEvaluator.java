@@ -35,23 +35,14 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
     BooleanVector vector = (BooleanVector) v;
     int positionCount = v.getPositionCount();
     if (vector.isConstant()) {
-      try {
-        return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
-      } catch (Exception e) {
-        registerException(e);
-        return Block.constantNullBlock(positionCount, driverContext.blockFactory());
-      }
+      return driverContext.blockFactory().newConstantLongBlockWith(evalValue(vector, 0), positionCount);
     }
-    LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory());
-    for (int p = 0; p < positionCount; p++) {
-      try {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
         builder.appendLong(evalValue(vector, p));
-      } catch (Exception e) {
-        registerException(e);
-        builder.appendNull();
       }
+      return builder.build();
     }
-    return builder.build();
   }
 
   private static long evalValue(BooleanVector container, int index) {
@@ -63,7 +54,7 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
   public Block evalBlock(Block b) {
     BooleanBlock block = (BooleanBlock) b;
     int positionCount = block.getPositionCount();
-    try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       for (int p = 0; p < positionCount; p++) {
         int valueCount = block.getValueCount(p);
         int start = block.getFirstValueIndex(p);
@@ -71,17 +62,13 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
         boolean positionOpened = false;
         boolean valuesAppended = false;
         for (int i = start; i < end; i++) {
-          try {
-            long value = evalValue(block, i);
-            if (positionOpened == false && valueCount > 1) {
-              builder.beginPositionEntry();
-              positionOpened = true;
-            }
-            builder.appendLong(value);
-            valuesAppended = true;
-          } catch (Exception e) {
-            registerException(e);
+          long value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
           }
+          builder.appendLong(value);
+          valuesAppended = true;
         }
         if (valuesAppended == false) {
           builder.appendNull();
@@ -96,5 +83,26 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
   private static long evalValue(BooleanBlock container, int index) {
     boolean value = container.getBoolean(index);
     return ToUnsignedLong.fromBoolean(value);
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
+      this.field = field;
+      this.source = source;
+    }
+
+    @Override
+    public ToUnsignedLongFromBooleanEvaluator get(DriverContext context) {
+      return new ToUnsignedLongFromBooleanEvaluator(field.get(context), source, context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToUnsignedLongFromBooleanEvaluator[field=" + field + "]";
+    }
   }
 }

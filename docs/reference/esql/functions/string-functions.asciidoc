@@ -1,0 +1,32 @@
+[[esql-string-functions]]
+==== {esql} string functions
+
+++++
+<titleabbrev>String functions</titleabbrev>
+++++
+
+{esql} supports these string functions:
+
+// tag::string_list[]
+* <<esql-concat>>
+* <<esql-left>>
+* <<esql-length>>
+* <<esql-ltrim>>
+* <<esql-replace>>
+* <<esql-right>>
+* <<esql-rtrim>>
+* <<esql-split>>
+* <<esql-substring>>
+* <<esql-trim>>
+// end::string_list[]
+
+include::concat.asciidoc[]
+include::left.asciidoc[]
+include::length.asciidoc[]
+include::ltrim.asciidoc[]
+include::replace.asciidoc[]
+include::right.asciidoc[]
+include::rtrim.asciidoc[]
+include::split.asciidoc[]
+include::substring.asciidoc[]
+include::trim.asciidoc[]

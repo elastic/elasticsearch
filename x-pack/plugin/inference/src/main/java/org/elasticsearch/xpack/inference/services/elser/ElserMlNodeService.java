@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
@@ -35,7 +37,7 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIf
 
 public class ElserMlNodeService implements InferenceService {
 
-    public static final String NAME = "elser_mlnode";
+    public static final String NAME = "elser";
 
     static final String ELSER_V1_MODEL = ".elser_model_1";
     // Default non platform specific v2 model
@@ -196,4 +198,9 @@ public class ElserMlNodeService implements InferenceService {
 
     @Override
     public void close() throws IOException {}
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
+    }
 }

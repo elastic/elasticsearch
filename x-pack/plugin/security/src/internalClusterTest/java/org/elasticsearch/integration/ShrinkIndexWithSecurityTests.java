@@ -24,11 +24,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
     @Override
-    protected final boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected int minimumNumberOfShards() {
         return 2;
     }
@@ -55,9 +50,6 @@ public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
         // verify all docs
         ensureGreen();
-        assertHitCount(
-            client().prepareSearch("shrunk_bigindex").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(),
-            randomNumberOfDocs
-        );
+        assertHitCount(prepareSearch("shrunk_bigindex").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")), randomNumberOfDocs);
     }
 }

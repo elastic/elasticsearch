@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -25,7 +27,7 @@ tasks.withType(Test).configureEach {
   doFirst {
     delete(repoDir)
   }
-  systemProperty 'tests.path.repo', repoDir
+  nonInputProperties.systemProperty 'tests.path.repo', repoDir
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
@@ -33,6 +35,6 @@ testClusters.matching { it.name == "javaRestTest" }.configureEach {
   numberOfNodes = 3
 
   setting 'xpack.license.self_generated.type', 'trial'
-  setting 'path.repo', repoDir.absolutePath
+  setting 'path.repo', repoDir.absolutePath, IGNORE_VALUE
   setting 'xpack.security.enabled', 'false'
 }

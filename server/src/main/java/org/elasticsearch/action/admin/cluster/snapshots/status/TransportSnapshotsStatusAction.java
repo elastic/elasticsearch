@@ -243,7 +243,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                     entry.indices().get(shardId.getIndexName()),
                                     shardId
                                 )
-                                .asCopy()
                         );
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(entry.shardId(shardEntry.getKey()), stage);
@@ -322,7 +321,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 repositoriesService.repository(repositoryName)
                     .getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsToLoad, true, task::isCancelled, (context, snapshotInfo) -> {
                         List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                        final Map<ShardId, IndexShardSnapshotStatus> shardStatuses;
+                        final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatuses;
                         try {
                             shardStatuses = snapshotShards(repositoryName, repositoryData, task, snapshotInfo);
                         } catch (Exception e) {
@@ -330,8 +329,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             context.onFailure(e);
                             return;
                         }
-                        for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatuses.entrySet()) {
-                            IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue().asCopy();
+                        for (final var shardStatus : shardStatuses.entrySet()) {
+                            IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue();
                             shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
                         }
                         final SnapshotsInProgress.State state = switch (snapshotInfo.state()) {
@@ -374,14 +373,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
      * @param snapshotInfo    snapshot info
      * @return map of shard id to snapshot status
      */
-    private Map<ShardId, IndexShardSnapshotStatus> snapshotShards(
+    private Map<ShardId, IndexShardSnapshotStatus.Copy> snapshotShards(
         final String repositoryName,
         final RepositoryData repositoryData,
         final CancellableTask task,
         final SnapshotInfo snapshotInfo
     ) throws IOException {
         final Repository repository = repositoriesService.repository(repositoryName);
-        final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
+        final Map<ShardId, IndexShardSnapshotStatus.Copy> shardStatus = new HashMap<>();
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
             task.ensureNotCancelled();
@@ -394,7 +393,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     if (shardFailure != null) {
                         shardStatus.put(shardId, IndexShardSnapshotStatus.newFailed(shardFailure.reason()));
                     } else {
-                        final IndexShardSnapshotStatus shardSnapshotStatus;
+                        final IndexShardSnapshotStatus.Copy shardSnapshotStatus;
                         if (snapshotInfo.state() == SnapshotState.FAILED) {
                             // If the snapshot failed, but the shard's snapshot does
                             // not have an exception, it means that partial snapshots

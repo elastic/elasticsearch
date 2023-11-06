@@ -144,8 +144,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh("value_index").get();
 
         // match 2 separate shard with no overlap in queries
-        SearchResponse response = client().prepareSearch("value_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -164,8 +163,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         assertEquals(3, response.getSkippedShards());
 
         // match one shard with one query and do not match the other shard with one query
-        response = client().prepareSearch("value_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -184,8 +182,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         assertEquals(4, response.getSkippedShards());
 
         // match no shards, but still use one to generate a search response
-        response = client().prepareSearch("value_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -204,8 +201,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         assertEquals(4, response.getSkippedShards());
 
         // match the same shard for both queries
-        response = client().prepareSearch("value_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -224,8 +220,7 @@ public class RRFRankShardCanMatchIT extends ESIntegTestCase {
         assertEquals(4, response.getSkippedShards());
 
         // match one shard with the exact same query
-        response = client().prepareSearch("value_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("value_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)

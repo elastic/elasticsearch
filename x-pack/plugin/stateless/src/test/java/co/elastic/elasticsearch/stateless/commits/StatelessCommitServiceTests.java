@@ -612,7 +612,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -682,7 +682,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testOldCommitsAreRetainedIfSearchNodesUseThem() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -831,7 +831,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testRetainedCommitsAreReleasedAfterANodeIsUnassigned() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -929,7 +929,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testOutOfOrderNewCommitNotifications() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -1022,7 +1022,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             @Override
             protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
-                return new NoOpNodeClient(getTestName()) {
+                return new NoOpNodeClient(threadPool) {
                     @Override
                     @SuppressWarnings("unchecked")
                     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -1076,7 +1076,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testCommitsAreSuccessfullyInitializedAfterRecovery() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -1153,7 +1153,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testUnreferencedCommitsAreReleasedAfterRecovery() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -1250,7 +1250,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testRegisterUnpromotableRecovery() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         AtomicBoolean activateSearchNode = new AtomicBoolean();
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
@@ -1267,7 +1267,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             @Override
             protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {
-                return new NoOpNodeClient(getTestName()) {
+                return new NoOpNodeClient(threadPool) {
                     @Override
                     @SuppressWarnings("unchecked")
                     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -1368,7 +1368,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testAllCommitsAreDeletedWhenIndexIsDeleted() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -1436,7 +1436,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
     public void testConcurrentIndexingSearchAndRecoveries() throws Exception {
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
-        var fakeSearchNode = new FakeSearchNode("fakeSearchNode");
+        var fakeSearchNode = new FakeSearchNode(threadPool);
         var commitCleaner = new StatelessCommitCleaner(null, null, null) {
             @Override
             void deleteCommit(StaleCompoundCommit staleCompoundCommit) {
@@ -1639,8 +1639,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         private final Map<Long, PlainActionFuture<ActionListener<NewCommitNotificationResponse>>> generationPendingListeners =
             new HashMap<>();
 
-        FakeSearchNode(String testName) {
-            super(testName);
+        FakeSearchNode(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         void respondWithUsedCommits(long generation, PrimaryTermAndGeneration... usedCommits) {

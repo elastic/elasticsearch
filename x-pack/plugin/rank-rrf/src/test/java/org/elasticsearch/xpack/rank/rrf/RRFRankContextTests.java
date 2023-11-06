@@ -304,7 +304,7 @@ public class RRFRankContextTests extends ESTestCase {
 
         result = context.combine(topDocs);
         assertEquals(2, result.queryCount);
-        assertEquals(2, result.rrfRankDocs.length);
+        assertEquals(4, result.rrfRankDocs.length);
 
         expected = new RRFRankDoc(1, -1, 2);
         expected.rank = 1;
@@ -324,23 +324,23 @@ public class RRFRankContextTests extends ESTestCase {
         expected.score = Float.NaN;
         assertRDEquals(expected, result.rrfRankDocs[1]);
 
-        expected = new RRFRankDoc(4, -1, 2);
+        expected = new RRFRankDoc(3, -1, 2);
         expected.rank = 3;
         expected.positions[0] = 1;
         expected.positions[1] = -1;
         expected.scores[0] = 0.0f;
         expected.scores[1] = 5.0f;
         expected.score = Float.NaN;
-        assertRDEquals(expected, result.rrfRankDocs[0]);
+        assertRDEquals(expected, result.rrfRankDocs[3]);
 
-        expected = new RRFRankDoc(3, -1, 2);
+        expected = new RRFRankDoc(4, -1, 2);
         expected.rank = 4;
         expected.positions[0] = -1;
         expected.positions[1] = 1;
         expected.scores[0] = 0.0f;
         expected.scores[1] = 3.0f;
         expected.score = Float.NaN;
-        assertRDEquals(expected, result.rrfRankDocs[1]);
+        assertRDEquals(expected, result.rrfRankDocs[2]);
     }
 
     /*public void testCoordinatorRank() {

@@ -326,6 +326,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
         if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             parseArray(context, values);
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+            parseValue(parser, values);
         } else {
             throw new IllegalArgumentException("Encountered unexpected token [" + parser.currentToken() + "].");
         }
@@ -348,17 +350,21 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                 return;
             }
             if (token == XContentParser.Token.VALUE_STRING) {
-                String value = parser.text();
-                if (values.containsKey(value) == false) {
-                    values.put(value, 1);
-                } else {
-                    values.put(value, values.get(value) + 1);
-                }
+                parseValue(parser, values);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 // ignore null values
             } else {
                 throw new IllegalArgumentException("Encountered unexpected token [" + token + "].");
             }
+        }
+    }
+
+    private static void parseValue(XContentParser parser, SortedMap<String, Integer> values) throws IOException {
+        String value = parser.text();
+        if (values.containsKey(value) == false) {
+            values.put(value, 1);
+        } else {
+            values.put(value, values.get(value) + 1);
         }
     }
 

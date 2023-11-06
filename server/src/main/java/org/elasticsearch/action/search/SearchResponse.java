@@ -144,10 +144,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
-    public SearchResponseSections getInternalResponse() {
-        return internalResponse;
-    }
-
     /**
      * The search hits.
      */
@@ -387,7 +383,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                             }
                         } else if (token == Token.START_ARRAY) {
                             if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                                while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                while (parser.nextToken() != Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {
@@ -479,7 +475,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         private final Map<String, Cluster> clusterInfo;
 
         // not Writeable since it is only needed on the (primary) CCS coordinator
-        private transient Boolean ccsMinimizeRoundtrips;
+        private final transient Boolean ccsMinimizeRoundtrips;
 
         /**
          * For use with cross-cluster searches.
@@ -985,7 +981,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             private List<ShardSearchFailure> failures;
             private TimeValue took;
             private Boolean timedOut;
-            private Cluster original;
+            private final Cluster original;
 
             public Builder(Cluster copyFrom) {
                 this.original = copyFrom;
@@ -1167,7 +1163,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     }
                 } else if (token == Token.START_ARRAY) {
                     if (RestActions.FAILURES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                        while (parser.nextToken() != Token.END_ARRAY) {
                             failures.add(ShardSearchFailure.fromXContent(parser));
                         }
                     } else {

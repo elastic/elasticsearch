@@ -49,8 +49,8 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) throws IOException {
-        // Nothing to do?
+    protected void registerParameters(ParameterChecker checker) {
+        // Nothing to do
     }
 
     @Override

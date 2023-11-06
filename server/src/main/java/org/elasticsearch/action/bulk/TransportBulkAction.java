@@ -372,6 +372,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         indexData(task, bulkRequest, executorName, listener, autoCreateIndices, indicesThatCannotBeCreated, startTime);
     }
 
+    /*
+     * This method is responsible for creating any missing indices and indexing the data in the BulkRequest
+     */
     protected void indexData(
         Task task,
         BulkRequest bulkRequest,
@@ -432,6 +435,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
+    /*
+     * This returns the IngestService to be used for the given request. The default implementation ignores the request and always returns
+     * the same ingestService, but child classes might use information in the request in creating an IngestService specific to that request.
+     */
     protected IngestService getIngestService(BulkRequest request) {
         return ingestService;
     }

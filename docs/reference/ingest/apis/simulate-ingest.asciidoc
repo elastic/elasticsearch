@@ -97,8 +97,8 @@ POST /_ingest/_simulate
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
-`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
-<<privileges-list-cluster,cluster privilege>> to use this API.
+`index` or `create` <<privileges-list-indices,index privileges>>
+to use this API.
 
 [[simulate-ingest-api-desc]]
 ==== {api-description-title}

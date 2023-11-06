@@ -59,6 +59,10 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         );
     }
 
+    /*
+     * This overrides indexData in TransportBulkAction in order to _not_ actually create any indices or index any data. Instead, each
+     * request gets a corresponding CREATE response, using information from the request.
+     */
     @Override
     protected void indexData(
         Task task,
@@ -92,6 +96,10 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(startTime)));
     }
 
+    /*
+     * This overrides TransportSimulateBulkAction's getIngestService to allow us to provide an IngestService that handles pipeline
+     * substitutions defined in the request.
+     */
     @Override
     protected IngestService getIngestService(BulkRequest request) {
         IngestService rawIngestService = super.getIngestService(request);

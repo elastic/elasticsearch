@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
@@ -61,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-6089")
 public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
 
     @Before

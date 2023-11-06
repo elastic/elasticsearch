@@ -36,4 +36,8 @@ module org.elasticsearch.application {
     exports org.elasticsearch.xpack.application.search.action;
     exports org.elasticsearch.xpack.application.rules;
     exports org.elasticsearch.xpack.application.rules.action;
+
+    opens org.elasticsearch.xpack.application.painless to org.elasticsearch.painless.spi; // whitelist resource access
+    provides org.elasticsearch.painless.spi.PainlessExtension
+        with org.elasticsearch.xpack.application.painless.HTMLPainlessExtension;
 }

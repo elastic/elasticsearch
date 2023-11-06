@@ -297,7 +297,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      *     input pattern contained only a single value.
      * </p>
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100820")
     public final void testCrankyEvaluateBlockWithoutNullsFloating() {
         assumeTrue("sometimes the cranky breaker silences warnings, just skip these cases", testCase.getExpectedWarnings() == null);
         try {

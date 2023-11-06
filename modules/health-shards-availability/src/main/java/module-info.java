@@ -6,13 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.search.aggregations.bucket.histogram;
-
-import java.util.concurrent.TimeUnit;
-
-/**
- * An aggregator capable of reporting bucket sizes in milliseconds. Used by RateAggregator for calendar-based buckets.
- */
-public interface SizedBucketAggregatorBuilder {
-    double calendarDivider(TimeUnit timeUnit);
+module org.elasticsearch.shardhealth {
+    requires org.elasticsearch.server;
+    requires org.apache.lucene.core;
 }

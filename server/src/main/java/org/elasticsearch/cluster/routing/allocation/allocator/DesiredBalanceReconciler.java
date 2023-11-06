@@ -505,11 +505,14 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations);
+            maybeLogUndesiredAllocationsWarning(allAllocations, undesiredAllocations, routingNodes.size());
         }
 
-        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations) {
-            if (allAllocations > 0 && undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations) {
+        private void maybeLogUndesiredAllocationsWarning(long allAllocations, long undesiredAllocations, int nodeCount) {
+            // more shards than cluster can relocate with one reroute
+            final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
+            final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * allAllocations;
+            if (allAllocations > 0 && nonEmptyRelocationBacklog && warningThresholdReached) {
                 undesiredAllocationLogInterval.maybeExecute(
                     () -> logger.warn(
                         "[{}] of assigned shards ({}/{}) are not on their desired nodes, which exceeds the warn threshold of [{}]",

@@ -35,8 +35,7 @@ abstract class AbstractPreserveAllocations {
         int coresUsed = 0;
         for (Deployment m : deployments) {
             if (m.currentAllocationsByNodeId().containsKey(n.id())) {
-                int allocations = m.currentAllocationsByNodeId().get(n.id());
-                bytesUsed += m.estimateMemoryUsageBytes(allocations);
+                bytesUsed += m.memoryBytes();
                 coresUsed += calculateUsedCores(n, m);
             }
         }
@@ -59,9 +58,7 @@ abstract class AbstractPreserveAllocations {
             m.allocations() - calculatePreservedAllocations(m),
             m.threadsPerAllocation(),
             calculateAllocationsPerNodeToPreserve(m),
-            m.maxAssignedAllocations(),
-            m.perDeploymentMemoryBytes(),
-            m.perAllocationMemoryBytes()
+            m.maxAssignedAllocations()
         );
     }
 
@@ -70,37 +67,28 @@ abstract class AbstractPreserveAllocations {
         // they will not match the models/nodes members we have in this class.
         // Therefore, we build a lookup table based on the ids so we can merge the plan
         // with its preserved allocations.
-        final Map<Tuple<String, String>, Integer> plannedAssignmentsByModelNodeIdPair = new HashMap<>();
+        final Map<Tuple<String, String>, Integer> assignmentsByModelNodeIdPair = new HashMap<>();
         for (Deployment m : assignmentPlan.models()) {
             Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
             for (Map.Entry<Node, Integer> nodeAssignment : assignments.entrySet()) {
-                plannedAssignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
+                assignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
             }
         }
 
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
-        for (Node n : nodes) {
-            // TODO (#101612) Should the first loop happen in the builder constructor?
-            for (Deployment deploymentAllocationsToPreserve : deployments) {
-
-                // if the model m is already allocated on the node n and I want to preserve this allocation
-                int preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
-                if (preservedAllocations > 0) {
-                    long requiredMemory = deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations);
-                    if (mergedPlanBuilder.canAssign(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory)) {
-                        mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory);
+        for (Deployment m : deployments) {
+            for (Node n : nodes) {
+                int allocations = assignmentsByModelNodeIdPair.getOrDefault(Tuple.tuple(m.id(), n.id()), 0);
+                if (m.currentAllocationsByNodeId().containsKey(n.id())) {
+                    if (mergedPlanBuilder.getRemainingMemory(n) >= m.memoryBytes()) {
+                        allocations += addPreservedAllocations(n, m);
+                        // As the node has all its available memory we need to manually account memory of models with
+                        // current allocations.
+                        mergedPlanBuilder.accountMemory(m, n);
                     }
                 }
-            }
-            for (Deployment deploymentNewAllocations : deployments) {
-                int newAllocations = plannedAssignmentsByModelNodeIdPair.getOrDefault(
-                    Tuple.tuple(deploymentNewAllocations.id(), n.id()),
-                    0
-                );
-
-                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, newAllocations);
-                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations, requiredMemory)) {
-                    mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
+                if (allocations > 0) {
+                    mergedPlanBuilder.assignModelToNode(m, n, allocations);
                 }
             }
         }

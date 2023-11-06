@@ -2,10 +2,47 @@
 [[esql-from]]
 === `FROM`
 
-The `FROM` source command returns a table with up to 10,000 documents from a
-data stream, index, or alias. Each row in the resulting table represents a
-document. Each column corresponds to a field, and can be accessed by the name
-of that field.
+**Syntax**
+
+[source,esql]
+----
+FROM index_pattern [METADATA fields]
+----
+
+*Parameters*
+
+`index_pattern`::
+A list of indices, data streams or aliases. Supports wildcards and date math.
+
+`fields`::
+A comma-separated list of <<esql-metadata-fields,metadata fields>> to retrieve.
+
+*Description*
+
+The `FROM` source command returns a table with data from a data stream, index,
+or alias. Each row in the resulting table represents a document. Each column
+corresponds to a field, and can be accessed by the name of that field.
+
+[NOTE]
+====
+By default, an {esql} query without an explicit <<esql-limit>> uses an implicit
+limit of 500. This applies to `FROM` too. A `FROM` command without `LIMIT`:
+
+[source,esql]
+----
+FROM employees
+----
+
+is executed as:
+
+[source,esql]
+----
+FROM employees
+| LIMIT 500
+----
+====
+
+*Examples*
 
 [source,esql]
 ----

@@ -44,4 +44,5 @@ public class MapperExtrasPlugin extends Plugin implements MapperPlugin, SearchPl
             new QuerySpec<>(RankFeatureQueryBuilder.NAME, RankFeatureQueryBuilder::new, p -> RankFeatureQueryBuilder.PARSER.parse(p, null))
         );
     }
+
 }

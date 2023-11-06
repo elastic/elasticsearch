@@ -86,14 +86,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             } catch (Exception e) {
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
                 if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
-                    try {
-                        String requestInfo = Strings.toString(
-                            searchTemplateRequest.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
-                        );
-                        logger.warn("MultiSearchTemplate convert failure for request " + requestInfo, e);
-                    } catch (IOException ex) {
-                        logger.warn("MultiSearchTemplate convert failure for request (unable to convert request to JSON)" + ex, e);
-                    }
+                    logger.warn("MultiSearchTemplate convert failure for request " + Strings.toString(searchTemplateRequest), e);
                 }
                 continue;
             }

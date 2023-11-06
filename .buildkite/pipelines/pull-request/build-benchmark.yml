@@ -1,6 +1,6 @@
 config:
   allow-labels: build-benchmark
-  trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/build-bench.*'
+  trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/build-bench.*'
 steps:
   - label: build-benchmark / {{matrix.part}}
     key: "build-benchmark"

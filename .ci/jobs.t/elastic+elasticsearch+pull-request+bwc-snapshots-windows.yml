@@ -17,7 +17,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/bwc-snapshots-windows.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/bwc-snapshots-windows.*'
           github-hooks: true
           status-context: elasticsearch-ci/bwc-snapshots-windows
           cancel-builds-on-update: true

@@ -16,7 +16,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/part-3-windows.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/part-3-windows.*'
           github-hooks: true
           status-context: elasticsearch-ci/part-3-windows
           cancel-builds-on-update: true

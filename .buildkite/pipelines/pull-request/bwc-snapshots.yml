@@ -1,5 +1,5 @@
 config:
-  trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/bwc.*'
+  trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/bwc.*'
   skip-labels:
     - ">test-mute"
     - "test-full-bwc"

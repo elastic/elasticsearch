@@ -17,7 +17,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/release-tests.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/release-tests.*'
           github-hooks: true
           status-context: elasticsearch-ci/release-tests
           cancel-builds-on-update: true

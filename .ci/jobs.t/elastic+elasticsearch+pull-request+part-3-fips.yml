@@ -15,7 +15,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/part-3-fips.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/part-3-fips.*'
           github-hooks: true
           status-context: elasticsearch-ci/part-3-fips
           cancel-builds-on-update: true

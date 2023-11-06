@@ -24,7 +24,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/build-bench.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/build-bench.*'
           github-hooks: true
           status-context: elasticsearch-ci/build-benchmark-part1
           cancel-builds-on-update: true

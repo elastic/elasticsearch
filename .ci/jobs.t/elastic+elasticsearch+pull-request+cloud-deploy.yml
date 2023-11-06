@@ -16,7 +16,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/cloud-deploy.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/cloud-deploy.*'
           github-hooks: true
           status-context: elasticsearch-ci/cloud-deploy
           cancel-builds-on-update: true

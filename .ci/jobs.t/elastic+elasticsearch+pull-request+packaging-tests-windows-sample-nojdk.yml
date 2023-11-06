@@ -18,7 +18,7 @@
             - elastic
           allow-whitelist-orgs-as-admins: true
           only-trigger-phrase: true
-          trigger-phrase: '.*jenkins\W+run\W+elasticsearch-ci/packaging-tests-windows-sample.*'
+          trigger-phrase: '.*run\W+jenkins\W+elasticsearch-ci/packaging-tests-windows-sample.*'
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true

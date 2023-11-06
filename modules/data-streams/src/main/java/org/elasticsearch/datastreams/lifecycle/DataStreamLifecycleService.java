@@ -175,6 +175,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private volatile int signallingErrorRetryInterval;
 
+    /**
+     * The following stats are tracking how the data stream lifecycle runs are performing time wise
+     */
+    private volatile Long lastRunStartedAt = null;
+    private volatile Long lastRunDuration = null;
+    private volatile Long timeBetweenStarts = null;
+
     private static final SimpleBatchedExecutor<UpdateForceMergeCompleteTask, Void> FORCE_MERGE_STATE_UPDATE_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
             @Override
@@ -299,6 +306,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     // default visibility for testing purposes
     void run(ClusterState state) {
+        long startTime = nowSupplier.getAsLong();
+        if (lastRunStartedAt != null) {
+            timeBetweenStarts = startTime - lastRunStartedAt;
+        }
+        lastRunStartedAt = startTime;
         int affectedIndices = 0;
         int affectedDataStreams = 0;
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
@@ -396,8 +408,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             affectedIndices += indicesToExcludeForRemainingRun.size();
             affectedDataStreams++;
         }
+        lastRunDuration = nowSupplier.getAsLong() - lastRunStartedAt;
         logger.trace(
-            "Data stream lifecycle service performed operations on [{}] indices, part of [{}] data streams",
+            "Data stream lifecycle service run for {} and performed operations on [{}] indices, part of [{}] data streams",
+            TimeValue.timeValueMillis(lastRunDuration).toHumanReadableString(2),
             affectedIndices,
             affectedDataStreams
         );
@@ -1191,6 +1205,22 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             return null;
         }
         return dataStream.getLifecycle().getEffectiveDataRetention();
+    }
+
+    /**
+     * @return the duration of the last run in millis or null if the service hasn't completed a run yet.
+     */
+    @Nullable
+    public Long getLastRunDuration() {
+        return lastRunDuration;
+    }
+
+    /**
+     * @return the time passed between the start times of the last two consecutive runs or null if the service hasn't started twice yet.
+     */
+    @Nullable
+    public Long getTimeBetweenStarts() {
+        return timeBetweenStarts;
     }
 
     /**

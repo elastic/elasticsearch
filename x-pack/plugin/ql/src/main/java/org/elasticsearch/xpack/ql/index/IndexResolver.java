@@ -651,8 +651,7 @@ public class IndexResolver {
     }
 
     private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
-        return new GetAliasesRequest().local(true)
-            .aliases("*")
+        return new GetAliasesRequest().aliases("*")
             .indices(response.getIndices())
             .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
@@ -750,6 +749,7 @@ public class IndexResolver {
                         String indexName = indexNameProcessor.apply(index);
                         Fields indexFields = indices.computeIfAbsent(indexName, k -> new Fields());
                         EsField field = indexFields.flattedMapping.get(fieldName);
+                        // create field hierarchy or update it in case of an invalid field
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
                             createField(typeRegistry, fieldName, indexFields, fieldCaps, invalidField, typeCap);
 
@@ -766,9 +766,8 @@ public class IndexResolver {
                             // Postpone the call until is really needed
                             if (fieldUpdater != null && field != null) {
                                 EsField newField = indexFields.flattedMapping.get(fieldName);
-
-                                if (newField != field) {
-                                    fieldUpdater.accept(field, (InvalidMappedField) newField);
+                                if (newField != field && newField instanceof InvalidMappedField newInvalidField) {
+                                    fieldUpdater.accept(field, newInvalidField);
                                 }
                             }
                         }

@@ -39,7 +39,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -159,13 +158,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector
     ) {
-        super(
-            SearchAction.NAME,
-            transportService,
-            actionFilters,
-            (Writeable.Reader<SearchRequest>) SearchRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(SearchAction.NAME, transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
         this.searchPhaseController = searchPhaseController;
@@ -514,7 +507,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 clusterAlias,
                 remoteClientResponseExecutor
             );
-            remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
+            remoteClusterClient.search(ccsSearchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // TODO: in CCS fail fast ticket we may need to fail the query if the cluster is marked as FAILED
@@ -749,14 +742,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         ActionListener<SearchResponse> originalListener
     ) {
-        return new CCSActionListener<SearchResponse, SearchResponse>(
-            clusterAlias,
-            skipUnavailable,
-            countDown,
-            exceptions,
-            clusters,
-            originalListener
-        ) {
+        return new CCSActionListener<>(clusterAlias, skipUnavailable, countDown, exceptions, clusters, originalListener) {
             @Override
             void innerOnResponse(SearchResponse searchResponse) {
                 // TODO: in CCS fail fast ticket we may need to fail the query if the cluster gets marked as FAILED
@@ -1417,7 +1403,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final AtomicReference<Exception> exceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
-        protected final long startTime;
 
         /**
          * Used by both minimize_roundtrips true and false
@@ -1436,7 +1421,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.exceptions = exceptions;
             this.clusters = clusters;
             this.originalListener = originalListener;
-            this.startTime = System.currentTimeMillis();
         }
 
         @Override
@@ -1454,12 +1438,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (skipUnavailable) {
                 if (cluster != null) {
-                    ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
+                    ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
                 // skippedClusters.incrementAndGet();
             } else {
                 if (cluster != null) {
-                    ccsClusterInfoUpdate(f, clusters, clusterAlias, skipUnavailable);
+                    ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {

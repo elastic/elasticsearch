@@ -1,0 +1,5 @@
+pr: 99975
+summary: Rename component templates and pipelines according to the new naming conventions
+area: Indices APIs
+type: enhancement
+issues: []

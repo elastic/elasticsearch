@@ -1,12 +1,13 @@
 [[esql-enrich-data]]
-=== Enrich data
+=== Data enrichment
 
 ++++
-<titleabbrev>Enrich data</titleabbrev>
+<titleabbrev>Data enrichment</titleabbrev>
 ++++
 
-You can use {esql}'s <<esql-enrich>> processing command to enrich a table with
-data from indices in {es}.
+The {esql} <<esql-enrich>> processing command combines, at query-time, data from
+one or more source indexes with field-value combinations found in {es} enrich
+indexes.
 
 For example, you can use `ENRICH` to:
 
@@ -14,6 +15,7 @@ For example, you can use `ENRICH` to:
 * Add product information to retail orders based on product IDs
 * Supplement contact information based on an email address
 
+[discrete]
 [[esql-how-enrich-works]]
 ==== How the `ENRICH` command works
 
@@ -21,6 +23,7 @@ The `ENRICH` command adds new columns to a table, with data from {es} indices.
 It requires a few special components:
 
 image::images/esql/esql-enrich.png[align="center"]
+
 
 [[esql-enrich-policy]]
 Enrich policy::
@@ -60,6 +63,7 @@ enrich index.
 include::../ingest/enrich.asciidoc[tag=enrich-index]
 --
 
+[discrete]
 [[esql-set-up-enrich-policy]]
 ==== Set up an enrich policy
 
@@ -75,27 +79,33 @@ Once you have enrich policies set up, you can <<esql-update-enrich-data,update
 your enrich data>> and <<esql-update-enrich-policies, update your enrich
 policies>>.
 
+[discrete]
 [IMPORTANT]
 ====
 The `ENRICH` command performs several operations and may impact the speed of
 your query.
+[discrete]
 ====
 
+[discrete]
 [[esql-enrich-prereqs]]
 ==== Prerequisites
 
 include::{es-repo-dir}/ingest/apis/enrich/put-enrich-policy.asciidoc[tag=enrich-policy-api-prereqs]
 
+[discrete]
 [[esql-create-enrich-source-index]]
 ==== Add enrich data
 
 include::../ingest/enrich.asciidoc[tag=create-enrich-source-index]
 
+[discrete]
 [[esql-create-enrich-policy]]
 ==== Create an enrich policy
 
 include::../ingest/enrich.asciidoc[tag=create-enrich-policy]
 
+[discrete]
 [[esql-execute-enrich-policy]]
 ==== Execute the enrich policy
 
@@ -105,6 +115,7 @@ image::images/esql/esql-enrich-policy.png[align="center"]
 
 include::../ingest/enrich.asciidoc[tag=execute-enrich-policy2]
 
+[discrete]
 [[esql-use-enrich]]
 ==== Use the enrich policy
 
@@ -115,12 +126,20 @@ image::images/esql/esql-enrich-command.png[align="center",width=50%]
 
 include::processing-commands/enrich.asciidoc[tag=examples]
 
+[discrete]
 [[esql-update-enrich-data]]
 ==== Update an enrich index
 
 include::{es-repo-dir}/ingest/apis/enrich/execute-enrich-policy.asciidoc[tag=update-enrich-index]
 
+[discrete]
 [[esql-update-enrich-policies]]
 ==== Update an enrich policy
 
 include::../ingest/enrich.asciidoc[tag=update-enrich-policy]
+
+==== Limitations
+// tag::limitations[]
+The {esql} `ENRICH` command only supports enrich policies of type `match`.
+Furthermore, `ENRICH` only supports enriching on a column of type `keyword`.
+// end::limitations[]

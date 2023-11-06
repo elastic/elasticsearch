@@ -2075,8 +2075,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         boolean enableConcurrentSearch = enableConcurrentSearch();
         if (enableConcurrentSearch) {
-            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), true);
             initialNodeSettings.put(SearchService.MINIMUM_DOCS_PER_SLICE.getKey(), 1);
+        } else {
+            initialNodeSettings.put(SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.getKey(), false);
         }
         return new NodeConfigurationSource() {
             @Override
@@ -2433,6 +2434,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected static RestClient createRestClient() {
         return createRestClient(null, "http");
+    }
+
+    protected static RestClient createRestClient(String node) {
+        return createRestClient(client(node).admin().cluster().prepareNodesInfo("_local").get().getNodes(), null, "http");
     }
 
     protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {

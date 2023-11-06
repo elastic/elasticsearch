@@ -520,7 +520,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private static class MergeTask {
         private final List<SearchShard> emptyResults;
         private QuerySearchResult[] buffer;
-        private long aggsBufferSize;
+        private final long aggsBufferSize;
         private Runnable next;
 
         private MergeTask(QuerySearchResult[] buffer, long aggsBufferSize, List<SearchShard> emptyResults, Runnable next) {

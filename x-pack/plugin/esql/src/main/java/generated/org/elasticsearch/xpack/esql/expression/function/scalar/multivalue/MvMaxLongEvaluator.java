@@ -40,7 +40,7 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -73,7 +73,7 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           int first = v.getFirstValueIndex(p);
@@ -98,7 +98,7 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (LongBlock.Builder builder = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {
@@ -122,7 +122,7 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     try (ref) {
       LongBlock v = (LongBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (LongVector.FixedBuilder builder = LongVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (LongVector.FixedBuilder builder = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           int first = v.getFirstValueIndex(p);
@@ -132,6 +132,24 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvMaxLongEvaluator get(DriverContext context) {
+      return new MvMaxLongEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvMax[field=" + field + "]";
     }
   }
 }

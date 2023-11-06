@@ -278,7 +278,7 @@ docsWhereFunction
 // tag::whereFunction[]
 FROM employees
 | KEEP first_name, last_name, height
-| WHERE length(first_name) < 4
+| WHERE LENGTH(first_name) < 4
 // end::whereFunction[]
 | SORT first_name
 ;
@@ -468,4 +468,90 @@ count:long | languages:integer
 19         |2
 15         |1
 // end::countAll-result[]
+;
+
+basicGrok
+// tag::basicGrok[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}" 
+| KEEP date, ip, email, num
+// end::basicGrok[]
+;
+
+// tag::basicGrok-result[]
+date:keyword          | ip:keyword    | email:keyword       | num:keyword
+2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::basicGrok-result[]
+;
+
+grokWithConversionSuffix
+// tag::grokWithConversionSuffix[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| KEEP date, ip, email, num
+// end::grokWithConversionSuffix[]
+;
+
+// tag::grokWithConversionSuffix-result[]
+date:keyword              | ip:keyword    | email:keyword       | num:integer
+2023-01-23T12:15:00.000Z  | 127.0.0.1     | some.email@foo.com  | 42
+// end::grokWithConversionSuffix-result[]
+;
+
+grokWithToDatetime
+// tag::grokWithToDatetime[]
+ROW a = "2023-01-23T12:15:00.000Z 127.0.0.1 some.email@foo.com 42" 
+| GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
+| KEEP date, ip, email, num
+| EVAL date = TO_DATETIME(date)
+// end::grokWithToDatetime[]
+;
+
+// tag::grokWithToDatetime-result[]
+ip:keyword    | email:keyword       | num:integer | date:date
+127.0.0.1     | some.email@foo.com  | 42          | 2023-01-23T12:15:00.000Z
+// end::grokWithToDatetime-result[]
+;
+
+grokWithEscape
+// tag::grokWithEscape[]
+ROW a = "1.2.3.4 [2023-01-23T12:15:00.000Z] Connected"
+| GROK a "%{IP:ip} \\[%{TIMESTAMP_ISO8601:@timestamp}\\] %{GREEDYDATA:status}"
+// end::grokWithEscape[]
+| KEEP @timestamp
+;
+
+// tag::grokWithEscape-result[]
+@timestamp:keyword
+2023-01-23T12:15:00.000Z
+// end::grokWithEscape-result[]
+;
+
+basicDissect
+// tag::basicDissect[]
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
+| DISSECT a "%{date} - %{msg} - %{ip}"
+| KEEP date, msg, ip
+// end::basicDissect[]
+;
+
+// tag::basicDissect-result[]
+date:keyword             | msg:keyword  | ip:keyword
+2023-01-23T12:15:00.000Z | some text    | 127.0.0.1
+// end::basicDissect-result[]
+;
+
+dissectWithToDatetime
+// tag::dissectWithToDatetime[]
+ROW a = "2023-01-23T12:15:00.000Z - some text - 127.0.0.1" 
+| DISSECT a "%{date} - %{msg} - %{ip}" 
+| KEEP date, msg, ip
+| EVAL date = TO_DATETIME(date)
+// end::dissectWithToDatetime[]
+;
+
+// tag::dissectWithToDatetime-result[]
+msg:keyword  | ip:keyword | date:date
+some text    | 127.0.0.1  | 2023-01-23T12:15:00.000Z
+// end::dissectWithToDatetime-result[]
 ;

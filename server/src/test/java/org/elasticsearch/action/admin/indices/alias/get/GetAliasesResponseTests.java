@@ -10,7 +10,9 @@ package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -29,9 +31,18 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
         return createTestItem();
     }
 
+    /**
+     * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses so that
+     * older nodes can read them until we no longer need to support {@link org.elasticsearch.TransportVersions#CLUSTER_FEATURES_ADDED} and
+     * earlier. The reader implementation below is the production implementation from earlier versions, but moved here because it is unused
+     * in production now.
+     */
     @Override
     protected Writeable.Reader<GetAliasesResponse> instanceReader() {
-        return GetAliasesResponse::new;
+        return in -> new GetAliasesResponse(
+            in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new)),
+            in.readMap(in1 -> in1.readCollectionAsList(DataStreamAlias::new))
+        );
     }
 
     @Override

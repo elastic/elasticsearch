@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.template;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
@@ -17,14 +17,14 @@ import java.util.Objects;
 /**
  * Describes an ingest pipeline to be loaded from a resource file for use with an {@link IndexTemplateRegistry}.
  */
-public class IngestPipelineConfig {
-    private final String id;
-    private final String resource;
-    private final int version;
-    private final String versionProperty;
+public abstract class IngestPipelineConfig {
+    protected final String id;
+    protected final String resource;
+    protected final int version;
+    protected final String versionProperty;
 
     /**
-     * A list of this pipeline's dependencies, for example- such referred to through a pipeline processor.
+     * A list of this pipeline's dependencies, for example - such referred to through a pipeline processor.
      * This list is used to enforce proper ordering of pipeline installation, so that a pipeline gets installed only if all its
      * dependencies are already installed.
      */
@@ -50,15 +50,11 @@ public class IngestPipelineConfig {
         return version;
     }
 
-    public String getVersionProperty() {
-        return versionProperty;
-    }
-
     public List<String> getPipelineDependencies() {
         return dependencies;
     }
 
-    public BytesReference loadConfig() {
-        return new BytesArray(TemplateUtils.loadTemplate(resource, String.valueOf(version), versionProperty));
-    }
+    public abstract XContentType getXContentType();
+
+    public abstract BytesReference loadConfig();
 }

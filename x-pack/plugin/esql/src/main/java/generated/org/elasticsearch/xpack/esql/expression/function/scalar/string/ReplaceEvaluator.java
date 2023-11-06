@@ -46,19 +46,10 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref regexRef = regex.eval(page)) {
-        if (regexRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock regexBlock = (BytesRefBlock) regexRef.block();
         try (Block.Ref newStrRef = newStr.eval(page)) {
-          if (newStrRef.block().areAllValuesNull()) {
-            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-          }
           BytesRefBlock newStrBlock = (BytesRefBlock) newStrRef.block();
           BytesRefVector strVector = strBlock.asVector();
           if (strVector == null) {
@@ -80,7 +71,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock regexBlock,
       BytesRefBlock newStrBlock) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
@@ -110,7 +101,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public BytesRefBlock eval(int positionCount, BytesRefVector strVector, BytesRefVector regexVector,
       BytesRefVector newStrVector) {
-    try(BytesRefBlock.Builder result = BytesRefBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef regexScratch = new BytesRef();
       BytesRef newStrScratch = new BytesRef();
@@ -134,5 +125,34 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, regex, newStr);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory regex;
+
+    private final EvalOperator.ExpressionEvaluator.Factory newStr;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory regex,
+        EvalOperator.ExpressionEvaluator.Factory newStr) {
+      this.source = source;
+      this.str = str;
+      this.regex = regex;
+      this.newStr = newStr;
+    }
+
+    @Override
+    public ReplaceEvaluator get(DriverContext context) {
+      return new ReplaceEvaluator(source, str.get(context), regex.get(context), newStr.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ReplaceEvaluator[" + "str=" + str + ", regex=" + regex + ", newStr=" + newStr + "]";
+    }
   }
 }

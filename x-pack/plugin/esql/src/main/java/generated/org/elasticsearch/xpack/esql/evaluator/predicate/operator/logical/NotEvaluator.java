@@ -31,9 +31,6 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref vRef = v.eval(page)) {
-      if (vRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BooleanBlock vBlock = (BooleanBlock) vRef.block();
       BooleanVector vVector = vBlock.asVector();
       if (vVector == null) {
@@ -44,7 +41,7 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BooleanBlock eval(int positionCount, BooleanBlock vBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -57,7 +54,7 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   }
 
   public BooleanVector eval(int positionCount, BooleanVector vVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendBoolean(Not.process(vVector.getBoolean(p)));
       }
@@ -73,5 +70,23 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   @Override
   public void close() {
     Releasables.closeExpectNoException(v);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory v;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory v) {
+      this.v = v;
+    }
+
+    @Override
+    public NotEvaluator get(DriverContext context) {
+      return new NotEvaluator(v.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "NotEvaluator[" + "v=" + v + "]";
+    }
   }
 }

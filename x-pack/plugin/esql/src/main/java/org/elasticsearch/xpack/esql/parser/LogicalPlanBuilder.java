@@ -110,7 +110,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
-                if (item.getKey().equals("append_separator") == false) {
+                if (item.getKey().equalsIgnoreCase("append_separator") == false) {
                     throw new ParsingException(source(ctx), "Invalid option for dissect: [{}]", item.getKey());
                 }
                 if (item.getValue() instanceof String == false) {
@@ -150,7 +150,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx) {
         String identifier = visitSourceIdentifier(ctx.sourceIdentifier());
-        return child -> new MvExpand(source(ctx), child, new UnresolvedAttribute(source(ctx), identifier));
+        Source src = source(ctx);
+        return child -> new MvExpand(src, child, new UnresolvedAttribute(src, identifier), new UnresolvedAttribute(src, identifier));
 
     }
 

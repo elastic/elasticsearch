@@ -3,7 +3,8 @@
     name: elastic+elasticsearch+%BRANCH%+snyk-dependency-monitoring
     workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+snyk-dependency-monitoring
     display-name: "elastic / elasticsearch # %BRANCH% - snyk dependency monitoring"
-    description: "Publishing of the Elasticsearch %BRANCH% dependencies graph to snyk dependency monitoring"
+    description: "This job has been migrated to Buildkite.\n"
+    disabled: true
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

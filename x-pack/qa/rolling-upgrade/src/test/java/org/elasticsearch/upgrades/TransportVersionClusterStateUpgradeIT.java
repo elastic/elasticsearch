@@ -19,8 +19,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCase {
@@ -66,11 +64,11 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
 
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                if (isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_TRANSPORT_VERSIONS) == false) {
                     // Before 8.8.0 there was only DiscoveryNode#version
                     assertFalse(description, hasTransportVersions);
                     assertFalse(description, hasNodesVersions);
-                } else if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS)) {
+                } else if (isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_NODES_VERSIONS) == false) {
                     // In [8.8.0, 8.11.0) we exposed just transport_versions
                     assertTrue(description, hasTransportVersions);
                     assertFalse(description, hasNodesVersions);
@@ -81,10 +79,10 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                 }
             }
             case MIXED -> {
-                if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                if (isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_TRANSPORT_VERSIONS) == false) {
                     // Responding node might be <8.8.0 (so no extra versions) or >=8.11.0 (includes nodes_versions)
                     assertFalse(description, hasTransportVersions);
-                } else if (UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS)) {
+                } else if (isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_NODES_VERSIONS) == false) {
                     // Responding node might be in [8.8.0, 8.11.0) (transport_versions) or >=8.11.0 (includes nodes_versions) but not both
                     assertTrue(description, hasNodesVersions || hasTransportVersions);
                 } else {
@@ -103,8 +101,8 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
 
         if (hasTransportVersions) {
             // Upgrading from [8.8.0, 8.11.0) and the responding node is still on the old version
-            assertThat(description, UPGRADE_FROM_VERSION, lessThan(VERSION_INTRODUCING_NODES_VERSIONS));
-            assertThat(description, UPGRADE_FROM_VERSION, greaterThanOrEqualTo(VERSION_INTRODUCING_TRANSPORT_VERSIONS));
+            assertFalse(description, isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_NODES_VERSIONS));
+            assertTrue(description, isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_TRANSPORT_VERSIONS));
             assertNotEquals(description, ClusterType.UPGRADED, CLUSTER_TYPE);
 
             // transport_versions includes the correct version for all nodes, no inference is needed
@@ -126,7 +124,10 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
             }
         } else if (hasNodesVersions) {
             // Either upgrading from ≥8.11.0 (the responding node might be old or new), or from <8.8.0 (the responding node is new)
-            assertFalse(description, UPGRADE_FROM_VERSION.before(VERSION_INTRODUCING_NODES_VERSIONS) && CLUSTER_TYPE == ClusterType.OLD);
+            assertFalse(
+                description,
+                isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_NODES_VERSIONS) == false && CLUSTER_TYPE == ClusterType.OLD
+            );
 
             // nodes_versions includes _a_ version for all nodes; it might be correct, or it might be inferred if we're upgrading from
             // <8.8.0 and the master is still an old node or the TransportVersionsFixupListener hasn't run yet
@@ -144,7 +145,7 @@ public class TransportVersionClusterStateUpgradeIT extends AbstractUpgradeTestCa
                     assertThat(
                         nodeDescription,
                         transportVersion,
-                        UPGRADE_FROM_VERSION.onOrAfter(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
+                        isOriginalClusterVersionAtLeast(VERSION_INTRODUCING_TRANSPORT_VERSIONS)
                             ? equalTo(TransportVersion.current())
                             : oneOf(TransportVersion.current(), FIRST_TRANSPORT_VERSION)
                     );

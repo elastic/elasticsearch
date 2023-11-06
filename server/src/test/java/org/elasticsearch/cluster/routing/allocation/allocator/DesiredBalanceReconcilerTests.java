@@ -53,6 +53,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -1247,44 +1248,68 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
     public void testShouldLogOnTooManyUndesiredAllocations() {
 
-        var indexMetadata = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        final var index = indexMetadata.getIndex();
-        final var shardId = new ShardId(index, 0);
+        final int shardCount = 5;
+
+        final var dataNode1Assignments = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+        final var dataNode2Assignments = Maps.<ShardId, ShardAssignment>newMapWithExpectedSize(shardCount);
+
+        final var metadataBuilder = Metadata.builder();
+        final var routingTableBuilder = RoutingTable.builder();
+        for (int i = 0; i < shardCount; i++) {
+            final var indexMetadata = IndexMetadata.builder("index-" + i).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+            final var index = indexMetadata.getIndex();
+            final var shardId = new ShardId(index, 0);
+            metadataBuilder.put(indexMetadata, false);
+            routingTableBuilder.add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-1", true, STARTED)));
+
+            dataNode1Assignments.put(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0));
+            dataNode2Assignments.put(shardId, new ShardAssignment(Set.of("data-node-2"), 1, 0, 0));
+        }
 
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("data-node-1")).add(newNode("data-node-2")))
-            .metadata(Metadata.builder().put(indexMetadata, true))
-            .routingTable(
-                RoutingTable.builder()
-                    .add(IndexRoutingTable.builder(index).addShard(newShardRouting(shardId, "data-node-2", true, STARTED)))
-            )
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
             .build();
 
-        final var balance = new DesiredBalance(1, Map.of(shardId, new ShardAssignment(Set.of("data-node-1"), 1, 0, 0)));
-
         var threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L);
+        when(threadPool.relativeTimeInMillis()).thenReturn(1L).thenReturn(2L).thenReturn(3L);
 
         var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool);
 
+        var expectedWarningMessage = "[100%] of assigned shards ("
+            + shardCount
+            + "/"
+            + shardCount
+            + ") are not on their desired nodes, which exceeds the warn threshold of [10%]";
         assertThatLogger(
-            () -> reconciler.reconcile(balance, createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, dataNode1Assignments), createRoutingAllocationFrom(clusterState)),
+            DesiredBalanceReconciler.class,
+            new MockLogAppender.UnseenEventExpectation(
+                "Should not log if all shards on desired location",
+                DesiredBalanceReconciler.class.getCanonicalName(),
+                Level.WARN,
+                expectedWarningMessage
+            )
+        );
+        assertThatLogger(
+            () -> reconciler.reconcile(new DesiredBalance(1, dataNode2Assignments), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             new MockLogAppender.SeenEventExpectation(
                 "Should log first too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "[100%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10%]"
+                expectedWarningMessage
             )
         );
         assertThatLogger(
-            () -> reconciler.reconcile(balance, createRoutingAllocationFrom(clusterState)),
+            () -> reconciler.reconcile(new DesiredBalance(1, dataNode2Assignments), createRoutingAllocationFrom(clusterState)),
             DesiredBalanceReconciler.class,
             new MockLogAppender.UnseenEventExpectation(
                 "Should not log immediate second too many shards on undesired locations",
                 DesiredBalanceReconciler.class.getCanonicalName(),
                 Level.WARN,
-                "[100.0%] of assigned shards (1/1) are not on their desired nodes, which exceeds the warn threshold of [10.0%]"
+                expectedWarningMessage
             )
         );
     }

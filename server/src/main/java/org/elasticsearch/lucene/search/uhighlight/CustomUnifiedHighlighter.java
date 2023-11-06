@@ -32,6 +32,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
+import org.elasticsearch.search.vectors.KnnScoreDocQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -247,6 +248,13 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                  * in order to preserve the compatibility.
                  */
                 if (leafQuery.getClass().getSimpleName().equals("LateParsingQuery")) {
+                    hasUnknownLeaf[0] = true;
+                }
+                /**
+                 * KnnScoreDocQuery requires the same reader that built the docs
+                 * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
+                 */
+                if (leafQuery instanceof KnnScoreDocQuery) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

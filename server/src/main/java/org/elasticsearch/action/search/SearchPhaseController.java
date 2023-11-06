@@ -667,7 +667,7 @@ public final class SearchPhaseController {
                 firstResult = false;
                 ulFormats = new boolean[formats.length];
                 for (int i = 0; i < formats.length; i++) {
-                    ulFormats[i] = formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED ? true : false;
+                    ulFormats[i] = formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED;
                 }
             } else {
                 for (int i = 0; i < formats.length; i++) {

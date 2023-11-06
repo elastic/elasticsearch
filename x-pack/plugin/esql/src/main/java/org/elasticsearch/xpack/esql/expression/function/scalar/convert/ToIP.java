@@ -52,7 +52,7 @@ public class ToIP extends AbstractConvertFunction {
         return NodeInfo.create(this, ToIP::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef asString) {
         return parseIP(asString.utf8ToString());
     }

@@ -21,7 +21,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -43,10 +42,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
     static {
         PARSER.declareInt(RandomSamplerAggregationBuilder::setSeed, SEED);
         PARSER.declareDouble(RandomSamplerAggregationBuilder::setProbability, PROBABILITY);
-    }
-
-    public static RandomSamplerAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new RandomSamplerAggregationBuilder(aggregationName), null);
     }
 
     private int seed = Randomness.get().nextInt();
@@ -76,10 +71,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
         super(in);
         this.p = in.readDouble();
         this.seed = in.readInt();
-    }
-
-    public double getProbability() {
-        return p;
     }
 
     protected RandomSamplerAggregationBuilder(
@@ -138,10 +129,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
             }
         });
         return new RandomSamplerAggregatorFactory(name, seed, p, context, parent, subfactoriesBuilder, metadata);
-    }
-
-    public int getSeed() {
-        return seed;
     }
 
     @Override

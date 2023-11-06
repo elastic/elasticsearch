@@ -51,7 +51,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  */
 public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
     public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
         "support for empty first line before any action metadata in msearch API is deprecated "
             + "and will be removed in the next major version";

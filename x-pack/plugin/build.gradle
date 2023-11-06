@@ -177,16 +177,18 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 }
 
 tasks.register('enforceApiSpecsConvention').configure {
+  def mainApiSpecs = fileTree('src/test/resources/rest-api-spec/api')
   doLast {
-    if (fileTree('src/test/resources/rest-api-spec/api').files) {
+    if (mainApiSpecs.files) {
       throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
     }
   }
 }
 
 tasks.register('enforceYamlTestConvention').configure {
+  def mainYamlFiles = fileTree('src/test/resources/rest-api-spec/test')
   doLast {
-    if (fileTree('src/test/resources/rest-api-spec/test').files) {
+    if (mainYamlFiles.files) {
       throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
     }
   }

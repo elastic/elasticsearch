@@ -123,11 +123,6 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);

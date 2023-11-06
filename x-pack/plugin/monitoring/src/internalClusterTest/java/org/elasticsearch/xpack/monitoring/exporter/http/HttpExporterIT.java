@@ -128,11 +128,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         }
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     private Settings.Builder secureSettings(String password) {
         mockSecureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", password);
         return baseSettings().setSecureSettings(mockSecureSettings);

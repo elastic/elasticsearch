@@ -36,10 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37320")
 public class SqlLicenseIT extends AbstractLicensesIntegrationTestCase {
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 
     @Before
     public void resetLicensing() throws Exception {

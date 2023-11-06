@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Randomness;
@@ -95,6 +96,10 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
     private final String reason;
     private final Instant startTime;
     private final int maxAssignedAllocations;
+
+    public static boolean useNewMemoryFields(TransportVersion minClusterVersion) {
+        return minClusterVersion.onOrAfter(TransportVersions.V_8_500_064);
+    }
 
     public static TrainedModelAssignment fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);

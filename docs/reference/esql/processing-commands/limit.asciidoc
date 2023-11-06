@@ -22,8 +22,8 @@ returned.
 Queries do not return more than 10,000 rows, regardless of the `LIMIT` command's
 value.
 
-This limit only applies to the number of rows that are retrieved by the query
-and displayed in Discover. Queries and aggregations run on the full data set.
+This limit only applies to the number of rows that are retrieved by the query.
+Queries and aggregations run on the full data set.
 
 To overcome this limitation:
 

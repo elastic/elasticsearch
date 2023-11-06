@@ -1,5 +1,0 @@
-pr: 101835
-summary: Separate `NoOpClient` and `ThreadPool` lifecycles
-area: Infra/Transport API
-type: tech debt
-issues: []

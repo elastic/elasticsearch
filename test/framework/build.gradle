@@ -96,3 +96,8 @@ tasks.named('splitPackagesAudit').configure {
   // for now we always run tests with the classpath, so we are ok with split packages for tests
   enabled = false
 }
+
+tasks.named("compileJava").configure {
+  //TODO fix this
+  options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.scanners=ALL-UNNAMED"])
+}

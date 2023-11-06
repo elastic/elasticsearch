@@ -77,16 +77,12 @@ public class PluginsUtils {
 
     /**
      * Verify the given plugin is compatible with the current Elasticsearch installation.
-     *
-     * <p>If the build version is not semantic, or if the plugin is an internal (old-style) plugin
-     * we require that the plugin ES version match the current build version. If we are loading
-     * a stable plugin on a semantic build, we do a semantic comparison to verify that the
-     * plugin was built with an earlier version of the same major release.</p>
      */
     public static void verifyCompatibility(PluginDescriptor info) {
         final String currentVersion = Build.current().version();
         Matcher buildVersionMatcher = SemanticVersion.semanticPattern.matcher(currentVersion);
-        if (buildVersionMatcher.matches() && info.isStable()) {
+        // If we're not on a semantic version, assume plugins are compatible
+        if (buildVersionMatcher.matches()) {
             SemanticVersion currentElasticsearchSemanticVersion;
             try {
                 currentElasticsearchSemanticVersion = new SemanticVersion(
@@ -97,61 +93,63 @@ public class PluginsUtils {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("Couldn't parse integers from build version [" + currentVersion + "]", e);
             }
-            Matcher pluginEsVersionMatcher = SemanticVersion.semanticPattern.matcher(info.getElasticsearchVersion());
-            if (pluginEsVersionMatcher.matches() == false) {
-                throw new IllegalArgumentException(
-                    "Expected semantic version for plugin [" + info.getName() + "] but was [" + info.getElasticsearchVersion() + "]"
-                );
-            }
-            SemanticVersion pluginElasticsearchSemanticVersion;
-            try {
-                pluginElasticsearchSemanticVersion = new SemanticVersion(
-                    Integer.parseInt(pluginEsVersionMatcher.group(1)),
-                    Integer.parseInt(pluginEsVersionMatcher.group(2)),
-                    Integer.parseInt(pluginEsVersionMatcher.group(3))
-                );
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(
-                    "Expected integer version for plugin [" + info.getName() + "] but found [" + info.getElasticsearchVersion() + "]",
-                    e
-                );
-            }
+            if (info.isStable()) {
+                Matcher pluginEsVersionMatcher = SemanticVersion.semanticPattern.matcher(info.getElasticsearchVersion());
+                if (pluginEsVersionMatcher.matches() == false) {
+                    throw new IllegalArgumentException(
+                        "Expected semantic version for plugin [" + info.getName() + "] but was [" + info.getElasticsearchVersion() + "]"
+                    );
+                }
+                SemanticVersion pluginElasticsearchSemanticVersion;
+                try {
+                    pluginElasticsearchSemanticVersion = new SemanticVersion(
+                        Integer.parseInt(pluginEsVersionMatcher.group(1)),
+                        Integer.parseInt(pluginEsVersionMatcher.group(2)),
+                        Integer.parseInt(pluginEsVersionMatcher.group(3))
+                    );
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException(
+                        "Expected integer version for plugin [" + info.getName() + "] but found [" + info.getElasticsearchVersion() + "]",
+                        e
+                    );
+                }
 
-            // case: Major version mismatch
-            if (pluginElasticsearchSemanticVersion.major != currentElasticsearchSemanticVersion.major) {
+                // case: Major version mismatch
+                if (pluginElasticsearchSemanticVersion.major != currentElasticsearchSemanticVersion.major) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for Elasticsearch major version "
+                            + pluginElasticsearchSemanticVersion.major
+                            + " but version "
+                            + currentVersion
+                            + " is running"
+                    );
+                }
+
+                // case: stable plugin from the future
+                if (pluginElasticsearchSemanticVersion.after(currentElasticsearchSemanticVersion)) {
+                    throw new IllegalArgumentException(
+                        "Stable Plugin ["
+                            + info.getName()
+                            + "] was built for Elasticsearch version "
+                            + info.getElasticsearchVersion()
+                            + " but earlier version "
+                            + currentVersion
+                            + " is running"
+                    );
+                }
+            } else if (info.getElasticsearchVersion().equals(currentVersion) == false) {
                 throw new IllegalArgumentException(
-                    "Stable Plugin ["
+                    "Plugin ["
                         + info.getName()
-                        + "] was built for Elasticsearch major version "
-                        + pluginElasticsearchSemanticVersion.major
+                        + "] was built for Elasticsearch version "
+                        + info.getElasticsearchVersion()
                         + " but version "
                         + currentVersion
                         + " is running"
                 );
             }
-
-            // case: stable plugin from the future
-            if (pluginElasticsearchSemanticVersion.after(currentElasticsearchSemanticVersion)) {
-                throw new IllegalArgumentException(
-                    "Stable Plugin ["
-                        + info.getName()
-                        + "] was built for Elasticsearch version "
-                        + info.getElasticsearchVersion()
-                        + " but earlier version "
-                        + currentVersion
-                        + " is running"
-                );
-            }
-        } else if (info.getElasticsearchVersion().equals(currentVersion) == false) {
-            throw new IllegalArgumentException(
-                "Plugin ["
-                    + info.getName()
-                    + "] was built for Elasticsearch version "
-                    + info.getElasticsearchVersion()
-                    + " but version "
-                    + currentVersion
-                    + " is running"
-            );
         }
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }

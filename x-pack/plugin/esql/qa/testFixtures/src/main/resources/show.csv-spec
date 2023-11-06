@@ -184,10 +184,16 @@ synopsis:keyword
 
 
 showFunctionsFiltered
-show functions | where starts_with(name, "is_");
+// tag::showFunctionsFiltered[]
+SHOW functions 
+| WHERE STARTS_WITH(name, "is_")
+// end::showFunctionsFiltered[]
+;
 
+// tag::showFunctionsFiltered-result[]
        name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |  returnType:keyword   |  description:keyword  |   optionalArgs:boolean |  variadic:boolean
 is_finite                |? is_finite(arg1:?)                                     |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
 is_infinite              |? is_infinite(arg1:?)                                   |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
 is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+// end::showFunctionsFiltered-result[]
 ;

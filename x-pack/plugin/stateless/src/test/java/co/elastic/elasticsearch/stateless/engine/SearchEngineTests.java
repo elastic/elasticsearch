@@ -25,6 +25,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.set.Sets;
@@ -39,6 +40,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -57,6 +59,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchEngineTests extends AbstractEngineTestCase {
 
+    private static long getCurrentGeneration(SearchEngine engine) {
+        return engine.getCurrentPrimaryTermAndGeneration().generation();
+    }
+
     public void testCommitNotifications() throws IOException {
         final var indexConfig = indexConfig();
         final var searchTaskQueue = new DeterministicTaskQueue();
@@ -66,16 +72,16 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)
         ) {
             assertThat("Index engine recovery executes 2 commits", indexEngine.getCurrentGeneration(), equalTo(2L));
-            assertThat("Search engine recovery executes 1 commit", searchEngine.getCurrentGeneration(), equalTo(1L));
+            assertThat("Search engine recovery executes 1 commit", getCurrentGeneration(searchEngine), equalTo(1L));
 
             int notifications = notifyCommits(indexEngine, searchEngine);
             assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
-            assertThat(searchEngine.getCurrentGeneration(), equalTo(1L));
+            assertThat(getCurrentGeneration(searchEngine), equalTo(1L));
             assertThat("Index engine is 1 commit ahead after recovery", notifications, equalTo(1));
 
             searchTaskQueue.runAllRunnableTasks();
 
-            assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
+            assertThat(getCurrentGeneration(searchEngine), equalTo(indexEngine.getCurrentGeneration()));
             assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
 
             final int flushes = randomBoolean() ? randomInt(20) : 0;
@@ -89,13 +95,13 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             notifications = notifyCommits(indexEngine, searchEngine);
             assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
-            assertThat(searchEngine.getCurrentGeneration(), equalTo(2L));
+            assertThat(getCurrentGeneration(searchEngine), equalTo(2L));
             assertThat(notifications, equalTo(flushes));
 
             searchTaskQueue.runAllRunnableTasks();
 
-            assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
-            assertThat(searchEngine.getCurrentGeneration(), equalTo(1L + 1L + flushes));
+            assertThat(getCurrentGeneration(searchEngine), equalTo(indexEngine.getCurrentGeneration()));
+            assertThat(getCurrentGeneration(searchEngine), equalTo(1L + 1L + flushes));
             assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
         }
     }
@@ -118,7 +124,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 notifyCommits(indexEngine, searchEngine);
                 searchTaskQueue.runAllRunnableTasks();
 
-                final long searchGenerationBeforeCorruption = searchEngine.getCurrentGeneration();
+                final long searchGenerationBeforeCorruption = getCurrentGeneration(searchEngine);
                 assertThat(searchGenerationBeforeCorruption, equalTo(indexEngine.getCurrentGeneration()));
 
                 final int flushesAfterCorruption = randomIntBetween(1, 20);
@@ -130,13 +136,13 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
                 int notifications = notifyCommits(indexEngine, searchEngine);
                 assertThat(searchEngine.getPendingCommitNotifications(), equalTo((long) notifications));
-                assertThat(searchEngine.getCurrentGeneration(), equalTo(searchGenerationBeforeCorruption));
+                assertThat(getCurrentGeneration(searchEngine), equalTo(searchGenerationBeforeCorruption));
 
                 searchEngine.failEngine("test", randomCorruptionException());
                 searchTaskQueue.runAllRunnableTasks();
 
                 assertThat(searchEngine.getPendingCommitNotifications(), equalTo(0L));
-                assertThat(searchEngine.getCurrentGeneration(), equalTo(searchGenerationBeforeCorruption));
+                assertThat(getCurrentGeneration(searchEngine), equalTo(searchGenerationBeforeCorruption));
             }
         }
     }
@@ -202,7 +208,10 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             // initial commit acquired
             assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), contains(gen));
-            assertThat(searchEngine.getCurrentGeneration(), equalTo(indexEngine.getCurrentGeneration()));
+            assertThat(
+                searchEngine.getCurrentPrimaryTermAndGeneration(),
+                equalTo(new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration()))
+            );
 
             {
                 // new searcher is recorded
@@ -273,6 +282,147 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                     contains(new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration()))
                 );
             }
+        }
+    }
+
+    public void testDoesNotRegisterListenersWithOldPrimaryTerm() throws Exception {
+        AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 100L));
+        long initialPrimaryTerm = primaryTerm.get();
+        var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
+        var searchTaskQueue = new DeterministicTaskQueue();
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)
+        ) {
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+            assertThat(indexEngine.getCurrentGeneration(), equalTo(2L));
+            assertThat(searchEngine.getCurrentPrimaryTermAndGeneration(), equalTo(new PrimaryTermAndGeneration(initialPrimaryTerm, 2L)));
+
+            // Listener for existing generation completes immediately
+            AtomicBoolean initialTermSecondGenerationListenerCalled = new AtomicBoolean(false);
+            assertFalse(
+                searchEngine.addOrExecuteSegmentGenerationListener(
+                    new PrimaryTermAndGeneration(initialPrimaryTerm, 2L),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Long l) {
+                            assertThat(l, equalTo(2L));
+                            initialTermSecondGenerationListenerCalled.set(true);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false;
+                        }
+                    }
+                )
+            );
+            assertTrue(initialTermSecondGenerationListenerCalled.get());
+
+            // Listener for a future primary term and existing generation shouldn't be executed immediately
+            AtomicBoolean nextTermSecondGenerationListenerCalled = new AtomicBoolean(false);
+            assertTrue(
+                searchEngine.addOrExecuteSegmentGenerationListener(
+                    new PrimaryTermAndGeneration(initialPrimaryTerm + 1, 2L),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Long l) {
+                            assertThat(l, equalTo(3L));
+                            nextTermSecondGenerationListenerCalled.set(true);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false;
+                        }
+                    }
+                )
+            );
+            assertFalse(nextTermSecondGenerationListenerCalled.get());
+
+            // The listener for a future generation is expected to be executed in the future
+            AtomicBoolean initialTermThirdGenerationListenerCalled = new AtomicBoolean(false);
+            assertTrue(
+                searchEngine.addOrExecuteSegmentGenerationListener(
+                    new PrimaryTermAndGeneration(initialPrimaryTerm, 3L),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Long l) {
+                            assertThat(l, equalTo(3L));
+                            initialTermThirdGenerationListenerCalled.set(true);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false;
+                        }
+                    }
+                )
+            );
+            assertFalse(initialTermThirdGenerationListenerCalled.get());
+
+            // Listener for a future primary term and future generation is expected to be executed in the future
+            AtomicBoolean nextTermFourthGenerationListenerCalled = new AtomicBoolean(false);
+            assertTrue(
+                searchEngine.addOrExecuteSegmentGenerationListener(
+                    new PrimaryTermAndGeneration(initialPrimaryTerm + 1, 4L),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Long l) {
+                            assertThat(l, equalTo(4L));
+                            nextTermFourthGenerationListenerCalled.set(true);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {}
+                    }
+                )
+            );
+            assertFalse(nextTermFourthGenerationListenerCalled.get());
+
+            // Bump the primary term and generation and sync it with the search engine
+            primaryTerm.incrementAndGet();
+            for (int i = 0; i < randomIntBetween(1, 10); i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+            }
+            indexEngine.flush();
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            // The search engine has moved to the next primary term
+            assertThat(
+                searchEngine.getCurrentPrimaryTermAndGeneration(),
+                equalTo(new PrimaryTermAndGeneration(initialPrimaryTerm + 1, 3L))
+            );
+            // The listener for the current term and past generation has been called
+            assertTrue(nextTermSecondGenerationListenerCalled.get());
+            // The listener for the previous primary term and current generation has been called
+            assertTrue(initialTermThirdGenerationListenerCalled.get());
+            // The listener for the current term and future generation has NOT been called
+            assertFalse(nextTermFourthGenerationListenerCalled.get());
+
+            // The listener for the initial primary term now executes immediately since the
+            // search engine has moved on the next term
+            AtomicBoolean initialTermFourthGenerationCalled = new AtomicBoolean(false);
+            assertFalse(
+                searchEngine.addOrExecuteSegmentGenerationListener(
+                    new PrimaryTermAndGeneration(initialPrimaryTerm, 4L),
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Long l) {
+                            assertThat(l, equalTo(3L));
+                            initialTermFourthGenerationCalled.set(true);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            assert false;
+                        }
+                    }
+                )
+            );
+            assertTrue(initialTermFourthGenerationCalled.get());
         }
     }
 

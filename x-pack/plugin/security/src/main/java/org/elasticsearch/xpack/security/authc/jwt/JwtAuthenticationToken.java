@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.TreeSet;
 
@@ -97,37 +98,42 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     private String buildTokenPrincipal() {
         JWTClaimsSet jwtClaimsSet = getJWTClaimsSet();
         StringBuilder principalBuilder = new StringBuilder();
-        for (String claimName : new TreeSet<>(jwtClaimsSet.getClaims().keySet())) {
+        claimsLoop: for (String claimName : new TreeSet<>(jwtClaimsSet.getClaims().keySet())) {
+            Object claimValue = jwtClaimsSet.getClaim(claimName);
+            if (claimValue == null) {
+                continue;
+            }
             // only use String or String[] claim values to assemble the principal
-            try {
-                String claimValue = jwtClaimsSet.getStringClaim(claimName);
+            if (claimValue instanceof String) {
                 if (principalBuilder.isEmpty() == false) {
                     principalBuilder.append(' ');
                 }
-                principalBuilder.append('\'').append(claimName).append(':').append(claimValue).append('\'');
-            } catch (ParseException e1) {
-                try {
-                    String[] claimValues = jwtClaimsSet.getStringArrayClaim(claimName);
-                    if (claimValues != null && claimValues.length > 0) {
-                        if (principalBuilder.isEmpty() == false) {
-                            principalBuilder.append(' ');
-                        }
-                        principalBuilder.append('\'').append(claimName).append(':');
-                        for (int i = 0; i < claimValues.length; i++) {
-                            if (i > 0) {
-                                principalBuilder.append(',');
-                            }
-                            principalBuilder.append(claimValues[i]);
-                        }
-                        principalBuilder.append('\'');
-                    }
-                } catch (ParseException e2) {
-                    // ignored claim type
+                principalBuilder.append('\'').append(claimName).append(':').append((String) claimValue).append('\'');
+            } else if (claimValue instanceof List<?>) {
+                List<?> claimValuesList = (List<?>) claimValue;
+                if (claimValuesList.isEmpty()) {
+                    continue;
                 }
+                for (Object claimValueElem : claimValuesList) {
+                    if (claimValueElem instanceof String == false) {
+                        continue claimsLoop;
+                    }
+                }
+                if (principalBuilder.isEmpty() == false) {
+                    principalBuilder.append(' ');
+                }
+                principalBuilder.append('\'').append(claimName).append(':');
+                for (int i = 0; i < claimValuesList.size(); i++) {
+                    if (i > 0) {
+                        principalBuilder.append(',');
+                    }
+                    principalBuilder.append((String) claimValuesList.get(i));
+                }
+                principalBuilder.append('\'');
             }
         }
         if (principalBuilder.isEmpty()) {
-            return "<malformed JWT token>";
+            return "<unrecognized JWT token>";
         }
         return principalBuilder.toString();
     }

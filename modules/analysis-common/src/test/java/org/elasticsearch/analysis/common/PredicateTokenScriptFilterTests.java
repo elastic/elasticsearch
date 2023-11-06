@@ -98,9 +98,6 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
         }
 
         @Override
-        public void close() {}
-
-        @Override
         protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
             ActionType<Response> action,
             Request request,

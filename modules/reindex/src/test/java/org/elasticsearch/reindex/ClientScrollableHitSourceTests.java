@@ -267,9 +267,6 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ((ExecuteRequest<Request, Response>) executeRequest).validateRequest(action, validator);
         }
 
-        @Override
-        public void close() {}
-
         public synchronized void awaitOperation() throws InterruptedException {
             if (executeRequest == null) {
                 wait(10000);

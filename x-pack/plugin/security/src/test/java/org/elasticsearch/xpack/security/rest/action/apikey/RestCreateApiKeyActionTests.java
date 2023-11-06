@@ -86,7 +86,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
             Instant.now().plus(Duration.ofHours(5))
         );
 
-        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        final var client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
@@ -103,17 +103,15 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                     listener.onFailure(new ElasticsearchSecurityException("encountered an error while creating API key"));
                 }
             }
-        }) {
-            final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
-            restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
+        };
+        final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
+        restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
-            final RestResponse restResponse = responseSetOnce.get();
-            assertNotNull(restResponse);
-            assertThat(
-                CreateApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content())),
-                equalTo(expected)
-            );
-        }
+        final RestResponse restResponse = responseSetOnce.get();
+        assertNotNull(restResponse);
+        assertThat(
+            CreateApiKeyResponse.fromXContent(createParser(XContentType.JSON.xContent(), restResponse.content())),
+            equalTo(expected)
+        );
     }
-
 }

@@ -83,7 +83,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        client.close();
         terminate(threadPool);
     }
 

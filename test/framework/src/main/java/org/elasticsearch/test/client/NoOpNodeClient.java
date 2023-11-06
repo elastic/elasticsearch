@@ -38,9 +38,6 @@ public class NoOpNodeClient extends NodeClient {
 
     private final AtomicLong executionCount = new AtomicLong(0);
 
-    /**
-     * Build with {@link ThreadPool}. This {@linkplain ThreadPool} is terminated on {@link #close()}.
-     */
     public NoOpNodeClient(ThreadPool threadPool) {
         super(Settings.EMPTY, threadPool);
     }

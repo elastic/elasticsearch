@@ -23,9 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
  * See also {@link NoOpNodeClient} if you need to mock a {@link org.elasticsearch.client.internal.node.NodeClient}.
  */
 public class NoOpClient extends AbstractClient {
-    /**
-     * Build with {@link ThreadPool}. This {@linkplain ThreadPool} is terminated on {@link #close()}.
-     */
+
     public NoOpClient(ThreadPool threadPool) {
         super(Settings.EMPTY, threadPool);
     }
@@ -38,7 +36,4 @@ public class NoOpClient extends AbstractClient {
     ) {
         listener.onResponse(null);
     }
-
-    @Override
-    public void close() {}
 }

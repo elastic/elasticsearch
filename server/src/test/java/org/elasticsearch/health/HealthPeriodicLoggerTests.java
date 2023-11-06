@@ -92,7 +92,6 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.close();
         }
         threadPool.shutdownNow();
-        client.close();
     }
 
     public void testConvertToLoggedFields() {

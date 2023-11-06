@@ -19,24 +19,25 @@ package co.elastic.elasticsearch.stateless.lucene;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
-import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -50,6 +51,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -61,6 +63,7 @@ import java.util.function.IntConsumer;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSeek;
 import static org.elasticsearch.blobcache.BlobCacheUtils.ensureSlice;
+import static org.elasticsearch.core.Strings.format;
 
 public class IndexDirectory extends ByteSizeDirectory {
 
@@ -127,7 +130,7 @@ public class IndexDirectory extends ByteSizeDirectory {
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
-            if (localFile != null && localFile.tryIncRef()) {
+            if (localFile != null && localFile.tryIncRefNotUploaded()) {
                 try {
                     return super.fileLength(name);
                 } finally {
@@ -189,20 +192,11 @@ public class IndexDirectory extends ByteSizeDirectory {
             try (var ignored = readLock.acquire()) {
                 localFile = localFiles.get(name);
             }
-            if (localFile != null && localFile.tryIncRef()) {
+            if (localFile != null && localFile.tryIncRefNotUploaded()) {
                 try {
-                    var input = super.openInput(name, context);
-                    // Lucene can open a generation docs values file to merge soft deletes: it first opens the IndexInput, clones it and
-                    // starts merging from the cloned input. If the IndexInput has been opened from a NRT reader and is not part of a Lucene
-                    // commit it might be released and deleted from disk by Lucene (due to a subsequent refresh or commit). In that case the
-                    // original IndexInput is closed and deleted but the merging thread expects to be able to continue reading from the
-                    // cloned instance. Because we still want to delete that file in case it is later committed and uploaded to the object
-                    // store, we wrap the underlying index input in a GenerationalDocsValuesIndexInput class that uses the LocalFileRef.
-                    if (isGenerationalDocsValuesFile(name)) {
-                        return new GenerationalDocsValuesIndexInput(name, input, localFile);
-                    } else {
-                        return new ReopeningIndexInput(name, context, input, localFile);
-                    }
+                    var input = new ReopeningIndexInput(name, context, super.openInput(name, context), localFile);
+                    localFile.addListener(input);
+                    return input;
                 } finally {
                     localFile.decRef();
                 }
@@ -325,9 +319,20 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final AtomicBoolean deleted = new AtomicBoolean();
 
         /**
+         * Flag to indicate if the file has been uploaded to the object store
+         */
+        private final AtomicBoolean uploaded = new AtomicBoolean();
+
+        /**
          * Used to decRef() the local file reference only once, either when Lucene deletes a file or when the file is uploaded
          */
         private final AtomicBoolean removeOnce = new AtomicBoolean();
+
+        /**
+         * Listener to be completed once the file is uploaded to the object store. This is used to force the reopening of inputs.
+         */
+        // TODO Use something different to allow ReopeningIndexInputs to unsubscribe once they are closed
+        private final SubscribableListener<Void> listener = new SubscribableListener<>();
 
         /**
          * File name to use when deleting the file on filesystem (pending_segments_N files are renamed before commit)
@@ -352,21 +357,52 @@ public class IndexDirectory extends ByteSizeDirectory {
             this.name = name;
         }
 
-        public void markAsDeleted() throws FileNotFoundException {
-            if (deleted.compareAndSet(false, true) == false) {
-                throw new FileNotFoundException(name);
-            }
+        private void decRefOnce() {
             if (removeOnce.compareAndSet(false, true)) {
-                logger.trace("{} {} local file is marked as deleted", cacheDirectory.getShardId(), name);
                 decRef();
             }
         }
 
-        public void markAsUploaded() {
-            if (removeOnce.compareAndSet(false, true)) {
-                logger.trace("{} {} local file is marked as uploaded", cacheDirectory.getShardId(), name);
-                decRef();
+        public void markAsDeleted() throws FileNotFoundException {
+            if (deleted.compareAndSet(false, true) == false) {
+                throw new FileNotFoundException(name);
             }
+            logger.trace("{} {} local file is marked as deleted", cacheDirectory.getShardId(), name);
+            decRefOnce();
+        }
+
+        public void markAsUploaded() {
+            if (uploaded.compareAndSet(false, true)) {
+                logger.trace("{} {} local file is marked as uploaded", cacheDirectory.getShardId(), name);
+                listener.onResponse(null);
+                decRefOnce();
+            }
+        }
+
+        /**
+         * Adds a {@link ReopeningIndexInput} that will be reopened once the local file has been uploaded to the object store
+         */
+        private void addListener(ReopeningIndexInput input) {
+            listener.addListener(ActionListener.wrap(ignored -> {
+                try {
+                    input.reopenInputFromCache();
+                } catch (IOException e) {
+                    logger.error(() -> format("{} failed to reopen {} from cache", cacheDirectory.getShardId(), input), e);
+                }
+            }, e -> {
+                assert false : e;
+                logger.warn(() -> format("{} unexpected exception when reopening {}", cacheDirectory.getShardId(), input), e);
+            }));
+        }
+
+        /**
+         * Tries to increment the refCount of the local file only if the file is not marked as uploaded yet.
+         */
+        public boolean tryIncRefNotUploaded() {
+            if (uploaded.get()) {
+                return false;
+            }
+            return tryIncRef();
         }
 
         @Override
@@ -381,12 +417,15 @@ public class IndexDirectory extends ByteSizeDirectory {
                 var size = estimatedSize.addAndGet(-length);
                 assert size >= 0L : "directory estimated size cannot be negative: " + size;
             } catch (IOException e) {
+                String lengthAsString = (length == -1L ? "unknown" : String.valueOf(length));
                 logger.warn(
-                    "{} unable to delete local file [{}] of {} bytes size from disk (the file may or may not still exist on disk),"
-                        + " directory size will probably now diverge from real directory disk usage",
-                    cacheDirectory.getShardId(),
-                    name,
-                    (length == -1L ? "unknown" : length),
+                    () -> format(
+                        "{} unable to delete local file [{}}] of {} bytes size from disk (the file may or may not still exist on disk), "
+                            + "directory size will probably now diverge from real directory disk usage",
+                        cacheDirectory.getShardId(),
+                        name,
+                        lengthAsString
+                    ),
                     e
                 );
                 throw new UncheckedIOException(e);
@@ -411,14 +450,14 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final long sliceOffset;
         private final long sliceLength;
 
+        private LinkedList<ReopeningIndexInput> clones;
         private volatile Delegate delegate;
-        private AtomicBoolean closed;
+        private boolean closed;
         private boolean clone;
         private long position;
 
         ReopeningIndexInput(String name, IOContext context, IndexInput delegate, LocalFileRef localFile) {
-            this(name, delegate.length(), context, new Delegate(name, false, delegate), localFile, null, 0L, 0L);
-            this.closed = new AtomicBoolean(false);
+            this(name, delegate.length(), context, new Delegate(name, false, delegate, localFile, false), localFile, null, 0L, 0L);
         }
 
         private ReopeningIndexInput(
@@ -444,11 +483,37 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         private static class Delegate extends FilterIndexInput {
 
+            private final LocalFileRef localFile;
+            private final AtomicBoolean closed;
             private final boolean isReopened;
+            private final boolean clone;
 
-            private Delegate(String name, boolean isReopened, IndexInput input) {
+            private Delegate(String name, boolean isReopened, IndexInput input, LocalFileRef localFile, boolean isClone) {
                 super("delegate(" + name + ')', input);
+                assert isClone == false || localFile == null;
+                assert isReopened == false || localFile == null;
+                this.closed = new AtomicBoolean(false);
                 this.isReopened = isReopened;
+                this.localFile = localFile;
+                this.clone = isClone;
+                if (localFile != null) {
+                    localFile.incRef();
+                }
+            }
+
+            @Override
+            public void close() throws IOException {
+                if (closed.compareAndSet(false, true)) {
+                    try {
+                        if (clone == false) {
+                            super.close();
+                        }
+                    } finally {
+                        if (localFile != null) {
+                            localFile.decRef();
+                        }
+                    }
+                }
             }
 
             public boolean isReopened() {
@@ -457,17 +522,53 @@ public class IndexDirectory extends ByteSizeDirectory {
 
             @Override
             public String toString() {
-                return "Delegate [isReopened=" + isReopened + ", input=" + in.getClass() + ']';
+                return "Delegate [isReopened="
+                    + isReopened
+                    + ", input="
+                    + in.getClass()
+                    + ", localFile="
+                    + localFile
+                    + ", clone="
+                    + clone
+                    + ']';
+            }
+
+            @Override
+            public IndexInput clone() {
+                throw new UnsupportedOperationException("Cloning is not supported, clone the delegate input instead");
             }
         }
 
-        @Override
-        public void close() throws IOException {
-            if (clone == false) {
-                if (closed.compareAndSet(false, true)) {
-                    delegate.close();
+        /**
+         * Executes the checked function using the local file input if the file is available on disk and not yet uploaded. Otherwise,
+         * reopens the current {@link ReopeningIndexInput} from cache and executes the checked function using the cached input.
+         */
+        private <T> T executeLocallyOrReopen(CheckedFunction<Delegate, T, IOException> fn) throws IOException {
+            var currentDelegate = delegate;
+            if (currentDelegate.isReopened()) {
+                return fn.apply(currentDelegate);
+            }
+            synchronized (this) {
+                currentDelegate = delegate;
+                if (currentDelegate.isReopened() == false) {
+                    if (localFile.tryIncRefNotUploaded()) {
+                        try {
+                            return fn.apply(currentDelegate);
+                        } finally {
+                            localFile.decRef();
+                        }
+                    }
                 }
             }
+            return fn.apply(reopenInputFromCache());
+        }
+
+        @Override
+        public synchronized void close() throws IOException {
+            if (closed == false && clone == false) {
+                delegate.close();
+            }
+            closed = true;
         }
 
         @Override
@@ -477,51 +578,34 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         @Override
         protected void seekInternal(long pos) throws IOException {
-            var currentDelegate = this.delegate;
-            if (currentDelegate.isReopened()) {
-                currentDelegate.seek(pos);
+            executeLocallyOrReopen(current -> {
+                ensureSeek(pos, current);
+                current.seek(pos);
                 position = pos;
-                return;
-            }
-            if (localFile.tryIncRef()) {
-                try {
-                    currentDelegate.seek(pos);
-                    position = pos;
-                    return;
-                } finally {
-                    localFile.decRef();
-                }
-            }
-            ensureSeek(pos, this);
-            reopenInputFromCache().seek(pos);
-            position = pos;
+                return null;
+            });
         }
 
         @Override
         public BlobCacheBufferedIndexInput clone() {
-            // Note: Lucene can clone a slice or a clone
-            var currentDelegate = this.delegate;
-            // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
-            IndexInput inputToClone = currentDelegate.getDelegate();
-            if (currentDelegate.isReopened()) {
-                assert inputToClone instanceof SearchIndexInput : toString();
-                return seekOnClone(((BlobCacheBufferedIndexInput) inputToClone).clone());
-            }
-            if (localFile.tryIncRef()) {
-                try {
-                    final var clone = (ReopeningIndexInput) super.clone();
-                    clone.delegate = new Delegate(name, false, inputToClone.clone());
-                    clone.clone = true;
-                    return clone;
-                } finally {
-                    localFile.decRef();
-                }
-            }
-
             try {
-                // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
-                return seekOnClone((BlobCacheBufferedIndexInput) reopenInputFromCache().getDelegate().clone());
+                return executeLocallyOrReopen(current -> {
+                    // We clone the actual delegate input. No need to clone our wrapper with the isReopened marker.
+                    IndexInput inputToClone = current.getDelegate();
+                    if (current.isReopened()) {
+                        assert inputToClone instanceof SearchIndexInput : toString();
+                        return seekOnClone(((BlobCacheBufferedIndexInput) inputToClone).clone());
+                    } else {
+                        final var clone = (ReopeningIndexInput) super.clone();
+                        clone.delegate = new Delegate(name, false, inputToClone.clone(), null, true);
+                        clone.clones = null;
+                        clone.clone = true;
+                        addClone(clone);
+                        return clone;
+                    }
+                });
             } catch (IOException e) {
+                assert false : e;
                 throw new UncheckedIOException(e);
             }
         }
@@ -542,85 +626,100 @@ public class IndexDirectory extends ByteSizeDirectory {
         @Override
         public IndexInput slice(String sliceDescription, long sliceOffset, long sliceLength) throws IOException {
             assert sliceDescription != null;
-            // Note: Lucene can slice a clone or a slice
-            var currentDelegate = this.delegate;
-            if (currentDelegate.isReopened()) {
-                assert currentDelegate.getDelegate() instanceof SearchIndexInput : toString();
-                return currentDelegate.slice(sliceDescription, sliceOffset, sliceLength);
-            }
-            if (localFile.tryIncRef()) {
-                try {
-                    ensureSlice(sliceDescription, sliceOffset, sliceLength, this);
+            return executeLocallyOrReopen(current -> {
+                if (current.isReopened()) {
+                    assert current.getDelegate() instanceof SearchIndexInput : toString();
+                    return current.slice(sliceDescription, sliceOffset, sliceLength);
+                } else {
+                    ensureSlice(sliceDescription, sliceOffset, sliceLength, current);
                     var slice = new ReopeningIndexInput(
                         name,
                         sliceLength,
                         context,
-                        new Delegate(name, false, currentDelegate.slice(sliceDescription, sliceOffset, sliceLength)),
+                        new Delegate(name, false, current.slice(sliceDescription, sliceOffset, sliceLength), null, true),
                         localFile,
                         sliceDescription,
                         this.sliceOffset + sliceOffset,
                         sliceLength
                     );
                     slice.clone = true;
+                    addClone(slice);
                     return slice;
-                } finally {
-                    localFile.decRef();
                 }
-            }
-            ensureSlice(sliceDescription, sliceOffset, sliceLength, this);
-            return reopenInputFromCache().slice(sliceDescription, sliceOffset, sliceLength);
+            });
         }
 
         @Override
         protected void readInternal(ByteBuffer b) throws IOException {
-            var currentDelegate = this.delegate;
-            if (currentDelegate.isReopened()) {
-                readBytes(currentDelegate, b);
-                return;
-            }
-            if (localFile.tryIncRef()) {
-                try {
-                    readBytes(currentDelegate, b);
-                    return;
-                } finally {
-                    localFile.decRef();
-                }
-            }
-            readBytes(reopenInputFromCache(), b);
+            executeLocallyOrReopen(current -> {
+                assert assertPositionMatchesFilePointer(current);
+                var len = b.remaining();
+                var offset = b.position();
+                current.readBytes(b.array(), offset, len);
+                b.position(offset + len);
+                position += len;
+                return null;
+            });
         }
 
-        private void readBytes(IndexInput in, ByteBuffer b) throws IOException {
-            assert assertPositionMatchesFilePointer(in);
-            var len = b.remaining();
-            var offset = b.position();
-            in.readBytes(b.array(), offset, len);
-            b.position(offset + len);
-            position += len;
+        private void addClone(ReopeningIndexInput clone) {
+            assert Thread.holdsLock(this);
+            assert delegate.isReopened() == false;
+            assert clone.clone;
+            if (clones == null) {
+                clones = new LinkedList<>();
+            }
+            clones.add(clone);
+        }
+
+        private void reopenClonesFromCache() throws IOException {
+            assert Thread.holdsLock(this);
+            assert delegate.isReopened() == false;
+            try {
+                if (clones != null) {
+                    for (var child : clones) {
+                        try {
+                            child.reopenInputFromCache();
+                        } catch (IOException e) {
+                            assert false : e;
+                            var finalChild = child;
+                            logger.warn(
+                                () -> format("{} failed to reopen clone from cache {}", cacheDirectory.getShardId(), finalChild),
+                                e
+                            );
+                        }
+                    }
+                }
+            } finally {
+                clones = null;
+            }
         }
 
         private synchronized Delegate reopenInputFromCache() throws IOException {
             if (delegate.isReopened() == false) {
                 try {
-                    var next = cacheDirectory.openInput(name, context);
-                    assert next instanceof SearchIndexInput : next;
-                    if (this.sliceDescription != null) {
-                        next = next.slice(this.sliceDescription, this.sliceOffset, this.sliceLength);
+                    reopenClonesFromCache();
+                    if (closed == false) {
+                        var next = cacheDirectory.openInput(name, context);
+                        assert next instanceof SearchIndexInput : next;
+                        if (this.sliceDescription != null) {
+                            next = next.slice(this.sliceDescription, this.sliceOffset, this.sliceLength);
+                        }
+                        if (position > 0L) {
+                            next.seek(position);
+                        }
+                        delegate.close();
+                        Delegate nextDelegate = new Delegate(name, true, next, null, clone);
+                        this.delegate = nextDelegate;
+                        return nextDelegate;
                     }
-                    if (position > 0L) {
-                        next.seek(position);
-                    }
-                    delegate.close();
-                    Delegate nextDelegate = new Delegate(name, true, next);
-                    this.delegate = nextDelegate;
-                    return nextDelegate;
-                } catch (Exception e) {
+                } catch (IOException e) {
                     logger.error(() -> "Failed to reopen " + this, e);
+                    assert false : e;
                     throw e;
                 }
-            } else {
-                assert delegate.isReopened() : toString();
-                return delegate;
             }
+            return delegate;
         }
 
         @Override
@@ -655,44 +754,6 @@ public class IndexDirectory extends ByteSizeDirectory {
         }
     }
 
-    private static class GenerationalDocsValuesIndexInput extends FilterIndexInput {
-
-        private final LocalFileRef localFile;
-        private final AtomicBoolean closed;
-
-        GenerationalDocsValuesIndexInput(String name, IndexInput delegate, LocalFileRef localFileRef) {
-            super("gendocsvalues(" + name + ')', delegate);
-            localFileRef.incRef();
-            this.localFile = localFileRef;
-            this.closed = new AtomicBoolean(false);
-        }
-
-        @Override
-        public void close() throws IOException {
-            try {
-                super.close();
-            } finally {
-                if (closed.compareAndSet(false, true)) {
-                    localFile.decRef();
-                }
-            }
-        }
-
-        @Override
-        public IndexInput clone() {
-            return in.clone();
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            var slice = super.slice(sliceDescription, offset, length);
-            if (localFile != null) {
-                slice = new GenerationalDocsValuesIndexInput(sliceDescription, slice, localFile);
-            }
-            return slice;
-        }
-    }
-
     private static class BytesSizeIndexOutput extends FilterIndexOutput {
 
         private final IntConsumer consumer;
@@ -713,24 +774,5 @@ public class IndexDirectory extends ByteSizeDirectory {
             super.writeBytes(b, offset, length);
             consumer.accept(length);
         }
-    }
-
-    /**
-     * Identify generational docs values files by their name (ex: "_0_1_Lucene90_0.dvd"). Those files are used to update docs values in
-     * existing segments and in Elasticsearch we use them for soft deletes. Those files are special since they can be added after the
-     * segment is created and potentially outside of a compound segment.
-     *
-     * @param fileName name of the file
-     * @return true if the file name matches a generational docs values files
-     */
-    public static boolean isGenerationalDocsValuesFile(String fileName) {
-        try {
-            return fileName.startsWith("_")
-                && IndexFileNames.matchesExtension(fileName, LuceneFilesExtensions.DVD.getExtension())
-                && IndexFileNames.parseGeneration(fileName) > 0L;
-        } catch (NumberFormatException e) {
-            // ignore
-        }
-        return false;
     }
 }

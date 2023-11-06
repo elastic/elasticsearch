@@ -21,7 +21,6 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
-import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -728,7 +727,6 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             try (var dir = Files.list(indexShard.shardPath().resolveIndex())) {
                 var files = dir.map(path -> path.getFileName().toString())
                     .filter(fileName -> fileName.equals("write.lock") == false)
-                    .filter(fileName -> IndexDirectory.isGenerationalDocsValuesFile(fileName) == false)
                     .collect(Collectors.toSet());
                 assertThat("Lucene files should have been deleted from shard but got: " + files, files.isEmpty(), is(true));
             }

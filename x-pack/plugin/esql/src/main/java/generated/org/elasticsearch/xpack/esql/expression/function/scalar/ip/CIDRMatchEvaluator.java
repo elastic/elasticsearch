@@ -40,20 +40,13 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref ipRef = ip.eval(page)) {
-      if (ipRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock ipBlock = (BytesRefBlock) ipRef.block();
       Block.Ref[] cidrsRefs = new Block.Ref[cidrs.length];
       try (Releasable cidrsRelease = Releasables.wrap(cidrsRefs)) {
         BytesRefBlock[] cidrsBlocks = new BytesRefBlock[cidrs.length];
         for (int i = 0; i < cidrsBlocks.length; i++) {
           cidrsRefs[i] = cidrs[i].eval(page);
-          Block block = cidrsRefs[i].block();
-          if (block.areAllValuesNull()) {
-            return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-          }
-          cidrsBlocks[i] = (BytesRefBlock) block;
+          cidrsBlocks[i] = (BytesRefBlock) cidrsRefs[i].block();
         }
         BytesRefVector ipVector = ipBlock.asVector();
         if (ipVector == null) {
@@ -72,7 +65,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock ipBlock, BytesRefBlock[] cidrsBlocks) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       BytesRef[] cidrsValues = new BytesRef[cidrs.length];
       BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
@@ -103,7 +96,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
 
   public BooleanVector eval(int positionCount, BytesRefVector ipVector,
       BytesRefVector[] cidrsVectors) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       BytesRef[] cidrsValues = new BytesRef[cidrs.length];
       BytesRef[] cidrsScratch = new BytesRef[cidrs.length];
@@ -129,5 +122,28 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   @Override
   public void close() {
     Releasables.closeExpectNoException(ip, () -> Releasables.close(cidrs));
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory ip;
+
+    private final EvalOperator.ExpressionEvaluator.Factory[] cidrs;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory ip,
+        EvalOperator.ExpressionEvaluator.Factory[] cidrs) {
+      this.ip = ip;
+      this.cidrs = cidrs;
+    }
+
+    @Override
+    public CIDRMatchEvaluator get(DriverContext context) {
+      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new CIDRMatchEvaluator(ip.get(context), cidrs, context);
+    }
+
+    @Override
+    public String toString() {
+      return "CIDRMatchEvaluator[" + "ip=" + ip + ", cidrs=" + Arrays.toString(cidrs) + "]";
+    }
   }
 }

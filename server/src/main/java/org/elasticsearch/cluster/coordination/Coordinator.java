@@ -211,7 +211,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         Reconfigurator reconfigurator,
         LeaderHeartbeatService leaderHeartbeatService,
         PreVoteCollector.Factory preVoteCollectorFactory,
-        CompatibilityVersions compatibilityVersions
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -236,7 +237,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             circuitBreakerService,
             reconfigurator::maybeReconfigureAfterNewMasterIsElected,
             this::getLatestStoredStateAfterWinningAnElection,
-            compatibilityVersions
+            compatibilityVersions,
+            features
         );
         this.joinValidationService = new JoinValidationService(
             settings,
@@ -414,10 +416,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     private void onClusterStateApplied() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-        if (getMode() != Mode.CANDIDATE) {
-            joinHelper.onClusterStateApplied();
-            closeElectionScheduler();
-            peerFinder.closePeers();
+        synchronized (mutex) {
+            if (mode != Mode.CANDIDATE) {
+                joinHelper.onClusterStateApplied();
+                closeElectionScheduler();
+                peerFinder.closePeers();
+            }
         }
         if (getLocalNode().isMasterNode()) {
             joinReasonService.onClusterStateApplied(applierState.nodes());
@@ -774,7 +778,12 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     && optionalJoin.stream().allMatch(j -> j.getTerm() <= getCurrentTerm());
 
                 optionalJoin.ifPresent(this::handleJoin);
-                joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinRequest.getCompatibilityVersions(), joinListener);
+                joinAccumulator.handleJoinRequest(
+                    joinRequest.getSourceNode(),
+                    joinRequest.getCompatibilityVersions(),
+                    joinRequest.getFeatures(),
+                    joinListener
+                );
 
                 if (prevElectionWon == false && coordState.electionWon()) {
                     becomeLeader();

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-starts_with]]
 === `STARTS_WITH`
 [.text-center]

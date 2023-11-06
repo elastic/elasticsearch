@@ -248,7 +248,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected SearchResponse searchStoredProgress(String jobId) {
         String docId = StoredProgress.documentId(jobId);
-        return client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
+        return prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
     }
 
     protected void assertExactlyOneInferenceModelPersisted(String jobId) {
@@ -260,9 +260,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     private void assertInferenceModelPersisted(String jobId, Matcher<? super Integer> modelHitsArraySizeMatcher) {
-        SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
-            .get();
+        SearchResponse searchResponse = prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME).setQuery(
+            QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId))
+        ).get();
         // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
         // were persisted as there is no way currently for the process to be certain the model was persisted.
         assertThat(
@@ -294,23 +294,20 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected String getModelId(String jobId) {
-        SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
-            .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
-            .get();
+        SearchResponse searchResponse = prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME).setQuery(
+            QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId))
+        ).get();
         assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
         return searchResponse.getHits().getHits()[0].getId();
 
     }
 
     protected TrainedModelMetadata getModelMetadata(String modelId) {
-        SearchResponse response = client().prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-            .setQuery(
-                QueryBuilders.boolQuery()
-                    .filter(QueryBuilders.termQuery("model_id", modelId))
-                    .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelMetadata.NAME))
-            )
-            .setSize(1)
-            .get();
+        SearchResponse response = prepareSearch(InferenceIndexConstants.INDEX_PATTERN).setQuery(
+            QueryBuilders.boolQuery()
+                .filter(QueryBuilders.termQuery("model_id", modelId))
+                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelMetadata.NAME))
+        ).setSize(1).get();
 
         assertThat(response.getHits().getHits(), arrayWithSize(1));
         try (
@@ -364,7 +361,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected static Set<String> getTrainingRowsIds(String index) {
         Set<String> trainingRowsIds = new HashSet<>();
-        SearchResponse hits = client().prepareSearch(index).setSize(10000).get();
+        SearchResponse hits = prepareSearch(index).setSize(10000).get();
         for (SearchHit hit : hits.getHits()) {
             Map<String, Object> sourceAsMap = hit.getSourceAsMap();
             assertThat(sourceAsMap.containsKey("ml"), is(true));
@@ -381,9 +378,9 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static void assertModelStatePersisted(String stateDocId) {
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
-            .get();
+        SearchResponse searchResponse = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+            QueryBuilders.idsQuery().addIds(stateDocId)
+        ).get();
         assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), is(arrayWithSize(1)));
     }
 

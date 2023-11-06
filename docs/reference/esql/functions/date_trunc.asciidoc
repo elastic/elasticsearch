@@ -1,3 +1,4 @@
+[discrete]
 [[esql-date_trunc]]
 === `DATE_TRUNC`
 Rounds down a date to the closest interval. Intervals can be expressed using the

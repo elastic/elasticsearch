@@ -35,27 +35,21 @@ import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusA
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.TransportPostFeatureUpgradeAction;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateNodeRemovalAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.TransportPrevalidateShardPathAction;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
@@ -288,6 +282,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.RestGetHealthAction;
@@ -670,13 +665,13 @@ public class ActionModule extends AbstractModule {
         }
         ActionRegistry actions = new ActionRegistry();
 
-        actions.register(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class);
-        actions.register(RemoteInfoAction.INSTANCE, TransportRemoteInfoAction.class);
-        actions.register(RemoteClusterNodesAction.INSTANCE, RemoteClusterNodesAction.TransportAction.class);
-        actions.register(NodesStatsAction.INSTANCE, TransportNodesStatsAction.class);
-        actions.register(NodesUsageAction.INSTANCE, TransportNodesUsageAction.class);
-        actions.register(NodesHotThreadsAction.INSTANCE, TransportNodesHotThreadsAction.class);
-        actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
+        actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
+        actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
+        actions.register(RemoteClusterNodesAction.TYPE, RemoteClusterNodesAction.TransportAction.class);
+        actions.register(TransportNodesStatsAction.TYPE, TransportNodesStatsAction.class);
+        actions.register(TransportNodesUsageAction.TYPE, TransportNodesUsageAction.class);
+        actions.register(TransportNodesHotThreadsAction.TYPE, TransportNodesHotThreadsAction.class);
+        actions.register(TransportListTasksAction.TYPE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
         actions.register(GetHealthAction.INSTANCE, GetHealthAction.LocalAction.class);
@@ -863,7 +858,7 @@ public class ActionModule extends AbstractModule {
         return new ActionFilters(Set.copyOf(finalFilters));
     }
 
-    public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster) {
+    public void initRestHandlers(Supplier<DiscoveryNodes> nodesInCluster, Predicate<NodeFeature> clusterSupportsFeature) {
         List<AbstractCatAction> catActions = new ArrayList<>();
         Predicate<AbstractCatAction> catActionsFilter = restExtension.getCatActionsFilter();
         Predicate<RestHandler> restFilter = restExtension.getActionsFilter();
@@ -895,7 +890,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
-        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter, nodesInCluster));
+        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter, clusterSupportsFeature));
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());

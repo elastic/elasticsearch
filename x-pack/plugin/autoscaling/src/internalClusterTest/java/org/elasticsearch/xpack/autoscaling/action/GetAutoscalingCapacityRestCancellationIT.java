@@ -85,7 +85,8 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
             Cancellable cancellable = restClient.performRequestAsync(getCapacityRequest, wrapAsRestResponseListener(cancelledFuture));
             LocalStateAutoscaling.AutoscalingTestPlugin plugin = internalCluster().getAnyMasterNodeInstance(PluginsService.class)
                 .filterPlugins(LocalStateAutoscaling.class)
-                .get(0)
+                .findFirst()
+                .get()
                 .testPlugin();
             plugin.syncWithDeciderService(() -> {
                 putAutoscalingPolicy(Map.of(AutoscalingCountTestDeciderService.NAME, Settings.EMPTY));

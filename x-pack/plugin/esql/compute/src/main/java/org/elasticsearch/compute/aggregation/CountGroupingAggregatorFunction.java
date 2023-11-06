@@ -61,16 +61,6 @@ public class CountGroupingAggregatorFunction implements GroupingAggregatorFuncti
     public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
         if (countAll == false) {
-            if (valuesBlock.areAllValuesNull()) {
-                state.enableGroupIdTracking(seenGroupIds);
-                return new AddInput() { // TODO return null meaning "don't collect me" and skip those
-                    @Override
-                    public void add(int positionOffset, IntBlock groupIds) {}
-
-                    @Override
-                    public void add(int positionOffset, IntVector groupIds) {}
-                };
-            }
             Vector valuesVector = valuesBlock.asVector();
             if (valuesVector == null) {
                 if (valuesBlock.mayHaveNulls()) {

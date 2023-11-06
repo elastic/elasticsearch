@@ -1,0 +1,43 @@
+[[esql-functions-operators]]
+=== {esql} functions and operators
+
+++++
+<titleabbrev>Functions and operators</titleabbrev>
+++++
+
+{esql} provides a comprehensive set of functions and operators for working with data.
+The functions are divided into the following categories:
+
+[[esql-functions]]
+<<esql-agg-functions>>::
+include::functions/aggregation-functions.asciidoc[tag=agg_list]
+
+<<esql-math-functions>>::
+include::functions/math-functions.asciidoc[tag=math_list]
+
+<<esql-string-functions>>::
+include::functions/string-functions.asciidoc[tag=string_list]
+
+<<esql-date-time-functions>>::
+include::functions/date-time-functions.asciidoc[tag=date_list]
+
+<<esql-type-conversion-functions>>::
+include::functions/type-conversion-functions.asciidoc[tag=type_list]
+
+<<esql-conditional-functions-and-expressions>>::
+include::functions/conditional-functions-and-expressions.asciidoc[tag=cond_list]
+
+<<esql-mv-functions>>::
+include::functions/mv-functions.asciidoc[tag=mv_list]
+
+<<esql-operators>>::
+include::functions/operators.asciidoc[tag=op_list]
+
+include::functions/aggregation-functions.asciidoc[]
+include::functions/math-functions.asciidoc[]
+include::functions/string-functions.asciidoc[]
+include::functions/date-time-functions.asciidoc[]
+include::functions/type-conversion-functions.asciidoc[]
+include::functions/conditional-functions-and-expressions.asciidoc[]
+include::functions/mv-functions.asciidoc[]
+include::functions/operators.asciidoc[]

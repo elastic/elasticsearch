@@ -67,8 +67,7 @@ public class DfsProfilerIT extends ESIntegTestCase {
         for (int i = 0; i < iters; i++) {
             QueryBuilder q = randomQueryBuilder(List.of(textField), List.of(numericField), numDocs, 3);
             logger.info("Query: {}", q);
-            SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
+            SearchResponse resp = prepareSearch().setQuery(q)
                 .setTrackTotalHits(true)
                 .setProfile(true)
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)

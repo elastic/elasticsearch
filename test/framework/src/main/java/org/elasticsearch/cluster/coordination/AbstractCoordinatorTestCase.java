@@ -18,7 +18,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.History;
+import org.elasticsearch.cluster.coordination.LinearizabilityChecker.LinearizabilityCheckAborted;
 import org.elasticsearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -76,7 +76,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.DisruptableMockTransport;
@@ -104,9 +103,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -748,22 +744,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             );
 
             logger.info("checking linearizability of history with size {}: {}", history.size(), history);
-            final AtomicBoolean abort = new AtomicBoolean();
-            // Large histories can be problematic and have the linearizability checker run OOM
-            // Bound the time how long the checker can run on such histories (Values empirically determined)
-            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
             try {
-                if (history.size() > 300) {
-                    scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
-                }
-                final boolean linearizable = LinearizabilityChecker.isLinearizable(spec, history, i -> null, abort::get);
-                if (abort.get() == false) {
-                    assertTrue("history not linearizable: " + history, linearizable);
-                }
-            } finally {
-                ThreadPool.terminate(scheduler, 1, TimeUnit.SECONDS);
+                final boolean linearizable = LinearizabilityChecker.isLinearizable(spec, history, i -> null);
+                assertTrue("history is not linearizable: " + history, linearizable);
+            } catch (LinearizabilityCheckAborted e) {
+                logger.warn("linearizability check check was aborted", e);
             }
-            logger.info("linearizability check completed");
         }
 
         void bootstrapIfNecessary() {
@@ -955,8 +941,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return 0;
         }
 
-        public class ClusterNode {
-            private final Logger logger = LogManager.getLogger(ClusterNode.class);
+        public final class ClusterNode {
+            private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
             Coordinator coordinator;
@@ -976,7 +962,6 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             private ClearableRecycler clearableRecycler;
             private List<Runnable> blackholedRegisterOperations = new ArrayList<>();
 
-            @SuppressWarnings("this-escape")
             ClusterNode(int nodeIndex, boolean masterEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
                     nodeIndex,
@@ -1166,7 +1151,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     coordinationServices.getReconfigurator(),
                     coordinationServices.getLeaderHeartbeatService(),
                     coordinationServices.getPreVoteCollectorFactory(),
-                    CompatibilityVersionsUtils.staticCurrent()
+                    CompatibilityVersionsUtils.staticCurrent(),
+                    Set.of()
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,
@@ -1176,7 +1162,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 );
                 client.initialize(
                     Map.of(
-                        NodesHotThreadsAction.INSTANCE,
+                        TransportNodesHotThreadsAction.TYPE,
                         new TransportNodesHotThreadsAction(threadPool, clusterService, transportService, new ActionFilters(emptySet())),
                         MasterHistoryAction.INSTANCE,
                         new MasterHistoryAction.TransportAction(transportService, new ActionFilters(Set.of()), masterHistoryService),
@@ -2255,7 +2241,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             try {
                 delegate.close();
             } catch (IOException e) {
-                throw new AssertionError("unexpected", e);
+                fail(e);
             }
         }
 

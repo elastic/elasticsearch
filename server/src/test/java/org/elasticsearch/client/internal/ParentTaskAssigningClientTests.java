@@ -36,6 +36,8 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             }
         };
         try (ParentTaskAssigningClient client = new ParentTaskAssigningClient(mock, parentTaskId[0])) {
+            assertEquals(parentTaskId[0], client.getParentTask());
+
             // All of these should have the parentTaskId set
             client.bulk(new BulkRequest());
             client.search(new SearchRequest());

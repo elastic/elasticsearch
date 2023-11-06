@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -64,37 +63,26 @@ public class SpatialQueryStringIT extends ESIntegTestCase {
         );
         // nothing matches
         indexRandom(true, false, reqs);
-        SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("foo")).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("foo")), 0L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("\"2015/09/02\"")), 0L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 OR 1.8")), 0L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)")).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)")), 0L);
 
         Exception e = expectThrows(
             Exception.class,
-            () -> client().prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("geo_shape")).get()
+            () -> prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("geo_shape")).get()
         );
         assertThat(e.getCause().getMessage(), containsString("Field [geo_shape] of type [geo_shape] does not support match queries"));
 
-        e = expectThrows(
-            Exception.class,
-            () -> client().prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("shape")).get()
-        );
+        e = expectThrows(Exception.class, () -> prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("shape")).get());
         assertThat(e.getCause().getMessage(), containsString("Field [shape] of type [shape] does not support match queries"));
 
-        e = expectThrows(
-            Exception.class,
-            () -> client().prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("point")).get()
-        );
+        e = expectThrows(Exception.class, () -> prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("point")).get());
         assertThat(e.getCause().getMessage(), containsString("Field [point] of type [point] does not support match queries"));
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("*shape")).get();
-        assertHitCount(resp, 0L);
+        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("POINT(0 0)").field("*shape")), 0L);
     }
 }

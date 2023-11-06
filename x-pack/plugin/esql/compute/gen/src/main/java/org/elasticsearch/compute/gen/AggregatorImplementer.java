@@ -293,9 +293,7 @@ public class AggregatorImplementer {
     private MethodSpec addRawInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
-        builder.addStatement("$T uncastBlock = page.getBlock(channels.get(0))", BLOCK);
-        builder.beginControlFlow("if (uncastBlock.areAllValuesNull())").addStatement("return").endControlFlow();
-        builder.addStatement("$T block = ($T) uncastBlock", valueBlockType(init, combine), valueBlockType(init, combine));
+        builder.addStatement("$T block = page.getBlock(channels.get(0))", valueBlockType(init, combine));
         builder.addStatement("$T vector = block.asVector()", valueVectorType(init, combine));
         builder.beginControlFlow("if (vector != null)").addStatement("addRawVector(vector)");
         builder.nextControlFlow("else").addStatement("addRawBlock(block)").endControlFlow();
@@ -401,6 +399,12 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+        builder.addStatement("Block uncastBlock = page.getBlock(channels.get(0))");
+        builder.beginControlFlow("if (uncastBlock.areAllValuesNull())");
+        {
+            builder.addStatement("return");
+            builder.endControlFlow();
+        }
         int count = 0;
         for (var interState : intermediateState) {
             builder.addStatement(

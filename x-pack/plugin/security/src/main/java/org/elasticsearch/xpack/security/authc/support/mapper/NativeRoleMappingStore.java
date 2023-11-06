@@ -92,7 +92,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     private static final String ID_PREFIX = DOC_TYPE_ROLE_MAPPING + "_";
 
     public static final Setting<Boolean> LAST_LOAD_CACHE_ENABLED_SETTING = Setting.boolSetting(
-        "xpack.security.authc.role_mapping.last_load_cache.enabled",
+        "xpack.security.authz.store.role_mappings.last_load_cache.enabled",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Filtered
@@ -157,7 +157,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                         logger.debug("caching loaded role-mapping(s)");
                         lastLoadRef.set(mappingList);
                     }
-                    listener.onResponse(mappingList);
+                    listener.onResponse(List.copyOf(mappingList));
                 }, ex -> {
                     logger.error(
                         () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),

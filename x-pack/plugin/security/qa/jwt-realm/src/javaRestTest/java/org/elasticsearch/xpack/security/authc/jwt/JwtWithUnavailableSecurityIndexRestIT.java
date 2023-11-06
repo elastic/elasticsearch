@@ -182,7 +182,7 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
             deleteRoleMapping(roleMappingName);
 
             // Enable last load caching for next test (setting is not dynamic and requires cluster restart)
-            mutableSettingsForLastLoadCache.put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true");
+            mutableSettingsForLastLoadCache.put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true");
             cluster.restart(false);
 
             adminSecurityClient = null;

@@ -74,7 +74,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -191,7 +190,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     }
 
     public void testResolveRolesDoesNotUseLastLoadCacheWhenSecurityIndexAvailable() throws Exception {
-        final Client client = mock(Client.class, RETURNS_DEEP_STUBS);
+        final Client client = mock(Client.class);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
@@ -209,7 +208,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         doAnswerWithSearchResult(client, mapping);
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(
-            Settings.builder().put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true").build(),
+            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
             scriptService
@@ -235,7 +234,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     }
 
     public void testResolveRolesUsesLastLoadCacheWhenSecurityIndexUnavailable() throws Exception {
-        final Client client = mock(Client.class, RETURNS_DEEP_STUBS);
+        final Client client = mock(Client.class);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
@@ -253,7 +252,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         doAnswerWithSearchResult(client, mapping);
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(
-            Settings.builder().put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true").build(),
+            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
             scriptService
@@ -299,7 +298,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     }
 
     public void testResolveRolesDoesNotUseLastLoadCacheWhenSecurityIndexDoesNotExist() throws Exception {
-        final Client client = mock(Client.class, RETURNS_DEEP_STUBS);
+        final Client client = mock(Client.class);
         final ThreadPool mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(mockThreadPool);
@@ -319,7 +318,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final SecurityIndexManager securityIndex = mockHealthySecurityIndex();
 
         final NativeRoleMappingStore store = new NativeRoleMappingStore(
-            Settings.builder().put("xpack.security.authc.role_mapping.last_load_cache.enabled", "true").build(),
+            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
             client,
             securityIndex,
             scriptService

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.PrimaryTermAndGeneration;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,8 +62,7 @@ public class TransportUnpromotableShardRefreshAction extends TransportBroadcastU
         ActionListener.run(responseListener, listener -> {
             IndexShard shard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
             shard.waitForPrimaryTermAndGeneration(
-                request.getPrimaryTerm(),
-                request.getSegmentGeneration(),
+                new PrimaryTermAndGeneration(request.getPrimaryTerm(), request.getSegmentGeneration()),
                 listener.map(l -> ActionResponse.Empty.INSTANCE)
             );
         });

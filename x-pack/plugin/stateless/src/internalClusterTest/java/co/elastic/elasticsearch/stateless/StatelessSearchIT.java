@@ -21,22 +21,17 @@ import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationA
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
-import co.elastic.elasticsearch.stateless.engine.StatelessLiveVersionMapArchive;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetAction;
-import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.TransportGetFromTranslogAction;
 import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
@@ -46,14 +41,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.TimeValue;
@@ -86,7 +79,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -99,8 +91,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.getArchive;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -236,136 +226,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public void testRealTimeGet() {
-        startIndexNodes(numShards);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numShards, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
-        ensureGreen(indexName);
-        startSearchNodes(numShards * numReplicas);
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
-        ensureGreen(indexName);
-
-        var bulkRequest = client().prepareBulk();
-        int numOfIndexRequests = randomIntBetween(2, 5);
-        for (int i = 0; i < numOfIndexRequests; i++) {
-            var indexRequest = new IndexRequest(indexName).source("field", "value1");
-            if (randomBoolean()) {
-                indexRequest.id(String.valueOf(i));
-            }
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse response = bulkRequest.get();
-        assertNoFailures(response);
-
-        final AtomicInteger getFromTranslogActionsSent = new AtomicInteger();
-        final AtomicInteger shardRefreshActionsSent = new AtomicInteger();
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(TransportGetFromTranslogAction.NAME)) {
-                    getFromTranslogActionsSent.incrementAndGet();
-                } else if (action.equals(TransportShardRefreshAction.NAME)) {
-                    shardRefreshActionsSent.incrementAndGet();
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-
-        var id = randomFrom(Arrays.stream(response.getItems()).map(BulkItemResponse::getId).toList());
-
-        GetResponse getResponse = client().prepareGet().setIndex(indexName).setId(id).get();
-        assertTrue(getResponse.isExists());
-        assertThat(getFromTranslogActionsSent.get(), equalTo(1));
-        assertThat(shardRefreshActionsSent.get(), equalTo(0));
-
-        // TODO: before refreshing, check that a non-real-time get would not see the doc.
-        // Currently, that would make the test flaky, since we seem to have unexpected flushes happening in the background.
-        // getResponse = client().prepareGet().setIndex(indexName).setId(id).setRealtime(false).get();
-        // assertFalse(getResponse.isExists());
-
-        // Since we refresh, whether the get is real-time or not should not matter
-        getResponse = client().prepareGet().setIndex(indexName).setId(id).setRefresh(true).setRealtime(randomBoolean()).get();
-        assertTrue(getResponse.isExists());
-        assertThat(getFromTranslogActionsSent.get(), equalTo(1));
-        assertThat(shardRefreshActionsSent.get(), equalTo(1));
-
-        // A non realtime get, shouldn't cause any GetFromTranslogAction
-        getResponse = client().prepareGet().setIndex(indexName).setId(id).setRealtime(false).get();
-        assertTrue(getResponse.isExists());
-        assertThat(getFromTranslogActionsSent.get(), equalTo(1));
-        assertThat(shardRefreshActionsSent.get(), equalTo(1));
-
-        // Test with a doc that has also a newer value after refresh
-        assertNoFailures(client().prepareBulk().add(new UpdateRequest().index(indexName).id(id).doc("field", "value2")).get());
-        getResponse = client().prepareGet().setIndex(indexName).setId(id).get();
-        assertTrue(getResponse.isExists());
-        assertThat(getFromTranslogActionsSent.get(), equalTo(2));
-        assertThat(shardRefreshActionsSent.get(), equalTo(1));
-        assertThat(getResponse.getSource().get("field"), equalTo("value2"));
-    }
-
-    public void testRealTimeGetSerialStressTest() {
-        startIndexNode();
-        startSearchNode();
-        var indexName = "test-index";
-        createIndex(indexName, indexSettings(1, 1).build());
-        ensureGreen(indexName);
-        var docs = randomIntBetween(500, 1000);
-        for (int write = 0; write < docs; write++) {
-            if (randomBoolean()) {
-                // Parallel async refreshes randomly
-                indicesAdmin().prepareRefresh(indexName).execute(ActionListener.noop());
-            }
-            var indexResponse = client().prepareIndex(indexName).setSource("date", randomPositiveTimeValue(), "value", randomInt()).get();
-            var id = indexResponse.getId();
-            assertNotEquals(id, "");
-            var gets = randomIntBetween(20, 50);
-            for (int read = 0; read < gets; read++) {
-                var getResponse = client().prepareGet(indexName, id).setRealtime(true).get();
-                assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
-            }
-        }
-    }
-
-    public void testRealTimeGetLocalRefreshDuringUnpromotableRefresh() throws Exception {
-        var indexNode = startIndexNode();
-        startSearchNode();
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
-        ensureGreen(indexName);
-        var sendUnpromotableRefreshStarted = new CountDownLatch(1);
-        var continueSendUnpromotableRefresh = new CountDownLatch(1);
-        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
-        mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-            if (action.startsWith(TransportUnpromotableShardRefreshAction.NAME)) {
-                sendUnpromotableRefreshStarted.countDown();
-                safeAwait(continueSendUnpromotableRefresh);
-            }
-            connection.sendRequest(requestId, action, request, options);
-        });
-        indexDocs(indexName, randomIntBetween(5, 10));
-        var refreshFuture = indicesAdmin().refresh(new RefreshRequest(indexName)); // async refresh
-        var indexShard = findIndexShard(indexName);
-        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
-        var map = indexEngine.getLiveVersionMap();
-        assertTrue(isUnsafe(map));
-        // While map is unsafe and unpromotable refresh is inflight, index more
-        safeAwait(sendUnpromotableRefreshStarted);
-        var id = client().prepareIndex(indexName).setSource("field", randomIdentifier()).get().getId();
-        // Still unsafe and `id` is not in the previous commit
-        assertTrue(isUnsafe(map));
-        // Local refresh happens (sets minSafeGeneration).
-        indexEngine.refresh("local");
-        var archive = (StatelessLiveVersionMapArchive) getArchive(map);
-        assertThat(archive.getMinSafeGeneration(), equalTo(indexEngine.getCurrentGeneration() + 1));
-        // After unpromotable refresh comes back, map should still be unsafe
-        continueSendUnpromotableRefresh.countDown();
-        refreshFuture.get();
-        assertTrue(isUnsafe(map));
-        var getResponse = client().prepareGet(indexName, id).get();
-        assertTrue(getResponse.isExists());
-    }
-
     public void testGenerationalDocValues() throws Exception {
         startIndexNodes(numShards);
         startSearchNodes(numShards * numReplicas);
@@ -388,103 +248,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         flush(indexName);
         var getResponse = client().prepareGet().setIndex(indexName).setId(randomFrom(newDocIds)).setRefresh(true).setRealtime(true).get();
         assertTrue(getResponse.isExists());
-    }
-
-    public void testRealTimeMGet() {
-        startIndexNodes(numShards);
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numShards, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
-        ensureGreen(indexName);
-        startSearchNodes(numShards * numReplicas);
-        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas), indexName);
-        ensureGreen(indexName);
-
-        var bulkRequest = client().prepareBulk();
-        int numOfIndexRequests = randomIntBetween(2, 5);
-        for (int i = 0; i < numOfIndexRequests; i++) {
-            var indexRequest = new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25));
-            if (randomBoolean()) {
-                indexRequest.id(String.valueOf(i));
-            }
-            bulkRequest.add(indexRequest);
-        }
-        BulkResponse response = bulkRequest.get();
-        assertNoFailures(response);
-
-        final AtomicInteger getFromTranslogActionsSent = new AtomicInteger();
-        final AtomicInteger shardRefreshActionsSent = new AtomicInteger();
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(TransportShardMultiGetFomTranslogAction.NAME)) {
-                    getFromTranslogActionsSent.incrementAndGet();
-                } else if (action.equals(TransportShardRefreshAction.NAME)) {
-                    shardRefreshActionsSent.incrementAndGet();
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-
-        var items = randomSubsetOf(2, IntStream.range(0, numOfIndexRequests).boxed().toList());
-        var bulkResponse1 = response.getItems()[items.get(0)].getResponse();
-        var bulkResponse2 = response.getItems()[items.get(1)].getResponse();
-        // Depending on how many shards the chosen IDs cover, number of ShardRefreshAction and ShardMultiGetFomTranslogAction
-        // sent increment by this number.
-        var distinctShards = bulkResponse1.getShardId().equals(bulkResponse2.getShardId()) ? 1 : 2;
-
-        var multiGetResponse = client().prepareMultiGet().addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId()).get();
-        var multiGetResponses = multiGetResponse.getResponses();
-        assertThat(multiGetResponses.length, equalTo(2));
-        assertTrue(Arrays.stream(multiGetResponses).map(MultiGetItemResponse::getFailure).allMatch(Objects::isNull));
-        assertThat(multiGetResponses[0].getResponse().getId(), equalTo(bulkResponse1.getId()));
-        assertTrue(multiGetResponses[0].getResponse().isExists());
-        assertThat(multiGetResponses[0].getResponse().getVersion(), equalTo(bulkResponse1.getVersion()));
-        assertThat(multiGetResponses[1].getResponse().getId(), equalTo(bulkResponse2.getId()));
-        assertTrue(multiGetResponses[1].getResponse().isExists());
-        assertThat(multiGetResponses[1].getResponse().getVersion(), equalTo(bulkResponse2.getVersion()));
-        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards));
-        assertThat(shardRefreshActionsSent.get(), equalTo(0));
-
-        // Since we refresh, whether the get is real-time or not should not matter
-        multiGetResponse = client().prepareMultiGet()
-            .addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId())
-            .setRefresh(true)
-            .setRealtime(randomBoolean())
-            .get();
-        assertThat(multiGetResponse.getResponses().length, equalTo(2));
-        assertTrue(Arrays.stream(multiGetResponses).map(MultiGetItemResponse::getFailure).allMatch(Objects::isNull));
-        assertTrue(Arrays.stream(multiGetResponses).map(r -> r.getResponse().isExists()).allMatch(b -> b.equals(true)));
-        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards));
-        assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
-
-        // A non realtime get, shouldn't cause any ShardMultiGetFomTranslogAction
-        multiGetResponse = client().prepareMultiGet()
-            .addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId())
-            .setRealtime(false)
-            .get();
-        assertThat(multiGetResponse.getResponses().length, equalTo(2));
-
-        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards));
-        assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
-
-        // Test with a doc that has also a newer value after refresh
-        var updateResponse = client().prepareBulk()
-            .add(new UpdateRequest().index(indexName).id(bulkResponse1.getId()).doc("field", "value2"))
-            .get();
-        assertNoFailures(updateResponse);
-        multiGetResponse = client().prepareMultiGet().addIds(indexName, bulkResponse1.getId(), bulkResponse2.getId()).get();
-        multiGetResponses = multiGetResponse.getResponses();
-        assertThat(multiGetResponses.length, equalTo(2));
-        assertTrue(Arrays.stream(multiGetResponses).map(MultiGetItemResponse::getFailure).allMatch(Objects::isNull));
-        assertThat(multiGetResponses[0].getResponse().getId(), equalTo(bulkResponse1.getId()));
-        assertTrue(multiGetResponses[0].getResponse().isExists());
-        assertThat(multiGetResponses[0].getResponse().getVersion(), equalTo(updateResponse.getItems()[0].getResponse().getVersion()));
-        assertThat(multiGetResponses[0].getResponse().getSource().get("field"), equalTo("value2"));
-        assertThat(multiGetResponses[1].getResponse().getId(), equalTo(bulkResponse2.getId()));
-        assertTrue(multiGetResponses[1].getResponse().isExists());
-        assertThat(multiGetResponses[1].getResponse().getVersion(), equalTo(bulkResponse2.getVersion()));
-        assertThat(getFromTranslogActionsSent.get(), equalTo(distinctShards * 2));
-        assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
     }
 
     public void testBulkRequestFailureWithWaitUntilRefresh() {
@@ -955,40 +718,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             IndicesRequestCacheUtils.cleanCache(indicesRequestCache);
             assertThat(Iterables.size(IndicesRequestCacheUtils.cachedKeys(indicesRequestCache)), equalTo(0L));
         }
-    }
-
-    // TODO: update this IT once we have a `TransportGetFromTranslogAction` to assert Archive functionality using
-    // higher level checks.
-    public void testLiveVersionMapArchive() throws Exception {
-        startMasterOnlyNode();
-        final int numberOfShards = 1;
-        var indexNode = startIndexNode();
-        startSearchNode();
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        assertAcked(
-            prepareCreate(indexName, indexSettings(numberOfShards, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)).get()
-        );
-        ensureGreen(indexName);
-        var indicesService = internalCluster().getInstance(IndicesService.class, indexNode);
-        var shardId = new ShardId(resolveIndex(indexName), 0);
-        var indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        var indexShard = indexService.getShard(shardId.id());
-        assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-        var indexEngine = ((IndexEngine) indexShard.getEngineOrNull());
-        var map = indexEngine.getLiveVersionMap();
-        var bulkResponse = client().prepareBulk()
-            .add(new IndexRequest(indexName).id("1").source("k1", "v1"))
-            .setRefreshPolicy("false")
-            .get();
-        assertNoFailures(bulkResponse);
-        assertNotNull(get(map, "1"));
-        indexEngine.refresh("test");
-        assertNotNull(get(map, "1"));
-        // An explicit refresh would also flush
-        client().admin().indices().refresh(new RefreshRequest(indexName)).get();
-        // For now use assertBusy to wait for the flush to get propagated to the unpromotables
-        // TODO: replace if this part stays the same when updating the test
-        assertBusy(() -> assertNull(get(map, "1")));
     }
 
     public void testIndexSort() {

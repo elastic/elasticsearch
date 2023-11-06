@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.engine.CompletionStatsCache;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
 import org.elasticsearch.index.engine.Engine;
@@ -55,6 +56,7 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Comparator;
@@ -88,14 +90,15 @@ import java.util.stream.Collectors;
 public class SearchEngine extends Engine {
     private static final long SEARCH_IDLE_TIME = TimeUnit.SECONDS.toMillis(30L);
 
-    private final Map<Long, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections.newConcurrentMap();
+    private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
+        .newConcurrentMap();
     private final LinkedBlockingQueue<StatelessCompoundCommit> commitNotifications = new LinkedBlockingQueue<>();
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
 
     private volatile SegmentInfos segmentInfos;
-    private volatile long currentGeneration;
+    private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
 
@@ -167,7 +170,7 @@ public class SearchEngine extends Engine {
                 }
             };
             this.segmentInfos = store.readLastCommittedSegmentsInfo();
-            this.currentGeneration = segmentInfos.getGeneration();
+            this.currentPrimaryTermGeneration = new PrimaryTermAndGeneration(primaryTerm(segmentInfos), segmentInfos.getGeneration());
             this.setSequenceNumbers(segmentInfos);
             this.readerManager = readerManager;
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
@@ -189,9 +192,9 @@ public class SearchEngine extends Engine {
         openReaders.put(directoryReader, new OpenReaderInfo(new PrimaryTermAndGeneration(primaryTerm, generation), commit.getFileNames()));
     }
 
-    long getCurrentGeneration() {
-        assert this.currentGeneration > 0 : currentGeneration;
-        return this.currentGeneration;
+    PrimaryTermAndGeneration getCurrentPrimaryTermAndGeneration() {
+        assert this.currentPrimaryTermGeneration.generation() > 0 : currentPrimaryTermGeneration;
+        return this.currentPrimaryTermGeneration;
     }
 
     // visible for testing
@@ -204,7 +207,7 @@ public class SearchEngine extends Engine {
     }
 
     public void onCommitNotification(StatelessCompoundCommit commit, ActionListener<Void> listener) {
-        if (addOrExecuteSegmentGenerationListener(commit.generation(), listener.map(g -> null))) {
+        if (addOrExecuteSegmentGenerationListener(commit.primaryTermAndGeneration(), listener.map(g -> null))) {
             commitNotifications.add(commit);
             if (pendingCommitNotifications.incrementAndGet() == 1) {
                 processCommitNotifications();
@@ -227,13 +230,19 @@ public class SearchEngine extends Engine {
                 assert batchSize > 0 : batchSize;
 
                 final SegmentInfos current = segmentInfos;
-                assert current.getGeneration() == currentGeneration
+                assert current.getGeneration() == currentPrimaryTermGeneration.generation()
                     : "segment info generation ["
                         + current.getGeneration()
                         + "] not in sync with current generation ["
-                        + currentGeneration
+                        + currentPrimaryTermGeneration
                         + "]";
-                StatelessCompoundCommit latestCommit = findLatestCommit(directory, current);
+                assert primaryTerm(current) == currentPrimaryTermGeneration.primaryTerm()
+                    : Strings.format(
+                        "segment info primary term [%d] not in sync with current primary term [%s]",
+                        primaryTerm(current),
+                        currentPrimaryTermGeneration
+                    );
+                StatelessCompoundCommit latestCommit = findLatestCommit(current);
                 if (latestCommit == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
                     // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
@@ -295,9 +304,9 @@ public class SearchEngine extends Engine {
                 }
             }
 
-            private StatelessCompoundCommit findLatestCommit(SearchDirectory directory, SegmentInfos current) throws IOException {
+            private StatelessCompoundCommit findLatestCommit(SegmentInfos current) throws IOException {
                 PrimaryTermAndGeneration currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
-                    directory.getPrimaryTerm(current.getSegmentsFileName()).orElse(-1),
+                    primaryTerm(current),
                     current.getGeneration()
                 );
                 StatelessCompoundCommit latestCommit = null;
@@ -340,7 +349,7 @@ public class SearchEngine extends Engine {
                 readerManager.maybeRefreshBlocking();
 
                 // must be after refresh for `addOrExecuteSegmentGenerationListener to work.
-                currentGeneration = segmentInfos.getGeneration();
+                currentPrimaryTermGeneration = new PrimaryTermAndGeneration(primaryTerm(segmentInfos), segmentInfos.getGeneration());
 
                 var reader = readerManager.acquire();
                 try {
@@ -349,13 +358,15 @@ public class SearchEngine extends Engine {
                         openReaders.values().stream().flatMap(openReaderInfo -> openReaderInfo.files().stream()).collect(Collectors.toSet())
                     );
                     logger.debug("segments updated from generation [{}] to [{}]", current.getGeneration(), next.getGeneration());
-                    callSegmentGenerationListeners(reader.getIndexCommit().getGeneration());
+                    callSegmentGenerationListeners(
+                        new PrimaryTermAndGeneration(primaryTerm(reader.getIndexCommit()), reader.getIndexCommit().getGeneration())
+                    );
                 } finally {
                     readerManager.release(reader);
                 }
             }
 
-            private static boolean assertSegmentInfosAndCommits(
+            private boolean assertSegmentInfosAndCommits(
                 ElasticsearchDirectoryReader reader,
                 StatelessCompoundCommit latestCommit,
                 SegmentInfos currentSegmentInfos,
@@ -376,6 +387,21 @@ public class SearchEngine extends Engine {
                             + "] must be higher than previous generation ["
                             + currentSegmentInfos.getGeneration()
                             + ']';
+
+                    assert primaryTerm(readerCommit) == latestCommit.primaryTerm()
+                        : Strings.format(
+                            "Directory reader primary term=%d doesn't match latest commit primary term=%d",
+                            primaryTerm(readerCommit),
+                            latestCommit.primaryTerm()
+                        );
+                    assert primaryTerm(readerCommit) != Engine.UNKNOWN_PRIMARY_TERM : "Directory reader primary term is not known";
+                    assert primaryTerm(nextSegmentInfos) != Engine.UNKNOWN_PRIMARY_TERM : "SegmentInfos primary term is not known";
+                    assert primaryTerm(readerCommit) == primaryTerm(nextSegmentInfos)
+                        : Strings.format(
+                            "Directory reader primary term=%d doesn't match latest SegmentInfos primary term=%d",
+                            primaryTerm(readerCommit),
+                            primaryTerm(nextSegmentInfos)
+                        );
                 } catch (IOException ioe) {
                     assert false : ioe;
                 }
@@ -726,7 +752,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
-        addOrExecuteSegmentGenerationListener(minGeneration, listener);
+        addOrExecuteSegmentGenerationListener(new PrimaryTermAndGeneration(minPrimaryTerm, minGeneration), listener);
     }
 
     /**
@@ -735,31 +761,32 @@ public class SearchEngine extends Engine {
      * the shard is already on a newer segment generation the listener is completed immediately and the method returns false. Otherwise the
      * listener is kept around for future completion and the method returns true.
      *
-     * @param minGeneration the minimum segment generation to listen to
+     * @param minPrimaryTermGeneration the minimum primary term and segment generation to listen to
      * @param listener the listener
      * @return true if the listener has been registered successfully, false if the listener has been executed immediately
      *
      * @throws AlreadyClosedException if the engine is closed
      */
-    private boolean addOrExecuteSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+    boolean addOrExecuteSegmentGenerationListener(PrimaryTermAndGeneration minPrimaryTermGeneration, ActionListener<Long> listener) {
         try {
             ensureOpen();
             // check current state first - not strictly necessary, but a little more efficient than what happens next
-            final long preFlightGeneration = getCurrentGeneration();
-            if (preFlightGeneration >= minGeneration) {
-                listener.onResponse(preFlightGeneration);
+            final PrimaryTermAndGeneration preFlightTermGeneration = getCurrentPrimaryTermAndGeneration();
+            if (preFlightTermGeneration.compareTo(minPrimaryTermGeneration) >= 0) {
+                listener.onResponse(preFlightTermGeneration.generation());
                 return false;
             }
 
             // register this listener before checking current state again
-            segmentGenerationListeners.computeIfAbsent(minGeneration, ignored -> new SubscribableListener<>()).addListener(listener);
+            segmentGenerationListeners.computeIfAbsent(minPrimaryTermGeneration, ignored -> new SubscribableListener<>())
+                .addListener(listener);
 
             // current state may have moved forwards in the meantime, in which case we must undo what we just did
-            final long currentGeneration = getCurrentGeneration();
-            if (currentGeneration >= minGeneration) {
-                final var listeners = segmentGenerationListeners.remove(minGeneration);
+            final PrimaryTermAndGeneration currentTermGeneration = getCurrentPrimaryTermAndGeneration();
+            if (currentTermGeneration.compareTo(minPrimaryTermGeneration) >= 0) {
+                final var listeners = segmentGenerationListeners.remove(minPrimaryTermGeneration);
                 if (listeners != null) {
-                    listeners.onResponse(currentGeneration);
+                    listeners.onResponse(currentTermGeneration.generation());
                 } // else someone else executed it for us.
                 return false;
             }
@@ -770,14 +797,26 @@ public class SearchEngine extends Engine {
         }
     }
 
-    private void callSegmentGenerationListeners(long currentGen) {
+    private long primaryTerm(SegmentInfos segmentInfos) throws FileNotFoundException {
+        return primaryTerm(segmentInfos.getSegmentsFileName());
+    }
+
+    private long primaryTerm(IndexCommit indexCommit) throws FileNotFoundException {
+        return primaryTerm(indexCommit.getSegmentsFileName());
+    }
+
+    private long primaryTerm(String segmentsFileName) throws FileNotFoundException {
+        return directory.getPrimaryTerm(segmentsFileName).orElse(UNKNOWN_PRIMARY_TERM);
+    }
+
+    private void callSegmentGenerationListeners(PrimaryTermAndGeneration currentTermGen) {
         final var iterator = segmentGenerationListeners.entrySet().iterator();
         while (iterator.hasNext()) {
             var entry = iterator.next();
-            if (entry.getKey() <= currentGen) {
+            if (entry.getKey().compareTo(currentTermGen) <= 0) {
                 iterator.remove();
                 try {
-                    entry.getValue().onResponse(currentGen);
+                    entry.getValue().onResponse(currentTermGen.generation());
                 } catch (Exception e) {
                     logger.warn(() -> "segment generation listener [" + entry.getKey() + "] failed", e);
                     assert false : e;

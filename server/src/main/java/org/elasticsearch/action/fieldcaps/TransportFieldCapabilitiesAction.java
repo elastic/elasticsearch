@@ -61,6 +61,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
+import static org.elasticsearch.search.SearchService.SEARCH_PARTIAL_RESULTS_LOGGER;
 
 public class TransportFieldCapabilitiesAction extends HandledTransportAction<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public static final String ACTION_NODE_NAME = FieldCapabilitiesAction.NAME + "[n]";
@@ -331,7 +332,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // These failures have already been deduplicated, before this method was called.
         for (FieldCapabilitiesFailure failure : failures) {
             if (shouldLogException(failure.getException())) {
-                LOGGER.warn(
+                SEARCH_PARTIAL_RESULTS_LOGGER.warn(
                     "Field caps partial-results Exception for indices " + Arrays.toString(failure.getIndices()),
                     failure.getException()
                 );

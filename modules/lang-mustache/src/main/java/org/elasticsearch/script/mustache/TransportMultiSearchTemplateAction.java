@@ -8,6 +8,9 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -15,6 +18,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
@@ -28,8 +32,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.script.mustache.TransportSearchTemplateAction.convert;
+import static org.elasticsearch.search.SearchService.SEARCH_PARTIAL_RESULTS_LOGGER;
 
 public class TransportMultiSearchTemplateAction extends HandledTransportAction<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMultiSearchTemplateAction.class);
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
@@ -76,6 +83,12 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry, searchUsageHolder);
             } catch (Exception e) {
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
+                if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                    SEARCH_PARTIAL_RESULTS_LOGGER.debug(
+                        "MultiSearchTemplate convert failure for request " + Strings.toString(searchTemplateRequest),
+                        e
+                    );
+                }
                 continue;
             }
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);

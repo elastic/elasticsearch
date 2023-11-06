@@ -2,8 +2,27 @@
 [[esql-where]]
 === `WHERE`
 
-Use `WHERE` to produce a table that contains all the rows from the input table
-for which the provided condition evaluates to `true`:
+**Syntax**
+
+[source,esql]
+----
+WHERE expression
+----
+
+*Parameters*
+
+`expression`::
+A boolean expression.
+
+*Description*
+
+The `WHERE` processing command produces a table that contains all the rows from
+the input table for which the provided condition evaluates to `true`.
+
+`WHERE` supports various <<esql-functions,functions>> and
+<<esql-operators,operators>>.
+
+*Examples*
 
 [source,esql]
 ----
@@ -17,15 +36,7 @@ Which, if `still_hired` is a boolean field, can be simplified to:
 include::{esql-specs}/docs.csv-spec[tag=whereBoolean]
 ----
 
-[discrete]
-==== Operators
-
-Refer to <<esql-operators>> for an overview of the supported operators.
-
-[discrete]
-==== Functions
-`WHERE` supports various functions for calculating values. Refer to
-<<esql-functions,Functions>> for more information.
+Using a function:
 
 [source,esql]
 ----

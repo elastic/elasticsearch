@@ -86,13 +86,13 @@ public final class IndexPrivilege extends Privilege {
         "indices:data/write/index[*",
         "indices:data/write/index:op_type/create",
         "indices:data/write/bulk*",
-        "indices:data/simulate/bulk*"
+        "indices:data/write/simulate/bulk*"
     );
     private static final Automaton INDEX_AUTOMATON = patterns(
         "indices:data/write/index*",
         "indices:data/write/bulk*",
         "indices:data/write/update*",
-        "indices:data/simulate/bulk*"
+        "indices:data/write/simulate/bulk*"
     );
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", AutoPutMappingAction.NAME);

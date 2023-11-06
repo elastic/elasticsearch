@@ -45,7 +45,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95096")
     public void testScheduledEvents() throws IOException {
 
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);

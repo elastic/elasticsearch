@@ -51,6 +51,7 @@ These compute capabilities enable ES|QL to simplify user workflows in several ke
 * Use ES|QL across Kibana in Discover, Kibana Lens, and Elastic Solutions, giving you seamless workflows.
   You will be able to visualize ES|QL queries, share them with teams on dashboards or as queries,
   and use queries to create custom alerts.
+* In {security-guide}/whats-new.html[{elastic-sec}], create an {esql} rule and use {esql} to investigate events in Timeline. Use the AI Assistant to write queries, or answer questions about the {esql} query language.
 
 [role="screenshot"]
 image:images/esql/esql_kibana_discover_logs.png[ES|QL usage in Kibana Discover for Analysing Proxy Logs]

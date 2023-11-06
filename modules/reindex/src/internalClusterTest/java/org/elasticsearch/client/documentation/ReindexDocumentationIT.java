@@ -57,11 +57,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "source_index";
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }

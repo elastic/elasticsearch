@@ -1,0 +1,5 @@
+pr: 101815
+summary: Run `TransportGetAliasesAction` on local node
+area: Indices APIs
+type: enhancement
+issues: []

@@ -11,6 +11,7 @@ package org.elasticsearch.http;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -47,6 +48,14 @@ public class RestActionCancellationIT extends HttpSmokeTestCase {
 
     public void testClusterStateRestCancellation() throws Exception {
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_cluster/state"), ClusterStateAction.NAME);
+    }
+
+    public void testGetAliasesCancellation() throws Exception {
+        runRestActionCancellationTest(new Request("GET", "/_alias"), GetAliasesAction.NAME);
+    }
+
+    public void testCatAliasesCancellation() throws Exception {
+        runRestActionCancellationTest(new Request("GET", "/_cat/aliases"), GetAliasesAction.NAME);
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) throws Exception {

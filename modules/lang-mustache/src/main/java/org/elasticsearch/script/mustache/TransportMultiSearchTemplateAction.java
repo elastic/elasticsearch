@@ -8,8 +8,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -35,8 +33,6 @@ import static org.elasticsearch.script.mustache.TransportSearchTemplateAction.co
 import static org.elasticsearch.search.SearchService.SEARCH_PARTIAL_RESULTS_LOGGER;
 
 public class TransportMultiSearchTemplateAction extends HandledTransportAction<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
-
-    private static final Logger logger = LogManager.getLogger(TransportMultiSearchTemplateAction.class);
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;

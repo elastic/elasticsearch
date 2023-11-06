@@ -332,7 +332,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // These failures have already been deduplicated, before this method was called.
         for (FieldCapabilitiesFailure failure : failures) {
             if (shouldLogException(failure.getException())) {
-                SEARCH_PARTIAL_RESULTS_LOGGER.warn(
+                SEARCH_PARTIAL_RESULTS_LOGGER.debug(
                     "Field caps partial-results Exception for indices " + Arrays.toString(failure.getIndices()),
                     failure.getException()
                 );

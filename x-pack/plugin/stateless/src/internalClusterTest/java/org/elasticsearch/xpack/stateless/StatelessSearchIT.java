@@ -304,7 +304,6 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(getResponse.getSource().get("field"), equalTo("value2"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1036")
     public void testRealTimeGetSerialStressTest() {
         startIndexNode();
         startSearchNode();

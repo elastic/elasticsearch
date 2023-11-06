@@ -119,6 +119,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         return id.substring(ID_PREFIX.length());
     }
 
+    // package-private for testing
     static String getIdForName(String name) {
         return ID_PREFIX + name;
     }

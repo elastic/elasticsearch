@@ -62,15 +62,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch" or "query_then_fetch".
-     */
-    public SearchRequestBuilder setSearchType(String searchType) {
-        request.searchType(searchType);
-        return this;
-    }
-
-    /**
      * If set, will enable scrolling of the search request.
      */
     public SearchRequestBuilder setScroll(Scroll scroll) {
@@ -252,29 +243,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Sets the boost a specific index will receive when the query is executed against it.
-     *
-     * @param index      The index to apply the boost against
-     * @param indexBoost The boost to apply to the index
-     */
-    public SearchRequestBuilder addIndexBoost(String index, float indexBoost) {
-        sourceBuilder().indexBoost(index, indexBoost);
-        return this;
-    }
-
-    /**
      * The stats groups this request will be aggregated under.
      */
     public SearchRequestBuilder setStats(String... statsGroups) {
         sourceBuilder().stats(Arrays.asList(statsGroups));
-        return this;
-    }
-
-    /**
-     * The stats groups this request will be aggregated under.
-     */
-    public SearchRequestBuilder setStats(List<String> statsGroups) {
-        sourceBuilder().stats(statsGroups);
         return this;
     }
 

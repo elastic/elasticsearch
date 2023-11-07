@@ -131,6 +131,7 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
+            uploadFile.getParentFile().mkdirs();
             createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && System.getenv("BUILDKITE").equals("true")) {
                 String uploadFilePath = "build/" + uploadFile.getName();

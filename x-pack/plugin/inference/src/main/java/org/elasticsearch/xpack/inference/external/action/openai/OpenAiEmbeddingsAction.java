@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbedding
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
+import java.util.Objects;
+
 public class OpenAiEmbeddingsAction implements ExecutableAction {
 
     private final OpenAiAccount account;
@@ -28,9 +30,9 @@ public class OpenAiEmbeddingsAction implements ExecutableAction {
     private final OpenAiEmbeddingsModel model;
 
     public OpenAiEmbeddingsAction(Sender sender, OpenAiEmbeddingsModel model, ThrottlerManager throttlerManager) {
-        this.account = new OpenAiAccount(model.getServiceSettings().uri(), model.getSecretSettings().apiKey());
-        this.client = new OpenAiClient(sender, throttlerManager);
-        this.model = model;
+        this.model = Objects.requireNonNull(model);
+        this.account = new OpenAiAccount(this.model.getServiceSettings().uri(), this.model.getSecretSettings().apiKey());
+        this.client = new OpenAiClient(Objects.requireNonNull(sender), Objects.requireNonNull(throttlerManager));
     }
 
     @Override

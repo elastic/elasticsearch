@@ -16,7 +16,6 @@ import java.util.Objects;
 public record OpenAiAccount(@Nullable URI url, SecureString apiKey) {
 
     public OpenAiAccount {
-        Objects.requireNonNull(url);
         Objects.requireNonNull(apiKey);
     }
 }

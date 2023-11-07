@@ -16,10 +16,11 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.openai.OpenAiEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.huggingface.HuggingFaceElserResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -31,16 +32,15 @@ public class OpenAiClient {
     private final Sender sender;
 
     public OpenAiClient(Sender sender, ThrottlerManager throttlerManager) {
-        this.sender = sender;
-        this.throttlerManager = throttlerManager;
+        this.sender = Objects.requireNonNull(sender);
+        this.throttlerManager = Objects.requireNonNull(throttlerManager);
     }
 
     public void send(OpenAiEmbeddingsRequest request, ActionListener<InferenceResults> listener) throws IOException {
         HttpRequestBase httpRequest = request.createRequest();
         ActionListener<HttpResult> responseListener = ActionListener.wrap(response -> {
             try {
-                // TODO switch to openai response
-                listener.onResponse(HuggingFaceElserResponseEntity.fromResponse(response));
+                listener.onResponse(OpenAiEmbeddingsResponseEntity.fromResponse(response));
             } catch (Exception e) {
                 String msg = format("Failed to parse the OpenAI embeddings response for request [%s]", httpRequest.getRequestLine());
                 throttlerManager.getThrottler().warn(logger, msg, e);

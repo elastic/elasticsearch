@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class OpenAiActionCreator implements OpenAiActionVisitor {
     private final Sender sender;
@@ -20,9 +21,9 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
     private final Map<String, Object> taskSettings;
 
     public OpenAiActionCreator(Sender sender, ThrottlerManager throttlerManager, Map<String, Object> taskSettings) {
-        this.sender = sender;
-        this.throttlerManager = throttlerManager;
-        this.taskSettings = taskSettings;
+        this.sender = Objects.requireNonNull(sender);
+        this.throttlerManager = Objects.requireNonNull(throttlerManager);
+        this.taskSettings = Objects.requireNonNull(taskSettings);
     }
 
     @Override

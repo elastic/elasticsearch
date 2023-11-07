@@ -188,11 +188,6 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public Optional<Set<String>> getOutputFieldNames() {
         return Optional.of(InternalBoxplot.METRIC_NAMES);
     }

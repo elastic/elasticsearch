@@ -99,13 +99,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.
         return this;
     }
 
-    /**
-     * Get whether to wrap longitudes.
-     */
-    public boolean wrapLongitude() {
-        return wrapLongitude;
-    }
-
     @Override
     protected GeoBoundsAggregatorFactory innerBuild(
         AggregationContext context,
@@ -149,11 +142,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

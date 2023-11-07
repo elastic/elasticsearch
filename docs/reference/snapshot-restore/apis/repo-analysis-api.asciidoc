@@ -123,6 +123,14 @@ limit the bandwidth they consume.
 NOTE: This API is intended for exploratory use by humans. You should expect the
 request parameters and the response format to vary in future versions.
 
+NOTE: Different versions of {es} may perform different checks for repository
+compatibility, with newer versions typically being stricter than older ones. A
+storage system that passes repository analysis with one version of {es} may
+fail with a different version. This indicates it behaves incorrectly in ways
+that the former version did not detect. You must work with the supplier of your
+storage system to address the incompatibilities detected by the repository
+analysis API in any version of {es}.
+
 NOTE: This API may not work correctly in a mixed-version cluster.
 
 ==== Implementation details

@@ -46,11 +46,6 @@ public abstract class FilterClient extends AbstractClient {
     }
 
     @Override
-    public void close() {
-        in().close();
-    }
-
-    @Override
     protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
         Request request,

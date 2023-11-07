@@ -55,8 +55,8 @@ fields>> and <<esql-multivalued-fields,multivalued fields>>. And guidance for
 GROK>> and <<esql-enrich-data,data enrichment with ENRICH>>.
 
 <<esql-using>>::
-An overview of using the <<esql-rest>>, <<esql-kibana>>, and
-<<esql-task-management>>.
+An overview of using the <<esql-rest>>, <<esql-kibana>>,
+<<esql-elastic-security>>, and <<esql-task-management>>.
 
 <<esql-limitations>>::
 The current limitations of {esql}.

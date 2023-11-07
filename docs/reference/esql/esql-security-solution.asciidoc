@@ -15,8 +15,8 @@ questions about the {esql} query language.
 
 You can use {esql} in Timeline to filter, transform, and analyze event data
 stored in {es}. To start using {esql}, open the the **{esql}** tab. To learn
-more, refer to {security-guide}/timelines-ui.html[Investigate events in
-Timeline].
+more, refer to {security-guide}/timelines-ui.html#esql-in-timeline[Investigate
+events in Timeline].
 
 [discrete]
 [[esql-elastic-security-detection-rules]]
@@ -24,7 +24,8 @@ Timeline].
 
 Use the {esql} rule type to create detection rules using {esql} queries. The
 {esql} rule type supports aggregating and non-aggregating queries. To learn
-more, refer to {security-guide}/rules-ui-create.html[Create a detection rule].
+more, refer to {security-guide}/rules-ui-create.html#create-esql-rule[Create an
+{esql} rule].
 
 [discrete]
 [[esql-elastic-security-ai-assistant]]

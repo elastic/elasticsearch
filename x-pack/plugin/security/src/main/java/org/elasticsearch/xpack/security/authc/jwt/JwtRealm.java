@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -65,6 +66,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     private final Cache<BytesArray, ExpiringUser> jwtCache;
+    private final ThreadLocal<Tuple<SecureString, SignedJWT>> lastParsedJWTThreadLocal = ThreadLocal.withInitial(
+        () -> new Tuple<>(null, null)
+    );
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
     private final UserRoleMapper userRoleMapper;
     private final Boolean populateUserMetadata;
@@ -183,7 +187,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
-        SignedJWT signedJWT = JwtUtil.parseSignedJWT(userCredentials);
+        SignedJWT signedJWT = parseSignedJWT(userCredentials);
         if (signedJWT == null) {
             // this is not a valid JWT for ES realms, but custom realms can also consume the Bearer credentials scheme in their own format
             return null;
@@ -443,6 +447,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 .forEach(entry -> metadata.put("jwt_claim_" + entry.getKey(), entry.getValue()));
         }
         return Map.copyOf(metadata);
+    }
+
+    /**
+     * Parses a {@link SignedJWT} from the provided {@param token}.
+     * It remembers the last token parsed by the current thread and uses it in case of parsing the same token multiple times in a row.
+     */
+    private SignedJWT parseSignedJWT(SecureString token) {
+        Tuple<SecureString, SignedJWT> lastParsedJWT = lastParsedJWTThreadLocal.get();
+        if (lastParsedJWT != null && Objects.equals(token, lastParsedJWT.v1())) {
+            return lastParsedJWT.v2();
+        }
+        SignedJWT signedJWT = JwtUtil.parseSignedJWT(token);
+        lastParsedJWTThreadLocal.set(new Tuple<>(token, signedJWT));
+        return signedJWT;
     }
 
     /**

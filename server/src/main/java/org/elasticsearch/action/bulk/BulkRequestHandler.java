@@ -21,7 +21,7 @@ import java.util.function.BiConsumer;
  * Implements the low-level details of bulk request handling
  */
 public final class BulkRequestHandler {
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(BulkRequestHandler.class);
     private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
     private final BulkProcessor.Listener listener;
     private final Semaphore semaphore;
@@ -36,7 +36,6 @@ public final class BulkRequestHandler {
         int concurrentRequests
     ) {
         assert concurrentRequests >= 0;
-        this.logger = LogManager.getLogger(getClass());
         this.consumer = consumer;
         this.listener = listener;
         this.concurrentRequests = concurrentRequests;

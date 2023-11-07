@@ -127,11 +127,6 @@ public class LongRareTerms extends InternalMappedRareTerms<LongRareTerms, LongRa
     }
 
     @Override
-    protected LongRareTerms.Bucket[] createBucketsArray(int size) {
-        return new LongRareTerms.Bucket[size];
-    }
-
-    @Override
     public boolean containsTerm(SetBackedScalingCuckooFilter filter, LongRareTerms.Bucket bucket) {
         return filter.mightContain((long) bucket.getKey());
     }

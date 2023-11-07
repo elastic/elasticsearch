@@ -174,7 +174,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
     private static final Predicate<NodeAndClient> DATA_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.canContainData(
         nodeAndClient.node.settings()

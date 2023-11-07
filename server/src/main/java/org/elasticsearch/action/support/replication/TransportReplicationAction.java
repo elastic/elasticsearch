@@ -605,9 +605,8 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    public static class RetryOnReplicaException extends ElasticsearchException {
+    public static final class RetryOnReplicaException extends ElasticsearchException {
 
-        @SuppressWarnings("this-escape")
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(msg);
             setShard(shardId);

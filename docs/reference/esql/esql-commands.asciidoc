@@ -5,6 +5,7 @@
 <titleabbrev>Commands</titleabbrev>
 ++++
 
+[[esql-source-commands]]
 // tag::source_commands[]
 ==== Source commands
 
@@ -20,6 +21,7 @@ image::images/esql/source-command.svg[A source command producing a table from {e
 
 // end::source_command[]
 
+[[esql-processing-commands]]
 // tag::proc_commands[]
 ==== Processing commands
 

@@ -63,9 +63,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_CLIENT_AUTHENTICATION = "ES-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
+    private static final ThreadLocal<SecureString> latestMalformedJWTThreadLocal = new ThreadLocal<>();
 
     private final Cache<BytesArray, ExpiringUser> jwtCache;
-    private final ThreadLocal<SecureString> latestMalformedJWTThreadLocal = new ThreadLocal<>();
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
     private final UserRoleMapper userRoleMapper;
     private final Boolean populateUserMetadata;

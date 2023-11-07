@@ -194,7 +194,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             return null;
         }
 
-        // No point to fall through the realm chain if JWT parsing fails, so we throw error here on failure.
         final SignedJWT signedJWT;
         try {
             signedJWT = SignedJWT.parse(userCredentials.toString());

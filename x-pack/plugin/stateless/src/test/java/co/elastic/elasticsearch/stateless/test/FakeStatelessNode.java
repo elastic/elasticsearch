@@ -169,7 +169,7 @@ public class FakeStatelessNode implements Closeable {
 
             transport = localCloseables.add(new MockTransport());
             clusterService = localCloseables.add(ClusterServiceUtils.createClusterService(threadPool));
-            client = localCloseables.add(createClient(nodeSettings, threadPool));
+            client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
             final var sharedCacheService = new SharedBlobCacheService<FileCacheKey>(

@@ -1284,12 +1284,6 @@ public class StatelessCommitServiceTests extends ESTestCase {
                             );
                         }
                     }
-
-                    @Override
-                    public void close() {
-                        super.close();
-                        fakeSearchNode.close();
-                    }
                 };
             }
 

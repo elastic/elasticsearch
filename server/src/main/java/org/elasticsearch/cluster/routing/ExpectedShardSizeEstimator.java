@@ -43,30 +43,40 @@ public class ExpectedShardSizeEstimator {
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
-            // the worst case
-            long targetShardSize = 0;
-            final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-            final IndexMetadata sourceIndexMeta = metadata.index(mergeSourceIndex);
-            if (sourceIndexMeta != null) {
-                final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
-                    shard.id(),
-                    sourceIndexMeta,
-                    indexMetadata.getNumberOfShards()
-                );
-                final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                    if (shardIds.contains(shardRoutingTable.shardId())) {
-                        targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
-                    }
-                }
-            }
-            return targetShardSize == 0 ? defaultValue : targetShardSize;
+            return getExpectedSizeOfClonedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
         } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
             return clusterInfo.getShardSize(shard, defaultValue);
         }
+    }
+
+    private static long getExpectedSizeOfClonedShard(
+        ShardRouting shard,
+        long defaultValue,
+        IndexMetadata indexMetadata,
+        ClusterInfo clusterInfo,
+        Metadata metadata,
+        RoutingTable routingTable
+    ) {
+        // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in the worst case
+        long targetShardSize = 0;
+        final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
+        final IndexMetadata sourceIndexMetadata = metadata.index(mergeSourceIndex);
+        if (sourceIndexMetadata != null) {
+            final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
+                shard.id(),
+                sourceIndexMetadata,
+                indexMetadata.getNumberOfShards()
+            );
+            final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+                if (shardIds.contains(shardRoutingTable.shardId())) {
+                    targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
+                }
+            }
+        }
+        return targetShardSize == 0 ? defaultValue : targetShardSize;
     }
 }

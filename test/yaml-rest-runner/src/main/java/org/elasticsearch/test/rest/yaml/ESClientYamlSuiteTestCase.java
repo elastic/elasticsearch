@@ -20,6 +20,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
@@ -61,8 +62,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -162,6 +165,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             for (final String entry : blacklistAdditions) {
                 blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
             }
+            assertThatTemplatesAreLoaded();
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;
@@ -171,6 +175,26 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    /**
+     * Many YAML REST tests depend on the templates that come with Elasticsearch. However, the server will respond to requests before the
+     * templates are loaded, and there is no way for the YAML tests to block until templates are loaded. So it is possible without this
+     * check for tests to begin executing before the templates are loaded. This method waits up to 1 minute for the logs template (which
+     * is among the last to be loaded and one of the more frequently-used ones) to be loaded, and fails with an AssertionError if it is not
+     * loaded within that time.
+     * @throws Exception If the logs template cannot be found within 60 seconds.
+     */
+    private void assertThatTemplatesAreLoaded() throws Exception {
+        assertBusy(() -> {
+            int responseCode = 0;
+            try {
+                responseCode = adminClient().performRequest(new Request("GET", "_index_template/logs")).getStatusLine().getStatusCode();
+            } catch (ResponseException e) {
+                fail(e);
+            }
+            assertThat(responseCode, equalTo(200));
+        }, 60, TimeUnit.SECONDS);
     }
 
     /**

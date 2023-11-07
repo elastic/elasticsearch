@@ -135,14 +135,14 @@ public final class ExternalTestCluster extends TestCluster {
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (NodeValidationException e) {
             try {
-                IOUtils.close(wrappedClient, mockNode);
+                IOUtils.close(mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }
             throw new ElasticsearchException(e);
         } catch (Exception e) {
             try {
-                IOUtils.close(wrappedClient, mockNode);
+                IOUtils.close(mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }
@@ -182,7 +182,7 @@ public final class ExternalTestCluster extends TestCluster {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(client, node);
+        IOUtils.close(node);
     }
 
     @Override

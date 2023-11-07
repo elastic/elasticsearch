@@ -89,9 +89,6 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
-        }
         threadPool = createThreadPool();
         client = new MyMockClient(threadPool);
         securityContext = new SecurityContext(Settings.EMPTY, threadPool.getThreadContext()) {
@@ -103,7 +100,6 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
 
     @After
     public void tearDownClient() {
-        client.close();
         threadPool.shutdown();
     }
 

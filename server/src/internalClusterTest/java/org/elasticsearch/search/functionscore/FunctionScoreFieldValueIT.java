@@ -43,7 +43,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-            ).get()
+            )
         );
 
         client().prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();

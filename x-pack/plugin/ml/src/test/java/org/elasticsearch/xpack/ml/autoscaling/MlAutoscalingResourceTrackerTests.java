@@ -14,12 +14,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
@@ -34,7 +38,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingResourceTracker.MlJobRequirements;
+import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MlAutoscalingResourceTrackerTests extends ESTestCase {
 
@@ -78,6 +84,137 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(2, stats.nodes());
                 assertEquals(0, stats.minNodes());
                 assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    public void testGetMemoryAndProcessorsScaleUpGivenAwaitingLazyAssignment() throws InterruptedException {
+        long memory = 1000000000;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0"
+        );
+        String jobId = "lazy-job";
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(
+                new PersistentTasksCustomMetadata.PersistentTask<>(
+                    MlTasks.jobTaskId(jobId),
+                    MlTasks.JOB_TASK_NAME,
+                    new OpenJobAction.JobParams(jobId),
+                    1,
+                    AWAITING_LAZY_ASSIGNMENT
+                )
+            ),
+            List.of(),
+            List.of(),
+            Map.of(),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-1")
+                    .name("ml-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-2")
+                    .name("ml-2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+        when(mockTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(memory / 4);
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-1", memory, "ml-2", memory),
+                memory / 2,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(2, stats.nodes());
+                assertEquals(1, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(memory / 4, stats.extraSingleNodeModelMemoryInBytes());
+                assertEquals(memory / 4, stats.extraModelMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    public void testGetMemoryAndProcessorsScaleUpGivenAwaitingLazyAssignmentButFailed() throws InterruptedException {
+        long memory = 1000000000;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0"
+        );
+        String jobId = "lazy-job";
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(
+                new PersistentTasksCustomMetadata.PersistentTask<>(
+                    new PersistentTasksCustomMetadata.PersistentTask<>(
+                        MlTasks.jobTaskId(jobId),
+                        MlTasks.JOB_TASK_NAME,
+                        new OpenJobAction.JobParams(jobId),
+                        1,
+                        AWAITING_LAZY_ASSIGNMENT
+                    ),
+                    new JobTaskState(JobState.FAILED, 1, "a nasty bug")
+                )
+            ),
+            List.of(),
+            List.of(),
+            Map.of(),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-1")
+                    .name("ml-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-2")
+                    .name("ml-2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+        when(mockTracker.getAnomalyDetectorJobMemoryRequirement(jobId)).thenReturn(memory / 4);
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-1", memory, "ml-2", memory),
+                memory / 2,
+                10,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(2, stats.nodes());
+                assertEquals(0, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(0, stats.extraSingleNodeModelMemoryInBytes());
+                assertEquals(0, stats.extraModelMemoryInBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }
         );
@@ -897,7 +1034,6 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                     )
                 ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
             ),
-
             List.of(
                 DiscoveryNodeUtils.builder("ml-node-1")
                     .name("ml-node-name-1")

@@ -113,8 +113,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     private void assertPinnedPromotions(PinnedQueryBuilder pqb, LinkedHashSet<String> pins, int iter, int numRelevantDocs) {
         int from = randomIntBetween(0, numRelevantDocs);
         int size = randomIntBetween(10, 100);
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb)
             .setTrackTotalHits(true)
             .setSize(size)
             .setFrom(from)
@@ -194,11 +193,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExhaustiveScoring(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         long numHits = searchResponse.getHits().getTotalHits().value;
         assertThat(numHits, equalTo(2L));
@@ -232,11 +227,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExplain(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setQuery(pqb)
-            .setExplain(true)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb).setExplain(true).get();
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("1"));
@@ -280,8 +271,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         testHighlighter.field("field1");
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+        SearchResponse searchResponse = prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setQuery(pqb)
             .highlighter(testHighlighter)
             .setExplain(true)
@@ -340,11 +330,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test1", "b")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, both(hasIndex("test2")).and(hasId("a")));
@@ -384,11 +370,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test", "a")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, both(hasIndex("test")).and(hasId("b")));
@@ -446,11 +428,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test-alias", "a")
         );
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(pqb)
-            .setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH)
-            .get();
+        SearchResponse searchResponse = prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH).get();
 
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, both(hasIndex("test1")).and(hasId("b")));

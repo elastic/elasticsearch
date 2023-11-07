@@ -12,29 +12,18 @@ import com.amazonaws.util.json.Jackson;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.metric.Meter;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -45,7 +34,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -69,7 +57,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
-    private final SetOnce<Meter> meter = new SetOnce<>();
+    private final SetOnce<MeterRegistry> meterRegistry = new SetOnce<>();
     private final Settings settings;
 
     public S3RepositoryPlugin(Settings settings) {
@@ -88,29 +76,14 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meter.get());
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, meterRegistry.get());
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
-        service.set(s3Service(environment, clusterService.getSettings()));
+    public Collection<?> createComponents(PluginServices services) {
+        service.set(s3Service(services.environment(), services.clusterService().getSettings()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
-        meter.set(telemetryProvider.getMeter());
+        meterRegistry.set(services.telemetryProvider().getMeterRegistry());
         return List.of(service);
     }
 
@@ -151,6 +124,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
             S3ClientSettings.SIGNER_OVERRIDE,
             S3ClientSettings.REGION,
+            S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
+            S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,
             S3Repository.ACCESS_KEY_SETTING,
             S3Repository.SECRET_KEY_SETTING
         );
@@ -168,7 +143,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         getService().close();
     }
 
-    protected Meter getMeter() {
-        return meter.get();
+    protected MeterRegistry getMeterRegistry() {
+        return meterRegistry.get();
     }
 }

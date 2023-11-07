@@ -87,7 +87,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
-    private final LeafSlice[] leafSlices;
+    private final int maximumNumberOfSlices;
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
 
@@ -150,13 +150,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.minimumDocsPerSlice = minimumDocsPerSlice;
-        if (executor == null) {
-            this.leafSlices = null;
-        } else {
-            // we offload to the executor unconditionally, including requests that don't support concurrency
-            this.leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
-            assert this.leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
-        }
+        this.maximumNumberOfSlices = maximumNumberOfSlices;
+    }
+
+    @Override
+    protected LeafSlice[] slices(List<LeafReaderContext> leaves) {
+        // we offload to the executor unconditionally, including requests that don't support concurrency
+        LeafSlice[] leafSlices = computeSlices(getLeafContexts(), maximumNumberOfSlices, minimumDocsPerSlice);
+        assert leafSlices.length <= maximumNumberOfSlices : "more slices created than the maximum allowed";
+        return leafSlices;
     }
 
     // package private for testing
@@ -236,15 +238,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } else {
             return super.createWeight(query, scoreMode, boost);
         }
-    }
-
-    /**
-     * Returns the slices created by this {@link ContextIndexSearcher}, different from those created by the base class and
-     * returned by {@link IndexSearcher#getSlices()}. The former are used for parallelizing the collection, while the latter are used
-     * for now to parallelize rewrite (e.g. knn query rewrite)
-     */
-    final LeafSlice[] getSlicesForCollection() {
-        return leafSlices;
     }
 
     /**
@@ -346,7 +339,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (getExecutor() == null) {
             search(leafContexts, weight, firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
-        } else if (leafSlices.length == 0) {
+        }
+        LeafSlice[] leafSlices = getSlices();
+        if (leafSlices.length == 0) {
             assert leafContexts.isEmpty();
             doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));

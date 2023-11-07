@@ -122,7 +122,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("idx")
                 .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
-                .get()
         );
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
@@ -148,7 +147,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("high_card_idx")
                 .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
-                .get()
         );
         for (int i = 0; i < 100; i++) {
             builders.add(
@@ -226,7 +224,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(
             indicesAdmin().prepareCreate("sort_idx")
                 .setMapping(SINGLE_VALUED_FIELD_NAME, "type=keyword", MULTI_VALUED_FIELD_NAME, "type=keyword", "tag", "type=keyword")
-                .get()
         );
         for (int i = 1; i <= 3; i++) {
             builders.add(
@@ -533,13 +530,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
-                    .field(SINGLE_VALUED_FIELD_NAME)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            new TermsAggregationBuilder("terms").executionHint(randomExecutionHint())
+                .field(SINGLE_VALUED_FIELD_NAME)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
         assertNoFailures(response);
 
@@ -1125,13 +1120,11 @@ public class StringTermsIT extends AbstractTermsTestCase {
     }
 
     public void testIndexMetaField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx", "empty_bucket_idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
-                    .executionHint(randomExecutionHint())
-                    .field(IndexFieldMapper.NAME)
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx", "empty_bucket_idx").addAggregation(
+            new TermsAggregationBuilder("terms").collectMode(randomFrom(SubAggCollectionMode.values()))
+                .executionHint(randomExecutionHint())
+                .field(IndexFieldMapper.NAME)
+        ).get();
 
         assertNoFailures(response);
         StringTerms terms = response.getAggregations().get("terms");
@@ -1160,7 +1153,6 @@ public class StringTermsIT extends AbstractTermsTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=keyword")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,

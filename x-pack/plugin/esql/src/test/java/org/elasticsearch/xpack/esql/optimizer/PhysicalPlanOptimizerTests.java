@@ -158,7 +158,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer();
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);

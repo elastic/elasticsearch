@@ -3392,7 +3392,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             indicesAdmin().prepareCreate("index-1")
                 .setMapping("d", "type=date", "field", "type=text,store=true,term_vector=with_positions_offsets")
                 .setSettings(indexSettings(2, 0))
-                .get()
         );
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         DateFormatter formatter = DateFormatter.forPattern("strict_date_optional_time");

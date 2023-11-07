@@ -190,7 +190,6 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
     private static TestPlugin getMasterNodePlugin() {
         return internalCluster().getCurrentMasterNodeInstance(PluginsService.class)
             .filterPlugins(TestPlugin.class)
-            .stream()
             .findFirst()
             .orElseThrow(() -> new AssertionError("no plugin"));
     }
@@ -253,7 +252,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             }
         } catch (IOException e) {
-            throw new AssertionError("unexpected", e);
+            fail(e);
         }
     }
 
@@ -526,8 +525,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
                 try {
-                    final var profileResults = client().prepareSearch()
-                        .setPointInTime(new PointInTimeBuilder(pitId))
+                    final var profileResults = prepareSearch().setPointInTime(new PointInTimeBuilder(pitId))
                         .setProfile(true)
                         .get()
                         .getProfileResults();

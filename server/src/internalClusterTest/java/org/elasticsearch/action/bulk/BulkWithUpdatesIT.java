@@ -514,7 +514,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         refresh();
 
-        assertHitCount(client().prepareSearch().setSize(0), numDocs);
+        assertHitCount(prepareSearch().setSize(0), numDocs);
     }
 
     public void testFailingVersionedUpdatedOnBulk() throws Exception {

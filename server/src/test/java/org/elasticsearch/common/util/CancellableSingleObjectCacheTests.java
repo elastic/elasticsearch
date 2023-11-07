@@ -355,7 +355,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                         if (e instanceof TaskCancelledException) {
                             assertTrue(cancel);
                         } else {
-                            throw new AssertionError("unexpected", e);
+                            fail(e);
                         }
                     }));
                 });

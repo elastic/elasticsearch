@@ -141,14 +141,12 @@ public class SearchSliceIT extends ESIntegTestCase {
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias1").routing("foo"))
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias2").routing("bar"))
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("test").alias("alias3").routing("baz"))
-                    .get()
             );
-            SearchResponse sr = client().prepareSearch("alias1", "alias3").setQuery(matchAllQuery()).setSize(0).get();
+            SearchResponse sr = prepareSearch("alias1", "alias3").setQuery(matchAllQuery()).setSize(0).get();
             int numDocs = (int) sr.getHits().getTotalHits().value;
             int max = randomIntBetween(2, numShards * 3);
             int fetchSize = randomIntBetween(10, 100);
-            SearchRequestBuilder request = client().prepareSearch("alias1", "alias3")
-                .setQuery(matchAllQuery())
+            SearchRequestBuilder request = prepareSearch("alias1", "alias3").setQuery(matchAllQuery())
                 .setScroll(new Scroll(TimeValue.timeValueSeconds(10)))
                 .setSize(fetchSize)
                 .addSort(SortBuilders.fieldSort("_doc"));
@@ -277,7 +275,7 @@ public class SearchSliceIT extends ESIntegTestCase {
         setupIndex(0, 1);
         SearchPhaseExecutionException exc = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10)).get()
+            () -> prepareSearch().setQuery(matchAllQuery()).slice(new SliceBuilder("invalid_random_int", 0, 10)).get()
         );
         Throwable rootCause = findRootCause(exc);
         assertThat(rootCause.getClass(), equalTo(SearchException.class));

@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,6 +37,7 @@ import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -234,13 +236,27 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     public void testRandomTopN() {
         for (boolean asc : List.of(true, false)) {
-            int limit = randomIntBetween(1, 20);
-            List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
-            Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
-            List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
-            List<Long> outputValues = topNLong(inputValues, limit, asc, false);
-            assertThat(outputValues, equalTo(expectedValues));
+            testRandomTopN(asc, driverContext());
         }
+    }
+
+    public void testRandomTopNCranky() {
+        try {
+            testRandomTopN(randomBoolean(), crankyDriverContext());
+            logger.info("cranky didn't break us");
+        } catch (CircuitBreakingException e) {
+            logger.info("broken", e);
+            assertThat(e.getMessage(), equalTo(CrankyCircuitBreakerService.ERROR_MESSAGE));
+        }
+    }
+
+    private void testRandomTopN(boolean asc, DriverContext context) {
+        int limit = randomIntBetween(1, 20);
+        List<Long> inputValues = randomList(0, 5000, ESTestCase::randomLong);
+        Comparator<Long> comparator = asc ? naturalOrder() : reverseOrder();
+        List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
+        List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
+        assertThat(outputValues, equalTo(expectedValues));
     }
 
     public void testBasicTopN() {
@@ -267,14 +283,25 @@ public class TopNOperatorTests extends OperatorTestCase {
         assertThat(topNLong(values, 100, false, true), equalTo(Arrays.asList(null, null, 100L, 20L, 10L, 5L, 4L, 4L, 2L, 1L)));
     }
 
-    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+    private List<Long> topNLong(
+        DriverContext driverContext,
+        List<Long> inputValues,
+        int limit,
+        boolean ascendingOrder,
+        boolean nullsFirst
+    ) {
         return topNTwoColumns(
+            driverContext,
             inputValues.stream().map(v -> tuple(v, 0L)).toList(),
             limit,
             List.of(LONG, LONG),
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, ascendingOrder, nullsFirst))
         ).stream().map(Tuple::v1).toList();
+    }
+
+    private List<Long> topNLong(List<Long> inputValues, int limit, boolean ascendingOrder, boolean nullsFirst) {
+        return topNLong(driverContext(), inputValues, limit, ascendingOrder, nullsFirst);
     }
 
     public void testCompareInts() {
@@ -422,6 +449,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<Tuple<Long, Long>> values = Arrays.asList(tuple(1L, 1L), tuple(1L, 2L), tuple(null, null), tuple(null, 1L), tuple(1L, null));
         assertThat(
             topNTwoColumns(
+                driverContext(),
                 values,
                 5,
                 List.of(LONG, LONG),
@@ -432,6 +460,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         assertThat(
             topNTwoColumns(
+                driverContext(),
                 values,
                 5,
                 List.of(LONG, LONG),
@@ -442,6 +471,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         );
         assertThat(
             topNTwoColumns(
+                driverContext(),
                 values,
                 5,
                 List.of(LONG, LONG),
@@ -613,13 +643,13 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     private List<Tuple<Long, Long>> topNTwoColumns(
+        DriverContext driverContext,
         List<Tuple<Long, Long>> inputValues,
         int limit,
         List<ElementType> elementTypes,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders
     ) {
-        DriverContext driverContext = driverContext();
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
@@ -1357,11 +1387,6 @@ public class TopNOperatorTests extends OperatorTestCase {
         ) {
             op.addInput(new Page(new IntArrayVector(new int[] { 1 }, 1).asBlock()));
         }
-    }
-
-    @Override
-    protected DriverContext driverContext() { // TODO remove this when the parent uses a breaking block factory
-        return breakingDriverContext();
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

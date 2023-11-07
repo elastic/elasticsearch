@@ -66,7 +66,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
             );
 
         if (dataLoaded == false) {
-            DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
+            DataLoader.loadDatasetIntoEs(provisioningClient, this::createParser);
         }
     }
 

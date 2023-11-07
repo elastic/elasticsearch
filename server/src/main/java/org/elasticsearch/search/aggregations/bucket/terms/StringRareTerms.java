@@ -134,11 +134,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
     }
 
     @Override
-    protected StringRareTerms.Bucket[] createBucketsArray(int size) {
-        return new StringRareTerms.Bucket[size];
-    }
-
-    @Override
     public boolean containsTerm(SetBackedScalingCuckooFilter filter, StringRareTerms.Bucket bucket) {
         return filter.mightContain(bucket.termBytes);
     }

@@ -48,7 +48,7 @@ public final class RepositoriesModule {
         RecoverySettings recoverySettings,
         TelemetryProvider telemetryProvider
     ) {
-        telemetryProvider.getMeter().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
+        telemetryProvider.getMeterRegistry().registerLongCounter(METRIC_REQUESTS_COUNT, "repository request counter", "unit");
         Map<String, Repository.Factory> factories = new HashMap<>();
         factories.put(
             FsRepository.TYPE,

@@ -15,13 +15,16 @@ import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.http.HttpEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -29,11 +32,14 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
@@ -45,8 +51,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
@@ -60,6 +68,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
     protected Settings nodeSettings() {
         final Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings())
+            // for testing invalid bearer JWTs
+            .put("xpack.security.authc.anonymous.roles", "anonymous")
+            .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), randomBoolean())
             // 1st JWT realm
             .put("xpack.security.authc.realms.jwt.jwt0.order", 10)
             .put(
@@ -110,8 +121,70 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return builder.build();
     }
 
+    @Override
+    protected String configRoles() {
+        return super.configRoles() + "\n" + """
+            anonymous:
+              cluster:
+                - monitor
+            """;
+    }
+
     protected boolean addMockHttpTransport() {
         return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInvalidJWTDoesNotFallbackToAnonymousAccess() throws Exception {
+        // anonymous access works when no valid Bearer
+        {
+            Request request = new Request("GET", "/_security/_authenticate");
+            RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+            // "Bearer" token missing or blank
+            if (randomBoolean()) {
+                options.addHeader("Authorization", "Bearer    ");
+            }
+            if (randomBoolean()) {
+                options.addHeader(
+                    "ES-Client-Authentication",
+                    "SharedSecret " + randomFrom(jwt0SharedSecret, jwt1SharedSecret, jwt2SharedSecret)
+                );
+            }
+            request.setOptions(options);
+            Response response = getRestClient().performRequest(request);
+            if (response.getStatusLine().getStatusCode() == 200) {
+                HttpEntity entity = response.getEntity();
+                try (InputStream content = entity.getContent()) {
+                    XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+                    Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+                    assertThat(result.get("username"), is("_anonymous"));
+                    assertThat(result.get("roles"), instanceOf(Iterable.class));
+                    assertThat((Iterable<String>) result.get("roles"), contains("anonymous"));
+                }
+            } else {
+                throw new AssertionError(
+                    "Unexpected _authenticate response status code [" + response.getStatusLine().getStatusCode() + "]"
+                );
+            }
+        }
+        // but invalid bearer JWT doesn't permit anonymous access
+        {
+            Request request = new Request("GET", "/_security/_authenticate");
+            RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+            options.addHeader("Authorization", "Bearer obviously not a valid JWT token");
+            if (randomBoolean()) {
+                options.addHeader(
+                    "ES-Client-Authentication",
+                    "SharedSecret " + randomFrom(jwt0SharedSecret, jwt1SharedSecret, jwt2SharedSecret)
+                );
+            }
+            request.setOptions(options);
+            ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> getRestClient().performRequest(request).getStatusLine().getStatusCode()
+            );
+            assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
+        }
     }
 
     public void testAnyJwtRealmWillExtractTheToken() throws ParseException {
@@ -187,8 +260,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         // Not a JWT
         final ThreadContext threadContext1 = prepareThreadContext(null, sharedSecret);
         threadContext1.putHeader("Authorization", "Bearer " + randomAlphaOfLengthBetween(40, 60));
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> jwtRealm.token(threadContext1));
-        assertThat(e1.getMessage(), containsString("Failed to parse JWT bearer token"));
+        assertThat(jwtRealm.token(threadContext1), nullValue());
 
         // Payload is not JSON
         final SignedJWT signedJWT2 = new SignedJWT(
@@ -198,8 +270,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         );
         final ThreadContext threadContext2 = prepareThreadContext(null, sharedSecret);
         threadContext2.putHeader("Authorization", "Bearer " + signedJWT2.serialize());
-        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> jwtRealm.token(threadContext2));
-        assertThat(e2.getMessage(), containsString("Failed to parse JWT claims set"));
+        assertThat(jwtRealm.token(threadContext2), nullValue());
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.security.authc.jwt:DEBUG", reason = "failures can be very difficult to troubleshoot")
@@ -269,7 +340,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         );
         // reload settings
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
-        final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).get(0);
+        final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
         for (Plugin p : localStateSecurity.plugins()) {
             if (p instanceof Security securityPlugin) {
                 Settings.Builder newSettingsBuilder = Settings.builder().setSecureSettings(newSecureSettings);

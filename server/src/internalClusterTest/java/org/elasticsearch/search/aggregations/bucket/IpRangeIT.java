@@ -151,15 +151,13 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() {
-        SearchResponse rsp = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                AggregationBuilders.ipRange("my_range")
-                    .field("ip")
-                    .addUnboundedTo("192.168.1.0")
-                    .addRange("192.168.1.0", "192.168.1.10")
-                    .addUnboundedFrom("192.168.1.10")
-            )
-            .get();
+        SearchResponse rsp = prepareSearch("idx", "idx_unmapped").addAggregation(
+            AggregationBuilders.ipRange("my_range")
+                .field("ip")
+                .addUnboundedTo("192.168.1.0")
+                .addRange("192.168.1.0", "192.168.1.10")
+                .addUnboundedFrom("192.168.1.10")
+        ).get();
         assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());

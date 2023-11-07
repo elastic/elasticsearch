@@ -50,12 +50,9 @@ public class StoredExpressionIT extends ESIntegTestCase {
             assertThat(e.getCause().getMessage(), containsString("Failed to compile stored script [script1] using lang [expression]"));
         }
         try {
-            client().prepareSearch()
-                .setSource(
-                    new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
-                )
-                .setIndices("test")
-                .get();
+            prepareSearch().setSource(
+                new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
+            ).setIndices("test").get();
             fail("search script should have been rejected");
         } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));

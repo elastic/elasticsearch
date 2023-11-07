@@ -404,7 +404,7 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> blocking recoveries from primary (allowed failures: [{}])", allowedFailures);
         CountDownLatch corruptionCount = new CountDownLatch(allowedFailures);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, p_node);
-        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, p_node);
+        final var mockTransportService = MockTransportService.getInstance(p_node);
         for (DiscoveryNode node : clusterService.state().nodes()) {
             if (node.equals(clusterService.localNode()) == false) {
                 mockTransportService.addSendBehavior(
@@ -522,7 +522,7 @@ public class RelocationIT extends ESIntegTestCase {
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
             logger.info(" --> checking iteration {}", i);
-            assertSearchHitsWithoutFailures(client().prepareSearch().setSize(ids.size()), ids.toArray(Strings.EMPTY_ARRAY));
+            assertSearchHitsWithoutFailures(prepareSearch().setSize(ids.size()), ids.toArray(Strings.EMPTY_ARRAY));
         }
         stopped.set(true);
         for (Thread searchThread : searchThreads) {

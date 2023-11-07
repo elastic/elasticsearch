@@ -124,14 +124,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
 
-        CrankyCircuitBreakerService cranky = new CrankyCircuitBreakerService();
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, cranky).withCircuitBreaking();
-        BlockFactory blockFactory = BlockFactory.getInstance(cranky.getBreaker(CircuitBreaker.REQUEST), bigArrays);
-        DriverContext driverContext = new DriverContext(bigArrays, blockFactory);
+        DriverContext driverContext = crankyDriverContext();
 
         boolean driverStarted = false;
         try {
-            Operator operator = simple(bigArrays).get(driverContext);
+            Operator operator = simple(driverContext.bigArrays()).get(driverContext);
             driverStarted = true;
             drive(operator, input.iterator(), driverContext);
             // Either we get lucky and cranky doesn't throw and the test completes or we don't and it throws
@@ -145,7 +142,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         }
 
         // Note the lack of try/finally here - we're asserting that when the driver throws an exception we clear the breakers.
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
         assertThat(inputFactoryContext.breaker().getUsed(), equalTo(0L));
     }
 
@@ -248,7 +244,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
-                new ResultPageSinkOperator(results::add),
+                new TestResultPageSinkOperator(results::add),
                 () -> {}
             )
         ) {

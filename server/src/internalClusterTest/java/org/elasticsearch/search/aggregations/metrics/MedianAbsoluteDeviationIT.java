@@ -195,8 +195,7 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
 
     @Override
     public void testSingleValuedFieldPartiallyUnmapped() throws Exception {
-        final SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .setQuery(matchAllQuery())
+        final SearchResponse response = prepareSearch("idx", "idx_unmapped").setQuery(matchAllQuery())
             .addAggregation(randomBuilder().field("value"))
             .get();
 
@@ -475,7 +474,6 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("d", "type=long")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
 
         indexRandom(

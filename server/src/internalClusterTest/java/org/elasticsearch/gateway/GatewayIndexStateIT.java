@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -68,8 +66,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class GatewayIndexStateIT extends ESIntegTestCase {
-
-    private final Logger logger = LogManager.getLogger(GatewayIndexStateIT.class);
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -283,7 +279,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
+            assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
         }
 
         logger.info("--> closing test index...");
@@ -306,9 +302,9 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
+        assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
+            assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
         }
     }
 
@@ -548,7 +544,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertNull(
             state.metadata().persistentSettings().get("archived." + ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey())
         );
-        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()), 1L);
+        assertHitCount(prepareSearch().setQuery(matchAllQuery()), 1L);
     }
 
     public void testHalfDeletedIndexImport() throws Exception {

@@ -759,9 +759,9 @@ public class RangeIT extends ESIntegTestCase {
     public void testPartiallyUnmapped() throws Exception {
         clusterAdmin().prepareHealth("idx_unmapped").setWaitForYellowStatus().get();
 
-        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6))
-            .get();
+        SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+            range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
+        ).get();
 
         assertNoFailures(response);
 
@@ -888,7 +888,6 @@ public class RangeIT extends ESIntegTestCase {
         assertAcked(
             prepareCreate("cache_test_idx").setMapping("i", "type=integer")
                 .setSettings(Settings.builder().put("requests.cache.enable", true).put("number_of_shards", 1).put("number_of_replicas", 1))
-                .get()
         );
         indexRandom(
             true,
@@ -961,9 +960,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testFieldAlias() {
-        SearchResponse response = client().prepareSearch("old_index", "new_index")
-            .addAggregation(range("range").field("route_length_miles").addUnboundedTo(50.0).addRange(50.0, 150.0).addUnboundedFrom(150.0))
-            .get();
+        SearchResponse response = prepareSearch("old_index", "new_index").addAggregation(
+            range("range").field("route_length_miles").addUnboundedTo(50.0).addRange(50.0, 150.0).addUnboundedFrom(150.0)
+        ).get();
 
         assertNoFailures(response);
 
@@ -990,11 +989,9 @@ public class RangeIT extends ESIntegTestCase {
     }
 
     public void testFieldAliasWithMissingValue() {
-        SearchResponse response = client().prepareSearch("old_index", "new_index")
-            .addAggregation(
-                range("range").field("route_length_miles").missing(0.0).addUnboundedTo(50.0).addRange(50.0, 150.0).addUnboundedFrom(150.0)
-            )
-            .get();
+        SearchResponse response = prepareSearch("old_index", "new_index").addAggregation(
+            range("range").field("route_length_miles").missing(0.0).addUnboundedTo(50.0).addRange(50.0, 150.0).addUnboundedFrom(150.0)
+        ).get();
 
         assertNoFailures(response);
 

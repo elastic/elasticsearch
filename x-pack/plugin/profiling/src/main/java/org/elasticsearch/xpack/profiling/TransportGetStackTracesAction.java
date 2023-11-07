@@ -79,11 +79,13 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
      * K/V indices (such as profiling-stacktraces) are assumed to contain data from their creation date until the creation date
      * of the next index that is created by rollover. Due to client-side caching of K/V data we need to extend the validity period
      * of the prior index by this time. This means that for queries that cover a time period around the time when a new index has
-     * been created we will query not only the new index but also the prior one (for up to three hours by default).
+     * been created we will query not only the new index but also the prior one. The client-side parameters that influence cache duration
+     * are <code>elfInfoCacheTTL</code> for executables (default: 6 hours) and <code>traceExpirationTimeout</code> for stack
+     * traces (default: 3 hours).
      */
     public static final Setting<TimeValue> PROFILING_KV_INDEX_OVERLAP = Setting.positiveTimeSetting(
         "xpack.profiling.kv_index.overlap",
-        TimeValue.timeValueHours(3),
+        TimeValue.timeValueHours(6),
         Setting.Property.NodeScope
     );
 
@@ -124,7 +126,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
     @Override
     protected void doExecute(Task submitTask, GetStackTracesRequest request, ActionListener<GetStackTracesResponse> submitListener) {
         licenseChecker.requireSupportedLicense();
-        long start = System.nanoTime();
+        StopWatch watch = new StopWatch("getResampledIndex");
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), submitTask);
         EventsIndex mediumDownsampled = EventsIndex.MEDIUM_DOWNSAMPLED;
         client.prepareSearch(mediumDownsampled.getName())
@@ -141,7 +143,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     mediumDownsampled,
                     resampledIndex
                 );
-                log.debug("getResampledIndex took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(() -> watch.report());
                 searchEventGroupByStackTrace(client, request, resampledIndex, submitListener);
             }, e -> {
                 // All profiling-events data streams are created lazily. In a relatively empty cluster it can happen that there are so few
@@ -164,7 +166,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         EventsIndex eventsIndex,
         ActionListener<GetStackTracesResponse> submitListener
     ) {
-        long start = System.nanoTime();
+        StopWatch watch = new StopWatch("searchEventGroupByStackTrace");
         GetStackTracesResponseBuilder responseBuilder = new GetStackTracesResponseBuilder();
         responseBuilder.setSampleRate(eventsIndex.getSampleRate());
         client.prepareSearch(eventsIndex.getName())
@@ -214,7 +216,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     totalFinalCount,
                     stackTraceEvents.size()
                 );
-                log.debug("searchEventGroupByStackTrace took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(() -> watch.report());
                 if (stackTraceEvents.isEmpty() == false) {
                     responseBuilder.setStart(Instant.ofEpochMilli(minTime));
                     responseBuilder.setEnd(Instant.ofEpochMilli(maxTime));
@@ -285,7 +287,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Set<String> stackFrameIds = new ConcurrentSkipListSet<>();
         private final Set<String> executableIds = new ConcurrentSkipListSet<>();
         private final AtomicInteger totalFrames = new AtomicInteger();
-        private final long start = System.nanoTime();
+        private final StopWatch watch = new StopWatch("retrieveStackTraces");
 
         private StackTraceHandler(
             ClusterState clusterState,
@@ -332,7 +334,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                     stackFrameIds.size(),
                     executableIds.size()
                 );
-                log.debug("retrieveStackTraces took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(() -> watch.report());
                 retrieveStackTraceDetails(
                     clusterState,
                     client,
@@ -407,7 +409,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
         private final AtomicInteger expectedSlices;
-        private final long start = System.nanoTime();
+        private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
         private DetailsHandler(
             GetStackTracesResponseBuilder builder,
@@ -477,7 +479,7 @@ public class TransportGetStackTracesAction extends HandledTransportAction<GetSta
                 builder.setExecutables(executables);
                 builder.setStackFrames(stackFrames);
                 log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
-                log.debug("retrieveStackTraceDetails took [" + (System.nanoTime() - start) / 1_000_000.0d + " ms].");
+                log.debug(() -> watch.report());
                 submitListener.onResponse(builder.build());
             }
         }

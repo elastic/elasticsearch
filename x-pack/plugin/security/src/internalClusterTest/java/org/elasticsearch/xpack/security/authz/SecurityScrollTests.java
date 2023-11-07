@@ -77,8 +77,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
             docs[i] = client().prepareIndex("idx").setSource("field", "value");
         }
         indexRandom(true, docs);
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .setScroll(TimeValue.timeValueSeconds(5L))
             .setSize(randomIntBetween(1, 10))
             .get();

@@ -1,0 +1,5 @@
+pr: 101652
+summary: Fix race condition in `SnapshotsService`
+area: Snapshot/Restore
+type: bug
+issues: []

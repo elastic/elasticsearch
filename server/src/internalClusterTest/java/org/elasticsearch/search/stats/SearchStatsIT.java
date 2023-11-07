@@ -188,8 +188,7 @@ public class SearchStatsIT extends ESIntegTestCase {
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
 
         int size = scaledRandomIntBetween(1, docs);
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .setSize(size)
             .setScroll(TimeValue.timeValueMinutes(2))
             .get();

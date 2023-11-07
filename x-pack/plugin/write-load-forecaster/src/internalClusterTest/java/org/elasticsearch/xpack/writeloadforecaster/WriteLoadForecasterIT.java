@@ -164,7 +164,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
                         null
                     )
                 )
-            ).actionGet()
+            )
         );
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet());
 
@@ -208,9 +208,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
 
     private void setHasValidLicense(boolean hasValidLicense) {
         for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
-            for (var writeLoadForecasterPlugin : pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class)) {
-                writeLoadForecasterPlugin.setHasValidLicense(hasValidLicense);
-            }
+            pluginsService.filterPlugins(FakeLicenseWriteLoadForecasterPlugin.class).forEach(p -> p.setHasValidLicense(hasValidLicense));
         }
     }
 

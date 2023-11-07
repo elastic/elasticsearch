@@ -218,9 +218,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     public void testPartiallyUnmapped() throws Exception {
         for (int precision = 1; precision <= PRECISION; precision++) {
-            SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
-                .addAggregation(geohashGrid("geohashgrid").field("location").precision(precision))
-                .get();
+            SearchResponse response = prepareSearch("idx", "idx_unmapped").addAggregation(
+                geohashGrid("geohashgrid").field("location").precision(precision)
+            ).get();
 
             assertNoFailures(response);
 

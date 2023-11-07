@@ -129,7 +129,7 @@ public class DataStreamLifecycleStatsResponseTests extends AbstractWireSerializi
             assertThat(xContentMap.get("data_streams_count"), is(testInstance.getDataStreamStats().size()));
             List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) xContentMap.get("data_streams");
             if (testInstance.getDataStreamStats().isEmpty()) {
-                assertThat(dataStreams.isEmpty(), is(false));
+                assertThat(dataStreams.isEmpty(), is(true));
             } else {
                 assertThat(dataStreams.size(), is(testInstance.getDataStreamStats().size()));
                 for (int i = 0; i < dataStreams.size(); i++) {

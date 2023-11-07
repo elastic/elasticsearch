@@ -18,4 +18,9 @@ grant {
   permission java.net.SocketPermission "*", "connect";
 
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // required for fips
+  permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.keystore.type.compat";
 };

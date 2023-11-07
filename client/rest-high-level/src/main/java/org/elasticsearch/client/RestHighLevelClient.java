@@ -364,8 +364,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      */
     @Deprecated
     private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(
@@ -379,8 +378,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      */
     @Deprecated
     private <Req extends ActionRequest, Resp> Resp performRequest(
@@ -435,8 +433,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated
@@ -459,8 +456,7 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions. The Validation
-     * layer has been added to the ReST client, and requests should extend {@link Validatable} instead of {@link ActionRequest}.
+     * @deprecated If creating a new HLRC ReST API call, consider creating new actions instead of reusing server actions.
      * @return Cancellable instance that may be used to cancel the request
      */
     @Deprecated

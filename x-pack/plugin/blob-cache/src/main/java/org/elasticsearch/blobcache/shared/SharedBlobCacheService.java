@@ -311,15 +311,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         this(environment, settings, threadPool, ioExecutor, ioExecutor, blobCacheMetrics);
     }
 
-    /**
-     * @deprecated This constructor will be removed in the future, but is kept here for backward compatibility until all callers are
-     * updated.
-     */
-    @Deprecated()
-    public SharedBlobCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool, String ioExecutor) {
-        this(environment, settings, threadPool, ioExecutor, ioExecutor, BlobCacheMetrics.NOOP);
-    }
-
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
@@ -816,13 +807,15 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final RangeAvailableHandler reader,
             final RangeMissingHandler writer
         ) throws Exception {
+            // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
+            // our measurement here.
+            final long startTime = threadPool.relativeTimeInMillis();
             RangeMissingHandler writerTimingDecorator = (
                 SharedBytes.IO channel,
                 int channelPos,
                 int relativePos,
                 int length,
                 IntConsumer progressUpdater) -> {
-                var startTime = threadPool.relativeTimeInMillis();
                 writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
                 var elapsedTime = threadPool.relativeTimeInMillis() - startTime;
                 SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);

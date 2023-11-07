@@ -69,13 +69,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         var clusterInfo = createClusterInfo(
             createDiskUsage(
                 dataNodeIds,
-                nodeId -> new DiskUsage(
-                    nodeId,
-                    nodeId,
-                    "/data",
-                    diskSize,
-                    headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1)
-                )
+                nodeId -> createDiskUsage(nodeId, diskSize, headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1))
             ),
             Map.of(ClusterInfo.shardIdentifierFromRouting(new ShardId(indexMetadata.getIndex(), 0), true), shardSize)
         );
@@ -89,10 +83,6 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             expectedNodeId,
             shardSize
         );
-    }
-
-    private static Map<String, DiskUsage> createDiskUsage(Collection<String> nodeIds, Function<String, DiskUsage> diskUsageCreator) {
-        return nodeIds.stream().collect(toMap(Function.identity(), diskUsageCreator));
     }
 
     public void testAllocateToCorrectNodeAccordingToSnapshotShardInfo() {
@@ -141,13 +131,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         var clusterInfo = createClusterInfo(
             createDiskUsage(
                 dataNodeIds,
-                nodeId -> new DiskUsage(
-                    nodeId,
-                    nodeId,
-                    "/data",
-                    diskSize,
-                    headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1)
-                )
+                nodeId -> createDiskUsage(nodeId, diskSize, headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1))
             ),
             Map.of()
         );
@@ -175,6 +159,14 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertThat(shard.state(), equalTo(state));
         assertThat(shard.currentNodeId(), equalTo(nodeId));
         assertThat(shard.getExpectedShardSize(), equalTo(expectedShardSize));
+    }
+
+    private static Map<String, DiskUsage> createDiskUsage(Collection<String> nodeIds, Function<String, DiskUsage> diskUsageCreator) {
+        return nodeIds.stream().collect(toMap(Function.identity(), diskUsageCreator));
+    }
+
+    private static DiskUsage createDiskUsage(String nodeId, long totalBytes, long freeBytes) {
+        return new DiskUsage(nodeId, nodeId, "/data", totalBytes, freeBytes);
     }
 
     public void testInitializingHasExpectedSize() {

@@ -130,12 +130,14 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
+        // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
+        long memoryOverheadMb = Version.fromString(UPGRADE_FROM_VERSION).onOrBefore(Version.V_8_3_0) ? 270 : 240;
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
+        Long expectedMemoryUsage = ByteSizeValue.ofMb(memoryOverheadMb).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
             Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),

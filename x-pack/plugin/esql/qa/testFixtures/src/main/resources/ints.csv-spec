@@ -362,7 +362,7 @@ autoBucket
 // tag::auto_bucket[]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
-| EVAL bs = auto_bucket(salary, 20, 25324, 74999)
+| EVAL bs = AUTO_BUCKET(salary, 20, 25324, 74999)
 | SORT hire_date, salary
 | KEEP hire_date, salary, bs
 // end::auto_bucket[]

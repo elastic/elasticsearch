@@ -21,10 +21,14 @@ import java.util.Set;
 public class ExpectedShardSizeEstimator {
 
     public static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
-        ClusterInfo clusterInfo = allocation.clusterInfo();
-        SnapshotShardSizeInfo snapshotShardSizeInfo = allocation.snapshotShardSizeInfo();
-        Metadata metadata = allocation.metadata();
-        return getExpectedShardSize(shardRouting, defaultSize, clusterInfo, snapshotShardSizeInfo, metadata, allocation.routingTable());
+        return getExpectedShardSize(
+            shardRouting,
+            defaultSize,
+            allocation.clusterInfo(),
+            allocation.snapshotShardSizeInfo(),
+            allocation.metadata(),
+            allocation.routingTable()
+        );
     }
 
     /**

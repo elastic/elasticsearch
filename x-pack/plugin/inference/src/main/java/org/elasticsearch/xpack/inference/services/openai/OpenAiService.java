@@ -63,7 +63,14 @@ public class OpenAiService implements InferenceService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        OpenAiModel model = createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, serviceSettingsMap);
+        OpenAiModel model = createModel(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            serviceSettingsMap,
+            TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME)
+        );
 
         throwIfNotEmptyMap(config, NAME);
         throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -77,11 +84,12 @@ public class OpenAiService implements InferenceService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
+        Map<String, Object> secretSettings,
+        String failureMessage
     ) {
         return switch (taskType) {
             case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
-            default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
+            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
     }
 
@@ -91,9 +99,15 @@ public class OpenAiService implements InferenceService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        OpenAiModel model = createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, secretSettingsMap);
+        OpenAiModel model = createModel(
+            modelId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap,
+            format("Failed to parse stored model [%s], please delete and add the service again", modelId)
+        );
 
-        // TODO move to a function
         throwIfNotEmptyMap(config, NAME);
         throwIfNotEmptyMap(secrets, NAME);
         throwIfNotEmptyMap(serviceSettingsMap, NAME);

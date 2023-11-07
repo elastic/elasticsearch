@@ -36,7 +36,6 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
 
     /**
      * Parses the OpenAI json response.
-     *
      * For a request like:
      *
      * <pre>

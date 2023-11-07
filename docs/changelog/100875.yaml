@@ -1,6 +1,0 @@
-pr: 100875
-summary: Preserve subfields for unsupported types
-area: "Query Languages"
-type: bug
-issues:
- - 100869

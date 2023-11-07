@@ -36,11 +36,6 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         return singletonList(TestPersistentTasksPlugin.class);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     /**
      * Test that the {@link EnableAssignmentDecider#CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING} setting correctly
      * prevents persistent tasks to be assigned after a cluster restart.

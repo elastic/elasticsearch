@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -63,7 +62,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "my_key", enrichValues);
-        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
             factory.metadata = createMetadata("majestic", policy);
 
@@ -172,7 +172,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testUnsupportedPolicy() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy("unsupported", null, List.of("source_index"), "my_key", enrichValues);
-        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
             factory.metadata = createMetadata("majestic", policy);
 
@@ -193,7 +194,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testCompactEnrichValuesFormat() throws Exception {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
-        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "TestClient")) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
             factory.metadata = createMetadata("majestic", policy);
 
@@ -245,38 +247,38 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         enrichCache = new EnrichCache(100L);
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source_index"), "host", enrichValues);
-        try (Client client = new NoOpClient(this.getClass().getSimpleName() + "testCaching") {
-
-            @Override
-            @SuppressWarnings("unchecked")
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                assert EnrichCoordinatorProxyAction.NAME.equals(action.name());
-                var emptyResponse = new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
-                        InternalAggregations.EMPTY,
-                        new Suggest(Collections.emptyList()),
-                        new SearchProfileResults(Collections.emptyMap()),
-                        false,
-                        false,
-                        1
-                    ),
-                    "",
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                );
-                requestCounter[0]++;
-                listener.onResponse((Response) emptyResponse);
-            }
-        }) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool) {
+                @Override
+                @SuppressWarnings("unchecked")
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assert EnrichCoordinatorProxyAction.NAME.equals(action.name());
+                    var emptyResponse = new SearchResponse(
+                        new InternalSearchResponse(
+                            new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0.0f),
+                            InternalAggregations.EMPTY,
+                            new Suggest(Collections.emptyList()),
+                            new SearchProfileResults(Collections.emptyMap()),
+                            false,
+                            false,
+                            1
+                        ),
+                        "",
+                        1,
+                        1,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY
+                    );
+                    requestCounter[0]++;
+                    listener.onResponse((Response) emptyResponse);
+                }
+            };
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);
             factory.accept(ClusterState.builder(new ClusterName("_name")).metadata(createMetadata("majestic", policy)).build());
 

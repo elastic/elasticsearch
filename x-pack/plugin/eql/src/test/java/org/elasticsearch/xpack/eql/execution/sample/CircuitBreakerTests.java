@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
@@ -103,8 +104,9 @@ public class CircuitBreakerTests extends ESTestCase {
                 Collections.singletonList(EqlTestUtils.circuitBreakerSettings(Settings.EMPTY)),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            ESMockClient esClient = new ESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME));
+            var threadPool = createThreadPool()
         ) {
+            final var esClient = new ESMockClient(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME));
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, () -> emptySet());
             EqlSession eqlSession = new EqlSession(
@@ -190,8 +192,8 @@ public class CircuitBreakerTests extends ESTestCase {
         protected final CircuitBreaker circuitBreaker;
         private final String pitId = "test_pit_id";
 
-        ESMockClient(CircuitBreaker circuitBreaker) {
-            super(getTestName());
+        ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker) {
+            super(threadPool);
             this.circuitBreaker = circuitBreaker;
         }
 

@@ -142,13 +142,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         return this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -166,13 +159,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         }
         this.gapPolicy = gapPolicy;
         return this;
-    }
-
-    /**
-     * Gets the gap policy to use for this aggregation.
-     */
-    public GapPolicy gapPolicy() {
-        return gapPolicy;
     }
 
     @Override

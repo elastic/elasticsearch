@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SnapshotNameAlreadyInUseException;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.HashMap;
@@ -132,7 +133,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
 
-        try (NoOpClient client = getCreateSnapshotRequestAssertingClient(repository, snapshotName, indexName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getCreateSnapshotRequestAssertingClient(threadPool, repository, snapshotName, indexName);
             CreateSnapshotStep step = new CreateSnapshotStep(randomStepKey(), randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
@@ -158,7 +160,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep completeStep = new CreateSnapshotStep(randomStepKey(), nextKeyOnComplete, nextKeyOnIncomplete, client) {
@@ -173,7 +176,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
 
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep incompleteStep = new CreateSnapshotStep(
@@ -193,7 +197,8 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
 
         {
-            try (NoOpClient client = new NoOpClient(getTestName())) {
+            try (var threadPool = createThreadPool()) {
+                final var client = new NoOpClient(threadPool);
                 StepKey nextKeyOnComplete = randomStepKey();
                 StepKey nextKeyOnIncomplete = randomStepKey();
                 CreateSnapshotStep doubleInvocationStep = new CreateSnapshotStep(
@@ -213,8 +218,13 @@ public class CreateSnapshotStepTests extends AbstractStepTestCase<CreateSnapshot
         }
     }
 
-    private NoOpClient getCreateSnapshotRequestAssertingClient(String expectedRepoName, String expectedSnapshotName, String indexName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getCreateSnapshotRequestAssertingClient(
+        ThreadPool threadPool,
+        String expectedRepoName,
+        String expectedSnapshotName,
+        String indexName
+    ) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

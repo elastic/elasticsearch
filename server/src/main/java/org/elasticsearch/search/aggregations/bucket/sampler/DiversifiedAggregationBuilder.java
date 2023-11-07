@@ -107,13 +107,6 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
-    }
-
-    /**
      * Set the max num docs to be returned per value.
      */
     public DiversifiedAggregationBuilder maxDocsPerValue(int maxDocsPerValue) {
@@ -127,25 +120,11 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /**
-     * Get the max num docs to be returned per value.
-     */
-    public int maxDocsPerValue() {
-        return maxDocsPerValue;
-    }
-
-    /**
      * Set the execution hint.
      */
     public DiversifiedAggregationBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
-    }
-
-    /**
-     * Get the execution hint.
-     */
-    public String executionHint() {
-        return executionHint;
     }
 
     @Override

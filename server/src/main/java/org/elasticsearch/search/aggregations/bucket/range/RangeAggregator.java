@@ -199,14 +199,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
             return this.originalTo;
         }
 
-        public Double getOriginalFrom() {
-            return originalFrom;
-        }
-
-        public Double getOriginalTo() {
-            return originalTo;
-        }
-
         public String getFromAsString() {
             return this.fromAsStr;
         }

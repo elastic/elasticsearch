@@ -266,6 +266,9 @@ dependencies {
   api buildLibs.apache.rat
   api buildLibs.jna
   api buildLibs.shadow.plugin
+
+  api "com.gradle:gradle-enterprise-gradle-plugin:3.14.1"
+
   // for our ide tweaking
   api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
@@ -280,6 +283,7 @@ dependencies {
   api buildLibs.asm.tree
   api buildLibs.httpclient
   api buildLibs.httpcore
+
   compileOnly buildLibs.checkstyle
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle

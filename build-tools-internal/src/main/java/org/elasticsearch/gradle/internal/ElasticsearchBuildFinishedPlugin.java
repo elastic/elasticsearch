@@ -8,6 +8,8 @@
 
 package org.elasticsearch.gradle.internal;
 
+import com.gradle.scan.plugin.BuildScanExtension;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
@@ -15,24 +17,26 @@ import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.file.ConfigurableFileTree;
 import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.flow.BuildWorkResult;
 import org.gradle.api.flow.FlowAction;
 import org.gradle.api.flow.FlowParameters;
 import org.gradle.api.flow.FlowProviders;
 import org.gradle.api.flow.FlowScope;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.provider.ListProperty;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
 
-import javax.inject.Inject;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project> {
 
@@ -42,6 +46,9 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
     @Inject
     protected abstract FlowProviders getFlowProviders();
 
+    @Inject
+    protected abstract FileOperations getFileOperations();
+
     @Override
     public void apply(Project target) {
         String buildNumber = System.getenv("BUILD_NUMBER") != null
@@ -49,69 +56,83 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-            var fileset = target.fileTree(target.getProjectDir(), files -> {
-                files.include("**/*.hprof");
-                files.include("**/build/test-results/**/*.xml");
-                files.include("**/build/testclusters/**");
-                files.include("**/build/testrun/*/temp/**");
-                files.include("**/build/**/hs_err_pid*.log");
-                files.exclude("**/build/testclusters/**/data/**");
-                files.exclude("**/build/testclusters/**/distro/**");
-                files.exclude("**/build/testclusters/**/repo/**");
-                files.exclude("**/build/testclusters/**/extract/**");
-                files.exclude("**/build/testclusters/**/tmp/**");
-                files.exclude("**/build/testrun/*/temp/**/data/**");
-                files.exclude("**/build/testrun/*/temp/**/distro/**");
-                files.exclude("**/build/testrun/*/temp/**/repo/**");
-                files.exclude("**/build/testrun/*/temp/**/extract/**");
-                files.exclude("**/build/testrun/*/temp/**/tmp/**");
-            }).getFiles().stream().filter(file -> Files.isRegularFile(file.toPath())).toList();
 
+            System.out.println("ElasticsearchBuildFinishedPlugin.apply");
+            File targetFile = target.file("build/" + buildNumber + ".new.tar.bzip2");
+            File gradleHomeDir = target.getGradle().getGradleHomeDir();
+            File projectDir = target.getProjectDir();
+            File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
+            BuildScanExtension extension = target.getExtensions().getByType(BuildScanExtension.class);
             File daemonsLogDir = new File(target.getGradle().getGradleUserHomeDir(), "daemon/" + target.getGradle().getGradleVersion());
-            var gradleDaemonFileSet = target.fileTree(
-                daemonsLogDir,
-                files -> { files.include("**/daemon-" + ProcessHandle.current().pid() + "*.log"); }
-            );
-            var gradleWorkersFileSet = target.fileTree(new File(target.getGradle().getGradleUserHomeDir(), "workers/"));
-            var reaperFileSet = target.fileTree(new File(target.getProjectDir(), ".gradle/reaper/"));
 
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
-                spec.getParameters().getUploadFile().set(getFlowProviders().getBuildWorkResult().map(result -> {
-                    File targetFile = target.file("build/" + buildNumber + ".new.tar.bzip2");
-                    targetFile.getParentFile().mkdirs();
-                    return targetFile;
-                }));
-                spec.getParameters().getProjectDir().set(target.getProjectDir());
-                spec.getParameters().getGradleHome().set(target.getGradle().getGradleHomeDir());
+                spec.getParameters().getBuildScan().set(extension);
+                spec.getParameters().getResult().set(getFlowProviders().getBuildWorkResult());
+                spec.getParameters().getUploadFile().set(targetFile);
+                spec.getParameters().getWorkerLogsDir().set(gradleWorkersDir);
+                spec.getParameters().getProjectDir().set(projectDir);
+                spec.getParameters().getGradleHome().set(gradleHomeDir);
+                spec.getParameters().getDaemonsLogDir().set(daemonsLogDir);
                 spec.getParameters()
-                    .getFiles()
-                    .set(
-                        getFlowProviders().getBuildWorkResult()
-                            .map(result -> calculateFiles(fileset, gradleDaemonFileSet, gradleWorkersFileSet, reaperFileSet))
-                    );
+                    .getFilteredFiles()
+                    .addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
+
+                        List<File> files = new ArrayList<>();
+                        files.addAll(resolveProjectLogs(projectDir));
+
+
+                        return files;
+                    }
+
+                        ));
             });
         }
     }
 
-    private Iterable<? extends File> calculateFiles(
-        List<File> fileset,
-        ConfigurableFileTree gradleDaemonFileSet,
-        ConfigurableFileTree gradleWorkersFileSet,
-        ConfigurableFileTree reaperFileSet
-    ) {
-        List<File> allFiles = new ArrayList<>();
-        allFiles.addAll(fileset);
-        if (allFiles.isEmpty() == false) {
-
-            allFiles.addAll(gradleDaemonFileSet.getFiles());
-            allFiles.addAll(gradleWorkersFileSet.getFiles());
-            allFiles.addAll(reaperFileSet.getFiles());
-        }
-        return allFiles;
+    private List<File> resolveProjectLogs(File projectDir) {
+        var projectDirFiles = getFileOperations().fileTree(projectDir);
+        projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("**/build/test-results/**/*.xml");
+        projectDirFiles.include("**/build/testclusters/**");
+        projectDirFiles.include("**/build/testrun/*/temp/**");
+        projectDirFiles.include("**/build/**/hs_err_pid*.log");
+        projectDirFiles.exclude("**/build/testclusters/**/data/**");
+        projectDirFiles.exclude("**/build/testclusters/**/distro/**");
+        projectDirFiles.exclude("**/build/testclusters/**/repo/**");
+        projectDirFiles.exclude("**/build/testclusters/**/extract/**");
+        projectDirFiles.exclude("**/build/testclusters/**/tmp/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/data/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/distro/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
+        return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
+    }
+    private List<File> resolveDaemonDir(File projectDir) {
+        var projectDirFiles = getFileOperations().fileTree(projectDir);
+        projectDirFiles.include("**/*.hprof");
+        projectDirFiles.include("**/build/test-results/**/*.xml");
+        projectDirFiles.include("**/build/testclusters/**");
+        projectDirFiles.include("**/build/testrun/*/temp/**");
+        projectDirFiles.include("**/build/**/hs_err_pid*.log");
+        projectDirFiles.exclude("**/build/testclusters/**/data/**");
+        projectDirFiles.exclude("**/build/testclusters/**/distro/**");
+        projectDirFiles.exclude("**/build/testclusters/**/repo/**");
+        projectDirFiles.exclude("**/build/testclusters/**/extract/**");
+        projectDirFiles.exclude("**/build/testclusters/**/tmp/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/data/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/distro/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
+        projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
+        return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
     }
 
     public abstract static class BuildFinishedFlowAction implements FlowAction<BuildFinishedFlowAction.Parameters> {
         interface Parameters extends FlowParameters {
+            @Input
+            Property<BuildWorkResult> getResult();
+
             @Input
             Property<File> getUploadFile();
 
@@ -119,12 +140,19 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
             Property<File> getProjectDir();
 
             @Input
+            Property<File> getDaemonsLogDir();
+
+            @Input
+            Property<File> getWorkerLogsDir();
+
+            @Input
+            ListProperty<File> getFilteredFiles();
+
+            @Input
             Property<File> getGradleHome();
 
             @Input
-            ListProperty<File> getFiles();
-
-            Property<BuildScanE>
+            Property<BuildScanExtension> getBuildScan();
 
         }
 
@@ -138,53 +166,64 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
-            createBuildArchiveTar(parameters, uploadFile);
+            createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
+            if (uploadFile.exists() && System.getenv("BUILDKITE").equals("true")) {
+                String uploadFilePath = "build/" + uploadFile.getName();
+                try {
+                    System.out.println("Uploading buildkite artifact: " + uploadFilePath + "...");
+                    new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath).start().waitFor();
 
-                if (uploadFile.exists() && System.getenv("BUILDKITE") == "true") {
-                    String uploadFilePath = "build/" + uploadFile.getName();
+                    System.out.println("Generating buildscan link for artifact...");
 
+                    Process process = new ProcessBuilder(
+                        "buildkite-agent",
+                        "artifact",
+                        "search",
+                        uploadFilePath,
+                        "--step",
+                        System.getenv("BUILDKITE_JOB_ID"),
+                        "--format",
+                        "%i"
+                    ).start();
+                    process.waitFor();
+                    String processOutput;
                     try {
-                        System.out.println("Uploading buildkite artifact: " + uploadFilePath + "...");
-                        new ProcessBuilder("buildkite-agent", "artifact", "upload", uploadFilePath)
-                            .start()
-                            .waitFor();
-
-                        System.out.println("Generating buildscan link for artifact...");
-
-                        Process process = new ProcessBuilder("buildkite-agent", "artifact", "search", uploadFilePath, "--step", System.getenv("BUILDKITE_JOB_ID"), "--format", "%i").start();
-                        process.waitFor();
-                        String processOutput;
-                            try {
-                                processOutput = IOUtils.toString(process.getInputStream());
-                        }catch (IOException e) {
-                                processOutput = "";
-                        }
-                        String artifactUuid = processOutput.trim();
-
-                        System.out.println("Artifact UUID: " + artifactUuid);
-                        if (artifactUuid.isEmpty() == false) {
-                            // TODO BUILD SCAN SUPPORT
-                            // buildScan.link "Artifact Upload", "https://buildkite.com/organizations/elastic/pipelines/${System.getenv('BUILDKITE_PIPELINE_SLUG')}/builds/${buildNumber}/jobs/${System.getenv('BUILDKITE_JOB_ID')}/artifacts/${artifactUuid}"
-                        }
-                    } catch (Exception e) {
-                        System.out.println("Failed to upload buildkite artifact " + e.getMessage());
+                        processOutput = IOUtils.toString(process.getInputStream());
+                    } catch (IOException e) {
+                        processOutput = "";
                     }
+                    String artifactUuid = processOutput.trim();
+
+                    System.out.println("Artifact UUID: " + artifactUuid);
+                    if (artifactUuid.isEmpty() == false) {
+                        String buildkitePipelineSlug = System.getenv("BUILDKITE_PIPELINE_SLUG");
+                        String targetLink = "https://buildkite.com/organizations/elastic/pipelines/"
+                            + buildkitePipelineSlug
+                            + "/builds/"
+                            + System.getenv("BUILD_NUMBER")
+                            + "/jobs/"
+                            + System.getenv("BUILDKITE_JOB_ID")
+                            + "/artifacts/"
+                            + artifactUuid;
+                        // parameters.getBuildScan().get().link("Artifact Upload", targetLink);
+                    }
+                } catch (Exception e) {
+                    System.out.println("Failed to upload buildkite artifact " + e.getMessage());
                 }
+            }
 
         }
 
-        private static void createBuildArchiveTar(Parameters parameters, File uploadFile) {
+        private static void createBuildArchiveTar(List<File> files, File projectDir, File uploadFile) {
             try (
                 OutputStream fOut = Files.newOutputStream(uploadFile.toPath());
                 BufferedOutputStream buffOut = new BufferedOutputStream(fOut);
                 BZip2CompressorOutputStream bzOut = new BZip2CompressorOutputStream(buffOut);
                 TarArchiveOutputStream tOut = new TarArchiveOutputStream(bzOut)
             ) {
-                Path projectPath = parameters.getProjectDir().get().toPath();
+                Path projectPath = projectDir.toPath();
                 tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
-                for (Path path : parameters.getFiles()
-                    .map(fileList -> fileList.stream().map(File::toPath).collect(Collectors.toList()))
-                    .get()) {
+                for (Path path : files.stream().map(File::toPath).collect(Collectors.toList())) {
                     if (!Files.isRegularFile(path)) {
                         throw new IOException("Support only file!");
                     }

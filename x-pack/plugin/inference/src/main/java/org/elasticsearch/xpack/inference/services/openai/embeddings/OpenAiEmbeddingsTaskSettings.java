@@ -16,11 +16,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.MapParsingUtils;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredString;
 
 /**
  * Defines the task settings for the openai service.
@@ -38,20 +40,8 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
     public static OpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        String model = MapParsingUtils.removeAsType(map, MODEL, String.class);
-
-        if (model == null) {
-            validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(MODEL, ModelConfigurations.TASK_SETTINGS));
-        } else if (model.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(MODEL, ModelConfigurations.TASK_SETTINGS));
-        }
-
-        String user = MapParsingUtils.removeAsType(map, USER, String.class);
-
-        // user is optional
-        if (user != null && user.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(USER, ModelConfigurations.TASK_SETTINGS));
-        }
+        String model = extractRequiredString(map, MODEL, ModelConfigurations.TASK_SETTINGS, validationException);
+        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -93,5 +83,12 @@ public record OpenAiEmbeddingsTaskSettings(String model, @Nullable String user) 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(model);
         out.writeOptionalString(user);
+    }
+
+    public OpenAiEmbeddingsTaskSettings overrideWith(OpenAiEmbeddingsRequestTaskSettings requestSettings) {
+        var modelToUse = requestSettings.model() == null ? model : requestSettings.model();
+        var userToUse = requestSettings.user() == null ? user : requestSettings.user();
+
+        return new OpenAiEmbeddingsTaskSettings(modelToUse, userToUse);
     }
 }

@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredValue;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
 
 public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings {
     public static final String NAME = "hugging_face_elser_secret_settings";
@@ -30,7 +30,7 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
 
     public static HuggingFaceElserSecretSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-        SecureString secureApiToken = extractRequiredValue(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

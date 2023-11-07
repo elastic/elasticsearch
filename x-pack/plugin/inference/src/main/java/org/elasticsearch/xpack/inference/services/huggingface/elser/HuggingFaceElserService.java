@@ -41,9 +41,6 @@ public class HuggingFaceElserService implements InferenceService {
     private final SetOnce<HttpRequestSenderFactory> factory;
     private final SetOnce<ThrottlerManager> throttlerManager;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
-    // This is initialized once which assumes that the settings will not change. To change the service, it
-    // should be deleted and then added again
-    private final AtomicReference<HuggingFaceElserAction> action = new AtomicReference<>();
 
     public HuggingFaceElserService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
         this.factory = Objects.requireNonNull(factory);
@@ -101,25 +98,23 @@ public class HuggingFaceElserService implements InferenceService {
             return;
         }
 
-        try {
-            init(model);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Failed to initialize service", e));
+        if (model instanceof HuggingFaceElserModel == false) {
+            listener.onFailure(new ElasticsearchException("The internal model was invalid"));
             return;
         }
 
-        action.get().execute(input, listener);
+        init();
+
+        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
+        HuggingFaceElserAction action = new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, throttlerManager.get());
+
+        action.execute(input, listener);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        try {
-            init(model);
-            sender.get().start();
-            listener.onResponse(true);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Failed to start service", e));
-        }
+        init();
+        listener.onResponse(true);
     }
 
     @Override
@@ -127,20 +122,9 @@ public class HuggingFaceElserService implements InferenceService {
         IOUtils.closeWhileHandlingException(sender.get());
     }
 
-    private void init(Model model) {
-        if (model instanceof HuggingFaceElserModel == false) {
-            throw new IllegalArgumentException("The internal model was invalid");
-        }
-
+    private void init() {
         sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
-
-        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
-        action.updateAndGet(
-            current -> Objects.requireNonNullElseGet(
-                current,
-                () -> new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, throttlerManager.get())
-            )
-        );
+        sender.get().start();
     }
 
     @Override

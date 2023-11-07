@@ -7,22 +7,49 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
-import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-public class OpenAiEmbeddingsModel extends Model {
+import java.util.Map;
+
+public class OpenAiEmbeddingsModel extends OpenAiModel {
     public OpenAiEmbeddingsModel(
         String modelId,
         TaskType taskType,
         String service,
-        OpenAiServiceSettings serviceSettings,
-        DefaultSecretSettings secretSettings
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> secrets
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings), new ModelSecrets(secretSettings));
+        super(
+            new ModelConfigurations(
+                modelId,
+                taskType,
+                service,
+                OpenAiServiceSettings.fromMap(serviceSettings),
+                OpenAiEmbeddingsTaskSettings.fromMap(taskSettings)
+            ),
+            new ModelSecrets(DefaultSecretSettings.fromMap(secrets))
+        );
+    }
+
+    private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
+        super(
+            new ModelConfigurations(
+                originalModel.getConfigurations().getModelId(),
+                originalModel.getConfigurations().getTaskType(),
+                originalModel.getConfigurations().getService(),
+                originalModel.getServiceSettings(),
+                taskSettings
+            ),
+            new ModelSecrets(originalModel.getSecretSettings())
+        );
     }
 
     @Override
@@ -31,7 +58,23 @@ public class OpenAiEmbeddingsModel extends Model {
     }
 
     @Override
+    public OpenAiEmbeddingsTaskSettings getTaskSettings() {
+        return (OpenAiEmbeddingsTaskSettings) super.getTaskSettings();
+    }
+
+    @Override
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
+    }
+
+    @Override
+    public ExecutableAction accept(OpenAiActionVisitor creator) {
+        return creator.create(this);
+    }
+
+    public OpenAiEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+
+        return new OpenAiEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
     }
 }

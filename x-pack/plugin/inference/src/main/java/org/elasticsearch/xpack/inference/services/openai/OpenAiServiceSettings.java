@@ -41,11 +41,16 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
         String url = MapParsingUtils.removeAsType(map, URL, String.class);
 
         // the url is optional and only for testing
-        if (url != null && url.isEmpty()) {
-            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(URL, ModelConfigurations.TASK_SETTINGS));
+        if (url == null) {
+            return new OpenAiServiceSettings((String) null);
         }
 
-        URI uri = convertToUri(url, URL, ModelConfigurations.TASK_SETTINGS, validationException);
+        URI uri = null;
+        if (url.isEmpty()) {
+            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(URL, ModelConfigurations.TASK_SETTINGS));
+        } else {
+            uri = convertToUri(url, URL, ModelConfigurations.TASK_SETTINGS, validationException);
+        }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -94,6 +99,7 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(uri.toString());
+        var uriToWrite = uri != null ? uri.toString() : null;
+        out.writeOptionalString(uriToWrite);
     }
 }

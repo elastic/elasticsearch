@@ -40,7 +40,7 @@ public class HuggingFaceElserAction implements ExecutableAction {
             listener.onFailure(e);
         } catch (Exception e) {
             listener.onFailure(
-                new ElasticsearchStatusException("Failed to send request ELSER Hugging Face request", RestStatus.INTERNAL_SERVER_ERROR, e)
+                new ElasticsearchStatusException("Failed to send ELSER Hugging Face request", RestStatus.INTERNAL_SERVER_ERROR, e)
             );
         }
     }

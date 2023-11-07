@@ -96,7 +96,6 @@ public class MapParsingUtils {
 
     // TODO improve URI validation logic
     public static URI convertToUri(String url, String settingName, String settingScope, ValidationException validationException) {
-
         try {
             return createUri(url);
         } catch (IllegalArgumentException ignored) {
@@ -115,17 +114,32 @@ public class MapParsingUtils {
         }
     }
 
-    public static SecureString extractRequiredValue(
+    public static SecureString extractRequiredSecureString(
         Map<String, Object> map,
         String settingName,
         String scope,
         ValidationException validationException
     ) {
-        String apiToken = MapParsingUtils.removeAsType(map, settingName, String.class);
+        String requiredField = extractRequiredString(map, settingName, scope, validationException);
 
-        if (apiToken == null) {
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return new SecureString(Objects.requireNonNull(requiredField).toCharArray());
+    }
+
+    public static String extractRequiredString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String requiredField = MapParsingUtils.removeAsType(map, settingName, String.class);
+
+        if (requiredField == null) {
             validationException.addValidationError(MapParsingUtils.missingSettingErrorMsg(settingName, scope));
-        } else if (apiToken.isEmpty()) {
+        } else if (requiredField.isEmpty()) {
             validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(settingName, scope));
         }
 
@@ -133,6 +147,25 @@ public class MapParsingUtils {
             return null;
         }
 
-        return new SecureString(Objects.requireNonNull(apiToken).toCharArray());
+        return requiredField;
+    }
+
+    public static String extractOptionalString(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        String optionalField = MapParsingUtils.removeAsType(map, settingName, String.class);
+
+        if (optionalField != null && optionalField.isEmpty()) {
+            validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(settingName, scope));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        return optionalField;
     }
 }

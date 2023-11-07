@@ -5,10 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.openai.embeddings;
+package org.elasticsearch.xpack.inference.services.openai;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -21,11 +20,11 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.action.huggingface.HuggingFaceElserAction;
+import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,20 +32,18 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIfNotEmptyMap;
 
-public class OpenAiEmbeddingsService implements InferenceService {
-    public static final String NAME = "openai_embeddings";
+public class OpenAiService implements InferenceService {
+    public static final String NAME = "openai";
 
     private final SetOnce<HttpRequestSenderFactory> factory;
     private final SetOnce<ThrottlerManager> throttlerManager;
     private final AtomicReference<Sender> sender = new AtomicReference<>();
-    // This is initialized once which assumes that the settings will not change. To change the service, it
-    // should be deleted and then added again
-    private final AtomicReference<HuggingFaceElserAction> action = new AtomicReference<>();
 
-    public OpenAiEmbeddingsService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
+    public OpenAiService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ThrottlerManager> throttlerManager) {
         this.factory = Objects.requireNonNull(factory);
         this.throttlerManager = Objects.requireNonNull(throttlerManager);
     }
@@ -57,11 +54,16 @@ public class OpenAiEmbeddingsService implements InferenceService {
     }
 
     @Override
-    public Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, Set<String> platformArchitectures) {
+    public OpenAiModel parseRequestConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> platformArchitectures
+    ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        Model model = createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, serviceSettingsMap);
+        OpenAiModel model = createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, serviceSettingsMap);
 
         throwIfNotEmptyMap(config, NAME);
         throwIfNotEmptyMap(serviceSettingsMap, NAME);
@@ -70,7 +72,7 @@ public class OpenAiEmbeddingsService implements InferenceService {
         return model;
     }
 
-    private Model createModel(
+    private OpenAiModel createModel(
         String modelId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
@@ -78,18 +80,18 @@ public class OpenAiEmbeddingsService implements InferenceService {
         Map<String, Object> secretSettings
     ) {
         return switch (taskType) {
-            case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel2(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(modelId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
             default -> throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         };
     }
 
     @Override
-    public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets) {
+    public OpenAiModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config, Map<String, Object> secrets) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        Model model = createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, secretSettingsMap);
+        OpenAiModel model = createModel(modelId, taskType, serviceSettingsMap, taskSettingsMap, secretSettingsMap);
 
         // TODO move to a function
         throwIfNotEmptyMap(config, NAME);
@@ -103,39 +105,32 @@ public class OpenAiEmbeddingsService implements InferenceService {
 
     @Override
     public void infer(Model model, String input, Map<String, Object> taskSettings, ActionListener<InferenceResults> listener) {
-        // TODO create a overloaded private method that takes various Models like OpenAiEmbeddingsModel, OpenAiChatCompletionModel,
-        // and Model and sets the appropriate atomic reference like init is doing. The double dispatch will avoid the additional switch case
-        // based on the task type
-        // The generic Model can throw with an unknown task type error
-        if (model.getConfigurations().getTaskType() != TaskType.SPARSE_EMBEDDING) {
+        init();
+
+        if (model instanceof OpenAiModel == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), NAME),
-                    RestStatus.BAD_REQUEST
+                    format(
+                        "The internal model was invalid, please delete the service [%s] and add it again.",
+                        model.getConfigurations().getService()
+                    ),
+                    RestStatus.INTERNAL_SERVER_ERROR
                 )
             );
             return;
         }
 
-        try {
-            init(model);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Failed to initialize service", e));
-            return;
-        }
+        OpenAiModel openAiModel = (OpenAiModel) model;
+        var actionCreator = new OpenAiActionCreator(sender.get(), throttlerManager.get(), taskSettings);
 
-        action.get().execute(input, listener);
+        var action = openAiModel.accept(actionCreator);
+        action.execute(input, listener);
     }
 
     @Override
     public void start(Model model, ActionListener<Boolean> listener) {
-        try {
-            init(model);
-            sender.get().start();
-            listener.onResponse(true);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Failed to start service", e));
-        }
+        init();
+        listener.onResponse(true);
     }
 
     @Override
@@ -143,20 +138,9 @@ public class OpenAiEmbeddingsService implements InferenceService {
         IOUtils.closeWhileHandlingException(sender.get());
     }
 
-    private void init(Model model) {
-        if (model instanceof HuggingFaceElserModel == false) {
-            throw new IllegalArgumentException("The internal model was invalid");
-        }
-
+    private void init() {
         sender.updateAndGet(current -> Objects.requireNonNullElseGet(current, () -> factory.get().createSender(name())));
-
-        HuggingFaceElserModel huggingFaceElserModel = (HuggingFaceElserModel) model;
-        action.updateAndGet(
-            current -> Objects.requireNonNullElseGet(
-                current,
-                () -> new HuggingFaceElserAction(sender.get(), huggingFaceElserModel, throttlerManager.get())
-            )
-        );
+        sender.get().start();
     }
 
     @Override

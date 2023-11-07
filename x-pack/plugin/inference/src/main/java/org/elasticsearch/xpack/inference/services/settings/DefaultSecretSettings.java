@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredValue;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
 
 /**
  * Contains secret settings that are common to all services.
@@ -34,7 +34,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
 
     public static DefaultSecretSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
-        SecureString secureApiToken = extractRequiredValue(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
+        SecureString secureApiToken = extractRequiredSecureString(map, API_KEY, ModelSecrets.SECRET_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

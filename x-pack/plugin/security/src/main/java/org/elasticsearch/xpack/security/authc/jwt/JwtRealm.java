@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -66,9 +65,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
 
     private final Cache<BytesArray, ExpiringUser> jwtCache;
-    private final ThreadLocal<Tuple<SecureString, SignedJWT>> lastParsedJWTThreadLocal = ThreadLocal.withInitial(
-        () -> new Tuple<>(null, null)
-    );
+    private final ThreadLocal<SecureString> latestMalformedJWTThreadLocal = new ThreadLocal<>();
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
     private final UserRoleMapper userRoleMapper;
     private final Boolean populateUserMetadata;
@@ -451,15 +448,19 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     /**
      * Parses a {@link SignedJWT} from the provided {@param token}.
-     * It remembers the last token parsed by the current thread and uses it in case of parsing the same token multiple times in a row.
+     * This internally remembers the last **malformed** token parsed in order to avoid attempting to parse the same token multiple
+     * consecutive times.
      */
     private SignedJWT parseSignedJWT(SecureString token) {
-        Tuple<SecureString, SignedJWT> lastParsedJWT = lastParsedJWTThreadLocal.get();
-        if (lastParsedJWT != null && Objects.equals(token, lastParsedJWT.v1())) {
-            return lastParsedJWT.v2();
+        if (Objects.equals(token, latestMalformedJWTThreadLocal.get())) {
+            // already tried to parse this token and it didn't work
+            return null;
         }
         SignedJWT signedJWT = JwtUtil.parseSignedJWT(token);
-        lastParsedJWTThreadLocal.set(new Tuple<>(token, signedJWT));
+        if (signedJWT == null) {
+            // this is a malformed JWT, update the latest malformed reference
+            latestMalformedJWTThreadLocal.set(token);
+        }
         return signedJWT;
     }
 

@@ -59,7 +59,6 @@ public class RecordingApmServer extends ExternalResource {
                     try {
                         String msg = received.poll(1L, TimeUnit.SECONDS);
                         if (msg != null && msg.isEmpty() == false) {
-                            logger.info("APM server received: " + msg);
                             consumer.accept(msg);
                         }
 
@@ -83,7 +82,7 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         var read = readJsonMessages(requestBody);
-                        read.forEach(s -> logger.debug(s));
+
                         received.addAll(read);
                     }
                 }

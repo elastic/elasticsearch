@@ -443,8 +443,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 
 `ner`:::
@@ -469,7 +469,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
+Refer to <<tokenization-properties>> to review the 
 properties of the `tokenization` object.
 =====
 
@@ -488,8 +488,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 
 `question_answering`:::
@@ -514,8 +514,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizati
 Recommended to set `max_sentence_length` to `386` with `128` of `span` and set
 `truncate` to `none`.
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 
 `regression`:::
@@ -546,7 +546,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classific
 
 `num_top_classes`::::
 (Optional, integer)
-Specifies the number of top class predictions to return. Defaults to all classes (-1).
+Specifies the number of top class predictions to return. Defaults to all classes 
+(-1).
 
 `results_field`::::
 (Optional, string)
@@ -556,8 +557,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 
 `text_embedding`:::
@@ -579,8 +580,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 
 `text_similarity`::::
@@ -598,8 +599,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarit
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 
 `zero_shot_classification`:::
@@ -633,8 +634,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
-Refer to <<ml-put-trained-models-tokenization-properties>> to review the 
-properties of the `tokenization` object.
+Refer to <<tokenization-properties>> to review the properties of the 
+`tokenization` object.
 =====
 ====
 //End of inference_config

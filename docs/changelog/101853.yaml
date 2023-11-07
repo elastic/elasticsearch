@@ -1,0 +1,6 @@
+pr: 101853
+summary: "Revert Revert \"[ML] Use `perAllocation` and `perDeployment` memory usage\
+  \ in the model assignment planner\""
+area: Machine Learning
+type: enhancement
+issues: []

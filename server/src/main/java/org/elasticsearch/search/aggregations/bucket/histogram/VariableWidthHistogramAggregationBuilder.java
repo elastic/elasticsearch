@@ -114,10 +114,6 @@ public class VariableWidthHistogramAggregationBuilder extends ValuesSourceAggreg
         return this;
     }
 
-    public int getNumBuckets() {
-        return numBuckets;
-    }
-
     public int getShardSize() {
         if (shardSize == -1) {
             return numBuckets * 50;

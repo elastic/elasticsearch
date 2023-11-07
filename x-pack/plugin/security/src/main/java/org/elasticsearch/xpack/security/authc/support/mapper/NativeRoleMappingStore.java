@@ -156,9 +156,9 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     logger.debug("successfully loaded [{}] role-mapping(s) from [{}]", mappingList.size(), securityIndex.aliasName());
                     if (lastLoadCacheEnabled) {
                         logger.debug("caching loaded role-mapping(s)");
-                        lastLoadRef.set(mappingList);
+                        lastLoadRef.set(List.copyOf(mappingList));
                     }
-                    listener.onResponse(List.copyOf(mappingList));
+                    listener.onResponse(mappingList);
                 }, ex -> {
                     logger.error(
                         () -> format("failed to load role mappings from index [%s] skipping all mappings.", SECURITY_MAIN_ALIAS),

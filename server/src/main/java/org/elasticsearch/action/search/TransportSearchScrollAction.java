@@ -10,7 +10,9 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -44,8 +46,13 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         ActionListener<SearchResponse> loggingListener = listener.delegateFailureAndWrap((l, searchResponse) -> {
             if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
-                for (ShardSearchFailure f : searchResponse.getShardFailures()) {
-                    logger.warn("TransportSearchScrollAction shard failure (partial results response) for request " + request, f);
+                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                for (ShardOperationFailedException f : groupedFailures) {
+                    Throwable cause = f.getCause() == null ? f : f.getCause();
+                    if (ExceptionsHelper.status(cause).getStatus() >= 500
+                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(cause) == false) {
+                        logger.warn("TransportSearchScrollAction shard failure (partial results response)", f);
+                    }
                 }
             }
             l.onResponse(searchResponse);

@@ -37,6 +37,6 @@ public class PreserveOneAllocation extends AbstractPreserveAllocations {
 
     @Override
     protected int addPreservedAllocations(Node n, AssignmentPlan.Deployment m) {
-        return m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0;
+        return 1;
     }
 }

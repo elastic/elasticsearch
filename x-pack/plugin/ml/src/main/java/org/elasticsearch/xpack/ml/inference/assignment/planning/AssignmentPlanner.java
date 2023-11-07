@@ -115,11 +115,8 @@ public class AssignmentPlanner {
                     m.memoryBytes(),
                     1,
                     m.threadsPerAllocation(),
-                    // don't rely on the current allocation
-                    new HashMap<>(),
-                    m.maxAssignedAllocations(),
-                    m.perDeploymentMemoryBytes(),
-                    m.perAllocationMemoryBytes()
+                    m.currentAllocationsByNodeId(),
+                    m.maxAssignedAllocations()
                 )
             )
             .toList();
@@ -148,9 +145,7 @@ public class AssignmentPlanner {
                 m.allocations(),
                 m.threadsPerAllocation(),
                 currentAllocationsByNodeId,
-                m.maxAssignedAllocations(),
-                m.perDeploymentMemoryBytes(),
-                m.perAllocationMemoryBytes()
+                m.maxAssignedAllocations()
             );
         }).toList();
 

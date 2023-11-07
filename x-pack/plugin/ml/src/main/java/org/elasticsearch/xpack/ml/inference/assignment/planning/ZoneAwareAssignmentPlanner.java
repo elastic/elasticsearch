@@ -126,12 +126,10 @@ public class ZoneAwareAssignmentPlanner {
                     modelIdToTargetAllocations.get(m.id()),
                     m.threadsPerAllocation(),
                     m.currentAllocationsByNodeId(),
+                    // Only force assigning at least once previously assigned models that have not had any allocation yet
                     (tryAssigningPreviouslyAssignedModels && modelIdToRemainingAllocations.get(m.id()) == m.allocations())
                         ? m.maxAssignedAllocations()
-                        : 0,
-                    // Only force assigning at least once previously assigned models that have not had any allocation yet
-                    m.perDeploymentMemoryBytes(),
-                    m.perAllocationMemoryBytes()
+                        : 0
                 )
             )
             .toList();
@@ -153,9 +151,7 @@ public class ZoneAwareAssignmentPlanner {
                     m.allocations(),
                     m.threadsPerAllocation(),
                     allocationsByNodeIdByModelId.get(m.id()),
-                    m.maxAssignedAllocations(),
-                    m.perDeploymentMemoryBytes(),
-                    m.perAllocationMemoryBytes()
+                    m.maxAssignedAllocations()
                 )
             )
             .toList();
@@ -184,13 +180,9 @@ public class ZoneAwareAssignmentPlanner {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
                 planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
                 if (originalDeployment.currentAllocationsByNodeId().containsKey(originalNode.id())) {
-                    // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
                     // As the node has all its available memory we need to manually account memory of models with
                     // current allocations.
-                    long requiredMemory = originalDeployment.estimateMemoryUsageBytes(
-                        originalDeployment.currentAllocationsByNodeId().get(originalNode.id())
-                    );
-                    planBuilder.accountMemory(m, originalNode, requiredMemory);
+                    planBuilder.accountMemory(m, originalNode);
                 }
             }
         }

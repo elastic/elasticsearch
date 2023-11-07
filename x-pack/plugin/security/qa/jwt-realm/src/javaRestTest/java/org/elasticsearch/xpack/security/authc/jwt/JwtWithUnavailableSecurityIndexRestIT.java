@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.jwt;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWK;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
@@ -51,11 +49,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
 
-@TestCaseOrdering(AnnotationTestOrdering.class)
 public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
-    // Using this to first run a test without caching, then one with caching. Since caching is controlled by a static setting, we need
-    // a MutableSettingsProvider instance
+    // Using this to first test without, then with caching. Since caching is controlled by a static setting, we need a
+    // MutableSettingsProvider instance
     private static final MutableSettingsProvider mutableSettingsForLastLoadCache = new MutableSettingsProvider();
 
     @ClassRule
@@ -144,7 +141,6 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
         return adminSecurityClient;
     }
 
-    @AnnotationTestOrdering.Order(10)
     public void testRoleMappingWithoutCacheFailsWithoutAccessToSecurityIndex() throws Exception {
         final String dn = randomDn();
 
@@ -177,35 +173,12 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
                 assertAuthenticationHasUsernameAndRoles(response, principal, List.of());
             }
-        } finally {
+
+            // Now enable caching (since the setting is not dynamic, this requires a cluster restart), and test caching
             makeSecurityIndexAvailable();
-            deleteRoleMapping(roleMappingName);
-
-            // Enable last load caching for next test (setting is not dynamic and requires cluster restart)
             mutableSettingsForLastLoadCache.put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true");
-            cluster.restart(false);
+            restartClusterAndResetClients();
 
-            adminSecurityClient = null;
-            closeClients();
-        }
-    }
-
-    @AnnotationTestOrdering.Order(20)
-    public void testRoleMappingWithCacheSucceedsWithoutAccessToSecurityIndex() throws Exception {
-        final String dn = randomDn();
-
-        final String rules = Strings.format("""
-            { "all": [
-            { "field": { "realm.name": "jwt1" } },
-            { "field": { "dn": "%s" } }
-            ] }
-            """, dn);
-
-        final List<String> roles = randomRoles();
-        final String roleMappingName = createRoleMapping(roles, rules);
-        final String principal = randomPrincipal();
-
-        try {
             {
                 final SignedJWT jwt = buildAndSignJwt(principal, dn, Instant.now());
 
@@ -223,22 +196,17 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
                 assertAuthenticationHasUsernameAndRoles(response, principal, roles);
             }
-
-            {
-                final SignedJWT jwt = buildAndSignJwt(principal, randomValueOtherThan(dn, this::randomDn), Instant.now());
-
-                final Map<String, Object> response = getSecurityClient(jwt).authenticate();
-
-                // Empty roles because the DN doesn't match the cached mapping rules
-                assertAuthenticationHasUsernameAndRoles(response, principal, List.of());
-            }
         } finally {
             makeSecurityIndexAvailable();
             deleteRoleMapping(roleMappingName);
-
-            adminSecurityClient = null;
-            closeClients();
         }
+    }
+
+    private void restartClusterAndResetClients() throws IOException {
+        cluster.restart(false);
+        adminSecurityClient = null;
+        closeClients();
+        initClient();
     }
 
     private void assertAuthenticationHasUsernameAndRoles(

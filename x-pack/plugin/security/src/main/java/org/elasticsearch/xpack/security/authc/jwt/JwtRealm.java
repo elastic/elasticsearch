@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
-import java.text.ParseException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -178,40 +177,23 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public AuthenticationToken token(final ThreadContext threadContext) {
         ensureInitialized();
-
         final SecureString userCredentials = JwtUtil.getHeaderValue(
             threadContext,
             JwtRealm.HEADER_END_USER_AUTHENTICATION,
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
-        if (userCredentials == null || userCredentials.isEmpty()) {
+        SignedJWT signedJWT = JwtUtil.parseSignedJWT(userCredentials);
+        if (signedJWT == null) {
+            // this is not a valid JWT for ES realms, but custom realms can also consume the Bearer credentials scheme in their own format
             return null;
         }
-
-        // a lightweight pre-check for JWTs
-        if (containsAtLeastTwoDots(userCredentials) == false) {
-            return null;
-        }
-
-        final SignedJWT signedJWT;
-        try {
-            signedJWT = SignedJWT.parse(userCredentials.toString());
-            // trigger claim set parsing
-            signedJWT.getJWTClaimsSet();
-        } catch (ParseException e) {
-            logger.debug("Failed to parse JWT bearer token", e);
-            // custom realms can also consume the Bearer credentials scheme
-            return null;
-        }
-
         final SecureString clientCredentials = JwtUtil.getHeaderValue(
             threadContext,
             JwtRealm.HEADER_CLIENT_AUTHENTICATION,
             JwtRealm.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME,
             true
         );
-
         return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
     }
 
@@ -486,22 +468,5 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             Objects.requireNonNull(user, "User must not be null");
             Objects.requireNonNull(exp, "Expiration date must not be null");
         }
-    }
-
-    /**
-     * This is a lightweight pre-check for the JWT token format.
-     * If this returns {@code true}, the token MIGHT be a JWT. Otherwise, the token is definitely not a JWT.
-     */
-    private static boolean containsAtLeastTwoDots(SecureString secureString) {
-        if (secureString == null || secureString.length() < 2) {
-            return false;
-        }
-        int ndots = 0;
-        for (int i = 0; i < secureString.length(); i++) {
-            if (secureString.charAt(i) == '.' && ++ndots >= 2) {
-                return true;
-            }
-        }
-        return false;
     }
 }

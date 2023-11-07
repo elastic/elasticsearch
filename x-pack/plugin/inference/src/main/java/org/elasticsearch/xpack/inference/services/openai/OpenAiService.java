@@ -159,6 +159,6 @@ public class OpenAiService implements InferenceService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.ML_INFERENCE_OPENAI_ADDED;
     }
 }

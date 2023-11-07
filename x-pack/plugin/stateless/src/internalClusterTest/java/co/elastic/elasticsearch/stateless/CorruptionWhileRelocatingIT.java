@@ -27,11 +27,13 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -56,6 +58,11 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(super.nodePlugins(), MockRepository.Plugin.class);
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), "1h");
     }
 
     public void testMergeWhileRelocationCausesCorruption() throws Exception {
@@ -183,6 +190,8 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         // Check that the blob has not been uploaded
         assertFalse(blobContainer.blobExists(operationPurpose, finalCommitBlobName));
 
+        Store sourceStore = sourceShard.store();
+
         logger.info("--> resuming relocation");
         resumeHandoff.countDown();
 
@@ -194,6 +203,10 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         ForceMergeResponse mergeResponse = mergeFuture.actionGet();
         assertEquals("Force-merge failed on indexing shard", 1, mergeResponse.getSuccessfulShards());
         assertEquals(2, mergeResponse.getTotalShards());
+
+        // wait for the source node to complete the hand-off too. Since it's response runs on generic, the test framework might fail
+        // because it may not run. Todo: reevaluate generic use in `TransportStatelessPrimaryRelocationAction
+        assertBusy(() -> assertEquals(0, sourceStore.refCount()));
     }
 
     public void testRelocationHandoffFailure() throws Exception {

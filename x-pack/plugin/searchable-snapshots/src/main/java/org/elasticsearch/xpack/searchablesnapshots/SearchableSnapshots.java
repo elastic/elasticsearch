@@ -330,7 +330,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 settings,
                 threadPool,
                 SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-                new BlobCacheMetrics(telemetryProvider.getMeterRegistry())
+                new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
             );
             this.frozenCacheService.set(sharedBlobCacheService);
             components.add(cacheService);

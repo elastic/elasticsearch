@@ -1,5 +1,0 @@
-pr: 99058
-summary: "Log query and execution time"
-area: ES|QL
-type: enhancement
-issues: []

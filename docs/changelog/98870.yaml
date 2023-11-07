@@ -1,6 +1,0 @@
-pr: 98870
-summary: "Add ability to perform date math"
-area: ES|QL
-type: enhancement
-issues:
- - 98402

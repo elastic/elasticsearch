@@ -1,6 +1,0 @@
-pr: 98972
-summary: "Implement serialization of `InvalidMappedField`"
-area: ES|QL
-type: bug
-issues:
- - 98851

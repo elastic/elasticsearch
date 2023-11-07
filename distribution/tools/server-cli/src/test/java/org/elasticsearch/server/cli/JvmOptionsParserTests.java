@@ -8,9 +8,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.bootstrap.ServerArgs;
-import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;

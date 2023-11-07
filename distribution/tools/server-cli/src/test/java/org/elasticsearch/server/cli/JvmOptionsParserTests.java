@@ -8,6 +8,9 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.bootstrap.ServerArgs;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
@@ -361,7 +364,7 @@ public class JvmOptionsParserTests extends ESTestCase {
         }
         {
             // check rounding
-            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.5).build();
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
             final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings);
             assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
         }

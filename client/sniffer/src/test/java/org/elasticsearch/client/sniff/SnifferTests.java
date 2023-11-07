@@ -47,7 +47,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
+import static java.util.Arrays.asList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.greaterThan;
@@ -613,25 +615,57 @@ public class SnifferTests extends RestClientTestCase {
         try {
             ScheduledExecutorService executorService = defaultScheduler.executor;
             assertThat(executorService, instanceOf(ScheduledThreadPoolExecutor.class));
-            assertThat(executorService, instanceOf(ScheduledThreadPoolExecutor.class));
             ScheduledThreadPoolExecutor executor = (ScheduledThreadPoolExecutor) executorService;
             assertTrue(executor.getRemoveOnCancelPolicy());
             assertFalse(executor.getContinueExistingPeriodicTasksAfterShutdownPolicy());
             assertTrue(executor.getExecuteExistingDelayedTasksAfterShutdownPolicy());
             assertThat(executor.getThreadFactory(), instanceOf(Sniffer.SnifferThreadFactory.class));
-            int iters = randomIntBetween(3, 10);
-            for (int i = 1; i <= iters; i++) {
+
+            for (int i = 1; i <= 10; i++) {
                 Thread thread = executor.getThreadFactory().newThread(new Runnable() {
                     @Override
                     public void run() {
 
                     }
                 });
-                assertThat(thread.getName(), equalTo("es_rest_client_sniffer[T#" + i + "]"));
-                assertThat(thread.isDaemon(), is(true));
+
+               String regex = "es_rest_client_sniffer\\[F#([0-9]+),T#" + i + "\\]";
+               assertTrue(thread.getName().matches(regex));
+               assertThat(thread.isDaemon(), is(true));
             }
         } finally {
             defaultScheduler.shutdown();
+        }
+    }
+
+    public void testDefaultSchedulerThreadFactories() {
+        DefaultScheduler defaultScheduler1 = new DefaultScheduler();
+        DefaultScheduler defaultScheduler2 = new DefaultScheduler();
+        DefaultScheduler defaultScheduler3 = new DefaultScheduler();
+        List<DefaultScheduler> defaultSchedulersList = new ArrayList<>();
+        defaultSchedulersList.add(defaultScheduler1);
+        defaultSchedulersList.add(defaultScheduler2);
+        defaultSchedulersList.add(defaultScheduler3);
+
+        for (DefaultScheduler defaultScheduler : defaultSchedulersList) {
+            try {
+                ScheduledExecutorService executorService = defaultScheduler.executor;
+                ScheduledThreadPoolExecutor executor = (ScheduledThreadPoolExecutor) executorService;
+
+                for (int i = 1; i <= 10; i++) {
+                    Thread thread = executor.getThreadFactory().newThread(new Runnable() {
+                        @Override
+                        public void run() {
+
+                        }
+                    });
+
+                    String regex = "es_rest_client_sniffer\\[F#([0-9]+),T#" + i + "\\]";
+                    assertTrue(thread.getName().matches(regex));
+                }
+            } finally {
+                defaultScheduler.shutdown();
+            }
         }
     }
 

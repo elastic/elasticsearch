@@ -16,10 +16,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.math.BigInteger;
 import java.util.Collections;
@@ -96,7 +96,8 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     public void testGetSourceFieldMappings() throws InterruptedException {
-        try (Client client = new FieldCapsMockClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool);
             // fields is null
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
@@ -188,7 +189,8 @@ public class SchemaUtilTests extends ESTestCase {
                 put("field-3", singletonMap("type", "boolean"));
             }
         };
-        try (Client client = new FieldCapsMockClient(getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool);
             this.<Map<String, String>>assertAsync(
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
@@ -210,8 +212,8 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     private static class FieldCapsMockClient extends NoOpClient {
-        FieldCapsMockClient(String testName) {
-            super(testName);
+        FieldCapsMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")

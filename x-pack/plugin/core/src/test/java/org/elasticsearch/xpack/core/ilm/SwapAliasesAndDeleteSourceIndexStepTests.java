@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Arrays;
@@ -103,7 +104,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .isHidden(isHidden)
         );
 
-        try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getIndicesAliasAssertingClient(threadPool, expectedAliasActions);
             SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -124,8 +126,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         }
     }
 
-    private NoOpClient getIndicesAliasAssertingClient(List<AliasActions> expectedAliasActions) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getIndicesAliasAssertingClient(ThreadPool threadPool, List<AliasActions> expectedAliasActions) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

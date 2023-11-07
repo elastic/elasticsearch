@@ -139,8 +139,4 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         expectThrows(CancellationException.class, future::actionGet);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

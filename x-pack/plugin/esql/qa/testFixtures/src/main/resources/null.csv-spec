@@ -46,7 +46,7 @@ isNotNullForDocs
 // tag::is-not-null[]
 FROM employees
 | WHERE is_rehired IS NOT NULL
-| STATS count(emp_no)
+| STATS COUNT(emp_no)
 // end::is-not-null[]
 ;
 

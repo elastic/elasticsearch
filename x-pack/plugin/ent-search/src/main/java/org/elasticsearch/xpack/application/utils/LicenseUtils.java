@@ -18,7 +18,8 @@ public final class LicenseUtils {
     public enum Product {
         SEARCH_APPLICATION("search application"),
         BEHAVIORAL_ANALYTICS("behavioral analytics"),
-        QUERY_RULES("query rules");
+        QUERY_RULES("query rules"),
+        CONNECTOR("connector");
 
         private final String name;
 

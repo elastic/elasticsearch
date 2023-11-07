@@ -98,6 +98,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     public static final String QUERY_RULES_API_ENDPOINT = "_query_rules";
 
+    public static final String CONNECTORS_API_ENDPOINT = "_connector";
+
     private static final Logger logger = LogManager.getLogger(EnterpriseSearch.class);
 
     public static final String FEATURE_NAME = "ent_search";

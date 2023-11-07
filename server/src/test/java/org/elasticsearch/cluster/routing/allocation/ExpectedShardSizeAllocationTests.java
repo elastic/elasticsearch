@@ -36,10 +36,14 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,20 +56,26 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         var indexMetadata = IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")))
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(indexMetadata))
             .build();
+        var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
 
         long shardSize = ByteSizeValue.ofGb(1).getBytes();
         long diskSize = ByteSizeValue.ofGb(5).getBytes();
         long headRoom = diskSize / 10;
+        var expectedNodeId = randomFrom(dataNodeIds);
         var clusterInfo = createClusterInfo(
-            Map.of(
-                "node-1",
-                new DiskUsage("node-1", "node-1", "/data", diskSize, headRoom + shardSize - 1),
-                "node-2",
-                new DiskUsage("node-2", "node-2", "/data", diskSize, headRoom + shardSize + 1)
+            createDiskUsage(
+                dataNodeIds,
+                nodeId -> new DiskUsage(
+                    nodeId,
+                    nodeId,
+                    "/data",
+                    diskSize,
+                    headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1)
+                )
             ),
             Map.of(ClusterInfo.shardIdentifierFromRouting(new ShardId(indexMetadata.getIndex(), 0), true), shardSize)
         );
@@ -76,9 +86,13 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertThatShard(
             clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard(),
             INITIALIZING,
-            "node-2",
+            expectedNodeId,
             shardSize
         );
+    }
+
+    private static Map<String, DiskUsage> createDiskUsage(Collection<String> nodeIds, Function<String, DiskUsage> diskUsageCreator) {
+        return nodeIds.stream().collect(toMap(Function.identity(), diskUsageCreator));
     }
 
     public void testAllocateToCorrectNodeAccordingToSnapshotShardInfo() {
@@ -93,7 +107,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             .build();
 
         var clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).add(newNode("node-3")))
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(
                 RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -118,16 +132,22 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
                 )
             )
             .build();
+        var dataNodeIds = clusterState.nodes().getDataNodes().keySet();
 
         long shardSize = ByteSizeValue.ofGb(1).getBytes();
         long diskSize = ByteSizeValue.ofGb(5).getBytes();
         long headRoom = diskSize / 10;
+        var expectedNodeId = randomFrom(dataNodeIds);
         var clusterInfo = createClusterInfo(
-            Map.of(
-                "node-1",
-                new DiskUsage("node-1", "node-1", "/data", diskSize, headRoom + shardSize - 1),
-                "node-2",
-                new DiskUsage("node-2", "node-2", "/data", diskSize, headRoom + shardSize + 1)
+            createDiskUsage(
+                dataNodeIds,
+                nodeId -> new DiskUsage(
+                    nodeId,
+                    nodeId,
+                    "/data",
+                    diskSize,
+                    headRoom + shardSize + (Objects.equals(nodeId, expectedNodeId) ? +1 : -1)
+                )
             ),
             Map.of()
         );
@@ -146,7 +166,7 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertThatShard(
             clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard(),
             INITIALIZING,
-            "node-2",
+            expectedNodeId,
             shardSize
         );
     }

@@ -126,7 +126,7 @@ public class DataStreamLifecycleStatsResponseTests extends AbstractWireSerializi
                 xContentMap.get("time_between_starts"),
                 is(TimeValue.timeValueMillis(testInstance.getTimeBetweenStarts()).toHumanReadableString(2))
             );
-            assertThat(xContentMap.get("data_streams_count"), is(testInstance.getDataStreamStats().size()));
+            assertThat(xContentMap.get("data_stream_count"), is(testInstance.getDataStreamStats().size()));
             List<Map<String, Object>> dataStreams = (List<Map<String, Object>>) xContentMap.get("data_streams");
             if (testInstance.getDataStreamStats().isEmpty()) {
                 assertThat(dataStreams.isEmpty(), is(true));

@@ -120,7 +120,7 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
                         builder.field("time_between_starts", TimeValue.timeValueMillis(timeBetweenStarts).toHumanReadableString(2));
                     }
                 }
-                builder.field("data_streams_count", dataStreamStats.size());
+                builder.field("data_stream_count", dataStreamStats.size());
                 builder.startArray("data_streams");
                 return builder;
             }), Iterators.map(dataStreamStats.iterator(), stat -> (builder, params) -> {

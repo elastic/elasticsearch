@@ -26,6 +26,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
@@ -94,7 +95,11 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         return new GetDataStreamLifecycleStatsAction.Response(
             lifecycleService.getLastRunDuration(),
             lifecycleService.getTimeBetweenStarts(),
-            dataStreamStats
+            dataStreamStats.isEmpty()
+                ? dataStreamStats
+                : dataStreamStats.stream()
+                    .sorted(Comparator.comparing(GetDataStreamLifecycleStatsAction.Response.DataStreamStats::dataStreamName))
+                    .toList()
         );
     }
 

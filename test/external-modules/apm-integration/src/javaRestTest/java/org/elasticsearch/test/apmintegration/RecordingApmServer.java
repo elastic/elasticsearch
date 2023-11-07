@@ -82,7 +82,6 @@ public class RecordingApmServer extends ExternalResource {
                 try (InputStream requestBody = exchange.getRequestBody()) {
                     if (requestBody != null) {
                         var read = readJsonMessages(requestBody);
-
                         received.addAll(read);
                     }
                 }

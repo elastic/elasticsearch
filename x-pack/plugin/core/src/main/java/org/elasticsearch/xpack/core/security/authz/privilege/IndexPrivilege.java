@@ -80,7 +80,11 @@ public final class IndexPrivilege extends Privilege {
         ClusterSearchShardsAction.NAME,
         SearchShardsAction.NAME
     );
-    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
+    private static final Automaton CREATE_AUTOMATON = patterns(
+        "indices:data/write/index*",
+        "indices:data/write/bulk*",
+        "indices:data/write/simulate/bulk*"
+    );
     private static final Automaton CREATE_DOC_AUTOMATON = patterns(
         "indices:data/write/index",
         "indices:data/write/index[*",

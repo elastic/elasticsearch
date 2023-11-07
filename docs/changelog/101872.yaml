@@ -1,0 +1,6 @@
+pr: 101872
+summary: "[WIP] Adding `require_data_stream` feature"
+area: Data streams
+type: feature
+issues:
+ - 97032

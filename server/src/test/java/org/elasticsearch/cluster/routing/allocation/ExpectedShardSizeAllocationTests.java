@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,8 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(ExpectedShardSizeAllocationTests.class);
-
     public void testInitializingHasExpectedSize() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
         final ClusterInfo clusterInfo = createClusterInfoWith(new ShardId("test", "_na_", 0), byteSize);

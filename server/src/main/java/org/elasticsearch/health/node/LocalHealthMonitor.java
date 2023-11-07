@@ -33,7 +33,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeature;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.action.HealthNodeNotDiscoveredException;
@@ -213,7 +213,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             }
         }
         prerequisitesFulfilled = event.state().clusterRecovered()
-            && featureService.clusterHasFeature(event.state(), HealthFeature.SUPPORTS_HEALTH)
+            && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)
             && HealthMetadata.getFromClusterState(event.state()) != null
             && currentHealthNode != null
             && currentMasterNode != null;

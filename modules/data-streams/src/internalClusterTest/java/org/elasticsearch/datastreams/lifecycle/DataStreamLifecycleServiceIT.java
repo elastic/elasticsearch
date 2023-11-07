@@ -90,10 +90,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));

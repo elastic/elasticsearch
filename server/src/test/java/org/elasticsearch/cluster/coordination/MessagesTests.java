@@ -257,7 +257,7 @@ public class MessagesTests extends ESTestCase {
                 case 2 -> new JoinRequest(
                     joinRequest.getSourceNode(),
                     joinRequest.getCompatibilityVersions(),
-                    Set.of(generateRandomStringArray(10, 10, false)),
+                    randomValueOtherThan(joinRequest.getFeatures(), () -> Set.of(generateRandomStringArray(10, 10, false))),
                     joinRequest.getMinimumTerm(),
                     joinRequest.getOptionalJoin()
                 );

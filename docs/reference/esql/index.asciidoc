@@ -62,7 +62,7 @@ An overview of using the <<esql-rest>>, <<esql-kibana>>, and
 The current limitations of {esql}.
 
 <<esql-examples>>::
-A few examples of what you can with {esql}.
+A few examples of what you can do with {esql}.
 
 include::esql-get-started.asciidoc[]
 

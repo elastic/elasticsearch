@@ -26,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class DfsSearchResult extends SearchPhaseResult {
+public final class DfsSearchResult extends SearchPhaseResult {
 
     private static final Term[] EMPTY_TERMS = new Term[0];
     private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
@@ -37,7 +37,6 @@ public class DfsSearchResult extends SearchPhaseResult {
     private int maxDoc;
     private SearchProfileDfsPhaseResult searchProfileDfsPhaseResult;
 
-    @SuppressWarnings("this-escape")
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
         contextId = new ShardSearchContextId(in);
@@ -70,7 +69,6 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    @SuppressWarnings("this-escape")
     public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
         this.contextId = contextId;

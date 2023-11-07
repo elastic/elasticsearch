@@ -8,17 +8,13 @@
 
 package org.elasticsearch.test.client;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * Client that always responds with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)}
@@ -34,13 +30,6 @@ public class NoOpClient extends AbstractClient {
         super(Settings.EMPTY, threadPool);
     }
 
-    /**
-     * Create a new {@link TestThreadPool} for this client. This {@linkplain TestThreadPool} is terminated on {@link #close()}.
-     */
-    public NoOpClient(String testName) {
-        super(Settings.EMPTY, new TestThreadPool(testName));
-    }
-
     @Override
     protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
@@ -51,11 +40,5 @@ public class NoOpClient extends AbstractClient {
     }
 
     @Override
-    public void close() {
-        try {
-            ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            throw new ElasticsearchException(e.getMessage(), e);
-        }
-    }
+    public void close() {}
 }

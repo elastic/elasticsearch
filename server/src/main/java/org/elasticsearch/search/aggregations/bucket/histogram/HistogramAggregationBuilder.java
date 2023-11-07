@@ -216,10 +216,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         return DoubleBounds.getEffectiveMax(extendedBounds);
     }
 
-    protected DoubleBounds extendedBounds() {
-        return extendedBounds;
-    }
-
     /**
      * Set extended bounds on this builder: buckets between {@code minBound} and
      * {@code maxBound} will be created even if no documents fell into these

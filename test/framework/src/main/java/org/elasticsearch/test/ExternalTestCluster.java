@@ -51,7 +51,11 @@ import static org.junit.Assert.assertThat;
  * External cluster to run the tests against.
  * It is a pure immutable test cluster that allows to send requests to a pre-existing cluster
  * and supports by nature all the needed test operations like wipeIndices etc.
+ *
+ * @deprecated not a realistic test setup since the removal of the transport client, use {@link ESIntegTestCase} for internal-cluster tests
+ *             or {@link org.elasticsearch.test.rest.ESRestTestCase} otherwise.
  */
+@Deprecated(forRemoval = true)
 public final class ExternalTestCluster extends TestCluster {
 
     private static final Logger logger = LogManager.getLogger(ExternalTestCluster.class);

@@ -104,10 +104,6 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
         return this;
     }
 
-    public double sigma() {
-        return sigma;
-    }
-
     @Override
     protected ExtendedStatsAggregatorFactory innerBuild(
         AggregationContext context,

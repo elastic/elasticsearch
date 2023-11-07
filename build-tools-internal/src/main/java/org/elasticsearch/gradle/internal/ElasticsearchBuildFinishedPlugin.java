@@ -18,7 +18,6 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileSystemOperations;
-import org.gradle.api.flow.BuildWorkResult;
 import org.gradle.api.flow.FlowAction;
 import org.gradle.api.flow.FlowParameters;
 import org.gradle.api.flow.FlowProviders;
@@ -56,10 +55,7 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
         if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
-
-            System.out.println("ElasticsearchBuildFinishedPlugin.apply");
-            File targetFile = target.file("build/" + buildNumber + ".new.tar.bzip2");
-            File gradleHomeDir = target.getGradle().getGradleHomeDir();
+            File targetFile = target.file("build/" + buildNumber + ".tar.bz2");
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
             BuildScanExtension extension = target.getExtensions().getByType(BuildScanExtension.class);
@@ -67,24 +63,18 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
 
             getFlowScope().always(BuildFinishedFlowAction.class, spec -> {
                 spec.getParameters().getBuildScan().set(extension);
-                spec.getParameters().getResult().set(getFlowProviders().getBuildWorkResult());
                 spec.getParameters().getUploadFile().set(targetFile);
-                spec.getParameters().getWorkerLogsDir().set(gradleWorkersDir);
                 spec.getParameters().getProjectDir().set(projectDir);
-                spec.getParameters().getGradleHome().set(gradleHomeDir);
-                spec.getParameters().getDaemonsLogDir().set(daemonsLogDir);
-                spec.getParameters()
-                    .getFilteredFiles()
-                    .addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
-
-                        List<File> files = new ArrayList<>();
-                        files.addAll(resolveProjectLogs(projectDir));
-
-
-                        return files;
+                spec.getParameters().getFilteredFiles().addAll(getFlowProviders().getBuildWorkResult().map((result) -> {
+                    List<File> files = new ArrayList<>();
+                    files.addAll(resolveProjectLogs(projectDir));
+                    if (files.isEmpty() == false) {
+                        files.addAll(resolveDaemonLogs(daemonsLogDir));
+                        files.addAll(getFileOperations().fileTree(gradleWorkersDir).getFiles());
+                        files.addAll(getFileOperations().fileTree(new File(projectDir, ".gradle/reaper/")).getFiles());
                     }
-
-                        ));
+                    return files;
+                }));
             });
         }
     }
@@ -108,31 +98,15 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
         projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
         return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
     }
-    private List<File> resolveDaemonDir(File projectDir) {
-        var projectDirFiles = getFileOperations().fileTree(projectDir);
-        projectDirFiles.include("**/*.hprof");
-        projectDirFiles.include("**/build/test-results/**/*.xml");
-        projectDirFiles.include("**/build/testclusters/**");
-        projectDirFiles.include("**/build/testrun/*/temp/**");
-        projectDirFiles.include("**/build/**/hs_err_pid*.log");
-        projectDirFiles.exclude("**/build/testclusters/**/data/**");
-        projectDirFiles.exclude("**/build/testclusters/**/distro/**");
-        projectDirFiles.exclude("**/build/testclusters/**/repo/**");
-        projectDirFiles.exclude("**/build/testclusters/**/extract/**");
-        projectDirFiles.exclude("**/build/testclusters/**/tmp/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/data/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/distro/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/repo/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/extract/**");
-        projectDirFiles.exclude("**/build/testrun/*/temp/**/tmp/**");
-        return projectDirFiles.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
+
+    private List<File> resolveDaemonLogs(File daemonsLogDir) {
+        var gradleDaemonFileSet = getFileOperations().fileTree(daemonsLogDir);
+        gradleDaemonFileSet.include("**/daemon-" + ProcessHandle.current().pid() + "*.log");
+        return gradleDaemonFileSet.getFiles().stream().filter(f -> Files.isRegularFile(f.toPath())).toList();
     }
 
     public abstract static class BuildFinishedFlowAction implements FlowAction<BuildFinishedFlowAction.Parameters> {
         interface Parameters extends FlowParameters {
-            @Input
-            Property<BuildWorkResult> getResult();
-
             @Input
             Property<File> getUploadFile();
 
@@ -140,16 +114,7 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
             Property<File> getProjectDir();
 
             @Input
-            Property<File> getDaemonsLogDir();
-
-            @Input
-            Property<File> getWorkerLogsDir();
-
-            @Input
             ListProperty<File> getFilteredFiles();
-
-            @Input
-            Property<File> getGradleHome();
 
             @Input
             Property<BuildScanExtension> getBuildScan();
@@ -205,7 +170,7 @@ public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project
                             + System.getenv("BUILDKITE_JOB_ID")
                             + "/artifacts/"
                             + artifactUuid;
-                        // parameters.getBuildScan().get().link("Artifact Upload", targetLink);
+                        parameters.getBuildScan().get().link("Artifact Upload", targetLink);
                     }
                 } catch (Exception e) {
                     System.out.println("Failed to upload buildkite artifact " + e.getMessage());

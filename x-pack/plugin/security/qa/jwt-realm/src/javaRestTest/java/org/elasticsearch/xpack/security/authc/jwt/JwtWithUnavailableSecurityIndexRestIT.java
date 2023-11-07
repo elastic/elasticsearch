@@ -53,7 +53,11 @@ public class JwtWithUnavailableSecurityIndexRestIT extends ESRestTestCase {
 
     // Using this to first test without, then with caching. Since caching is controlled by a static setting, we need a
     // MutableSettingsProvider instance
-    private static final MutableSettingsProvider mutableSettingsForLastLoadCache = new MutableSettingsProvider();
+    private static final MutableSettingsProvider mutableSettingsForLastLoadCache = new MutableSettingsProvider() {
+        {
+            put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "false");
+        }
+    };
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

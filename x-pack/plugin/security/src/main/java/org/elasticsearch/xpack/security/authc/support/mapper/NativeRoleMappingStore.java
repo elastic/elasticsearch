@@ -218,17 +218,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             try {
                 logger.trace("Modifying role mapping [{}] for [{}]", name, request.getClass().getSimpleName());
-                inner.accept(request, ActionListener.wrap(r -> {
-                    if (lastLoadCacheEnabled) {
-                        logger.trace(
-                            "Clearing last role mapping load since a role mapping [{}] was modified for [{}]",
-                            name,
-                            request.getClass().getSimpleName()
-                        );
-                        lastLoadRef.set(null);
-                    }
-                    refreshRealms(listener, r);
-                }, listener::onFailure));
+                inner.accept(request, ActionListener.wrap(r -> refreshRealms(listener, r), listener::onFailure));
             } catch (Exception e) {
                 logger.error(() -> "failed to modify role-mapping [" + name + "]", e);
                 listener.onFailure(e);

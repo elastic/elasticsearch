@@ -8,11 +8,6 @@ package org.elasticsearch.xpack.security.authc.support.mapper;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.delete.DeleteRequestBuilder;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -42,7 +37,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
-import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -79,7 +73,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -345,66 +338,6 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(false);
         assertThat(resolveRoles(store, user), is(empty()));
         assertThat(store.getLastLoad(), contains(mapping));
-    }
-
-    public void testLastLoadCacheClearedOnRoleMappingModification() throws Exception {
-        final Client client = mock(Client.class);
-        final ThreadPool mockThreadPool = mock(ThreadPool.class);
-        when(mockThreadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(client.threadPool()).thenReturn(mockThreadPool);
-        when(client.prepareSearch(eq(SECURITY_MAIN_ALIAS))).thenReturn(
-            Mockito.spy(new SearchRequestBuilder(client, SearchAction.INSTANCE))
-        );
-        final ExpressionRoleMapping mapping = new ExpressionRoleMapping(
-            "mapping",
-            new FieldExpression("dn", Collections.singletonList(new FieldValue("*"))),
-            List.of("role"),
-            Collections.emptyList(),
-            Collections.emptyMap(),
-            true
-        );
-        doAnswerWithSearchResult(client, mapping);
-        when(client.prepareDelete(any(), anyString())).thenReturn(Mockito.spy(new DeleteRequestBuilder(client, DeleteAction.INSTANCE)));
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            final var listener = (ActionListener<DeleteResponse>) invocation.getArguments()[1];
-            final var deleteResponse = mock(DeleteResponse.class);
-            when(deleteResponse.getResult()).thenReturn(DocWriteResponse.Result.DELETED);
-            listener.onResponse(deleteResponse);
-            return null;
-        }).when(client).delete(any(DeleteRequest.class), anyActionListener());
-
-        doAnswer(inv -> {
-            ((Runnable) inv.getArguments()[1]).run();
-            return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(), any(Runnable.class));
-
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(
-            Settings.builder().put("xpack.security.authz.store.role_mappings.last_load_cache.enabled", "true").build(),
-            client,
-            securityIndex,
-            scriptService
-        );
-
-        final UserRoleMapper.UserData user = new UserRoleMapper.UserData(
-            "user",
-            randomiseDn("cn=user,ou=people,dc=org"),
-            List.of(),
-            Map.of(),
-            mock(RealmConfig.class)
-        );
-        assertThat(store.getLastLoad(), is(nullValue()));
-
-        assertThat(resolveRoles(store, user), Matchers.containsInAnyOrder("role"));
-        assertThat(store.getLastLoad(), contains(mapping));
-        verify(client, times(1)).search(any(SearchRequest.class), anyActionListener());
-
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        final var request = new DeleteRoleMappingRequest();
-        request.setName(mapping.getName());
-        store.deleteRoleMapping(request, future);
-        future.get();
-        assertThat(store.getLastLoad(), is(nullValue()));
     }
 
     private SecurityIndexManager mockHealthySecurityIndex() {

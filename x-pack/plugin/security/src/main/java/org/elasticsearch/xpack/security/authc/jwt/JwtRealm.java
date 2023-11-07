@@ -197,6 +197,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final SignedJWT signedJWT;
         try {
             signedJWT = SignedJWT.parse(userCredentials.toString());
+            // trigger claim set parsing
+            signedJWT.getJWTClaimsSet();
         } catch (ParseException e) {
             logger.debug("Failed to parse JWT bearer token", e);
             // custom realms can also consume the Bearer credentials scheme
@@ -262,7 +264,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         name(),
                         tokenPrincipal,
                         jwtAuthenticationToken.getSignedJWT().getHeader(),
-                        claimsSet
+                        jwtAuthenticationToken.getJWTClaimsSet()
                     );
                 }
                 processValidatedJwt(tokenPrincipal, jwtCacheKey, claimsSet, listener);
@@ -273,6 +275,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + tokenPrincipal
                     + "] with header ["
                     + jwtAuthenticationToken.getSignedJWT().getHeader()
+                    + "] and claimSet ["
+                    + jwtAuthenticationToken.getJWTClaimsSet()
                     + "]";
 
                 if (logger.isTraceEnabled()) {

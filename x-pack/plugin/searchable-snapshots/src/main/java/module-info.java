@@ -19,4 +19,6 @@ module org.elasticsearch.searchablesnapshots {
 
     exports org.elasticsearch.xpack.searchablesnapshots.action.cache to org.elasticsearch.server;
     exports org.elasticsearch.xpack.searchablesnapshots.action to org.elasticsearch.server;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsFeatures;
 }

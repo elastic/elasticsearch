@@ -50,6 +50,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -543,6 +544,10 @@ public class TasksIT extends ESIntegTestCase {
         );
     }
 
+    @TestLogging(
+        reason = "https://github.com/elastic/elasticsearch/issues/97923",
+        value = "org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction:TRACE"
+    )
     public void testListTasksWaitForCompletion() throws Exception {
         waitForCompletionTestCase(
             randomBoolean(),

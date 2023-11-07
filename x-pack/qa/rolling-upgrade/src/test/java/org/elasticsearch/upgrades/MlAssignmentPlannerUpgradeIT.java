@@ -131,7 +131,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
         // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
-        long memoryOverheadMb = Version.fromString(UPGRADE_FROM_VERSION).onOrBefore(Version.V_8_3_0) ? 270 : 240;
+        long memoryOverheadMb = Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_8_2_1) ? 240 : 270;
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");

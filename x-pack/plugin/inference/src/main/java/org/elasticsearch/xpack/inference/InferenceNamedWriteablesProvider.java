@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeServiceSettin
 import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,8 +28,11 @@ public class InferenceNamedWriteablesProvider {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
 
-        // Empty default settings
-        namedWriteables.add(new NamedWriteableRegistry.Entry(EmptyTaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
+        // Empty default task settings
+        namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
+
+        // Default secret settings
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, DefaultSecretSettings.NAME, DefaultSecretSettings::new));
 
         // ELSER config
         namedWriteables.add(

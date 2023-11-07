@@ -6,8 +6,7 @@
  * Side Public License, v 1.
  */
 
-/**
- * Aggregations module
- */
-package org.elasticsearch.search.aggregations.bucket;
-
+module org.elasticsearch.shardhealth {
+    requires org.elasticsearch.server;
+    requires org.apache.lucene.core;
+}

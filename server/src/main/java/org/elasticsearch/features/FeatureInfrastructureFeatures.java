@@ -11,11 +11,13 @@ package org.elasticsearch.features;
 import java.util.Set;
 
 /**
+ * This class specifies features for the features functionality itself.
+ * <p>
  * This adds a feature {@code features_supported} indicating that a node supports node features.
  * Nodes that do not support features won't have this feature in its feature set,
  * so this can be checked without needing to look at the node version.
  */
-public class FeaturesSupportedSpecification implements FeatureSpecification {
+public class FeatureInfrastructureFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {

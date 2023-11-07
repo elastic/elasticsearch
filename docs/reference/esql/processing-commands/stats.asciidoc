@@ -1,8 +1,49 @@
 [discrete]
 [[esql-stats-by]]
 === `STATS ... BY`
-Use `STATS ... BY` to group rows according to a common value and calculate one
-or more aggregated values over the grouped rows.
+
+**Syntax**
+
+[source,esql]
+----
+STATS [column1 =] expression1[, ..., [columnN =] expressionN] [BY grouping_column1[, ..., grouping_columnN]]
+----
+
+*Parameters*
+
+`columnX`::
+The name by which the aggregated value is returned. If omitted, the name is
+equal to the corresponding expression (`expressionX`).
+
+`expressionX`::
+An expression that computes an aggregated value.
+
+`grouping_columnX`::
+The column containing the values to group by.
+
+*Description*
+
+The `STATS ... BY` processing command groups rows according to a common value
+and calculate one or more aggregated values over the grouped rows. If `BY` is
+omitted, the output table contains exactly one row with the aggregations applied
+over the entire dataset.
+
+The following aggregation functions are supported:
+
+include::../functions/aggregation-functions.asciidoc[tag=agg_list]
+
+NOTE: `STATS` without any groups is much much faster than adding a group.
+
+NOTE: Grouping on a single column is currently much more optimized than grouping
+      on many columns. In some tests we have seen grouping on a single `keyword`
+      column to be five times faster than grouping on two `keyword` columns. Do 
+      not try to work around this by combining the two columns together with 
+      something like <<esql-concat>> and then grouping - that is not going to be
+      faster.
+
+*Examples*
+
+Calculating a statistic and grouping by the values of another column:
 
 [source.merge.styled,esql]
 ----
@@ -13,8 +54,8 @@ include::{esql-specs}/docs.csv-spec[tag=stats]
 include::{esql-specs}/docs.csv-spec[tag=stats-result]
 |===
 
-If `BY` is omitted, the output table contains exactly one row with the
-aggregations applied over the entire dataset:
+Omitting `BY` returns one row with the aggregations applied over the entire
+dataset:
 
 [source.merge.styled,esql]
 ----
@@ -39,15 +80,3 @@ keyword family fields):
 ----
 include::{esql-specs}/docs.csv-spec[tag=statsGroupByMultipleValues]
 ----
-
-The following aggregation functions are supported:
-
-include::../functions/aggregation-functions.asciidoc[tag=agg_list]
-
-NOTE: `STATS` without any groups is much much faster than adding group.
-
-NOTE: Grouping on a single field is currently much more optimized than grouping
-      on many fields. In some tests we've seen grouping on a single `keyword`
-      field to be five times faster than grouping on two `keyword` fields. Don't
-      try to work around this combining the two fields together with something
-      like <<esql-concat>> and then grouping - that's not going to be faster.

@@ -14,4 +14,6 @@ module org.elasticsearch.shutdown {
     requires org.apache.logging.log4j;
 
     exports org.elasticsearch.xpack.shutdown;
+
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.shutdown.ShutdownFeatures;
 }

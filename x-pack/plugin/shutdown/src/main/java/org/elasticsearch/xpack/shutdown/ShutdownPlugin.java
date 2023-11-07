@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -27,6 +28,12 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public class ShutdownPlugin extends Plugin implements ActionPlugin {
+
+    /**
+     * A feature indicating that a node supports the shutdown API.
+     */
+    public static final NodeFeature SHUTDOWN_API_SUPPORTED = new NodeFeature("shutdown.api_supported");
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
 

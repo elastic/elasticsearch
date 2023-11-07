@@ -317,19 +317,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         String targetNode = internalCluster().startDataOnlyNode();
 
-        MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            sourceNode
-        );
-        MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            targetNode
-        );
-
-        sourceMockTransportService.addSendBehavior(targetMockTransportService, (connection, requestId, action, request, options) -> {
-            assertNotEquals(PeerRecoveryTargetService.Actions.FILE_CHUNK, action);
-            connection.sendRequest(requestId, action, request, options);
-        });
+        MockTransportService.getInstance(sourceNode)
+            .addSendBehavior(MockTransportService.getInstance(targetNode), (connection, requestId, action, request, options) -> {
+                assertNotEquals(PeerRecoveryTargetService.Actions.FILE_CHUNK, action);
+                connection.sendRequest(requestId, action, request, options);
+            });
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", targetNode), indexName);
 
@@ -597,23 +589,19 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 targetNode = internalCluster().startDataOnlyNode();
             }
 
-            MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
-
             CountDownLatch recoverSnapshotFileRequestReceived = new CountDownLatch(1);
             CountDownLatch respondToRecoverSnapshotFile = new CountDownLatch(1);
             AtomicInteger numberOfRecoverSnapshotFileRequestsReceived = new AtomicInteger();
-            targetMockTransportService.addRequestHandlingBehavior(
-                PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
-                (handler, request, channel, task) -> {
-                    assertThat(numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet(), is(equalTo(1)));
-                    recoverSnapshotFileRequestReceived.countDown();
-                    respondToRecoverSnapshotFile.await();
-                    handler.messageReceived(request, channel, task);
-                }
-            );
+            MockTransportService.getInstance(targetNode)
+                .addRequestHandlingBehavior(
+                    PeerRecoveryTargetService.Actions.RESTORE_FILE_FROM_SNAPSHOT,
+                    (handler, request, channel, task) -> {
+                        assertThat(numberOfRecoverSnapshotFileRequestsReceived.incrementAndGet(), is(equalTo(1)));
+                        recoverSnapshotFileRequestReceived.countDown();
+                        respondToRecoverSnapshotFile.await();
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
 
             if (seqNoRecovery) {
                 ClusterState clusterState = clusterAdmin().prepareState().get().getState();
@@ -728,7 +716,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                                         try {
                                             channel.sendResponse(exception);
                                         } catch (IOException e) {
-                                            throw new AssertionError("unexpected", e);
+                                            fail(e);
                                         }
                                     });
                                 }
@@ -1257,10 +1245,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 recoverySnapshotFileRequests,
                 awaitForRecoverSnapshotFileRequestReceived,
                 respondToRecoverSnapshotFile) -> {
-                MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
-                    TransportService.class,
-                    sourceNode
-                );
+                final var sourceMockTransportService = MockTransportService.getInstance(sourceNode);
 
                 CountDownLatch startRecoveryRetryReceived = new CountDownLatch(1);
                 AtomicBoolean delayRecoveryExceptionSent = new AtomicBoolean();
@@ -1363,15 +1348,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
             .findFirst()
             .orElseThrow();
 
-        MockTransportService sourceMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            replicaNodeName
-        );
-
-        MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            newReplicaNodeName
-        );
+        final var sourceMockTransportService = MockTransportService.getInstance(replicaNodeName);
+        final var targetMockTransportService = MockTransportService.getInstance(newReplicaNodeName);
 
         final CountDownLatch firstDownloadStartLatch = new CountDownLatch(1);
         final CountDownLatch blockSnapshotFileDownload = new CountDownLatch(1);
@@ -1479,10 +1457,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             String sourceNode = dataNodes.get(0);
             String targetNode = dataNodes.get(1);
-            MockTransportService targetMockTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                targetNode
-            );
+            final var targetMockTransportService = MockTransportService.getInstance(targetNode);
 
             List<RecoverySnapshotFileRequest> recoverySnapshotFileRequests = Collections.synchronizedList(new ArrayList<>());
             CountDownLatch recoverSnapshotFileRequestReceived = new CountDownLatch(1);

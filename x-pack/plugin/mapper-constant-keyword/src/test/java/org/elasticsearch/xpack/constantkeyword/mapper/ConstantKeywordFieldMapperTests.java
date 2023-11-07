@@ -7,12 +7,18 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -22,7 +28,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.constantkeyword.mapper.ConstantKeywordFieldMapper.ConstantKeywordFieldType;
@@ -31,11 +39,13 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
@@ -212,6 +222,62 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean allowsNullValues() {
         return false;   // null is an error for constant keyword
+    }
+
+    /**
+     * Test loading blocks when there is no defined value. This is allowed
+     * for newly created indices that haven't received any documents that
+     * contain the field.
+     */
+    public void testNullValueBlockLoaderReadValues() throws IOException {
+        testNullBlockLoader(blockReader -> (TestBlock) blockReader.readValues(TestBlock.FACTORY, TestBlock.docs(0)));
+    }
+
+    /**
+     * Test loading blocks when there is no defined value. This is allowed
+     * for newly created indices that haven't received any documents that
+     * contain the field.
+     */
+    public void testNullValueBlockLoaderReadValuesFromSingleDoc() throws IOException {
+        testNullBlockLoader(blockReader -> {
+            TestBlock block = (TestBlock) blockReader.builder(TestBlock.FACTORY, 1);
+            blockReader.readValuesFromSingleDoc(0, block);
+            return block;
+        });
+    }
+
+    private void testNullBlockLoader(CheckedFunction<BlockDocValuesReader, TestBlock, IOException> body) throws IOException {
+        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            b.field("type", "constant_keyword");
+            b.endObject();
+        }));
+        BlockLoader loader = mapper.fieldType("field").blockLoader(new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                return mapper.mappingLookup().sourcePaths(name);
+            }
+        });
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapper.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                TestBlock block = body.apply(loader.reader(reader.leaves().get(0)));
+                assertThat(block.get(0), nullValue());
+            }
+        }
     }
 
     @Override

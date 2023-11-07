@@ -12,9 +12,6 @@
       "build_on_commit": true,
       "build_on_comment": true,
       "trigger_comment_regex": "run\\W+elasticsearch-ci.+",
-      "labels": [
-        "buildkite-opt-in"
-      ],
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false
     },

@@ -31,9 +31,6 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref fieldValRef = fieldVal.eval(page)) {
-      if (fieldValRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock fieldValBlock = (LongBlock) fieldValRef.block();
       LongVector fieldValVector = fieldValBlock.asVector();
       if (fieldValVector == null) {
@@ -44,7 +41,7 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldValBlock.isNull(p) || fieldValBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -57,7 +54,7 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   }
 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.Builder result = LongVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongVector.Builder result = driverContext.blockFactory().newLongVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendLong(Abs.process(fieldValVector.getLong(p)));
       }

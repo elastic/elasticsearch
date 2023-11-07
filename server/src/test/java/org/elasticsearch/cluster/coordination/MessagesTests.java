@@ -226,18 +226,20 @@ public class MessagesTests extends ESTestCase {
         JoinRequest initialJoinRequest = new JoinRequest(
             initialJoin.getSourceNode(),
             CompatibilityVersionsUtils.fakeSystemIndicesRandom(),
+            Set.of(generateRandomStringArray(10, 10, false)),
             randomNonNegativeLong(),
             randomBoolean() ? Optional.empty() : Optional.of(initialJoin)
         );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             initialJoinRequest,
             joinRequest -> copyWriteable(joinRequest, writableRegistry(), JoinRequest::new),
-            joinRequest -> switch (randomInt(3)) {
+            joinRequest -> switch (randomInt(4)) {
                 case 0 -> {
                     assumeTrue("Optional join needs to be empty", joinRequest.getOptionalJoin().isEmpty());
                     yield new JoinRequest(
                         createNode(randomAlphaOfLength(10)),
                         joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin()
                     );
@@ -248,16 +250,25 @@ public class MessagesTests extends ESTestCase {
                         TransportVersionUtils.randomVersion(Set.of(joinRequest.getCompatibilityVersions().transportVersion())),
                         Map.of()
                     ),
+                    joinRequest.getFeatures(),
                     joinRequest.getMinimumTerm(),
                     joinRequest.getOptionalJoin()
                 );
                 case 2 -> new JoinRequest(
                     joinRequest.getSourceNode(),
                     joinRequest.getCompatibilityVersions(),
+                    randomValueOtherThan(joinRequest.getFeatures(), () -> Set.of(generateRandomStringArray(10, 10, false))),
+                    joinRequest.getMinimumTerm(),
+                    joinRequest.getOptionalJoin()
+                );
+                case 3 -> new JoinRequest(
+                    joinRequest.getSourceNode(),
+                    joinRequest.getCompatibilityVersions(),
+                    joinRequest.getFeatures(),
                     randomValueOtherThan(joinRequest.getMinimumTerm(), ESTestCase::randomNonNegativeLong),
                     joinRequest.getOptionalJoin()
                 );
-                case 3 -> {
+                case 4 -> {
                     // change OptionalJoin
                     Join newJoin = new Join(
                         joinRequest.getSourceNode(),
@@ -269,6 +280,7 @@ public class MessagesTests extends ESTestCase {
                     yield new JoinRequest(
                         joinRequest.getSourceNode(),
                         joinRequest.getCompatibilityVersions(),
+                        joinRequest.getFeatures(),
                         joinRequest.getMinimumTerm(),
                         joinRequest.getOptionalJoin().isPresent() && randomBoolean() ? Optional.empty() : Optional.of(newJoin)
                     );

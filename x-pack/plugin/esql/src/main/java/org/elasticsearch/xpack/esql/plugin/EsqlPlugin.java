@@ -65,7 +65,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         10000,
         1,
         1000000,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
@@ -73,7 +74,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         500,
         1,
         10000,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     @Override
@@ -107,7 +109,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        return List.of(QUERY_RESULT_TRUNCATION_DEFAULT_SIZE, QUERY_RESULT_TRUNCATION_MAX_SIZE);
     }
 
     @Override

@@ -43,7 +43,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     try (ref) {
       IntBlock v = (IntBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (IntBlock.Builder builder = IntBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (IntBlock.Builder builder = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
           if (valueCount == 0) {

@@ -290,11 +290,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         return this;
     }
 
-    /** Return hard bounds for this histogram, or {@code null} if none are set. */
-    public LongBounds hardBounds() {
-        return hardBounds;
-    }
-
     /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
     public DateHistogramAggregationBuilder hardBounds(LongBounds hardBounds) {
         if (hardBounds == null) {

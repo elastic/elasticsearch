@@ -61,11 +61,7 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    BytesRefBlock block = (BytesRefBlock) uncastBlock;
+    BytesRefBlock block = page.getBlock(channels.get(0));
     BytesRefVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

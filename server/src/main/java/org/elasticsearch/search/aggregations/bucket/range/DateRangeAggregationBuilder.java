@@ -241,14 +241,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     /**
-     * Same as {@link #addUnboundedTo(String, double)} but the key will be
-     * computed automatically.
-     */
-    public DateRangeAggregationBuilder addUnboundedTo(double to) {
-        return addUnboundedTo(null, to);
-    }
-
-    /**
      * Add a new range with no upper bound.
      *
      * @param key

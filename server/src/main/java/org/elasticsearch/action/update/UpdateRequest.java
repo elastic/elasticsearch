@@ -123,6 +123,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
     private boolean requireAlias = false;
+    private boolean requireDataStream = false;
 
     @Nullable
     private IndexRequest doc;
@@ -163,6 +164,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
         }
     }
 
@@ -832,6 +838,21 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * todo
+     * @param requireDataStream
+     * @return
+     */
+    public UpdateRequest setRequireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
+    }
+
+    @Override
     public void process(IndexRouting indexRouting) {
         // Nothing to do
     }
@@ -907,6 +928,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         out.writeBoolean(scriptedUpsert);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(requireAlias);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            out.writeOptionalBoolean(requireDataStream);
         }
     }
 

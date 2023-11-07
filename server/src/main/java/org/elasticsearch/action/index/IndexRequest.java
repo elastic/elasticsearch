@@ -106,6 +106,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean isPipelineResolved;
 
     private boolean requireAlias;
+
+    private boolean requireDataStream;
+
     /**
      * This indicates whether the response to this request ought to list the ingest pipelines that were executed on the document
      */
@@ -188,6 +191,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     ? null
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            requireDataStream = in.readBoolean();
+        } else {
+            requireDataStream = false;
         }
     }
 
@@ -755,6 +763,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+            out.writeOptionalBoolean(requireDataStream);
+        }
     }
 
     @Override
@@ -808,6 +819,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * todo
+     * @param requireDataStream
+     * @return
+     */
+    public IndexRequest setRequireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
     }
 
     @Override

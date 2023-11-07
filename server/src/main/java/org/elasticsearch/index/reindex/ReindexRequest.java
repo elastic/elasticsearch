@@ -50,6 +50,8 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * returning all the subrequests that it will make it tries to return a representative set of subrequests. This is best-effort for a bunch
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
+ *
+ * todo add support for require_data_stream
  */
 public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
     /**

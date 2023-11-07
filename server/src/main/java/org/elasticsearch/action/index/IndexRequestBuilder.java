@@ -221,4 +221,12 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
         request.setRequireAlias(requireAlias);
         return this;
     }
+
+    /**
+     * Sets the require_data_stream flag
+     */
+    public IndexRequestBuilder setRequireDataStream(boolean requireDataStream) {
+        request.setRequireDataStream(requireDataStream);
+        return this;
+    }
 }

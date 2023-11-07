@@ -348,4 +348,19 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    /**
+     * Sets the require_alias flag
+     */
+    public UpdateRequestBuilder setRequireAlias(boolean requireAlias) {
+        request.setRequireAlias(requireAlias);
+        return this;
+    }
+
+    /**
+     * Sets the require_data_stream flag
+     */
+    public UpdateRequestBuilder setRequireDataStream(boolean requireDataStream) {
+        request.setRequireDataStream(requireDataStream);
+        return this;
+    }
 }

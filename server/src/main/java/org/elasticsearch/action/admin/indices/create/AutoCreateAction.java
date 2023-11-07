@@ -236,7 +236,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     // This expression only evaluates to true when the argument is non-null and false
                     if (isSystemDataStream == false && Boolean.FALSE.equals(template.getAllowAutoCreate())) {
                         throw new IndexNotFoundException(
-                            "composable template " + template.indexPatterns() + " forbids index auto creation"
+                            "composable template " + template.indexPatterns() + " forbids index auto creation",
+                            request.index()
                         );
                     }
 
@@ -260,6 +261,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 } else {
+                    if (request.isRequireDataStream()) {
+                        throw new IndexNotFoundException(
+                            "the index creation request requires a data stream, but no matching index template with data stream template was found for it",
+                            request.index()
+                        );
+                    }
                     final var indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
                     if (isSystemIndex) {
                         if (indexName.equals(request.index()) == false) {

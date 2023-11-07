@@ -897,6 +897,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
         return builder.build();
     }
 
+    /**
+     * Checks whether the provided index has a parent data streams.
+     */
+    public boolean hasParentDataStream(String indexName) {
+        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
+        IndexAbstraction index = lookup.get(indexName);
+        return index != null && index.getParentDataStream() != null;
+    }
+
     @SuppressWarnings("unchecked")
     private static MappingMetadata filterFields(MappingMetadata mappingMetadata, Predicate<String> fieldPredicate) {
         if (mappingMetadata == null) {

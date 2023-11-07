@@ -83,6 +83,10 @@
       "require_alias": {
         "type": "boolean",
         "description": "When true, requires destination is an alias. Default is false"
+      },
+      "require_data_stream": {
+        "type": "boolean",
+        "description": "When true, requires destination to have a parent data stream. Default is false"
       }
     },
     "body":{

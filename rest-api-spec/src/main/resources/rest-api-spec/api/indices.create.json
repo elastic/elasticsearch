@@ -38,6 +38,10 @@
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"
+      },
+      "require_data_stream": {
+        "type": "boolean",
+        "description": "When true, requires a matching index template with data stream template. Default is false"
       }
     },
     "body":{

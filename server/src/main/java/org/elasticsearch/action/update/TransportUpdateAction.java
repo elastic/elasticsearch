@@ -121,12 +121,25 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.index()
             );
         }
+        if (request.isRequireDataStream() && (clusterService.state().getMetadata().hasParentDataStream(request.index()) == false)) {
+            throw new IndexNotFoundException(
+                "["
+                    + DocWriteRequest.REQUIRE_DATA_STREAM
+                    + "] request flag is [true] and ["
+                    + request.index()
+                    + "] has no parent data stream",
+                request.index()
+            );
+        }
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             client.admin()
                 .indices()
                 .create(
-                    new CreateIndexRequest().index(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()),
+                    new CreateIndexRequest().index(request.index())
+                        .cause("auto(update api)")
+                        .masterNodeTimeout(request.timeout())
+                        .requireDataStream(request.isRequireDataStream()),
                     new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {

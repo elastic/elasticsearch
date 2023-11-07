@@ -246,4 +246,14 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<
     public CreateIndexRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
         return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
+
+    /**
+     * todo
+     * @param requireDataStream
+     * @return
+     */
+    public CreateIndexRequestBuilder setRequireDataStream(final boolean requireDataStream) {
+        request.requireDataStream(requireDataStream);
+        return this;
+    }
 }

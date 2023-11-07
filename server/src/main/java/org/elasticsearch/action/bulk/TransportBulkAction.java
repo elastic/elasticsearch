@@ -68,12 +68,10 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -312,7 +310,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
         // Attempt to create all the indices that we're going to need during the bulk before we start.
         // Step 1: collect all the indices in the request
-        final Map<String, Boolean> indices = bulkRequest.requests.stream()
+        final Map<String, ReducedRequestInfo> indices = bulkRequest.requests.stream()
             // delete requests should not attempt to create the index (if the index does not
             // exists), unless an external versioning is used
             .filter(
@@ -320,28 +318,32 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     || request.versionType() == VersionType.EXTERNAL
                     || request.versionType() == VersionType.EXTERNAL_GTE
             )
-            .collect(Collectors.toMap(DocWriteRequest::index, DocWriteRequest::isRequireAlias, (v1, v2) -> v1 || v2));
+            .collect(
+                Collectors.toMap(
+                    DocWriteRequest::index,
+                    request -> new ReducedRequestInfo(request.isRequireAlias(), request.isRequireDataStream()),
+                    ReducedRequestInfo::merge
+                )
+            );
 
         // Step 2: filter the list of indices to find those that don't currently exist.
         final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
-        Set<String> autoCreateIndices = new HashSet<>();
-        ClusterState state = clusterService.state();
-        for (Map.Entry<String, Boolean> indexAndFlag : indices.entrySet()) {
-            final String index = indexAndFlag.getKey();
-            boolean shouldAutoCreate = indexNameExpressionResolver.hasIndexAbstraction(index, state) == false;
+        final ClusterState state = clusterService.state();
+        Map<String, Boolean> indicesToAutoCreate = indices.entrySet()
+            .stream()
+            .filter(entry -> indexNameExpressionResolver.hasIndexAbstraction(entry.getKey(), state) == false)
             // We should only auto create if we are not requiring it to be an alias
-            if (shouldAutoCreate && (indexAndFlag.getValue() == false)) {
-                autoCreateIndices.add(index);
-            }
-        }
+            .filter(entry -> entry.getValue().isRequireAlias == false)
+            .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().isRequireDataStream));
 
         // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-        if (autoCreateIndices.isEmpty()) {
+        if (indicesToAutoCreate.isEmpty()) {
             executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
         } else {
-            final AtomicInteger counter = new AtomicInteger(autoCreateIndices.size());
-            for (String index : autoCreateIndices) {
-                createIndex(index, bulkRequest.timeout(), new ActionListener<>() {
+            final AtomicInteger counter = new AtomicInteger(indicesToAutoCreate.size());
+            for (Map.Entry<String, Boolean> indexEntry : indicesToAutoCreate.entrySet()) {
+                final String index = indexEntry.getKey();
+                createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), new ActionListener<>() {
                     @Override
                     public void onResponse(CreateIndexResponse result) {
                         if (counter.decrementAndGet() == 0) {
@@ -468,9 +470,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(String index, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+    void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest();
         createIndexRequest.index(index);
+        createIndexRequest.requireDataStream(requireDataStream);
         createIndexRequest.cause("auto(bulk api)");
         createIndexRequest.masterNodeTimeout(timeout);
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
@@ -493,6 +496,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private long buildTookInMillis(long startTimeNanos) {
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
+    }
+
+    private static final class ReducedRequestInfo {
+        // todo: can stream mapping be parallel on multi threads? If so, this needs to be volatile
+        private boolean isRequireAlias;
+        private boolean isRequireDataStream;
+
+        private ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
+            this.isRequireAlias = isRequireAlias;
+            this.isRequireDataStream = isRequireDataStream;
+        }
+
+        private ReducedRequestInfo merge(ReducedRequestInfo other) {
+            this.isRequireAlias |= other.isRequireAlias;
+            this.isRequireDataStream |= other.isRequireDataStream;
+            return this;
+        }
     }
 
     /**
@@ -551,6 +571,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     continue;
                 }
                 if (addFailureIfIndexCannotBeCreated(docWriteRequest, i)) {
+                    continue;
+                }
+                if (addFailureIfRequiresDataStreamAndNoParentDataStream(docWriteRequest, i, metadata)) {
                     continue;
                 }
                 IndexAbstraction ia = null;
@@ -719,6 +742,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (request.isRequireAlias() && (metadata.hasAlias(request.index()) == false)) {
                 Exception exception = new IndexNotFoundException(
                     "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
+                    request.index()
+                );
+                addFailure(request, idx, exception);
+                return true;
+            }
+            return false;
+        }
+
+        private boolean addFailureIfRequiresDataStreamAndNoParentDataStream(DocWriteRequest<?> request, int idx, final Metadata metadata) {
+            if (request.isRequireDataStream() && (metadata.hasParentDataStream(request.index()) == false)) {
+                Exception exception = new IndexNotFoundException(
+                    "["
+                        + DocWriteRequest.REQUIRE_DATA_STREAM
+                        + "] request flag is [true] and ["
+                        + request.index()
+                        + "] has no parent data stream",
                     request.index()
                 );
                 addFailure(request, idx, exception);

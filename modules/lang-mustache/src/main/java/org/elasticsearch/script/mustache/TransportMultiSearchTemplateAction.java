@@ -18,7 +18,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.script.ScriptService;
@@ -27,10 +26,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -86,7 +82,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
             } catch (Exception e) {
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
                 if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
-                    logger.warn("MultiSearchTemplate convert failure for request " + Strings.toString(searchTemplateRequest), e);
+                    logger.warn("MultiSearchTemplate convert failure", e);
                 }
                 continue;
             }

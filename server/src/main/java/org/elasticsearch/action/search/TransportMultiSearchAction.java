@@ -160,7 +160,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             @Override
             public void onFailure(final Exception e) {
                 if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
-                    logger.warn("TransportMultiSearchAction failure for request " + request.request, e);
+                    logger.warn("TransportMultiSearchAction failure", e);
                 }
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
             }

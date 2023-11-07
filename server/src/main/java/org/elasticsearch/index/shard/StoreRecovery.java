@@ -30,6 +30,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -552,6 +553,8 @@ public final class StoreRecovery {
                 if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                     // BwC path, running against an old version master that did not add the IndexId to the recovery source
                     repository.getRepositoryData(
+                        // TODO no need to fork back to GENERIC if using cached repo data, see #101445
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
                         new ThreadedActionListener<>(
                             indexShard.getThreadPool().generic(),
                             indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName()))

@@ -300,6 +300,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             List<TransformStats> allStateAndStats = new ArrayList<>(response.getTransformsStats());
             addCheckpointingInfoForTransformsWithoutTasks(
                 parentTaskId,
+                request.getTimeout(),
                 allStateAndStats,
                 statsForTransformsWithoutTasks,
                 transformsWaitingForAssignment,
@@ -335,10 +336,12 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private void populateSingleStoppedTransformStat(
         TransformStoredDoc transform,
         TaskId parentTaskId,
+        TimeValue timeout,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
         transformCheckpointService.getCheckpointingInfo(
             new ParentTaskAssigningClient(client, parentTaskId),
+            timeout,
             transform.getId(),
             transform.getTransformState().getCheckpoint(),
             transform.getTransformState().getPosition(),
@@ -352,6 +355,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private void addCheckpointingInfoForTransformsWithoutTasks(
         TaskId parentTaskId,
+        TimeValue timeout,
         List<TransformStats> allStateAndStats,
         List<TransformStoredDoc> statsForTransformsWithoutTasks,
         Set<String> transformsWaitingForAssignment,
@@ -368,7 +372,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         AtomicBoolean isExceptionReported = new AtomicBoolean(false);
 
         statsForTransformsWithoutTasks.forEach(
-            stat -> populateSingleStoppedTransformStat(stat, parentTaskId, ActionListener.wrap(checkpointingInfo -> {
+            stat -> populateSingleStoppedTransformStat(stat, parentTaskId, timeout, ActionListener.wrap(checkpointingInfo -> {
                 synchronized (allStateAndStats) {
                     if (transformsWaitingForAssignment.contains(stat.getId())) {
                         Assignment assignment = TransformNodes.getAssignment(stat.getId(), clusterState);

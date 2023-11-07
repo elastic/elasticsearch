@@ -1,6 +1,0 @@
-pr: 98061
-summary: Fix possible NPE when getting transform stats for failed transforms
-area: Transform
-type: bug
-issues:
-  - 98052

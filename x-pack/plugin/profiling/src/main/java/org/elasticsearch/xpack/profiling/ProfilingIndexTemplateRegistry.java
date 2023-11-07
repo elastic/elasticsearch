@@ -55,6 +55,7 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     public static final int PROFILING_RETURNPADS_PRIVATE_VERSION = 1;
     public static final int PROFILING_SQ_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_SQ_LEAFFRAMES_VERSION = 1;
+    public static final int PROFILING_COSTS_VERSION = 1;
 
     public static final String PROFILING_TEMPLATE_VERSION_VARIABLE = "xpack.profiling.template.version";
 
@@ -232,6 +233,13 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
             PROFILING_TEMPLATE_VERSION_VARIABLE
         ),
         // templates for regular indices
+        new IndexTemplateConfig(
+            "profiling-costs",
+            "/profiling/index-template/profiling-costs.json",
+            INDEX_TEMPLATE_VERSION,
+            PROFILING_TEMPLATE_VERSION_VARIABLE,
+            indexVersion("costs", PROFILING_COSTS_VERSION)
+        ),
         new IndexTemplateConfig(
             "profiling-returnpads-private",
             "/profiling/index-template/profiling-returnpads-private.json",

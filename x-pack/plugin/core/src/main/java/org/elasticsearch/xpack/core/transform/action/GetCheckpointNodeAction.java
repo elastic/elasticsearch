@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
@@ -90,16 +92,23 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         private final Set<ShardId> shards;
         private final OriginalIndices originalIndices;
+        private final TimeValue timeout;
 
-        public Request(Set<ShardId> shards, OriginalIndices originalIndices) {
+        public Request(Set<ShardId> shards, OriginalIndices originalIndices, TimeValue timeout) {
             this.shards = shards;
             this.originalIndices = originalIndices;
+            this.timeout = timeout;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.shards = in.readCollectionAsImmutableSet(ShardId::new);
             this.originalIndices = OriginalIndices.readOriginalIndices(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
+                this.timeout = in.readOptionalTimeValue();
+            } else {
+                this.timeout = null;
+            }
         }
 
         @Override
@@ -112,6 +121,9 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             super.writeTo(out);
             out.writeCollection(shards);
             OriginalIndices.writeOriginalIndices(originalIndices, out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.TRANSFORM_GET_CHECKPOINT_TIMEOUT_ADDED)) {
+                out.writeOptionalTimeValue(timeout);
+            }
         }
 
         public Set<ShardId> getShards() {
@@ -120,6 +132,10 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
 
         public OriginalIndices getOriginalIndices() {
             return originalIndices;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
         @Override
@@ -132,12 +148,14 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
             }
             Request that = (Request) obj;
 
-            return Objects.equals(shards, that.shards) && Objects.equals(originalIndices, that.originalIndices);
+            return Objects.equals(shards, that.shards)
+                && Objects.equals(originalIndices, that.originalIndices)
+                && Objects.equals(timeout, that.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shards, originalIndices);
+            return Objects.hash(shards, originalIndices, timeout);
         }
 
         @Override

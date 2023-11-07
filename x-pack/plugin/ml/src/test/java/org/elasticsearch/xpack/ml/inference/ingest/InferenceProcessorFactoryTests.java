@@ -922,8 +922,22 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
                             Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
                         )
                     )
-                    .add(DiscoveryNodeUtils.create("current_node", new TransportAddress(InetAddress.getLoopbackAddress(), 9302)))
-                    .add(DiscoveryNodeUtils.create("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9304)))
+                    .add(
+                        DiscoveryNodeUtils.create(
+                            "current_node",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9302),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
+                    )
+                    .add(
+                        DiscoveryNodeUtils.create(
+                            "_node_id",
+                            new TransportAddress(InetAddress.getLoopbackAddress(), 9304),
+                            Map.of(MachineLearning.ML_CONFIG_VERSION_NODE_ATTR, MlConfigVersion.CURRENT.toString()),
+                            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.ML_ROLE, DiscoveryNodeRole.DATA_ROLE)
+                        )
+                    )
                     .localNodeId("_node_id")
                     .masterNodeId("_node_id")
             )

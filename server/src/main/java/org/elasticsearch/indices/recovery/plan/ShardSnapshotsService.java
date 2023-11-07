@@ -54,7 +54,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class ShardSnapshotsService {
-    private final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
+    private static final Logger logger = LogManager.getLogger(ShardSnapshotsService.class);
 
     private final Client client;
     private final RepositoriesService repositoriesService;

@@ -25,8 +25,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -68,8 +66,6 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private final Supplier<List<String>> pinnedIdsSupplier;
     private final List<Item> pinnedDocs;
     private final Supplier<List<Item>> pinnedDocsSupplier;
-
-    private final Logger logger = LogManager.getLogger(RuleQueryBuilder.class);
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -245,7 +246,10 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
             List<String> allIndices = errorStore.getAllIndices();
             for (var index : allIndices) {
-                indicesAndErrors.put(index, errorStore.getError(index));
+                ErrorEntry error = errorStore.getError(index);
+                if (error != null) {
+                    indicesAndErrors.put(index, error.error());
+                }
             }
         }
         return indicesAndErrors;

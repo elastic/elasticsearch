@@ -47,12 +47,12 @@ public class MvMax extends AbstractMultivalueFunction {
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> dvrCtx -> new MvMaxBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case BYTES_REF -> dvrCtx -> new MvMaxBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case DOUBLE -> dvrCtx -> new MvMaxDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvMaxIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case LONG -> dvrCtx -> new MvMaxLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+            case BOOLEAN -> new MvMaxBooleanEvaluator.Factory(fieldEval);
+            case BYTES_REF -> new MvMaxBytesRefEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMaxDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMaxIntEvaluator.Factory(fieldEval);
+            case LONG -> new MvMaxLongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

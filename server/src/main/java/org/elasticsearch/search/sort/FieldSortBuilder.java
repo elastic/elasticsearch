@@ -61,7 +61,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -101,7 +101,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     private String format;
 
     /** Copy constructor. */
-    @SuppressWarnings("this-escape")
     public FieldSortBuilder(FieldSortBuilder template) {
         this(template.fieldName);
         this.order(template.order());

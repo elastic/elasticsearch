@@ -58,6 +58,7 @@ import javax.inject.Inject;
  */
 public class RestTestBasePlugin implements Plugin<Project> {
 
+    private static final String TESTS_MAX_PARALLEL_FORKS_SYSPROP = "tests.max.parallel.forks";
     private static final String TESTS_RUNTIME_JAVA_SYSPROP = "tests.runtime.java";
     private static final String DEFAULT_DISTRIBUTION_SYSPROP = "tests.default.distribution";
     private static final String INTEG_TEST_DISTRIBUTION_SYSPROP = "tests.integ-test.distribution";
@@ -123,6 +124,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
             // Enable parallel execution for these tests since each test gets its own cluster
             task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+            nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
             task.getInputs().property(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);

@@ -55,10 +55,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream()
-            .findFirst()
-            .get();
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class).findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         // keystore file should be missing for this test case
@@ -104,10 +101,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public void testInvalidKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream()
-            .findFirst()
-            .get();
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class).findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -156,10 +150,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public void testReloadAllNodesWithPasswordWithoutTLSFails() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream()
-            .findFirst()
-            .get();
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class).findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -238,10 +229,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public void testWrongKeystorePassword() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream()
-            .findFirst()
-            .get();
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class).findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
@@ -286,15 +274,11 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
     public void testMisbehavingPlugin() throws Exception {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream()
-            .findFirst()
-            .get();
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class).findFirst().get();
         // make plugins throw on reload
         for (final String nodeName : internalCluster().getNodeNames()) {
             internalCluster().getInstance(PluginsService.class, nodeName)
                 .filterPlugins(MisbehavingReloadablePlugin.class)
-                .stream()
                 .findFirst()
                 .get()
                 .setShouldThrow(true);
@@ -349,10 +333,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     public void testReloadWhileKeystoreChanged() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
-        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
-            .stream()
-            .findFirst()
-            .get();
+        final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class).findFirst().get();
         final Environment environment = internalCluster().getInstance(Environment.class);
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         for (int i = 0; i < randomIntBetween(4, 8); i++) {

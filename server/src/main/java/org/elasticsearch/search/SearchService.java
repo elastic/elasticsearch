@@ -224,7 +224,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> QUERY_PHASE_PARALLEL_COLLECTION_ENABLED = Setting.boolSetting(
         "search.query_phase_parallel_collection_enabled",
-        false,
+        true,
         Property.NodeScope,
         Property.Dynamic
     );
@@ -1249,6 +1249,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         QueryBuilder query = source.query();
         if (query != null) {
             InnerHitContextBuilder.extractInnerHits(query, innerHitBuilders);
+            searchExecutionContext.setAliasFilter(context.request().getAliasFilter().getQueryBuilder());
             context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {

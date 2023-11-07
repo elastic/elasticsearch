@@ -8,35 +8,42 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Stack;
-
 public final class ContentPath {
 
     private static final char DELIMITER = '.';
 
     private final StringBuilder sb;
-    private final Stack<Integer> delimiterIndexes;
+
+    private int index = 0;
+
+    private String[] path = new String[10];
+
     private boolean withinLeafObject = false;
 
     public ContentPath() {
         this.sb = new StringBuilder();
-        this.delimiterIndexes = new Stack<>();
+    }
+
+    String[] getPath() {
+        // used for testing
+        return path;
     }
 
     public void add(String name) {
-        // Store the location of the previous final delimiter onto the stack,
-        // which will be the index of the 2nd last delimiter after appending the new name
-        delimiterIndexes.add(sb.length() - 1);
-        sb.append(name).append(DELIMITER);
+        path[index++] = name;
+        if (index == path.length) { // expand if needed
+            expand();
+        }
+    }
+
+    private void expand() {
+        String[] newPath = new String[path.length + 10];
+        System.arraycopy(path, 0, newPath, 0, path.length);
+        path = newPath;
     }
 
     public void remove() {
-        if (delimiterIndexes.isEmpty()) {
-            throw new IllegalStateException("Content path is empty");
-        }
-
-        // Deletes the last node added to the stringbuilder by deleting from the 2nd last delimiter onwards
-        sb.setLength(delimiterIndexes.pop() + 1);
+        path[--index] = null;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {
@@ -48,16 +55,15 @@ public final class ContentPath {
     }
 
     public String pathAsText(String name) {
-        // If length is 0 we know that we are at the root, so return the provided string directly
-        if (length() == 0) {
-            return name;
+        sb.setLength(0);
+        for (int i = 0; i < index; i++) {
+            sb.append(path[i]).append(DELIMITER);
         }
-
-        return sb + name;
+        sb.append(name);
+        return sb.toString();
     }
 
     public int length() {
-        // The amount of delimiters we've added tells us the amount of nodes that have been added to the path
-        return delimiterIndexes.size();
+        return index;
     }
 }

@@ -240,10 +240,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             );
         }
 
-        MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            internalTestCluster.getMasterName()
-        );
+        final var masterTransportService = MockTransportService.getInstance(internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
         final Set<String> blockedActions = newHashSet(
@@ -254,7 +251,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         );
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addSendBehavior(
+            masterTransportService.addSendBehavior(
                 internalTestCluster.getInstance(TransportService.class, node.getName()),
                 (connection, requestId, action, request, options) -> {
                     if (blockedActions.contains(action)) {

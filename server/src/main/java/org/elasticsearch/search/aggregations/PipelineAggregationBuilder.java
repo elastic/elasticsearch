@@ -113,11 +113,6 @@ public abstract class PipelineAggregationBuilder
             }
 
             @Override
-            public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
-                return siblingPipelineAggregations;
-            }
-
-            @Override
             public void validateHasParent(String type, String name) {
                 addValidationError(type + " aggregation [" + name + "] must be declared inside of another aggregation");
             }
@@ -156,11 +151,6 @@ public abstract class PipelineAggregationBuilder
             }
 
             @Override
-            public Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations() {
-                return parent.getPipelineAggregations();
-            }
-
-            @Override
             public void validateHasParent(String type, String name) {
                 // There is a parent inside the tree.
             }
@@ -180,11 +170,6 @@ public abstract class PipelineAggregationBuilder
          * Aggregations that are siblings to the aggregation being validated.
          */
         public abstract Collection<AggregationBuilder> getSiblingAggregations();
-
-        /**
-         * Pipeline aggregations that are siblings to the aggregation being validated.
-         */
-        public abstract Collection<PipelineAggregationBuilder> getSiblingPipelineAggregations();
 
         /**
          * Add a validation error to this context. All validation errors

@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 
@@ -142,7 +142,7 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static org.elasticsearch.Version getOldClusterVersion() {
-        return org.elasticsearch.Version.fromString(OLD_CLUSTER_VERSION.toString());
+        return org.elasticsearch.Version.fromString(OLD_CLUSTER_VERSION);
     }
 
     protected static IndexVersion getOldClusterIndexVersion() {
@@ -151,7 +151,11 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
     }
 
     protected static Version getOldClusterTestVersion() {
-        return Version.fromString(OLD_CLUSTER_VERSION.toString());
+        return Version.fromString(OLD_CLUSTER_VERSION);
+    }
+
+    protected static boolean isOldClusterVersion(String nodeVersion) {
+        return OLD_CLUSTER_VERSION.equals(nodeVersion);
     }
 
     protected static boolean isOldCluster() {

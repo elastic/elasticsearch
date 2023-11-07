@@ -26,31 +26,31 @@ public class Cast {
             return in;
         }
         if (current == DataTypes.NULL || required == DataTypes.NULL) {
-            return dvrCtx -> EvalOperator.CONSTANT_NULL;
+            return EvalOperator.CONSTANT_NULL_FACTORY;
         }
         if (required == DataTypes.DOUBLE) {
             if (current == DataTypes.LONG) {
-                return dvrCtx -> new CastLongToDoubleEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastLongToDoubleEvaluator.Factory(in);
             }
             if (current == DataTypes.INTEGER) {
-                return dvrCtx -> new CastIntToDoubleEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastIntToDoubleEvaluator.Factory(in);
             }
             if (current == DataTypes.UNSIGNED_LONG) {
-                return dvrCtx -> new CastUnsignedLongToDoubleEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastUnsignedLongToDoubleEvaluator.Factory(in);
             }
             throw cantCast(current, required);
         }
         if (required == DataTypes.UNSIGNED_LONG) {
             if (current == DataTypes.LONG) {
-                return dvrCtx -> new CastLongToUnsignedLongEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastLongToUnsignedLongEvaluator.Factory(in);
             }
             if (current == DataTypes.INTEGER) {
-                return dvrCtx -> new CastIntToUnsignedLongEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastIntToUnsignedLongEvaluator.Factory(in);
             }
         }
         if (required == DataTypes.LONG) {
             if (current == DataTypes.INTEGER) {
-                return dvrCtx -> new CastIntToLongEvaluator(in.get(dvrCtx), dvrCtx);
+                return new CastIntToLongEvaluator.Factory(in);
             }
             throw cantCast(current, required);
         }

@@ -1,0 +1,5 @@
+pr: 101488
+summary: "ESQL: More tracking in `BlockHash` impls"
+area: ES|QL
+type: enhancement
+issues: []

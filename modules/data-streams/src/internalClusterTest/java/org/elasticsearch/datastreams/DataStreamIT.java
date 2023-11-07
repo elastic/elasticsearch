@@ -90,7 +90,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -2157,11 +2156,11 @@ public class DataStreamIT extends ESIntegTestCase {
 
         for (String nodeId : failingIndicesStatsNodeIds) {
             String nodeName = clusterStateBeforeRollover.nodes().resolveNode(nodeId).getName();
-            MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeName);
-            transportService.addRequestHandlingBehavior(
-                IndicesStatsAction.NAME + "[n]",
-                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
-            );
+            MockTransportService.getInstance(nodeName)
+                .addRequestHandlingBehavior(
+                    IndicesStatsAction.NAME + "[n]",
+                    (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
+                );
         }
 
         logger.info(
@@ -2223,14 +2222,11 @@ public class DataStreamIT extends ESIntegTestCase {
             .currentNodeId();
 
         final String nodeName = clusterStateBeforeRollover.nodes().resolveNode(assignedShardNodeId).getName();
-        final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            nodeName
-        );
-        transportService.addRequestHandlingBehavior(
-            IndicesStatsAction.NAME + "[n]",
-            (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
-        );
+        MockTransportService.getInstance(nodeName)
+            .addRequestHandlingBehavior(
+                IndicesStatsAction.NAME + "[n]",
+                (handler, request, channel, task) -> channel.sendResponse(new RuntimeException("Unable to get stats"))
+            );
 
         assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStreamName, null)).actionGet());
 

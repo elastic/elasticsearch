@@ -268,17 +268,6 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         return version1.id > version2.id ? version1 : version2;
     }
 
-    // Visible only for testing
-    static MlConfigVersion fromVersion(Version version) {
-        if (version.equals(Version.V_8_10_0)) {
-            return V_10;
-        }
-        if (version.after(Version.V_8_10_0)) {
-            throw new IllegalArgumentException("Cannot convert " + version + ". Incompatible version");
-        }
-        return fromId(version.id);
-    }
-
     public static MlConfigVersion getMinMlConfigVersion(DiscoveryNodes nodes) {
         return getMinMaxMlConfigVersion(nodes).v1();
     }
@@ -308,10 +297,10 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
 
     public static MlConfigVersion getMlConfigVersionForNode(DiscoveryNode node) {
         String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
-        if (mlConfigVerStr == null) {
-            return fromVersion(node.getVersion());
+        if (mlConfigVerStr != null) {
+            return fromString(mlConfigVerStr);
         }
-        return fromString(mlConfigVerStr);
+        return fromId(node.getPre811VersionId().orElseThrow(() -> new IllegalStateException("getting legacy version id not possible")));
     }
 
     // Parse an MlConfigVersion from a string.
@@ -329,12 +318,17 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
         if (str.startsWith("8.10.") || str.equals("8.11.0")) {
             return V_10;
         }
-        Matcher matcher = Pattern.compile("^(\\d+)\\.0\\.0$").matcher(str);
-        int versionNum;
-        if (matcher.matches() == false || (versionNum = Integer.parseInt(matcher.group(1))) < 10) {
-            return fromVersion(Version.fromString(str));
+        Matcher matcher = Pattern.compile("^(\\d+)\\.(\\d+)\\.(\\d+)(?:-\\w+)?$").matcher(str);
+        if (matcher.matches() == false) {
+            throw new IllegalArgumentException("ML config version [" + str + "] not valid");
         }
-        return fromId(1000000 * versionNum + 99);
+        int first = Integer.parseInt(matcher.group(1));
+        int second = Integer.parseInt(matcher.group(2));
+        int third = Integer.parseInt(matcher.group(3));
+        if (first >= 10 && (second > 0 || third > 0)) {
+            throw new IllegalArgumentException("ML config version [" + str + "] not valid");
+        }
+        return fromId(1000000 * first + 10000 * second + 100 * third + 99);
     }
 
     @Override

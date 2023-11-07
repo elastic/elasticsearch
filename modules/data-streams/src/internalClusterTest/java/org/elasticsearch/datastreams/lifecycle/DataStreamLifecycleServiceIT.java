@@ -27,6 +27,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -52,7 +53,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
@@ -88,10 +88,6 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class);
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -288,16 +284,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         for (DiscoveryNode node : internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
             .state()
             .getNodes()) {
-            final MockTransportService transportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                node.getName()
-            );
-            transportService.addRequestHandlingBehavior(ForceMergeAction.NAME + "[n]", (handler, request, channel, task) -> {
-                String index = ((IndicesRequest) request).indices()[0];
-                forceMergedIndices.add(index);
-                logger.info("Force merging {}", index);
-                handler.messageReceived(request, channel, task);
-            });
+            MockTransportService.getInstance(node.getName())
+                .addRequestHandlingBehavior(ForceMergeAction.NAME + "[n]", (handler, request, channel, task) -> {
+                    String index = ((IndicesRequest) request).indices()[0];
+                    forceMergedIndices.add(index);
+                    logger.info("Force merging {}", index);
+                    handler.messageReceived(request, channel, task);
+                });
         }
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -409,7 +402,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             String writeIndexName = getBackingIndices(dataStreamName).get(1);
-            String writeIndexRolloverError = null;
+            ErrorEntry writeIndexRolloverError = null;
             Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
             for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
@@ -420,7 +413,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             }
 
             assertThat(writeIndexRolloverError, is(notNullValue()));
-            assertThat(writeIndexRolloverError, containsString("maximum normal shards open"));
+            assertThat(writeIndexRolloverError.error(), containsString("maximum normal shards open"));
         });
 
         // let's reset the cluster max shards per node limit to allow rollover to proceed and check the error store is empty
@@ -501,7 +494,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 String writeIndex = backingIndices.get(1).getName();
                 assertThat(writeIndex, backingIndexEqualTo(dataStreamName, 2));
 
-                String recordedRetentionExecutionError = null;
+                ErrorEntry recordedRetentionExecutionError = null;
                 Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
                 for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
@@ -512,7 +505,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 }
 
                 assertThat(recordedRetentionExecutionError, is(notNullValue()));
-                assertThat(recordedRetentionExecutionError, containsString("blocked by: [FORBIDDEN/5/index read-only (api)"));
+                assertThat(recordedRetentionExecutionError.error(), containsString("blocked by: [FORBIDDEN/5/index read-only (api)"));
             });
 
             // let's mark the index as writeable and make sure it's deleted and the error store is empty

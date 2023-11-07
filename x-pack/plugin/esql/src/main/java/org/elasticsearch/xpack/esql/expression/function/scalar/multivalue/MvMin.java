@@ -47,12 +47,12 @@ public class MvMin extends AbstractMultivalueFunction {
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> dvrCtx -> new MvMinBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case BYTES_REF -> dvrCtx -> new MvMinBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case DOUBLE -> dvrCtx -> new MvMinDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvMinIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case LONG -> dvrCtx -> new MvMinLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+            case BOOLEAN -> new MvMinBooleanEvaluator.Factory(fieldEval);
+            case BYTES_REF -> new MvMinBytesRefEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMinIntEvaluator.Factory(fieldEval);
+            case LONG -> new MvMinLongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

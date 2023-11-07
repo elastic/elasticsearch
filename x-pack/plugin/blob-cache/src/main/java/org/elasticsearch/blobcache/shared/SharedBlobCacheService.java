@@ -810,7 +810,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = threadPool.relativeTimeInMillis();
-            RangeMissingHandler writerTimingDecorator = (
+            RangeMissingHandler writerInstrumentationDecorator = (
                 SharedBytes.IO channel,
                 int channelPos,
                 int relativePos,
@@ -828,9 +828,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerTimingDecorator, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerTimingDecorator, startRegion, endRegion);
+            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion);
         }
 
         private int readSingleRegion(

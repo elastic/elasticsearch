@@ -158,9 +158,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -1983,46 +1981,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
-        String[] stringAddresses = clusterAddresses.split(",");
-        TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
-        int i = 0;
-        for (String stringAddress : stringAddresses) {
-            URL url = new URL("http://" + stringAddress);
-            InetAddress inetAddress = InetAddress.getByName(url.getHost());
-            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
-        }
-        return new ExternalTestCluster(
-            createTempDir(),
-            externalClusterClientSettings(),
-            nodePlugins(),
-            getClientWrapper(),
-            clusterName,
-            transportAddresses
-        );
-    }
-
-    protected Settings externalClusterClientSettings() {
-        return Settings.EMPTY;
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return false;
-    }
-
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
-            if (scope == Scope.TEST) {
-                throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
-            }
-            String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-            if (Strings.isNullOrEmpty(clusterName)) {
-                throw new IllegalArgumentException("External test cluster name must be provided");
-            }
-            return buildExternalCluster(clusterAddresses, clusterName);
-        }
-
         final String nodePrefix = switch (scope) {
             case TEST -> TEST_CLUSTER_NODE_PREFIX;
             case SUITE -> SUITE_CLUSTER_NODE_PREFIX;

@@ -51,7 +51,7 @@ FROM employees
 ;
 
 // tag::is-not-null-result[]
-count(emp_no):long 
+COUNT(emp_no):long 
 84
 // end::is-not-null-result[]
 ;

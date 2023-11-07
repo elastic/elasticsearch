@@ -651,8 +651,7 @@ public class IndexResolver {
     }
 
     private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
-        return new GetAliasesRequest().local(true)
-            .aliases("*")
+        return new GetAliasesRequest().aliases("*")
             .indices(response.getIndices())
             .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }

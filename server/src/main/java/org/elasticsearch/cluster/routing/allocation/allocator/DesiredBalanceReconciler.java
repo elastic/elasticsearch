@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -40,6 +39,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 
 /**
  * Given the current allocation of shards and the desired balance, performs the next (legal) shard movements towards the goal.
@@ -271,14 +271,7 @@ public class DesiredBalanceReconciler {
                             switch (decision.type()) {
                                 case YES -> {
                                     logger.debug("Assigning shard [{}] to {} [{}]", shard, nodeIdsIterator.source, nodeId);
-                                    final long shardSize = DiskThresholdDecider.getExpectedShardSize(
-                                        shard,
-                                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
-                                        allocation.clusterInfo(),
-                                        allocation.snapshotShardSizeInfo(),
-                                        allocation.metadata(),
-                                        allocation.routingTable()
-                                    );
+                                    long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                                     routingNodes.initializeShard(shard, nodeId, null, shardSize, allocation.changes());
                                     allocationOrdering.recordAllocation(nodeId);
                                     if (shard.primary() == false) {

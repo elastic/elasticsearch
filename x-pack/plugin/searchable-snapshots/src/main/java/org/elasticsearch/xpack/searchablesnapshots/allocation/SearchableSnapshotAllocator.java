@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -61,6 +60,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.gateway.ReplicaShardAllocator.augmentExplanationsWithStoreInfo;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
@@ -198,7 +198,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    DiskThresholdDecider.getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
+                    getExpectedShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation),
                     allocation.changes()
                 );
             } else {

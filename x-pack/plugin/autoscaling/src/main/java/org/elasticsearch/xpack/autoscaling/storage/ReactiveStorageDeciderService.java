@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -670,7 +671,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         private long getExpectedShardSize(ShardRouting shard) {
-            return DiskThresholdDecider.getExpectedShardSize(shard, 0L, info, shardSizeInfo, state.metadata(), state.routingTable());
+            return ExpectedShardSizeEstimator.getExpectedShardSize(shard, 0L, info, shardSizeInfo, state.metadata(), state.routingTable());
         }
 
         long unmovableSize(String nodeId, Collection<ShardRouting> shards) {

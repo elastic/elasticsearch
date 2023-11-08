@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -31,6 +32,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -188,7 +190,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         }
 
         QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands, similarity).addFilterQueries(filterQueries).boost(boost);
-        assertEquals(expected, builder.toQueryBuilder());
+        assertEquals(expected, builder.toQueryBuilder(createSearchExecutionContext(DEFAULT_SIZE)));
     }
 
     public void testNumCandsLessThanK() {
@@ -219,7 +221,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         int size = 20;
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), null, 10, null).adjustForExploration(size)
+            () -> new KnnSearchBuilder("field", randomVector(3), null, 10, null).toQueryBuilder(createSearchExecutionContext(2))
         );
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
@@ -301,5 +303,30 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             rewrites++;
             return this;
         }
+    }
+
+    private static SearchExecutionContext createSearchExecutionContext(int requestSize) {
+        return new SearchExecutionContext(
+            0,
+            0,
+            null,
+            null,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            Collections.emptyMap(),
+            requestSize
+        );
     }
 }

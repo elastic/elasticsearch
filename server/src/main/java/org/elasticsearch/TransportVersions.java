@@ -160,6 +160,7 @@ public class TransportVersions {
     public static final TransportVersion KNN_AS_QUERY_ADDED = def(8_529_00_0);
     public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
     public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
+    public static final TransportVersion KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS = def(8_535_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -70,6 +70,8 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+
 final class DefaultSearchContext extends SearchContext {
 
     private final ReaderContext readerContext;
@@ -185,7 +187,8 @@ final class DefaultSearchContext extends SearchContext {
             searcher,
             request::nowInMillis,
             shardTarget.getClusterAlias(),
-            request.getRuntimeMappings()
+            request.getRuntimeMappings(),
+            request.source().size()
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
@@ -216,7 +219,7 @@ final class DefaultSearchContext extends SearchContext {
             return;
         }
         long from = from() == -1 ? 0 : from();
-        long size = size() == -1 ? 10 : size();
+        long size = size() == -1 ? DEFAULT_SIZE : size();
         long resultWindow = from + size;
         int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 

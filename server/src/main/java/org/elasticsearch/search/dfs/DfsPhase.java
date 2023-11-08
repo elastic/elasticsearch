@@ -41,6 +41,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
  * The additional information is used to better compare the scores coming from all the shards, which depend on local factors (e.g. idf).
@@ -179,8 +181,9 @@ public class DfsPhase {
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
-        knnSearch.forEach(knn -> knn.adjustForExploration(context.size()));
-        List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream()
+            .map(knn -> knn.toQueryBuilder(searchExecutionContext))
+            .toList();
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
             for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {
@@ -192,7 +195,11 @@ public class DfsPhase {
             String knnField = knnVectorQueryBuilders.get(i).getFieldName();
             String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
+            Integer topK = knnSearch.get(i).k();
+            int size = source.size() == -1 ? DEFAULT_SIZE : source.size();
+            knnResults.add(
+                singleKnnSearch(knnQuery, topK != null ? topK : size, context.getProfilers(), context.searcher(), knnNestedPath)
+            );
         }
         context.dfsResult().knnResults(knnResults);
     }

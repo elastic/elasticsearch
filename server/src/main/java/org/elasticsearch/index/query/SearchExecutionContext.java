@@ -24,6 +24,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -73,6 +74,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.index.IndexService.parseRuntimeMappings;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 /**
  * The context used to execute a search request on a shard. It provides access
@@ -99,6 +101,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
 
     private QueryBuilder aliasFilter;
+
+    private Integer requestSize;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -139,6 +143,52 @@ public class SearchExecutionContext extends QueryRewriteContext {
             client,
             searcher,
             nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings,
+            DEFAULT_SIZE
+        );
+    }
+
+    public SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptCompiler scriptService,
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Predicate<String> indexNameMatcher,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, Object> runtimeMappings,
+        Integer requestSize
+    ) {
+        this(
+            shardId,
+            shardRequestIndex,
+            indexSettings,
+            bitsetFilterCache,
+            indexFieldDataLookup,
+            mapperService,
+            mappingLookup,
+            similarityService,
+            scriptService,
+            parserConfiguration,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
             indexNameMatcher,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
@@ -147,7 +197,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            null
+            null,
+            requestSize
         );
     }
 
@@ -172,7 +223,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
             source.runtimeMappings,
-            source.allowedFields
+            source.allowedFields,
+            source.requestSize
         );
     }
 
@@ -196,7 +248,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
-        Predicate<String> allowedFields
+        Predicate<String> allowedFields,
+        Integer requestSize
     ) {
         super(
             parserConfig,
@@ -221,6 +274,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.indexFieldDataLookup = indexFieldDataLookup;
         this.nestedScope = new NestedScope();
         this.searcher = searcher;
+        this.requestSize = requestSize;
     }
 
     private void reset() {
@@ -581,6 +635,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public IndexSearcher searcher() {
         return searcher;
+    }
+
+    @Nullable
+    public Integer requestSize() {
+        return requestSize;
     }
 
     /**

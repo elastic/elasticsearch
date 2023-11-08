@@ -57,13 +57,14 @@ import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.C
  */
 public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
+    private static final String LATEST_MALFORMED_JWT = "_latest_malformed_jwt";
+
     private static final Logger logger = LogManager.getLogger(JwtRealm.class);
 
     public static final String HEADER_END_USER_AUTHENTICATION = "Authorization";
     public static final String HEADER_CLIENT_AUTHENTICATION = "ES-Client-Authentication";
     public static final String HEADER_END_USER_AUTHENTICATION_SCHEME = "Bearer";
     public static final String HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME = "SharedSecret";
-    private static final ThreadLocal<SecureString> latestMalformedJWTThreadLocal = new ThreadLocal<>();
 
     private final Cache<BytesArray, ExpiringUser> jwtCache;
     private final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
@@ -184,7 +185,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             JwtRealm.HEADER_END_USER_AUTHENTICATION_SCHEME,
             false
         );
-        SignedJWT signedJWT = parseSignedJWT(userCredentials);
+        SignedJWT signedJWT = parseSignedJWT(userCredentials, threadContext);
         if (signedJWT == null) {
             // this is not a valid JWT for ES realms, but custom realms can also consume the Bearer credentials scheme in their own format
             return null;
@@ -448,18 +449,18 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
     /**
      * Parses a {@link SignedJWT} from the provided {@param token}.
-     * This internally remembers the last **malformed** token parsed in order to avoid attempting to parse the same token multiple
-     * consecutive times.
+     * This internally, for the local thread, remembers the last **malformed** token parsed,
+     * in order to avoid attempting to parse the same token multiple consecutive times (by different JWT realms in the chain).
      */
-    private SignedJWT parseSignedJWT(SecureString token) {
-        if (Objects.equals(token, latestMalformedJWTThreadLocal.get())) {
+    private SignedJWT parseSignedJWT(SecureString token, ThreadContext threadContext) {
+        if (Objects.equals(token, threadContext.getTransient(LATEST_MALFORMED_JWT))) {
             // already tried to parse this token and it didn't work
             return null;
         }
         SignedJWT signedJWT = JwtUtil.parseSignedJWT(token);
         if (signedJWT == null) {
-            // this is a malformed JWT, update the latest malformed reference
-            latestMalformedJWTThreadLocal.set(token);
+            // this is a malformed JWT, update the latest malformed token reference
+            threadContext.putTransient(LATEST_MALFORMED_JWT, token);
         }
         return signedJWT;
     }

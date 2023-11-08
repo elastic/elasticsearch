@@ -1,0 +1,5 @@
+pr: 101916
+summary: Metrics from jvm threads and open file descriptor
+area: Search
+type: enhancement
+issues: []

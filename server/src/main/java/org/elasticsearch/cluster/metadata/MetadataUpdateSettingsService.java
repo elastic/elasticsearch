@@ -242,7 +242,8 @@ public class MetadataUpdateSettingsService {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s",
+                            "Can't update non dynamic settings [%s] for open indices %s unless the `reopen` query parameter is set to "
+                                + "true. Alternatively, close the indices, apply the settings changes, and reopen the indices",
                             skippedSettings,
                             openIndices
                         )

@@ -975,15 +975,24 @@ public abstract class ESRestTestCase extends ESTestCase {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
 
-        logger.info(statusResponse.get("nodes"));
 
-        if (statusResponse.get("nodes") instanceof List) {
-            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-            List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
-            for (String nodeId : nodeIds) {
-                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-                assertOK(adminClient().performRequest(deleteRequest));
-            }
+        logger.warn("NODES: " + statusResponse.get("nodes"));
+
+        Object nodesResponse = statusResponse.get("nodes");
+        final List<String> nodeIds;
+        if (nodesResponse instanceof Map<?, ?> nodeMap) {
+            assert minimumNodeVersion().onOrAfter(Version.V_7_13_0);
+            nodeIds = nodeMap.keySet().stream().map(Object::toString).toList();
+        } else {
+            assert nodesResponse instanceof List<?>;
+            assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) nodesResponse;
+            nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+        }
+
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            assertOK(adminClient().performRequest(deleteRequest));
         }
     }
 

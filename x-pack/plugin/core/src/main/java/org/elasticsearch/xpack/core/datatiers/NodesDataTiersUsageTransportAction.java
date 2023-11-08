@@ -23,12 +23,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.NodeIndicesStats;
@@ -124,7 +122,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             .collect(Collectors.toSet());
         for (String indexName : localIndices) {
             IndexMetadata indexMetadata = metadata.index(indexName);
-            String tier = findPreferredTier(indexMetadata);
+            String tier = indexMetadata.getTierPreference().isEmpty() ? null : indexMetadata.getTierPreference().get(0);
             if (tier != null) {
                 NodeDataTiersUsage.UsageStats usageStats = usageStatsByTier.computeIfAbsent(
                     tier,
@@ -152,18 +150,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             }
         }
         return usageStatsByTier;
-    }
-
-    @Nullable
-    static String findPreferredTier(IndexMetadata indexMetadata) {
-        List<String> tierPref = DataTier.parseTierList(indexMetadata.getSettings().get(DataTier.TIER_PREFERENCE))
-            .stream()
-            .filter(DataTier::validTierName)
-            .toList();
-        if (tierPref.isEmpty() == false) {
-            return tierPref.get(0);
-        }
-        return null;
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {

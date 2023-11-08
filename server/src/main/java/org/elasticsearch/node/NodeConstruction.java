@@ -605,7 +605,12 @@ class NodeConstruction {
         final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
 
         ModulesBuilder modules = new ModulesBuilder();
-        final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
+        final MonitorService monitorService = new MonitorService(
+            settings,
+            nodeEnvironment,
+            threadPool,
+            telemetryProvider.getMeterRegistry()
+        );
         final FsHealthService fsHealthService = new FsHealthService(
             settings,
             clusterService.getClusterSettings(),

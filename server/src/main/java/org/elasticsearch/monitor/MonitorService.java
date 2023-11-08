@@ -16,6 +16,7 @@ import org.elasticsearch.monitor.jvm.JvmGcMonitorService;
 import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -27,13 +28,16 @@ public class MonitorService extends AbstractLifecycleComponent {
     private final ProcessService processService;
     private final JvmService jvmService;
     private final FsService fsService;
+    private final MonitorMetrics monitorMetrics;
 
-    public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
+    public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool, MeterRegistry meterRegistry)
+        throws IOException {
         this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
         this.osService = new OsService(settings);
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
         this.fsService = new FsService(settings, nodeEnvironment);
+        this.monitorMetrics = new MonitorMetrics(meterRegistry, this.jvmService, this.processService);
     }
 
     public OsService osService() {
@@ -46,6 +50,10 @@ public class MonitorService extends AbstractLifecycleComponent {
 
     public JvmService jvmService() {
         return this.jvmService;
+    }
+
+    public MonitorMetrics monitorMetrics() {
+        return this.monitorMetrics;
     }
 
     public FsService fsService() {

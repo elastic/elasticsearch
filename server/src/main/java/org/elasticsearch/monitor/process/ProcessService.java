@@ -16,6 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+
+import java.util.Map;
+import java.util.function.Supplier;
 
 public final class ProcessService implements ReportingService<ProcessInfo> {
 
@@ -45,6 +49,10 @@ public final class ProcessService implements ReportingService<ProcessInfo> {
 
     public ProcessStats stats() {
         return processStatsCache.getOrRefresh();
+    }
+
+    public Supplier<LongWithAttributes> openFileDescriptorSupplier() {
+        return () -> new LongWithAttributes(stats().getOpenFileDescriptors(), Map.of());
     }
 
     private static class ProcessStatsCache extends SingleObjectCache<ProcessStats> {

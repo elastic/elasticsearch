@@ -16,6 +16,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+
+import java.util.Map;
+import java.util.function.Supplier;
 
 public class JvmService implements ReportingService<JvmInfo> {
 
@@ -46,6 +50,10 @@ public class JvmService implements ReportingService<JvmInfo> {
 
     public JvmStats stats() {
         return jvmStatsCache.getOrRefresh();
+    }
+
+    public Supplier<LongWithAttributes> threadsCountSupplier() {
+        return () -> new LongWithAttributes(jvmStatsCache.getOrRefresh().getThreads().getCount(), Map.of());
     }
 
     private class JvmStatsCache extends SingleObjectCache<JvmStats> {

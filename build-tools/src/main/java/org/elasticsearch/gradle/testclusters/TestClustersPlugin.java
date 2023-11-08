@@ -37,6 +37,7 @@ import org.gradle.tooling.events.task.TaskFinishEvent;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.inject.Inject;
@@ -220,13 +221,24 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .map(task -> (TestClustersAware) task)
                     .forEach(awareTask -> {
                         testClusterTasksService.get().register(awareTask.getPath(), awareTask);
+
+                        Set<ElasticsearchCluster> runningClusters = registry.getRunningClusters();
+
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
-                            awareTask.getClusters().forEach(registry::maybeStartCluster);
+                            awareTask.getClusters().forEach(c -> maybeStartCluster(c, runningClusters));
                         });
                     });
             });
         }
+    }
+
+    public static void maybeStartCluster(ElasticsearchCluster cluster, Set<ElasticsearchCluster> runningClusters) {
+        if (runningClusters.contains(cluster)) {
+            return;
+        }
+        runningClusters.add(cluster);
+        cluster.start();
     }
 
     static public abstract class TaskEventsService implements BuildService<BuildServiceParameters.None>, OperationCompletionListener {

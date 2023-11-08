@@ -22,13 +22,19 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.specs.NotSpec;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.bundling.Zip;
 
 import javax.inject.Inject;
+
+import java.util.Collections;
 
 import static org.elasticsearch.gradle.internal.RestrictedBuildApiService.BUILD_API_RESTRICTIONS_SYS_PROPERTY;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
@@ -47,6 +53,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
     private static final String TESTS_CLUSTER_REMOTE_ACCESS = "tests.cluster.remote_access";
 
     private ProviderFactory providerFactory;
+    private Project project;
 
     @Inject
     public LegacyRestTestBasePlugin(ProviderFactory providerFactory) {
@@ -55,6 +62,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        this.project = project;
         Provider<RestrictedBuildApiService> serviceProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("restrictedBuildAPI", RestrictedBuildApiService.class, spec -> {
@@ -65,6 +73,9 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);
         InternalPrecommitTasks.create(project, false);
+
+        // verify cacheability
+
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
@@ -97,6 +108,8 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                     );
                 }
             }
+
+            configureCacheability(restIntegTestTask);
         });
 
         project.getTasks()
@@ -119,6 +132,27 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                 }
             });
         });
+    }
+
+    private void configureCacheability(RestIntegTestTask restIntegTestTask) {
+        TaskContainer tasks = project.getTasks();
+        Spec<Task> taskSpec = t -> tasks
+            .withType(StandaloneRestIntegTestTask.class)
+            .stream()
+            .filter(task -> task != restIntegTestTask)
+            .anyMatch(task -> Collections.disjoint(task.getClusters(), restIntegTestTask.getClusters()) == false);
+        restIntegTestTask.getOutputs()
+            .doNotCacheIf(
+                "Caching disabled for this task since it uses a cluster shared by other tasks",
+                /*
+                 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
+                 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
+                 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
+                 * multiple tasks.
+                 */
+                taskSpec
+            );
+        restIntegTestTask.getOutputs().upToDateWhen(new NotSpec(taskSpec));
     }
 
     private String systemProperty(String propName) {

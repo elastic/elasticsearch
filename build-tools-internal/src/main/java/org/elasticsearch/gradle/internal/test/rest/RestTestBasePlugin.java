@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
@@ -38,6 +37,8 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
@@ -134,20 +135,23 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.systemProperty("tests.system_call_filter", "false");
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulesConfiguration::getAsPath);
-            registerConfigurationInputs(task, modulesConfiguration);
-            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginsConfiguration::getAsPath);
-            registerConfigurationInputs(task, extractedPluginsConfiguration);
+            ConfigurableFileCollection modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
+            registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
+            ConfigurableFileCollection pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
+            nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
+            registerConfigurationInputs(task, extractedPluginsConfiguration.getName(), project.getObjects().fileCollection().from(extractedPluginsConfiguration));
 
             // Wire up integ-test distribution by default for all test tasks
+            FileCollection extracted = integTestDistro.getExtracted();
             nonInputSystemProperties.systemProperty(
                 INTEG_TEST_DISTRIBUTION_SYSPROP,
-                () -> integTestDistro.getExtracted().getSingleFile().getPath()
+                () -> extracted.getSingleFile().getPath()
             );
             nonInputSystemProperties.systemProperty(TESTS_RUNTIME_JAVA_SYSPROP, BuildParams.getRuntimeJavaHome());
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
-            task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
+           task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
                     task.dependsOn(defaultDistro);
@@ -162,7 +166,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             });
 
             // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
-            task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
+            /*task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
                     if (args.length != 1 || args[0] instanceof Version == false) {
@@ -188,7 +192,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
                     return null;
                 }
-            });
+            });*/
         });
     }
 
@@ -216,15 +220,15 @@ public class RestTestBasePlugin implements Plugin<Project> {
         return distribution.getExtracted().getAsFileTree().matching(patternFilter);
     }
 
-    private void registerConfigurationInputs(Task task, Configuration configuration) {
+    private void registerConfigurationInputs(Task task, String configurationName, ConfigurableFileCollection configuration) {
         task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false)))
-            .withPropertyName(configuration.getName() + "-files")
+            .withPropertyName(configurationName + "-files")
             .withPathSensitivity(PathSensitivity.RELATIVE);
 
         task.getInputs()
             .files(providerFactory.provider(() -> configuration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"))))
-            .withPropertyName(configuration.getName() + "-classpath")
+            .withPropertyName(configurationName + "-classpath")
             .withNormalizer(ClasspathNormalizer.class);
     }
 

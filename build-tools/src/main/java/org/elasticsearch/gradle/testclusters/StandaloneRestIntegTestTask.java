@@ -9,6 +9,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
 import org.gradle.api.Task;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
 import org.gradle.api.specs.NotSpec;
@@ -22,6 +23,7 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
 
+import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,23 +44,6 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
     private boolean debugServer = false;
 
     public StandaloneRestIntegTestTask() {
-        Spec<Task> taskSpec = t -> getProject().getTasks()
-            .withType(StandaloneRestIntegTestTask.class)
-            .stream()
-            .filter(task -> task != this)
-            .anyMatch(task -> Collections.disjoint(task.getClusters(), getClusters()) == false);
-        this.getOutputs()
-            .doNotCacheIf(
-                "Caching disabled for this task since it uses a cluster shared by other tasks",
-                /*
-                 * Look for any other tasks which use the same cluster as this task. Since tests often have side effects for the cluster
-                 * they execute against, this state can cause issues when trying to cache tests results of tasks that share a cluster. To
-                 * avoid any undesired behavior we simply disable the cache if we detect that this task uses a cluster shared between
-                 * multiple tasks.
-                 */
-                taskSpec
-            );
-        this.getOutputs().upToDateWhen(new NotSpec(taskSpec));
         this.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it is configured to preserve data directory",
@@ -78,6 +63,10 @@ public abstract class StandaloneRestIntegTestTask extends Test implements TestCl
     public Collection<ElasticsearchCluster> getClusters() {
         return clusters;
     }
+
+    @Override
+    @Inject
+    public abstract ProviderFactory getProviderFactory();
 
     @Override
     @Internal

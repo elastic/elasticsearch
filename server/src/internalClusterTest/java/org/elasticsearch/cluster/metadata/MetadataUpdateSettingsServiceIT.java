@@ -189,8 +189,7 @@ public class MetadataUpdateSettingsServiceIT extends ESIntegTestCase {
     }
 
     private boolean hasUnassignedShards(ClusterState state, String indexName) {
-        return state
-            .routingTable()
+        return state.routingTable()
             .indicesRouting()
             .get(indexName)
             .allShards()

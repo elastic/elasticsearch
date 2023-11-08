@@ -221,6 +221,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .map(task -> (TestClustersAware) task)
                     .forEach(awareTask -> {
                         testClusterTasksService.get().register(awareTask.getPath(), awareTask);
+
+                        Set<ElasticsearchCluster> runningClusters = registry.getRunningClusters();
+
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
                             awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);

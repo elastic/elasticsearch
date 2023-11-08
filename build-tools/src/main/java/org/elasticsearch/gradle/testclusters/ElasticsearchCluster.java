@@ -11,10 +11,16 @@ import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
@@ -22,8 +28,12 @@ import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
@@ -35,6 +45,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +57,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
@@ -67,6 +81,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
     private int nodeIndex = 0;
+
+    private final ConfigurableFileCollection pluginAndModuleConfiguration;
 
     public ElasticsearchCluster(
         String path,
@@ -93,6 +109,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.runtimeJava = runtimeJava;
         this.isReleasedVersion = isReleasedVersion;
         this.nodes = project.container(ElasticsearchNode.class);
+        this.pluginAndModuleConfiguration = project.getObjects().fileCollection();
+        configureArtifactTransforms();
         this.nodes.add(
             new ElasticsearchNode(
                 safeName(clusterName),
@@ -110,7 +128,19 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             )
         );
 
+
         addWaitForClusterHealth();
+    }
+
+    @Classpath
+    public FileCollection getInstalledClasspath() {
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"));
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public FileCollection getInstalledFiles() {
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false);
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -207,7 +237,19 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void plugin(String pluginProjectPath) {
-        nodes.all(each -> each.plugin(pluginProjectPath));
+        Provider<RegularFile> plugin = maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip");
+        registerExtractedConfig(plugin);
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    private final Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
+
+    private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
+        Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
+        Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
+        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(bundleAttribute, true);
+        pluginAndModuleConfiguration.from(extractedConfig);
     }
 
     @Override
@@ -222,7 +264,50 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void module(String moduleProjectPath) {
-        nodes.all(each -> each.module(moduleProjectPath));
+        Provider<RegularFile> module = maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG);
+        registerExtractedConfig(module);
+        nodes.all(each -> each.module(module));
+    }
+
+    private void configureArtifactTransforms() {
+        project.getDependencies().getAttributesSchema().attribute(bundleAttribute);
+        project.getDependencies().getArtifactTypes().maybeCreate(ArtifactTypeDefinition.ZIP_TYPE);
+        project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
+            transformSpec.getFrom()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE)
+                .attribute(bundleAttribute, true);
+            transformSpec.getTo()
+                .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+                .attribute(bundleAttribute, true);
+            transformSpec.getParameters().setAsFiletreeOutput(true);
+        });
+    }
+
+    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
+
+    // package protected so only TestClustersAware can access
+    @Internal
+    Collection<Configuration> getPluginAndModuleConfigurations() {
+        return pluginAndModuleConfigurations.values();
+    }
+    // creates a configuration to depend on the given plugin project, then wraps that configuration
+    // to grab the zip as a file provider
+    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
+        var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
+            var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
+            return project.getConfigurations().detachedConfiguration(bundleDependency);
+        });
+
+        Provider<File> fileProvider = configuration.getElements()
+            .map(
+                s -> s.stream()
+                    .findFirst()
+                    .orElseThrow(
+                        () -> new IllegalStateException(consumingConfiguration + " configuration of project " + path + " had no files")
+                    )
+                    .getAsFile()
+            );
+        return project.getLayout().file(fileProvider);
     }
 
     @Override

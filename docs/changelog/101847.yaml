@@ -1,0 +1,6 @@
+pr: 101847
+summary: Add an additional tiebreaker to RRF
+area: Ranking
+type: bug
+issues:
+ - 101232

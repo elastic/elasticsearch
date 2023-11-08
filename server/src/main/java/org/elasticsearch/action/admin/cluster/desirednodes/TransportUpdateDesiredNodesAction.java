@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,6 +43,7 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private static final Logger logger = LogManager.getLogger(TransportUpdateDesiredNodesAction.class);
 
+    private final FeatureService featureService;
     private final DesiredNodesSettingsValidator settingsValidator;
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
@@ -48,6 +51,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     public TransportUpdateDesiredNodesAction(
         TransportService transportService,
         ClusterService clusterService,
+        FeatureService featureService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -66,6 +70,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             UpdateDesiredNodesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.featureService = featureService;
         this.settingsValidator = settingsValidator;
         this.taskQueue = clusterService.createTaskQueue(
             "update-desired-nodes",
@@ -94,13 +99,12 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
 
     @Override
     protected void doExecute(Task task, UpdateDesiredNodesRequest request, ActionListener<UpdateDesiredNodesResponse> listener) {
-        final var minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
-        if (request.isCompatibleWithVersion(minNodeVersion) == false) {
+        if (request.clusterHasRequiredFeatures(nf -> featureService.clusterHasFeature(clusterService.state(), nf)) == false) {
             listener.onFailure(
                 new IllegalArgumentException(
                     "Unable to use processor ranges, floating-point (with greater precision) processors "
-                        + "in mixed-clusters with nodes in version: "
-                        + minNodeVersion
+                        + "in mixed-clusters with nodes that do not support feature "
+                        + DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED.id()
                 )
             );
             return;

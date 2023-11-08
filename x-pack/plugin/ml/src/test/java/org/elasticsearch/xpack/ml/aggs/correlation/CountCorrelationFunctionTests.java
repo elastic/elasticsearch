@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -59,7 +58,6 @@ public class CountCorrelationFunctionTests extends ESTestCase {
         CountCorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
         PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
             aggBuilders,
-            Collections.emptyList(),
             null
         );
         function.validate(validationContext, "terms>metric_agg");

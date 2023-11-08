@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.lucene;
 
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.Settings;
@@ -27,7 +28,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
@@ -53,7 +53,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
             )
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
@@ -68,8 +69,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                     TestUtils.singleBlobContainer(fileName, input),
                     sharedBlobCacheService,
                     input.length,
-                    0,
-                    LongCounter.NOOP
+                    0
                 );
                 assertEquals(input.length, indexInput.length());
                 assertEquals(0, indexInput.getFilePointer());
@@ -94,7 +94,8 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 nodeEnvironment,
                 settings,
                 threadPool,
-                ThreadPool.Names.GENERIC
+                ThreadPool.Names.GENERIC,
+                BlobCacheMetrics.NOOP
             )
         ) {
             final ShardId shardId = new ShardId(new Index("_index_name", "_index_id"), 0);
@@ -108,8 +109,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
                 TestUtils.singleBlobContainer(fileName, input),
                 sharedBlobCacheService,
                 input.length,
-                0,
-                LongCounter.NOOP
+                0
             );
 
             indexInput.seek(randomLongBetween(0, input.length - 1));

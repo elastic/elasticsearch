@@ -100,6 +100,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -168,7 +169,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -189,7 +189,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static co.elastic.elasticsearch.stateless.lucene.SearchIndexInput.CACHE_MISS_COUNTER;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
@@ -238,7 +237,6 @@ public class Stateless extends Plugin
     private final SetOnce<ShardSizeCollector> shardSizeCollector = new SetOnce<>();
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
-    private TelemetryProvider telemetryProvider = TelemetryProvider.NOOP;
 
     private final boolean sharedCachedSettingExplicitlySet;
 
@@ -369,7 +367,13 @@ public class Stateless extends Plugin
             // TODO: figure out a better/correct threadpool for this
             setAndGet(
                 this.sharedBlobCacheService,
-                new SharedBlobCacheService<>(nodeEnvironment, settings, threadPool, ThreadPool.Names.GENERIC)
+                new SharedBlobCacheService<>(
+                    nodeEnvironment,
+                    settings,
+                    threadPool,
+                    ThreadPool.Names.GENERIC,
+                    new BlobCacheMetrics(services.telemetryProvider().getMeterRegistry())
+                )
             )
         );
         components.add(sharedBlobCacheServiceSupplier);
@@ -480,13 +484,6 @@ public class Stateless extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        this.telemetryProvider = services.telemetryProvider();
-        this.telemetryProvider.getMeterRegistry()
-            .registerLongCounter(
-                CACHE_MISS_COUNTER,
-                "The number of times there was a cache miss that triggered a read from the blob store",
-                "count"
-            );
         return components;
     }
 
@@ -630,12 +627,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
-                    return new IndexDirectory(
-                        in,
-                        sharedBlobCacheService.get(),
-                        shardRouting.shardId(),
-                        telemetryProvider.getMeterRegistry()
-                    );
+                    return new IndexDirectory(in, sharedBlobCacheService.get(), shardRouting.shardId());
                 } else {
                     return in;
                 }
@@ -652,7 +644,7 @@ public class Stateless extends Plugin
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isSearchable()) {
                     in.close();
-                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId(), telemetryProvider.getMeterRegistry());
+                    return new SearchDirectory(sharedBlobCacheService.get(), shardRouting.shardId());
                 } else {
                     return in;
                 }

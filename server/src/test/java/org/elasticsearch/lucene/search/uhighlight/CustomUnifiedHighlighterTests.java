@@ -370,10 +370,8 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         }
 
         @Override
-        protected SynonymMap loadSynonyms(ResourceLoader loader,
-                                          String cname,
-                                          boolean dedup,
-                                          Analyzer analyzer) throws IOException, ParseException {
+        protected SynonymMap loadSynonyms(ResourceLoader loader, String cname, boolean dedup, Analyzer analyzer) throws IOException,
+            ParseException {
             SynonymMap.Parser parser = new SolrSynonymParser(false, false, analyzer);
             parser.parse(new StringReader("new york city => nyc, new york city"));
             return parser.build();
@@ -383,20 +381,22 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
     public void testOverlappingPositions() throws Exception {
         final String[] inputs = { "new york city" };
         final String[] outputs = { "<b>new york city</b>" };
-        BooleanQuery query = new BooleanQuery.Builder()
-                .add(new BooleanQuery.Builder()
-                        .add(new TermQuery(new Term("text", "nyc")), BooleanClause.Occur.SHOULD)
-                        .add(new BooleanQuery.Builder()
-                                .add(new TermQuery(new Term("text", "new")), BooleanClause.Occur.MUST)
-                                .add(new TermQuery(new Term("text", "york")), BooleanClause.Occur.MUST)
-                                .add(new TermQuery(new Term("text", "city")), BooleanClause.Occur.MUST)
-                                .build(), BooleanClause.Occur.SHOULD)
-                        .build(), BooleanClause.Occur.MUST)
-                .build();
+        BooleanQuery query = new BooleanQuery.Builder().add(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("text", "nyc")), BooleanClause.Occur.SHOULD)
+                .add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("text", "new")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "york")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "city")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                )
+                .build(),
+            BooleanClause.Occur.MUST
+        ).build();
         Analyzer analyzer = CustomAnalyzer.builder()
-                .withTokenizer(StandardTokenizerFactory.class)
-                .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
-                .build();
+            .withTokenizer(StandardTokenizerFactory.class)
+            .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
+            .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 

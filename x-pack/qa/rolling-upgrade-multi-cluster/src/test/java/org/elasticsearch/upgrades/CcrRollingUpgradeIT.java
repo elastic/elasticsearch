@@ -204,7 +204,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100291")
     public void testCannotFollowLeaderInUpgradedCluster() throws Exception {
         if (upgradeState != UpgradeState.ALL) {
             return;
@@ -225,8 +224,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 ResponseException.class,
                 () -> followIndex(leaderClient(), "follower", "not_supported", "not_supported")
             );
-            assertThat(e.getMessage(), containsString("the snapshot was created with Elasticsearch version ["));
-            assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
+            assertThat(e.getMessage(), containsString("the snapshot was created with index version ["));
+            assertThat(e.getMessage(), containsString("] which is higher than the version used by this node ["));
         } else if (clusterName == ClusterName.LEADER) {
             // At this point all nodes in both clusters have been updated and
             // the leader cluster can now follow not_supported index in the follower cluster:

@@ -335,16 +335,27 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1500));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(500));
-            assertThat(source.getValue("inference.deployments.count"), equalTo(2));
+            assertThat(source.getValue("inference.deployments.count"), equalTo(3));
             assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.5));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1300.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(300.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "total"}),
+                equalTo(5.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "min"}),
+                equalTo(5.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "max"}),
+                equalTo(5.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "avg"}),
+                equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.total"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.min"), equalTo(1.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.avg"), equalTo(2.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(650.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(500.0));
             assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(45.55555555555556, 1e-10));
         }
     }
@@ -420,16 +431,27 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1500));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(500));
-            assertThat(source.getValue("inference.deployments.count"), equalTo(2));
+            assertThat(source.getValue("inference.deployments.count"), equalTo(3));
             assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.5));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1300.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(300.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "total"}),
+                equalTo(5.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "min"}),
+                equalTo(5.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "max"}),
+                equalTo(5.0));
+            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "avg"}),
+                equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.total"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.min"), equalTo(1.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.avg"), equalTo(2.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(650.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(500.0));
             assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(45.55555555555556, 1e-10));
         }
     }
@@ -952,7 +974,37 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             2,
                             null,
-                            null
+                            new AssignmentStats(
+                                "deployment_2",
+                                "third_party_model_2",
+                                2,
+                                2,
+                                1000,
+                                ByteSizeValue.ofBytes(1000),
+                                Instant.now(),
+                                List.of(
+                                    AssignmentStats.NodeStats.forStartedState(
+                                        DiscoveryNodeUtils.create("baz", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
+                                        3,
+                                        50.0,
+                                        50.0,
+                                        0,
+                                        1,
+                                        1L,
+                                        2,
+                                        3,
+                                        Instant.now(),
+                                        Instant.now(),
+                                        randomIntBetween(1, 16),
+                                        randomIntBetween(1, 16),
+                                        2L,
+                                        4L,
+                                        34.0,
+                                        1L
+                                    )
+                                ),
+                                Priority.NORMAL
+                            ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel3.getModelId(),
@@ -975,13 +1027,33 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             null,
                             new AssignmentStats(
                                 "deployment_3",
-                                "model_3",
+                                ".internal_model_3",
                                 null,
                                 null,
                                 null,
                                 null,
                                 Instant.now(),
-                                List.of(),
+                                List.of(
+                                    AssignmentStats.NodeStats.forStartedState(
+                                        DiscoveryNodeUtils.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
+                                        5,
+                                        42.0,
+                                        42.0,
+                                        0,
+                                        1,
+                                        3L,
+                                        2,
+                                        3,
+                                        Instant.now(),
+                                        Instant.now(),
+                                        randomIntBetween(1, 16),
+                                        randomIntBetween(1, 16),
+                                        1L,
+                                        2L,
+                                        33.0,
+                                        1L
+                                    )
+                                ),
                                 Priority.NORMAL
                             ).setState(AssignmentState.STOPPING)
                         ),
@@ -1006,7 +1078,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             null,
                             new AssignmentStats(
                                 "deployment_4",
-                                "model_4",
+                                "third_party_model_4",
                                 2,
                                 2,
                                 1000,
@@ -1014,27 +1086,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 Instant.now(),
                                 List.of(
                                     AssignmentStats.NodeStats.forStartedState(
-                                        DiscoveryNodeUtils.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
-                                        5,
-                                        42.0,
-                                        42.0,
-                                        0,
-                                        1,
-                                        3L,
-                                        2,
-                                        3,
-                                        Instant.now(),
-                                        Instant.now(),
-                                        randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16),
-                                        1L,
-                                        2L,
-                                        33.0,
-                                        1L
-                                    ),
-                                    AssignmentStats.NodeStats.forStartedState(
                                         DiscoveryNodeUtils.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
-                                        4,
+                                        1,
                                         50.0,
                                         50.0,
                                         0,

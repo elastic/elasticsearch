@@ -413,6 +413,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
+        HashMap<String, StatsAccumulator> nodeDistributionByModel = new HashMap<>();
         for (var stats : statsResponse.getResources().results()) {
             AssignmentStats deploymentStats = stats.getDeploymentStats();
             if (deploymentStats == null) {
@@ -427,6 +428,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
                 avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;
                 nodeDistribution.add(nodeInferenceCount);
+                // If the model ID starts with a dot, it's an internal model, and the stats should be
+                // reported separately. If not, it's a third party model, whose stats are aggregated.
+                String modelId = deploymentStats.getModelId().startsWith(".") ? deploymentStats.getModelId() : "other";
+                nodeDistributionByModel.computeIfAbsent(modelId, key -> new StatsAccumulator()).add(nodeInferenceCount);
             }
         }
 
@@ -440,7 +445,9 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "model_sizes_bytes",
                 modelSizes.asMap(),
                 "inference_counts",
-                nodeDistribution.asMap()
+                nodeDistribution.asMap(),
+                "inference_counts_by_model",
+                Maps.transformValues(nodeDistributionByModel, StatsAccumulator::asMap)
             )
         );
     }

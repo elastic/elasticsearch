@@ -1,0 +1,12 @@
+pr: 101333
+summary: Fixed JWT principal from claims
+area: Authentication
+type: "breaking, bug"
+issues: []
+breaking:
+  title: Fixed JWT principal from claims
+  area: Authentication
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

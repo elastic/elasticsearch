@@ -50,7 +50,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     public static final String THROTTLE_SERVICE_NAME = "testClustersThrottle";
 
     private static final String LIST_TASK_NAME = "listTestClusters";
-    private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
+    public static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
     private final ProviderFactory providerFactory;
     private Provider<File> runtimeJavaProvider;
@@ -221,12 +221,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                     .map(task -> (TestClustersAware) task)
                     .forEach(awareTask -> {
                         testClusterTasksService.get().register(awareTask.getPath(), awareTask);
-
-                        Set<ElasticsearchCluster> runningClusters = registry.getRunningClusters();
-
                         awareTask.doFirst(task -> {
                             awareTask.beforeStart();
-                            awareTask.getClusters().forEach(c -> maybeStartCluster(c, runningClusters));
+                            awareTask.getClusters().forEach(awareTask.getRegistery().get()::maybeStartCluster);
                         });
                     });
             });

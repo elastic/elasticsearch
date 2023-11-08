@@ -24,13 +24,17 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
-    public Set<ElasticsearchCluster> getRunningClusters() {
-        return runningClusters;
-    }
-
     public void claimCluster(ElasticsearchCluster cluster) {
         cluster.freeze();
         claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
+    }
+
+    public void maybeStartCluster(ElasticsearchCluster cluster) {
+        if (runningClusters.contains(cluster)) {
+            return;
+        }
+        runningClusters.add(cluster);
+        cluster.start();
     }
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {

@@ -53,7 +53,7 @@ public class JvmService implements ReportingService<JvmInfo> {
     }
 
     public Supplier<LongWithAttributes> threadsCountSupplier() {
-        return () -> new LongWithAttributes(jvmStatsCache.getOrRefresh().getThreads().getCount(), Map.of());
+        return () -> new LongWithAttributes(stats().getThreads().getCount(), Map.of());
     }
 
     private class JvmStatsCache extends SingleObjectCache<JvmStats> {

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
@@ -27,12 +28,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class Grant implements Writeable {
     public static final String PASSWORD_GRANT_TYPE = "password";
     public static final String ACCESS_TOKEN_GRANT_TYPE = "access_token";
+    public static final String BEARER_TOKEN_GRANT_TYPE = "bearer_token";
 
     private String type;
     private String username;
     private SecureString password;
     private SecureString accessToken;
     private String runAsUsername;
+    private SecureString bearerToken;
 
     public Grant() {}
 
@@ -46,6 +49,11 @@ public class Grant implements Writeable {
         } else {
             this.runAsUsername = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.GRANT_API_KEY_JWT_ADDED)) {
+            this.bearerToken = in.readOptionalSecureString();
+        } else {
+            this.bearerToken = null;
+        }
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -55,6 +63,9 @@ public class Grant implements Writeable {
         out.writeOptionalSecureString(accessToken);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalString(runAsUsername);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.GRANT_API_KEY_JWT_ADDED)) {
+            out.writeOptionalSecureString(bearerToken);
         }
     }
 
@@ -72,6 +83,10 @@ public class Grant implements Writeable {
 
     public SecureString getAccessToken() {
         return accessToken;
+    }
+
+    public SecureString getBearerToken() {
+        return bearerToken;
     }
 
     public String getRunAsUsername() {
@@ -94,6 +109,10 @@ public class Grant implements Writeable {
         this.accessToken = accessToken;
     }
 
+    public void setBearerToken(SecureString bearerToken) {
+        this.bearerToken = bearerToken;
+    }
+
     public void setRunAsUsername(String runAsUsername) {
         this.runAsUsername = runAsUsername;
     }
@@ -103,6 +122,7 @@ public class Grant implements Writeable {
         return switch (type) {
             case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(username, password);
             case ACCESS_TOKEN_GRANT_TYPE -> new BearerToken(accessToken);
+            case BEARER_TOKEN_GRANT_TYPE -> JwtAuthenticationToken.tryParseJwt(bearerToken, null);
             default -> null;
         };
     }
@@ -114,8 +134,15 @@ public class Grant implements Writeable {
             validationException = validateRequiredField("username", username, validationException);
             validationException = validateRequiredField("password", password, validationException);
             validationException = validateUnsupportedField("access_token", accessToken, validationException);
+            validationException = validateUnsupportedField("bearer_token", bearerToken, validationException);
         } else if (type.equals(ACCESS_TOKEN_GRANT_TYPE)) {
             validationException = validateRequiredField("access_token", accessToken, validationException);
+            validationException = validateUnsupportedField("bearer_token", bearerToken, validationException);
+            validationException = validateUnsupportedField("username", username, validationException);
+            validationException = validateUnsupportedField("password", password, validationException);
+        } else if (type.equals(BEARER_TOKEN_GRANT_TYPE)) {
+            validationException = validateRequiredField("bearer_token", bearerToken, validationException);
+            validationException = validateUnsupportedField("access_token", accessToken, validationException);
             validationException = validateUnsupportedField("username", username, validationException);
             validationException = validateUnsupportedField("password", password, validationException);
         } else {

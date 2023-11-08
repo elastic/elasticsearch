@@ -60,6 +60,12 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             new ParseField("access_token"),
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(
+            (req, secStr) -> req.getGrant().setBearerToken(secStr),
+            RestGrantApiKeyAction::getSecureString,
+            new ParseField("bearer_token"),
+            ObjectParser.ValueType.STRING
+        );
         PARSER.declareString((req, str) -> req.getGrant().setRunAsUsername(str), new ParseField("run_as"));
         PARSER.declareObject(
             (req, api) -> req.setApiKeyRequest(api),
@@ -115,7 +121,7 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         }
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("password", "access_token");
+    private static final Set<String> FILTERED_FIELDS = Set.of("password", "access_token", "bearer_token");
 
     @Override
     public Set<String> getFilteredFields() {

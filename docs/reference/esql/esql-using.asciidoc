@@ -10,7 +10,7 @@ and set up alerts.
 
 <<esql-elastic-security>>::
 Using {esql} in {elastic-sec} to investigate events in Timeline and create
-detection rules.
+detection rules, and build {esql} queries using Elastic AI Assistant. 
 
 <<esql-task-management>>::
 Using the <<tasks,task management API>> to list and cancel {esql} queries.

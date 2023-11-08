@@ -45,7 +45,7 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
 
     public void testThatTemplatesAreDeprecated() {
         for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
-            assertTrue(it.deprecated());
+            assertTrue(it.isDeprecated());
         }
         for (LifecyclePolicy ilm : registry.getLifecyclePolicies()) {
             assertTrue(ilm.isDeprecated());

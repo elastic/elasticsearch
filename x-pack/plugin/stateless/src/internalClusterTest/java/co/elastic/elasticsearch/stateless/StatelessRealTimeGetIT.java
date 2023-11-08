@@ -62,7 +62,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-6089")
 public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
 
     @Before
@@ -326,7 +325,8 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         var indexName = "test-index";
         createIndex(indexName, indexSettings(numOfShards, numOfReplicas).build());
         ensureGreen(indexName);
-        var parallelRuns = randomIntBetween(1, 3);
+        var parallelRuns = 1; // TODO: make this potentially parallel e.g. randomIntBetween(1, 3) after
+                              // https://github.com/elastic/elasticsearch-serverless/issues/1138 is resolved.
         Runnable singleRun = () -> {
             var docs = randomIntBetween(500, 1000);
             for (int write = 0; write < docs; write++) {
@@ -356,6 +356,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1138")
     public void testStress() throws Exception {
         int numOfShards = randomIntBetween(1, 3);
         int numOfReplicas = randomIntBetween(1, 2);

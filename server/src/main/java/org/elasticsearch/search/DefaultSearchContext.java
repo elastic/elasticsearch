@@ -188,7 +188,7 @@ final class DefaultSearchContext extends SearchContext {
             request::nowInMillis,
             shardTarget.getClusterAlias(),
             request.getRuntimeMappings(),
-            request.source().size()
+            request.source() == null ? null : request.source().size()
         );
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;

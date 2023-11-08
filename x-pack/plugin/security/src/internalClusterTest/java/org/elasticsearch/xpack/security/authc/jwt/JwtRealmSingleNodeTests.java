@@ -35,6 +35,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.Realms;

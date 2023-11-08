@@ -48,6 +48,7 @@ dependencies {
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
+  api "com.nimbusds:nimbus-jose-jwt:9.23"
 
   implementation project(":x-pack:plugin:core:template-resources")
 

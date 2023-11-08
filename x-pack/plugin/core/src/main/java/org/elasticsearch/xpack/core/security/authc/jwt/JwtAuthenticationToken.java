@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.security.authc.jwt;
+package org.elasticsearch.xpack.core.security.authc.jwt;
 
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -28,6 +28,14 @@ public class JwtAuthenticationToken implements AuthenticationToken {
     private final byte[] userCredentialsHash;
     @Nullable
     private final SecureString clientAuthenticationSharedSecret;
+
+    public static JwtAuthenticationToken tryParseJwt(SecureString userCredentials, @Nullable SecureString clientCredentials) {
+        SignedJWT signedJWT = JwtUtil.parseSignedJWT(userCredentials);
+        if (signedJWT == null) {
+            return null;
+        }
+        return new JwtAuthenticationToken(signedJWT, JwtUtil.sha256(userCredentials), clientCredentials);
+    }
 
     /**
      * Store a mandatory JWT and optional Shared Secret.

@@ -315,7 +315,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         Set<String> files = randomSet(1, 10, () -> randomAlphaOfLength(5));
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-
             var cacheService = new SharedBlobCacheService<String>(
                 environment,
                 settings,

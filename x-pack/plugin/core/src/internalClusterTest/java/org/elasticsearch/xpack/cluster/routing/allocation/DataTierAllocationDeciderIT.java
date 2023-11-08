@@ -341,9 +341,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
         startContentOnlyNode();
 
         Template t = new Template(Settings.builder().putNull(DataTier.TIER_PREFERENCE).build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
-            .template(t)
-            .build();
+        ComposableIndexTemplate ct = ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList(index)).template(t).build();
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)

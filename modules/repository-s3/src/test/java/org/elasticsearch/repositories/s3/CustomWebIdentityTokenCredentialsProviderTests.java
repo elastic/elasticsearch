@@ -44,7 +44,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     private static final String ROLE_NAME = "aws-sdk-java-1651084775908";
 
     private static Environment getEnvironment() throws IOException {
-        Path configDirectory = Files.createTempDirectory("web-identity-token-test");
+        Path configDirectory = createTempDir("web-identity-token-test");
         Files.createDirectory(configDirectory.resolve("repository-s3"));
         Files.writeString(configDirectory.resolve("repository-s3/aws-web-identity-token-file"), "YXdzLXdlYi1pZGVudGl0eS10b2tlbi1maWxl");
         Environment environment = Mockito.mock(Environment.class);

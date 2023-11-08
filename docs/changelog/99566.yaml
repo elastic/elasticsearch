@@ -1,6 +1,0 @@
-pr: 99566
-summary: Add additional counters to `_clusters` response for all Cluster search states
-area: Search
-type: enhancement
-issues:
- - 98927

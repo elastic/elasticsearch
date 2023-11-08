@@ -150,7 +150,7 @@ public class ValuesSourceRegistry {
 
     /** Maps Aggregation names to (ValuesSourceType, Supplier) pairs, keyed by ValuesSourceType */
     private final AggregationUsageService usageService;
-    private Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
+    private final Map<RegistryKey<?>, Map<ValuesSourceType, ?>> aggregatorRegistry;
 
     public ValuesSourceRegistry(
         Map<RegistryKey<?>, List<Map.Entry<ValuesSourceType, ?>>> aggregatorRegistry,
@@ -158,10 +158,6 @@ public class ValuesSourceRegistry {
     ) {
         this.aggregatorRegistry = copyMap(aggregatorRegistry);
         this.usageService = usageService;
-    }
-
-    public boolean isRegistered(RegistryKey<?> registryKey) {
-        return aggregatorRegistry.containsKey(registryKey);
     }
 
     public <T> T getAggregator(RegistryKey<T> registryKey, ValuesSourceConfig valuesSourceConfig) {

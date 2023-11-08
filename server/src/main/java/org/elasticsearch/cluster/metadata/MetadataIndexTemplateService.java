@@ -615,18 +615,7 @@ public class MetadataIndexTemplateService {
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
             final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
-            finalIndexTemplate = new ComposableIndexTemplate(
-                template.indexPatterns(),
-                finalTemplate,
-                template.composedOf(),
-                template.priority(),
-                template.version(),
-                template.metadata(),
-                template.getDataStreamTemplate(),
-                template.getAllowAutoCreate(),
-                template.getIgnoreMissingComponentTemplates(),
-                template.deprecated()
-            );
+            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
         if (finalIndexTemplate.equals(existing)) {
@@ -713,23 +702,16 @@ public class MetadataIndexTemplateService {
         // Then apply settings resolved from templates:
         finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
 
-        var templateToValidate = new ComposableIndexTemplate(
-            indexTemplate.indexPatterns(),
-            new Template(
-                finalSettings.build(),
-                finalTemplate.map(Template::mappings).orElse(null),
-                finalTemplate.map(Template::aliases).orElse(null),
-                finalTemplate.map(Template::lifecycle).orElse(null)
-            ),
-            indexTemplate.composedOf(),
-            indexTemplate.priority(),
-            indexTemplate.version(),
-            indexTemplate.metadata(),
-            indexTemplate.getDataStreamTemplate(),
-            indexTemplate.getAllowAutoCreate(),
-            indexTemplate.getIgnoreMissingComponentTemplates(),
-            indexTemplate.deprecated()
-        );
+        var templateToValidate = indexTemplate.toBuilder()
+            .template(
+                new Template(
+                    finalSettings.build(),
+                    finalTemplate.map(Template::mappings).orElse(null),
+                    finalTemplate.map(Template::aliases).orElse(null),
+                    finalTemplate.map(Template::lifecycle).orElse(null)
+                )
+            )
+            .build();
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);

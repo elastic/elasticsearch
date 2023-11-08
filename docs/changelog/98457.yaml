@@ -1,5 +1,0 @@
-pr: 98457
-summary: Support cluster/details for CCS minimize_roundtrips=false
-area: Search
-type: enhancement
-issues: []

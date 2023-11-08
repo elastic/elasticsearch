@@ -15,10 +15,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Data tier usage statistics on a specific node. The statistics groups the indices, shard sizes, shard counts based
@@ -29,22 +27,19 @@ public class NodeDataTiersUsage extends BaseNodeResponse {
     private final Map<String, UsageStats> usageStatsByTier;
 
     public static class UsageStats implements Writeable {
-        private final Set<String> indices;
         private final List<Long> primaryShardSizes;
         private int totalShardCount;
         private long docCount;
         private long totalSize;
 
         public UsageStats() {
-            this.indices = new HashSet<>();
             this.primaryShardSizes = new ArrayList<>();
             this.totalShardCount = 0;
             this.docCount = 0;
             this.totalSize = 0;
         }
 
-        public UsageStats(Set<String> indices, List<Long> primaryShardSizes, int totalShardCount, long docCount, long totalSize) {
-            this.indices = indices;
+        public UsageStats(List<Long> primaryShardSizes, int totalShardCount, long docCount, long totalSize) {
             this.primaryShardSizes = primaryShardSizes;
             this.totalShardCount = totalShardCount;
             this.docCount = docCount;
@@ -52,26 +47,15 @@ public class NodeDataTiersUsage extends BaseNodeResponse {
         }
 
         static UsageStats read(StreamInput in) throws IOException {
-            return new UsageStats(
-                in.readCollectionAsSet(StreamInput::readString),
-                in.readCollectionAsList(StreamInput::readVLong),
-                in.readVInt(),
-                in.readVLong(),
-                in.readVLong()
-            );
+            return new UsageStats(in.readCollectionAsList(StreamInput::readVLong), in.readVInt(), in.readVLong(), in.readVLong());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(indices, StreamOutput::writeString);
             out.writeCollection(primaryShardSizes, StreamOutput::writeVLong);
             out.writeVInt(totalShardCount);
             out.writeVLong(docCount);
             out.writeVLong(totalSize);
-        }
-
-        public void addIndex(String indexName) {
-            indices.add(indexName);
         }
 
         public void addPrimaryShardSize(long primaryShardSize) {
@@ -88,10 +72,6 @@ public class NodeDataTiersUsage extends BaseNodeResponse {
 
         public void incrementTotalShardCount(int totalShardCount) {
             this.totalShardCount += totalShardCount;
-        }
-
-        public Set<String> getIndices() {
-            return indices;
         }
 
         public List<Long> getPrimaryShardSizes() {

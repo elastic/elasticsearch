@@ -7,57 +7,33 @@
 
 package org.elasticsearch.xpack.core.datatiers;
 
-import org.elasticsearch.action.admin.indices.stats.CommonStats;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.shard.DocsStats;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.buildNodeIndicesStats;
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.indexMetadata;
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.newNode;
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.routeTestShardToNodes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
 
-    private static final CommonStats COMMON_STATS = new CommonStats(
-        CommonStatsFlags.NONE.set(CommonStatsFlags.Flag.Docs, true).set(CommonStatsFlags.Flag.Store, true)
-    );
     private long byteSize;
     private long docCount;
 
@@ -65,24 +41,6 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
     public void setup() {
         byteSize = randomLongBetween(1024L, 1024L * 1024L * 1024L * 30L); // 1 KB to 30 GB
         docCount = randomLongBetween(100L, 100000000L); // one hundred to one hundred million
-    }
-
-    public void testTierIndices() {
-        IndexMetadata hotIndex1 = indexMetadata("hot-1", 1, 0, DataTier.DATA_HOT);
-        IndexMetadata hotIndex2 = indexMetadata("hot-2", 1, 0, DataTier.DATA_HOT);
-        IndexMetadata warmIndex1 = indexMetadata("warm-1", 1, 0, DataTier.DATA_WARM);
-        IndexMetadata coldIndex1 = indexMetadata("cold-1", 1, 0, DataTier.DATA_COLD);
-        IndexMetadata coldIndex2 = indexMetadata("cold-2", 1, 0, DataTier.DATA_COLD, DataTier.DATA_WARM); // Prefers cold over warm
-        IndexMetadata nonTiered = indexMetadata("non-tier", 1, 0); // No tier
-        IndexMetadata invalidTiered = indexMetadata("non-tier", 1, 0, "invalid-tier"); // No tier
-
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(hotIndex1), equalTo(DataTier.DATA_HOT));
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(hotIndex2), equalTo(DataTier.DATA_HOT));
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(warmIndex1), equalTo(DataTier.DATA_WARM));
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(coldIndex1), equalTo(DataTier.DATA_COLD));
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(coldIndex2), equalTo(DataTier.DATA_COLD));
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(nonTiered), nullValue());
-        assertThat(NodesDataTiersUsageTransportAction.findPreferredTier(invalidTiered), nullValue());
     }
 
     public void testCalculateStatsNoTiers() {
@@ -169,7 +127,7 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
 
         DiscoveryNode dataNode1 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
         discoBuilder.add(dataNode1);
-        DiscoveryNode dataNode2 = newNode(nodeId++, DiscoveryNodeRole.DATA_ROLE);
+        DiscoveryNode dataNode2 = newNode(nodeId, DiscoveryNodeRole.DATA_ROLE);
         discoBuilder.add(dataNode2);
 
         discoBuilder.localNodeId(dataNode1.getId());
@@ -234,7 +192,6 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
 
         NodeDataTiersUsage.UsageStats hotStats = usageStats.get(DataTier.DATA_HOT);
         assertThat(hotStats, is(notNullValue()));
-        assertThat(hotStats.getIndices(), equalTo(Set.of(hotIndex1.getIndex().getName())));
         assertThat(hotStats.getPrimaryShardSizes(), equalTo(List.of(byteSize)));
         assertThat(hotStats.getTotalShardCount(), is(2));
         assertThat(hotStats.getDocCount(), is(hotStats.getTotalShardCount() * docCount));
@@ -242,7 +199,6 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
 
         NodeDataTiersUsage.UsageStats warmStats = usageStats.get(DataTier.DATA_WARM);
         assertThat(warmStats, is(notNullValue()));
-        assertThat(warmStats.getIndices(), equalTo(Set.of(warmIndex1.getIndex().getName(), warmIndex2.getIndex().getName())));
         assertThat(warmStats.getPrimaryShardSizes(), equalTo(List.of(byteSize)));
         assertThat(warmStats.getTotalShardCount(), is(2));
         assertThat(warmStats.getDocCount(), is(warmStats.getTotalShardCount() * docCount));
@@ -250,73 +206,9 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
 
         NodeDataTiersUsage.UsageStats coldStats = usageStats.get(DataTier.DATA_COLD);
         assertThat(coldStats, is(notNullValue()));
-        assertThat(coldStats.getIndices(), equalTo(Set.of(coldIndex1.getIndex().getName())));
         assertThat(coldStats.getPrimaryShardSizes(), equalTo(List.of(byteSize)));
         assertThat(coldStats.getTotalShardCount(), is(1));
         assertThat(coldStats.getDocCount(), is(coldStats.getTotalShardCount() * docCount));
         assertThat(coldStats.getTotalSize(), is(coldStats.getTotalShardCount() * byteSize));
-    }
-
-    private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(Set.of(roles)).build();
-    }
-
-    private static void routeTestShardToNodes(
-        IndexMetadata index,
-        int shard,
-        IndexRoutingTable.Builder indexRoutingTableBuilder,
-        DiscoveryNode... nodes
-    ) {
-        ShardId shardId = new ShardId(index.getIndex(), shard);
-        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
-        boolean primary = true;
-        for (DiscoveryNode node : nodes) {
-            indexShardRoutingBuilder.addShard(
-                TestShardRouting.newShardRouting(shardId, node.getId(), null, primary, ShardRoutingState.STARTED)
-            );
-            primary = false;
-        }
-        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder);
-    }
-
-    private NodeIndicesStats buildNodeIndicesStats(RoutingNode routingNode, long bytesPerShard, long docsPerShard) {
-        Map<Index, List<IndexShardStats>> indexStats = new HashMap<>();
-        for (ShardRouting shardRouting : routingNode) {
-            ShardId shardId = shardRouting.shardId();
-            ShardStats shardStat = shardStat(bytesPerShard, docsPerShard, shardRouting);
-            IndexShardStats shardStats = new IndexShardStats(shardId, new ShardStats[] { shardStat });
-            indexStats.computeIfAbsent(shardId.getIndex(), k -> new ArrayList<>()).add(shardStats);
-        }
-        return new NodeIndicesStats(COMMON_STATS, Map.of(), indexStats, true);
-    }
-
-    private static ShardStats shardStat(long byteCount, long docCount, ShardRouting routing) {
-        StoreStats storeStats = new StoreStats(randomNonNegativeLong(), byteCount, 0L);
-        DocsStats docsStats = new DocsStats(docCount, 0L, byteCount);
-        Path fakePath = PathUtils.get("test/dir/" + routing.shardId().getIndex().getUUID() + "/" + routing.shardId().id());
-        ShardPath fakeShardPath = new ShardPath(false, fakePath, fakePath, routing.shardId());
-        CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
-        commonStats.getStore().add(storeStats);
-        commonStats.getDocs().add(docsStats);
-        return new ShardStats(routing, fakeShardPath, commonStats, null, null, null, false, 0);
-    }
-
-    private static IndexMetadata indexMetadata(String indexName, int numberOfShards, int numberOfReplicas, String... dataTierPrefs) {
-        Settings.Builder settingsBuilder = indexSettings(IndexVersion.current(), numberOfShards, numberOfReplicas).put(
-            SETTING_CREATION_DATE,
-            System.currentTimeMillis()
-        );
-
-        if (dataTierPrefs.length > 1) {
-            StringBuilder tierBuilder = new StringBuilder(dataTierPrefs[0]);
-            for (int idx = 1; idx < dataTierPrefs.length; idx++) {
-                tierBuilder.append(',').append(dataTierPrefs[idx]);
-            }
-            settingsBuilder.put(DataTier.TIER_PREFERENCE, tierBuilder.toString());
-        } else if (dataTierPrefs.length == 1) {
-            settingsBuilder.put(DataTier.TIER_PREFERENCE, dataTierPrefs[0]);
-        }
-
-        return IndexMetadata.builder(indexName).settings(settingsBuilder.build()).timestampRange(IndexLongFieldRange.UNKNOWN).build();
     }
 }

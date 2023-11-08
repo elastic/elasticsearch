@@ -128,7 +128,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
                     tier,
                     ignored -> new NodeDataTiersUsage.UsageStats()
                 );
-                usageStats.addIndex(indexName);
                 List<IndexShardStats> allShardStats = nodeIndicesStats.getShardStats(indexMetadata.getIndex());
                 if (allShardStats != null) {
                     for (IndexShardStats indexShardStats : allShardStats) {

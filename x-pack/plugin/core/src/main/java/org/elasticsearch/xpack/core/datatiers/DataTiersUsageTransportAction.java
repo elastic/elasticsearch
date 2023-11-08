@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +31,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -70,9 +74,33 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 new NodesDataTiersUsageTransportAction.NodesRequest(),
                 listener.delegateFailureAndWrap((delegate, response) -> {
                     // Generate tier specific stats for the nodes and indices
-                    delegate.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(aggregateStats(response.getNodes()))));
+                    delegate.onResponse(
+                        new XPackUsageFeatureResponse(
+                            new DataTiersFeatureSetUsage(
+                                aggregateStats(response.getNodes(), getIndicesGroupedByTier(state, response.getNodes()))
+                            )
+                        )
+                    );
                 })
             );
+    }
+
+    // Visible for testing
+    static Map<String, Set<String>> getIndicesGroupedByTier(ClusterState state, List<NodeDataTiersUsage> nodes) {
+        Set<String> indices = nodes.stream()
+            .map(nodeResponse -> state.getRoutingNodes().node(nodeResponse.getNode().getId()))
+            .filter(Objects::nonNull)
+            .flatMap(node -> StreamSupport.stream(node.spliterator(), false))
+            .map(ShardRouting::getIndexName)
+            .collect(Collectors.toSet());
+        Map<String, Set<String>> indicesByTierPreference = new HashMap<>();
+        for (String indexName : indices) {
+            List<String> tierPreference = state.metadata().index(indexName).getTierPreference();
+            if (tierPreference.isEmpty() == false) {
+                indicesByTierPreference.computeIfAbsent(tierPreference.get(0), ignored -> new HashSet<>()).add(indexName);
+            }
+        }
+        return indicesByTierPreference;
     }
 
     /**
@@ -90,10 +118,16 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     // Visible for testing
-    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> aggregateStats(List<NodeDataTiersUsage> nodeDataTiersUsages) {
+    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> aggregateStats(
+        List<NodeDataTiersUsage> nodeDataTiersUsages,
+        Map<String, Set<String>> tierPreference
+    ) {
         Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
+        for (String tier : tierPreference.keySet()) {
+            statsAccumulators.put(tier, new TierStatsAccumulator());
+            statsAccumulators.get(tier).indexNames.addAll(tierPreference.get(tier));
+        }
         for (NodeDataTiersUsage nodeDataTiersUsage : nodeDataTiersUsages) {
-            // This ensures we only count the nodes that responded
             aggregateDataTierNodeCounts(nodeDataTiersUsage, statsAccumulators);
             aggregateDataTierIndexStats(nodeDataTiersUsage, statsAccumulators);
         }
@@ -125,7 +159,6 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             NodeDataTiersUsage.UsageStats usage = entry.getValue();
             if (DataTier.validTierName(tier)) {
                 TierStatsAccumulator accumulator = accumulators.computeIfAbsent(tier, k -> new TierStatsAccumulator());
-                accumulator.indexNames.addAll(usage.getIndices());
                 accumulator.docCount += usage.getDocCount();
                 accumulator.totalByteCount += usage.getTotalSize();
                 accumulator.totalShardCount += usage.getTotalShardCount();

@@ -7,9 +7,15 @@
 
 package org.elasticsearch.xpack.core.datatiers;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +26,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.indexMetadata;
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.newNode;
+import static org.elasticsearch.xpack.core.datatiers.DataTierUsageFixtures.routeTestShardToNodes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -33,6 +42,51 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     public void setup() {
         byteSize = randomLongBetween(1024L, 1024L * 1024L * 1024L * 30L); // 1 KB to 30 GB
         docCount = randomLongBetween(100L, 100000000L); // one hundred to one hundred million
+    }
+
+    public void testTierIndices() {
+        DiscoveryNode dataNode = newNode(0, DiscoveryNodeRole.DATA_ROLE);
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        discoBuilder.add(dataNode);
+
+        IndexMetadata hotIndex1 = indexMetadata("hot-1", 1, 0, DataTier.DATA_HOT);
+        IndexMetadata hotIndex2 = indexMetadata("hot-2", 1, 0, DataTier.DATA_HOT);
+        IndexMetadata warmIndex1 = indexMetadata("warm-1", 1, 0, DataTier.DATA_WARM);
+        IndexMetadata coldIndex1 = indexMetadata("cold-1", 1, 0, DataTier.DATA_COLD);
+        IndexMetadata coldIndex2 = indexMetadata("cold-2", 1, 0, DataTier.DATA_COLD, DataTier.DATA_WARM); // Prefers cold over warm
+        IndexMetadata nonTiered = indexMetadata("non-tier", 1, 0); // No tier
+        IndexMetadata hotIndex3 = indexMetadata("hot-3", 1, 0, DataTier.DATA_HOT);
+
+        Metadata.Builder metadataBuilder = Metadata.builder()
+            .put(hotIndex1, false)
+            .put(hotIndex2, false)
+            .put(warmIndex1, false)
+            .put(coldIndex1, false)
+            .put(coldIndex2, false)
+            .put(nonTiered, false)
+            .put(hotIndex3, false)
+            .generateClusterUuidIfNeeded();
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.add(getIndexRoutingTable(hotIndex1, dataNode));
+        routingTableBuilder.add(getIndexRoutingTable(hotIndex2, dataNode));
+        routingTableBuilder.add(getIndexRoutingTable(hotIndex2, dataNode));
+        routingTableBuilder.add(getIndexRoutingTable(warmIndex1, dataNode));
+        routingTableBuilder.add(getIndexRoutingTable(coldIndex1, dataNode));
+        routingTableBuilder.add(getIndexRoutingTable(coldIndex2, dataNode));
+        routingTableBuilder.add(getIndexRoutingTable(nonTiered, dataNode));
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .nodes(discoBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder.build())
+            .build();
+        Map<String, Set<String>> result = DataTiersUsageTransportAction.getIndicesGroupedByTier(
+            clusterState,
+            List.of(new NodeDataTiersUsage(dataNode, Map.of(DataTier.DATA_WARM, createStats(5, 5, 0, 10))))
+        );
+        assertThat(result.keySet(), equalTo(Set.of(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD)));
+        assertThat(result.get(DataTier.DATA_HOT), equalTo(Set.of(hotIndex1.getIndex().getName(), hotIndex2.getIndex().getName())));
+        assertThat(result.get(DataTier.DATA_WARM), equalTo(Set.of(warmIndex1.getIndex().getName())));
+        assertThat(result.get(DataTier.DATA_COLD), equalTo(Set.of(coldIndex1.getIndex().getName(), coldIndex2.getIndex().getName())));
     }
 
     public void testCalculateMAD() {
@@ -50,7 +104,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
     }
 
     public void testCalculateStatsNoTiers() {
-        // Nodes: 0 Tiered Nodes, 1 Data Node
+        // Nodes: 0 Tiered Nodes, 1 Data Node, no indices on tiered nodes
         DiscoveryNode leader = newNode(0, DiscoveryNodeRole.MASTER_ROLE);
         DiscoveryNode dataNode1 = newNode(1, DiscoveryNodeRole.DATA_ROLE);
 
@@ -59,7 +113,8 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(dataNode1, Map.of())
         );
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
-            nodeDataTiersUsages
+            nodeDataTiersUsages,
+            Map.of()
         );
 
         // Verify - No results when no tiers present
@@ -85,10 +140,11 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
-            nodeDataTiersUsages
+            nodeDataTiersUsages,
+            Map.of()
         );
 
-        // Verify - Results are present but they lack index numbers because none are tiered
+        // Verify - Results are present, but they lack index numbers because none are tiered
         assertThat(tierSpecificStats.size(), is(4));
 
         DataTiersFeatureSetUsage.TierSpecificStats hotStats = tierSpecificStats.get(DataTier.DATA_HOT);
@@ -165,39 +221,47 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
                 dataNode1,
                 Map.of(
                     DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex), 1, 2, docCount, byteSize),
+                    createStats(1, 2, docCount, byteSize),
                     DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex1, warmIndex2), 0, 2, docCount, byteSize),
+                    createStats(0, 2, docCount, byteSize),
                     DataTier.DATA_COLD,
-                    createStats(Set.of(coldIndex1), 1, 1, docCount, byteSize)
+                    createStats(1, 1, docCount, byteSize)
                 )
             ),
             new NodeDataTiersUsage(
                 dataNode2,
                 Map.of(
                     DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex), 1, 2, docCount, byteSize),
+                    createStats(1, 2, docCount, byteSize),
                     DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex1), 1, 1, docCount, byteSize),
+                    createStats(1, 1, docCount, byteSize),
                     DataTier.DATA_COLD,
-                    createStats(Set.of(coldIndex2), 1, 1, docCount, byteSize)
+                    createStats(1, 1, docCount, byteSize)
                 )
             ),
             new NodeDataTiersUsage(
                 dataNode3,
                 Map.of(
                     DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex), 1, 2, docCount, byteSize),
+                    createStats(1, 2, docCount, byteSize),
                     DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex2), 1, 1, docCount, byteSize),
+                    createStats(1, 1, docCount, byteSize),
                     DataTier.DATA_COLD,
-                    createStats(Set.of(coldIndex3), 1, 1, docCount, byteSize)
+                    createStats(1, 1, docCount, byteSize)
                 )
             )
         );
         // Calculate usage
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
-            nodeDataTiersUsages
+            nodeDataTiersUsages,
+            Map.of(
+                DataTier.DATA_HOT,
+                Set.of(hotIndex),
+                DataTier.DATA_WARM,
+                Set.of(warmIndex1, warmIndex2),
+                DataTier.DATA_COLD,
+                Set.of(coldIndex1, coldIndex2, coldIndex3)
+            )
         );
 
         // Verify - Index stats exist for the tiers, but no tiered nodes are found
@@ -267,23 +331,28 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         List<NodeDataTiersUsage> nodeDataTiersUsages = List.of(
             new NodeDataTiersUsage(leader, Map.of()),
-            new NodeDataTiersUsage(hotNode1, Map.of(DataTier.DATA_HOT, createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize))),
-            new NodeDataTiersUsage(hotNode2, Map.of(DataTier.DATA_HOT, createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize))),
-            new NodeDataTiersUsage(hotNode3, Map.of(DataTier.DATA_HOT, createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize))),
-            new NodeDataTiersUsage(warmNode1, Map.of(DataTier.DATA_WARM, createStats(Set.of(warmIndex1), 1, 1, docCount, byteSize))),
-            new NodeDataTiersUsage(warmNode2, Map.of(DataTier.DATA_WARM, createStats(Set.of(warmIndex1), 0, 1, docCount, byteSize))),
-            new NodeDataTiersUsage(warmNode3, Map.of(DataTier.DATA_WARM, createStats(Set.of(warmIndex2), 1, 1, docCount, byteSize))),
-            new NodeDataTiersUsage(warmNode4, Map.of(DataTier.DATA_WARM, createStats(Set.of(warmIndex2), 0, 1, docCount, byteSize))),
+            new NodeDataTiersUsage(hotNode1, Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize))),
+            new NodeDataTiersUsage(hotNode2, Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize))),
+            new NodeDataTiersUsage(hotNode3, Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize))),
+            new NodeDataTiersUsage(warmNode1, Map.of(DataTier.DATA_WARM, createStats(1, 1, docCount, byteSize))),
+            new NodeDataTiersUsage(warmNode2, Map.of(DataTier.DATA_WARM, createStats(0, 1, docCount, byteSize))),
+            new NodeDataTiersUsage(warmNode3, Map.of(DataTier.DATA_WARM, createStats(1, 1, docCount, byteSize))),
+            new NodeDataTiersUsage(warmNode4, Map.of(DataTier.DATA_WARM, createStats(0, 1, docCount, byteSize))),
             new NodeDataTiersUsage(warmNode5, Map.of()),
-            new NodeDataTiersUsage(
-                coldNode1,
-                Map.of(DataTier.DATA_COLD, createStats(Set.of(coldIndex1, coldIndex2, coldIndex3), 3, 3, docCount, byteSize))
-            )
+            new NodeDataTiersUsage(coldNode1, Map.of(DataTier.DATA_COLD, createStats(3, 3, docCount, byteSize)))
 
         );
         // Calculate usage
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
-            nodeDataTiersUsages
+            nodeDataTiersUsages,
+            Map.of(
+                DataTier.DATA_HOT,
+                Set.of(hotIndex1),
+                DataTier.DATA_WARM,
+                Set.of(warmIndex1, warmIndex2),
+                DataTier.DATA_COLD,
+                Set.of(coldIndex1, coldIndex2, coldIndex3)
+            )
         );
 
         // Verify - Node and Index stats are both collected
@@ -344,36 +413,22 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(leader, Map.of()),
             new NodeDataTiersUsage(
                 mixedNode1,
-                Map.of(
-                    DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize),
-                    DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex1, warmIndex2), 1, 2, docCount, byteSize)
-                )
+                Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize), DataTier.DATA_WARM, createStats(1, 2, docCount, byteSize))
             ),
             new NodeDataTiersUsage(
                 mixedNode2,
-                Map.of(
-                    DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize),
-                    DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex1), 0, 1, docCount, byteSize)
-                )
+                Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize), DataTier.DATA_WARM, createStats(0, 1, docCount, byteSize))
             ),
             new NodeDataTiersUsage(
                 mixedNode3,
-                Map.of(
-                    DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize),
-                    DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex2), 1, 1, docCount, byteSize)
-                )
+                Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize), DataTier.DATA_WARM, createStats(1, 1, docCount, byteSize))
             )
         );
 
         // Calculate usage
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
-            nodeDataTiersUsages
+            nodeDataTiersUsages,
+            Map.of(DataTier.DATA_HOT, Set.of(hotIndex1), DataTier.DATA_WARM, Set.of(warmIndex1, warmIndex2))
         );
 
         // Verify - Index stats are separated by their preferred tier, instead of counted
@@ -420,28 +475,19 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(leader, Map.of()),
             new NodeDataTiersUsage(
                 hotNode1,
-                Map.of(
-                    DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize),
-                    DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex1), 1, 1, docCount, byteSize)
-                )
+                Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize), DataTier.DATA_WARM, createStats(1, 1, docCount, byteSize))
             ),
             new NodeDataTiersUsage(
                 hotNode2,
-                Map.of(
-                    DataTier.DATA_HOT,
-                    createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize),
-                    DataTier.DATA_WARM,
-                    createStats(Set.of(warmIndex1), 0, 1, docCount, byteSize)
-                )
+                Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize), DataTier.DATA_WARM, createStats(0, 1, docCount, byteSize))
             ),
-            new NodeDataTiersUsage(hotNode3, Map.of(DataTier.DATA_HOT, createStats(Set.of(hotIndex1), 1, 2, docCount, byteSize)))
+            new NodeDataTiersUsage(hotNode3, Map.of(DataTier.DATA_HOT, createStats(1, 2, docCount, byteSize)))
         );
 
         // Calculate usage
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
-            nodeDataTiersUsages
+            nodeDataTiersUsages,
+            Map.of(DataTier.DATA_HOT, Set.of(hotIndex1), DataTier.DATA_WARM, Set.of(warmIndex1))
         );
 
         // Verify - Warm indices are still calculated separately from Hot ones, despite Warm nodes missing
@@ -472,23 +518,18 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         assertThat(warmStats.primaryShardBytesMAD, is(0L)); // All same size
     }
 
-    private static DiscoveryNode newNode(int nodeId, DiscoveryNodeRole... roles) {
-        return DiscoveryNodeUtils.builder("node_" + nodeId).roles(Set.of(roles)).build();
-    }
-
-    private NodeDataTiersUsage.UsageStats createStats(
-        Set<String> indices,
-        int primaryShardCount,
-        int totalNumberOfShards,
-        long docCount,
-        long byteSize
-    ) {
+    private NodeDataTiersUsage.UsageStats createStats(int primaryShardCount, int totalNumberOfShards, long docCount, long byteSize) {
         return new NodeDataTiersUsage.UsageStats(
-            indices,
             primaryShardCount > 0 ? IntStream.range(0, primaryShardCount).mapToObj(i -> byteSize).toList() : List.of(),
             totalNumberOfShards,
             totalNumberOfShards * docCount,
             totalNumberOfShards * byteSize
         );
+    }
+
+    private IndexRoutingTable.Builder getIndexRoutingTable(IndexMetadata indexMetadata, DiscoveryNode node) {
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+        routeTestShardToNodes(indexMetadata, 0, indexRoutingTableBuilder, node);
+        return indexRoutingTableBuilder;
     }
 }

@@ -47,7 +47,7 @@ public class ExpectedShardSizeEstimator {
         if (indexMetadata.getResizeSourceIndex() != null
             && shard.active() == false
             && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            return getExpectedSizeOfClonedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
+            return getExpectedSizeOfResizedShard(shard, defaultValue, indexMetadata, clusterInfo, metadata, routingTable);
         } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
@@ -55,7 +55,7 @@ public class ExpectedShardSizeEstimator {
         }
     }
 
-    private static long getExpectedSizeOfClonedShard(
+    private static long getExpectedSizeOfResizedShard(
         ShardRouting shard,
         long defaultValue,
         IndexMetadata indexMetadata,

@@ -107,6 +107,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return PARSER.parse(parser, null);
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     /**
      * @deprecated use {@link Builder} instead
      */
@@ -399,7 +403,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return false;
     }
 
-    public Builder builder() {
+    public Builder toBuilder() {
         return new Builder(this);
     }
 
@@ -526,6 +530,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private List<String> ignoreMissingComponentTemplates;
         private Boolean deprecated;
 
+        /**
+         * @deprecated use {@link ComposableIndexTemplate#builder()}
+         */
+        @Deprecated(forRemoval = true)
         public Builder() {}
 
         private Builder(ComposableIndexTemplate template) {

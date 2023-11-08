@@ -1789,9 +1789,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveRequiredAndNonRequiredComponents() throws Exception {
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(
-            Collections.singletonList("pattern")
-        )
+        ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("pattern"))
             .componentTemplates(List.of("required1", "non-required", "required2"))
             .ignoreMissingComponentTemplates(Collections.singletonList("non-required"))
             .build();
@@ -2418,7 +2417,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("metrics-test-*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Arrays.asList("metrics-test-*"))
             .componentTemplates(componentTemplates)
             .priority(1L)
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
@@ -2441,7 +2441,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("metrics-foo-*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Arrays.asList("metrics-foo-*"))
             .componentTemplates(componentTemplates)
             .priority(1L)
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
@@ -2475,7 +2476,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("metrics-foo-*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Arrays.asList("metrics-foo-*"))
             .componentTemplates(componentTemplates)
             .priority(1L)
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
@@ -2581,7 +2583,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ComponentTemplate ct = ComponentTemplateTests.randomInstance(false, true);
         state = service.addComponentTemplate(state, true, "ct", ct);
 
-        ComposableIndexTemplate it = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test*"))
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test*"))
             .componentTemplates(List.of("ct"))
             .version(1L)
             .build();

@@ -84,7 +84,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
         List<String> ignoreMissingComponentTemplates = randomList(0, 4, () -> randomAlphaOfLength(4));
-        return new ComposableIndexTemplate.Builder().indexPatterns(indexPatterns)
+        return ComposableIndexTemplate.builder()
+            .indexPatterns(indexPatterns)
             .template(template)
             .componentTemplates(randomBoolean() ? null : randomList(0, 10, () -> randomAlphaOfLength(5)))
             .priority(randomBoolean() ? null : randomNonNegativeLong())

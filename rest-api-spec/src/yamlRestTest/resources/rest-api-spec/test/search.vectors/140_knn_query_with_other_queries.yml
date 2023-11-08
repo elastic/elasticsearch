@@ -104,7 +104,7 @@ setup:
           query:
             dis_max:
               queries:
-                - knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 5 }
+                - knn: { field: my_vector, query_vector: [ 1, 1, 1, 1 ], num_candidates: 10 }
                 - match: { my_name: v2 }
               tie_breaker: 0.8
 

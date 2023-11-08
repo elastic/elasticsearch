@@ -51,6 +51,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
@@ -366,7 +367,7 @@ public class SearchTransportService {
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
-        private ShardSearchContextId contextId;
+        private final ShardSearchContextId contextId;
 
         ScrollFreeContextRequest(ShardSearchContextId contextId) {
             this.contextId = Objects.requireNonNull(contextId);
@@ -390,7 +391,7 @@ public class SearchTransportService {
     }
 
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
-        private OriginalIndices originalIndices;
+        private final OriginalIndices originalIndices;
 
         SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
             super(id);
@@ -428,7 +429,7 @@ public class SearchTransportService {
 
     public static class SearchFreeContextResponse extends TransportResponse {
 
-        private boolean freed;
+        private final boolean freed;
 
         SearchFreeContextResponse(StreamInput in) throws IOException {
             freed = in.readBoolean();
@@ -541,13 +542,16 @@ public class SearchTransportService {
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_SCROLL_ACTION_NAME, true, ScrollQueryFetchSearchResult::new);
 
+        TransportRequestHandler<ShardFetchRequest> shardFetchHandler = (request, channel, task) -> searchService.executeFetchPhase(
+            request,
+            (SearchShardTask) task,
+            new ChannelActionListener<>(channel)
+        );
         transportService.registerRequestHandler(
             FETCH_ID_SCROLL_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             ShardFetchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            shardFetchHandler
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_SCROLL_ACTION_NAME, true, FetchSearchResult::new);
 
@@ -557,9 +561,7 @@ public class SearchTransportService {
             true,
             true,
             ShardFetchSearchRequest::new,
-            (request, channel, task) -> {
-                searchService.executeFetchPhase(request, (SearchShardTask) task, new ChannelActionListener<>(channel));
-            }
+            shardFetchHandler
         );
         TransportActionProxy.registerProxyAction(transportService, FETCH_ID_ACTION_NAME, true, FetchSearchResult::new);
 

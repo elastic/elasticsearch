@@ -615,7 +615,7 @@ public class MetadataIndexTemplateService {
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
             final Template finalTemplate = new Template(finalSettings, wrappedMappings, innerTemplate.aliases(), innerTemplate.lifecycle());
-            finalIndexTemplate = template.builder().template(finalTemplate).build();
+            finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
         if (finalIndexTemplate.equals(existing)) {
@@ -702,7 +702,7 @@ public class MetadataIndexTemplateService {
         // Then apply settings resolved from templates:
         finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
 
-        var templateToValidate = indexTemplate.builder()
+        var templateToValidate = indexTemplate.toBuilder()
             .template(
                 new Template(
                     finalSettings.build(),

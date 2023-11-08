@@ -165,9 +165,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.indexPatterns(),
                     () -> randomList(1, 4, () -> randomAlphaOfLength(4))
                 );
-                return orig.builder().indexPatterns(newIndexPatterns).build();
+                return orig.toBuilder().indexPatterns(newIndexPatterns).build();
             case 1:
-                return orig.builder()
+                return orig.toBuilder()
                     .template(
                         randomValueOtherThan(
                             orig.template(),
@@ -177,15 +177,15 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     .build();
             case 2:
                 List<String> newComposedOf = randomValueOtherThan(orig.composedOf(), () -> randomList(0, 10, () -> randomAlphaOfLength(5)));
-                return orig.builder().componentTemplates(newComposedOf).build();
+                return orig.toBuilder().componentTemplates(newComposedOf).build();
             case 3:
-                return orig.builder().priority(randomValueOtherThan(orig.priority(), ESTestCase::randomNonNegativeLong)).build();
+                return orig.toBuilder().priority(randomValueOtherThan(orig.priority(), ESTestCase::randomNonNegativeLong)).build();
             case 4:
-                return orig.builder().version(randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong)).build();
+                return orig.toBuilder().version(randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong)).build();
             case 5:
-                return orig.builder().metadata(randomValueOtherThan(orig.metadata(), ComposableIndexTemplateTests::randomMeta)).build();
+                return orig.toBuilder().metadata(randomValueOtherThan(orig.metadata(), ComposableIndexTemplateTests::randomMeta)).build();
             case 6:
-                return orig.builder()
+                return orig.toBuilder()
                     .dataStreamTemplate(
                         randomValueOtherThan(orig.getDataStreamTemplate(), ComposableIndexTemplateTests::randomDataStreamTemplate)
                     )
@@ -195,9 +195,9 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     orig.getIgnoreMissingComponentTemplates(),
                     () -> randomList(1, 4, () -> randomAlphaOfLength(4))
                 );
-                return orig.builder().ignoreMissingComponentTemplates(ignoreMissingComponentTemplates).build();
+                return orig.toBuilder().ignoreMissingComponentTemplates(ignoreMissingComponentTemplates).build();
             case 8:
-                return orig.builder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
+                return orig.toBuilder().deprecated(orig.isDeprecated() ? randomFrom(false, null) : true).build();
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }
@@ -254,6 +254,6 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
 
     public void testBuilderRoundtrip() {
         ComposableIndexTemplate template = randomInstance();
-        assertEquals(template, template.builder().build());
+        assertEquals(template, template.toBuilder().build());
     }
 }

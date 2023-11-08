@@ -41,7 +41,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
      * Store a mandatory JWT and optional Shared Secret.
      * @param signedJWT The JWT parsed from the end-user credentials
      * @param userCredentialsHash The hash of the end-user credentials is used to compute the key for user cache at the realm level.
-     *                            See also {@link JwtRealm#authenticate}.
+     *                            See also {@code JwtRealm#authenticate}.
      * @param clientAuthenticationSharedSecret URL-safe Shared Secret for Client authentication. Required by some JWT realms.
      */
     public JwtAuthenticationToken(

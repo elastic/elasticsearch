@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
@@ -167,7 +168,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             });
 
             // Add `usesBwcDistribution(version)` extension method to test tasks to indicate they require a BWC distribution
-            /*task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
+            task.getExtensions().getExtraProperties().set("usesBwcDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
                     if (args.length != 1 || args[0] instanceof Version == false) {
@@ -193,7 +194,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
                     return null;
                 }
-            });*/
+            });
         });
     }
 

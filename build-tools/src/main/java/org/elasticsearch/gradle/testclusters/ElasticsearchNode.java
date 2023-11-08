@@ -26,7 +26,6 @@ import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
@@ -134,7 +133,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path workingDir;
 
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
     private final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
@@ -279,7 +277,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setDistributionType(distribution, testDistribution);
         }
     }
-
     private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             distribution.setType(ElasticsearchDistributionTypes.INTEG_TEST_ZIP);
@@ -291,16 +288,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    // package protected so only TestClustersAware can access
-    @Internal
-    Collection<Configuration> getPluginAndModuleConfigurations() {
-        return pluginAndModuleConfigurations.values();
-    }
-
     @Override
     public void plugin(Provider<RegularFile> plugin) {
         checkFrozen();
-        //
         this.plugins.add(plugin.map(RegularFile::getAsFile));
     }
 
@@ -316,7 +306,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void module(Provider<RegularFile> module) {
         checkFrozen();
-        //registerExtractedConfig(module);
         this.modules.add(module.map(RegularFile::getAsFile));
     }
 

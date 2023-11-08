@@ -1057,18 +1057,24 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 }
             });
             var evictedCount = 0;
+            var nonZeroFrequencyEvictedCount = 0;
             if (matchingEntries.isEmpty() == false) {
                 synchronized (SharedBlobCacheService.this) {
                     for (LFUCacheEntry entry : matchingEntries) {
+                        int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.io != null) {
                             unlink(entry);
                             keyMapping.remove(entry.chunk.regionKey, entry);
                             evictedCount++;
+                            if (frequency > 0) {
+                                nonZeroFrequencyEvictedCount++;
+                            }
                         }
                     }
                 }
             }
+            blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(nonZeroFrequencyEvictedCount);
             return evictedCount;
         }
 
@@ -1088,8 +1094,12 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 assignToSlot(entry, freeSlot);
             } else {
                 // need to evict something
+                int frequency;
                 synchronized (SharedBlobCacheService.this) {
-                    maybeEvict();
+                    frequency = maybeEvict();
+                }
+                if (frequency > 0) {
+                    blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(frequency);
                 }
                 final SharedBytes.IO freeSlotRetry = freeRegions.poll();
                 if (freeSlotRetry != null) {
@@ -1221,7 +1231,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert invariant(entry, false);
         }
 
-        private void maybeEvict() {
+        /**
+         * Cycles through the {@link LFUCacheEntry} from 0 to max frequency and
+         * tries to evict a chunk if no one is holding onto its resources anymore
+         *
+         * @return the frequency of the evicted entry as integer or -1 if no entry was evicted from cache
+         */
+        private int maybeEvict() {
             assert Thread.holdsLock(SharedBlobCacheService.this);
             for (int i = 0; i < maxFreq; i++) {
                 for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
@@ -1229,10 +1245,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     if (evicted && entry.chunk.io != null) {
                         unlink(entry);
                         keyMapping.remove(entry.chunk.regionKey, entry);
-                        return;
+                        return i;
                     }
                 }
             }
+            return -1;
         }
 
         private void computeDecay() {

@@ -8,14 +8,12 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.Task;
-import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.Nested;
 
 import java.util.Collection;
-import java.util.concurrent.Callable;
 
 import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.REGISTRY_SERVICE_NAME;
 
@@ -32,7 +30,8 @@ public interface TestClustersAware extends Task {
             throw new TestClustersException("Task " + getPath() + " can't use test cluster from" + " another project " + cluster);
         }
 
-        cluster.getNodes().all(node -> node.getDistributions().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
+        cluster.getNodes()
+            .all(node -> node.getDistributions().forEach(distro -> dependsOn(getProject().provider(() -> distro.maybeFreeze()))));
         dependsOn(cluster.getPluginAndModuleConfigurations());
         getClusters().add(cluster);
     }

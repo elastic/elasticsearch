@@ -46,7 +46,6 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
-import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.process.ExecOperations;
@@ -69,7 +68,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -123,7 +121,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final String path;
     private final String name;
-    private final Project project;
     private final Provider<ReaperService> reaperServiceProvider;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -173,11 +170,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
 
+    private List<String> versions;
+
     ElasticsearchNode(
         String clusterName,
         String path,
         String name,
-        Project project,
         Provider<ReaperService> reaperServiceProvider,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
@@ -189,7 +187,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     ) {
         this.path = path;
         this.name = name;
-        this.project = project;
         this.reaperServiceProvider = reaperServiceProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
@@ -223,28 +220,29 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    public Version getVersion() {
+    Version getVersion() {
         return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
     @Override
     public void setVersion(String version) {
-        requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
-        checkFrozen();
-        distributions.clear();
-        doSetVersion(version);
+        setVersions(Arrays.asList(version));
     }
 
     @Override
     public void setVersions(List<String> versions) {
         requireNonNull(versions, "null version list passed when configuring test cluster `" + this + "`");
-        distributions.clear();
+        this.versions = versions;
+    }
+
+    public void finalizeConfiguration(Project project) {
         for (String version : versions) {
-            doSetVersion(version);
+            doSetVersion(project, version);
         }
     }
 
-    private void doSetVersion(String version) {
+    private void doSetVersion(Project project, String version) {
+        System.out.println("ElasticsearchNode.doSetVersion " + project.getPath() + " " + version);
         String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
         if (container.findByName(distroName) == null) {
@@ -277,6 +275,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setDistributionType(distribution, testDistribution);
         }
     }
+
     private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
         if (testDistribution == TestDistribution.INTEG_TEST) {
             distribution.setType(ElasticsearchDistributionTypes.INTEG_TEST_ZIP);
@@ -296,11 +295,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void plugin(String pluginProjectPath) {
-        throw new IllegalStateException("Deprecated");
+        throw new IllegalStateException("Not Supported API");
     }
 
     public void plugin(TaskProvider<Zip> plugin) {
-        plugin(plugin.flatMap(AbstractArchiveTask::getArchiveFile));
+        throw new IllegalStateException("Not Supported API");
     }
 
     @Override
@@ -310,12 +309,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public void module(TaskProvider<Sync> module) {
-        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
+        throw new IllegalStateException("Not Supported API");
     }
 
     @Override
     public void module(String moduleProjectPath) {
-        throw new IllegalStateException("Deprecated");
+        throw new IllegalStateException("Not Supported API");
     }
 
     @Override

@@ -36,6 +36,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.process.ExecOperations;
 
@@ -116,7 +117,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 safeName(clusterName),
                 path,
                 clusterName + "-0",
-                project,
                 reaper,
                 fileSystemOperations,
                 archiveOperations,
@@ -127,7 +127,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 isReleasedVersion
             )
         );
-
 
         addWaitForClusterHealth();
     }
@@ -162,7 +161,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     safeName(clusterName),
                     path,
                     clusterName + "-" + i,
-                    project,
                     reaper,
                     fileSystemOperations,
                     archiveOperations,
@@ -232,7 +230,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void plugin(TaskProvider<Zip> plugin) {
-        nodes.all(each -> each.plugin(plugin));
+        Provider<RegularFile> regularFileProvider = plugin.flatMap(AbstractArchiveTask::getArchiveFile);
+        nodes.all(each -> each.plugin(regularFileProvider));
     }
 
     @Override
@@ -259,7 +258,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void module(TaskProvider<Sync> module) {
-        nodes.all(each -> each.module(module));
+        Provider<RegularFile> moduleProvider = project.getLayout().file(module.map(Sync::getDestinationDir));
+        nodes.all(each -> each.module(moduleProvider));
     }
 
     @Override
@@ -290,6 +290,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     Collection<Configuration> getPluginAndModuleConfigurations() {
         return pluginAndModuleConfigurations.values();
     }
+
     // creates a configuration to depend on the given plugin project, then wraps that configuration
     // to grab the zip as a file provider
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
@@ -663,5 +664,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public String toString() {
         return "cluster{" + path + ":" + clusterName + "}";
+    }
+
+    public void finalizeConfiguration() {
+        nodes.forEach(n -> n.finalizeConfiguration(project));
     }
 }

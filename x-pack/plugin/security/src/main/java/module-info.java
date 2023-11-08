@@ -37,6 +37,7 @@ module org.elasticsearch.security {
     requires org.opensaml.xmlsec.impl;
     requires org.opensaml.xmlsec;
 
+    requires com.nimbusds.jose.jwt;
     requires io.netty.common;
     requires io.netty.codec.http;
     requires io.netty.handler;

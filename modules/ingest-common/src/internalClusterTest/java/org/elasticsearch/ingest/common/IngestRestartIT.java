@@ -50,11 +50,6 @@ public class IngestRestartIT extends ESIntegTestCase {
         return Arrays.asList(IngestCommonPlugin.class, CustomScriptPlugin.class);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

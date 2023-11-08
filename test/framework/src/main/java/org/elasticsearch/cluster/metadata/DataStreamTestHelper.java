@@ -329,7 +329,8 @@ public final class DataStreamTestHelper {
     ) {
         builder.put(
             "template_1",
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("*"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

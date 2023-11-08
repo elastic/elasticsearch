@@ -199,7 +199,8 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                         ".test-data-stream",
                         "system data stream test",
                         Type.EXTERNAL,
-                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(".test-data-stream"))
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".test-data-stream"))
                             .template(
                                 new Template(
                                     Settings.EMPTY,

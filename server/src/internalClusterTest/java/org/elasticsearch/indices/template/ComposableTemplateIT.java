@@ -33,7 +33,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct)).get();
 
-        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("coleslaw"))
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("coleslaw"))
             .template(new Template(null, new CompressedXContent("""
                 {
                   "dynamic": false,
@@ -67,7 +68,8 @@ public class ComposableTemplateIT extends ESIntegTestCase {
             }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct2)).get();
 
-        ComposableIndexTemplate cit2 = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("coleslaw"))
+        ComposableIndexTemplate cit2 = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("coleslaw"))
             .template(new Template(null, new CompressedXContent("""
                 {
                   "dynamic": true,

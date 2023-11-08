@@ -43,7 +43,8 @@ public class RolloverEnabledTestTemplateRegistry extends IndexTemplateRegistry {
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         return Map.of(
             TEST_INDEX_TEMPLATE_ID,
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of(TEST_INDEX_PATTERN))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(TEST_INDEX_PATTERN))
                 .priority(100L)
                 .version(version)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

@@ -638,7 +638,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
         final String datastream = "logs-1";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("template-id");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
                 .template(
                     new Template(
                         Settings.builder()

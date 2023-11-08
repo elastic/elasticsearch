@@ -59,7 +59,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             // Missing routing path should fail validation
             var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
             var state = service.addComponentTemplate(ClusterState.EMPTY_STATE, true, "1", componentTemplate);
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
                 .componentTemplates(List.of("1"))
                 .priority(100L)
@@ -77,7 +78,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null
             );
             state = service.addComponentTemplate(state, true, "1", componentTemplate);
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
                 .componentTemplates(List.of("1"))
                 .priority(100L)
@@ -95,7 +97,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 null
             );
             state = service.addComponentTemplate(state, true, "1", componentTemplate);
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(null, null, null))
                 .componentTemplates(List.of("1"))
                 .priority(100L)
@@ -106,7 +109,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         {
             // Routing path defined in index template
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null))
                 .componentTemplates(List.of("1"))
                 .priority(100L)
@@ -117,7 +121,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         }
         {
             // Routing fetched from mapping in index template
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(
                     new Template(builder().put("index.mode", "time_series").build(), new CompressedXContent(generateTsdbMapping()), null)
                 )

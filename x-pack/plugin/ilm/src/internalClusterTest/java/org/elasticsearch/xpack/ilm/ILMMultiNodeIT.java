@@ -87,7 +87,8 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(index))
             .template(t)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();

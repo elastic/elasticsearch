@@ -33,7 +33,8 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
         startHotOnlyNode();
         ensureGreen();
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(index))
 
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();

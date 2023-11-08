@@ -238,7 +238,8 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
                     SYSTEM_DATA_STREAM_NAME,
                     "a system data stream for testing",
                     SystemDataStreamDescriptor.Type.EXTERNAL,
-                    new ComposableIndexTemplate.Builder().indexPatterns(List.of(".system-data-stream"))
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(".system-data-stream"))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),
                     Map.of(),

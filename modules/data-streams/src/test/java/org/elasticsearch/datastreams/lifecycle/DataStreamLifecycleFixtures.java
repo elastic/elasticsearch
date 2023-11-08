@@ -83,7 +83,8 @@ public class DataStreamLifecycleFixtures {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(patterns)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
                 .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

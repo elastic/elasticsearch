@@ -336,7 +336,8 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     ) {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(patterns)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
                 .template(new Template(settings, mappings, null, lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -435,7 +436,8 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                         SYSTEM_DATA_STREAM_NAME,
                         "a system data stream for testing",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
                             .template(new Template(settings.build(), getTSDBMappings(), null, LIFECYCLE))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),

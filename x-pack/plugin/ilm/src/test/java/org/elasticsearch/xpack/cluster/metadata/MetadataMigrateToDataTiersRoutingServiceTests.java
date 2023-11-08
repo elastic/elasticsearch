@@ -1214,9 +1214,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrationDoesNotRemoveComposableTemplates() {
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(
-            Collections.singletonList("*")
-        ).template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null)).build();
+        ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null))
+            .build();
 
         String composableTemplateName = "catch-all-composable-template";
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -1394,7 +1395,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         String includeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         String excludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
 
-        ComposableIndexTemplate templateWithRequireRouting = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*"))
+        ComposableIndexTemplate templateWithRequireRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
             .template(
                 new Template(
                     Settings.builder().put(requireRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
@@ -1407,7 +1409,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .version(randomLong())
             .build();
 
-        ComposableIndexTemplate templateWithIncludeRouting = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*"))
+        ComposableIndexTemplate templateWithIncludeRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
             .template(
                 new Template(
                     Settings.builder().put(includeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
@@ -1420,7 +1423,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .version(randomLong())
             .build();
 
-        ComposableIndexTemplate templateWithExcludeRouting = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*"))
+        ComposableIndexTemplate templateWithExcludeRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
             .template(
                 new Template(
                     Settings.builder().put(excludeRoutingSetting, "hot").put(LifecycleSettings.LIFECYCLE_NAME, "testLifecycle").build(),
@@ -1433,9 +1437,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .version(randomLong())
             .build();
 
-        ComposableIndexTemplate templateWithRequireAndIncludeRoutings = new ComposableIndexTemplate.Builder().indexPatterns(
-            List.of("test-*")
-        )
+        ComposableIndexTemplate templateWithRequireAndIncludeRoutings = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
             .template(
                 new Template(
                     Settings.builder()
@@ -1452,7 +1455,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .version(randomLong())
             .build();
 
-        ComposableIndexTemplate templateWithoutCustomRoutings = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*"))
+        ComposableIndexTemplate templateWithoutCustomRoutings = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
             .template(
                 new Template(
                     Settings.builder()
@@ -1636,9 +1640,8 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             null
         );
 
-        ComposableIndexTemplate composableTemplateWithRequireRouting = new ComposableIndexTemplate.Builder().indexPatterns(
-            List.of("test-*")
-        )
+        ComposableIndexTemplate composableTemplateWithRequireRouting = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
             .template(new Template(Settings.builder().put(requireRoutingSetting, "hot").build(), null, null))
             .componentTemplates(List.of("component-template-without-custom-routing"))
             .priority(randomLong())

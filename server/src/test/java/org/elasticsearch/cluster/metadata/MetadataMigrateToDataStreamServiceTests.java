@@ -279,7 +279,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStreamName + "*"))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build()
                     )
@@ -335,7 +336,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStreamName + "*"))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build()
                     )
@@ -391,7 +393,8 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
                     .put(foo2, false)
                     .put(
                         "template",
-                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(dataStreamName + "*"))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build()
                     )

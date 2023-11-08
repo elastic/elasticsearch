@@ -89,7 +89,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             )
             .put(
                 "index_templatev2",
-                new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo", "bar*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Arrays.asList("foo", "bar*"))
                     .template(
                         new Template(
                             Settings.builder().put("setting", "value").build(),

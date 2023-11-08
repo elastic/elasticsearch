@@ -111,7 +111,8 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                             new ComposableIndexTemplateMetadata(
                                 Collections.singletonMap(
                                     "mytemplate",
-                                    new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("myds"))
+                                    ComposableIndexTemplate.builder()
+                                        .indexPatterns(Collections.singletonList("myds"))
                                         .template(
                                             new Template(
                                                 Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(),
@@ -160,7 +161,8 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                     new ComposableIndexTemplateMetadata(
                         Collections.singletonMap(
                             "mytemplate",
-                            new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("myds"))
+                            ComposableIndexTemplate.builder()
+                                .indexPatterns(Collections.singletonList("myds"))
                                 .template(
                                     new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
                                 )

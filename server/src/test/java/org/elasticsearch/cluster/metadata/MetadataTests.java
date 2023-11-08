@@ -2279,7 +2279,8 @@ public class MetadataTests extends ESTestCase {
         // Settings in component template:
         {
             var componentTemplate = new ComponentTemplate(template, null, null);
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build();
@@ -2289,7 +2290,8 @@ public class MetadataTests extends ESTestCase {
         // Settings in composable index template:
         {
             var componentTemplate = new ComponentTemplate(new Template(null, null, null), null, null);
-            var indexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*"))
+            var indexTemplate = ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("test-*"))
                 .template(template)
                 .componentTemplates(List.of("component_template_1"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

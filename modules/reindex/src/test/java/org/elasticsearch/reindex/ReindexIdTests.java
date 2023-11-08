@@ -61,10 +61,10 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
             metadata.put("c", new ComponentTemplate(template, null, null));
             metadata.put(
                 "c",
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("dest_index")).componentTemplates(List.of("c")).build()
+                ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).componentTemplates(List.of("c")).build()
             );
         } else {
-            metadata.put("c", new ComposableIndexTemplate.Builder().indexPatterns(List.of("dest_index")).template(template).build());
+            metadata.put("c", ComposableIndexTemplate.builder().indexPatterns(List.of("dest_index")).template(template).build());
         }
         return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
     }

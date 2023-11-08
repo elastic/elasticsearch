@@ -153,7 +153,8 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("my-template").indexTemplate(
-                    new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("logs-*"))
                         .template(new Template(indexSettings, null, null))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build()

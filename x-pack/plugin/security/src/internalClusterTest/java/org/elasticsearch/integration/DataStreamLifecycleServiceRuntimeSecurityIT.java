@@ -217,7 +217,8 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(patterns)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
                 .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
@@ -255,7 +256,8 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                     SYSTEM_DATA_STREAM_NAME,
                     "a system data stream for testing",
                     SystemDataStreamDescriptor.Type.EXTERNAL,
-                    new ComposableIndexTemplate.Builder().indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of(SYSTEM_DATA_STREAM_NAME))
                         .template(new Template(Settings.EMPTY, null, null, DataStreamLifecycle.newBuilder().dataRetention(0).build()))
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build(),

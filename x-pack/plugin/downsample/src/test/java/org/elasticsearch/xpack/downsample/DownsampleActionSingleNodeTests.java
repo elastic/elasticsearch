@@ -1434,7 +1434,8 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
             .template(indexTemplate)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();

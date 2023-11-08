@@ -205,7 +205,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     }
 
     private String autoCreateSystemAliasViaComposableTemplate(String indexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(indexName + "*"))
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(indexName + "*"))
             .template(
                 new Template(
                     null,

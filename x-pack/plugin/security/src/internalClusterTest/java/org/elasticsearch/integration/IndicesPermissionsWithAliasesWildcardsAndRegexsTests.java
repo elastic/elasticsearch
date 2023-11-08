@@ -255,7 +255,8 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     private void putComposableIndexTemplate(String id, List<String> patterns) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(patterns)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
                 .template(new Template(null, null, null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()

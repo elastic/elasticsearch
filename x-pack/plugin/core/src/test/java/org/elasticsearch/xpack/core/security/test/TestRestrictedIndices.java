@@ -110,7 +110,8 @@ public class TestRestrictedIndices {
                         ".fleet-actions-results",
                         "fleet actions results",
                         SystemDataStreamDescriptor.Type.EXTERNAL,
-                        new ComposableIndexTemplate.Builder().indexPatterns(List.of(".fleet-actions-results"))
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(".fleet-actions-results"))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

@@ -125,7 +125,8 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                 )
         );
         // create an new-style template
-        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(securityIndexNames)
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(securityIndexNames)
             .template(
                 new Template(
                     Settings.builder()

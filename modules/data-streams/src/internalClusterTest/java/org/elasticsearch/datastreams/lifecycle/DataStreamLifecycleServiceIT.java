@@ -182,7 +182,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("index_*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("index_*"))
                 .template(new Template(null, CompressedXContent.fromJSON(mapping), null, null))
                 .build()
         );
@@ -709,7 +710,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(patterns)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
                 .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

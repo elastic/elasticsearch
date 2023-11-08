@@ -795,7 +795,7 @@ public class RolloverIT extends ESIntegTestCase {
             null
         );
         putTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("test-*")).template(template).priority(100L).build()
+            ComposableIndexTemplate.builder().indexPatterns(List.of("test-*")).template(template).priority(100L).build()
         );
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
 

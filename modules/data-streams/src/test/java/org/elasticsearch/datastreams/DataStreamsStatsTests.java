@@ -226,7 +226,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         Template idxTemplate = new Template(null, new CompressedXContent("""
             {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
             """), null);
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
             .template(idxTemplate)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(hidden, false))
             .build();

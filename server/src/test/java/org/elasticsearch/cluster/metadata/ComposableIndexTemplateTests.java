@@ -319,7 +319,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         }
         DataStreamLifecycle lifecycle = randomLifecycle();
         Template template = new Template(settings, mappings, aliases, lifecycle);
-        new ComposableIndexTemplate.Builder().indexPatterns(List.of(randomAlphaOfLength(4)))
+        ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(randomAlphaOfLength(4)))
             .template(template)
             .componentTemplates(List.of())
             .priority(randomNonNegativeLong())

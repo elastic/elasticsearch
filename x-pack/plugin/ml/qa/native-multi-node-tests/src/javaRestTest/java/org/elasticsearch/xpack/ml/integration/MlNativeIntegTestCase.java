@@ -438,7 +438,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(dataStreamName))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Collections.singletonList(dataStreamName))
                     .template(new Template(null, new CompressedXContent(mapping), null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                     .build()

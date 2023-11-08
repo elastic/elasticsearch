@@ -77,7 +77,8 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 ".test-data-stream",
                                 "a data stream for testing",
                                 SystemDataStreamDescriptor.Type.INTERNAL,
-                                new ComposableIndexTemplate.Builder().indexPatterns(List.of(".system-data-stream"))
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(".system-data-stream"))
                                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                                     .build(),
                                 Map.of(),
@@ -108,7 +109,8 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 ".test-data-stream",
                                 "a data stream for testing",
                                 SystemDataStreamDescriptor.Type.INTERNAL,
-                                new ComposableIndexTemplate.Builder().indexPatterns(List.of(".system-data-stream"))
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(".system-data-stream"))
                                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                                     .build(),
                                 Map.of(),

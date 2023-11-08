@@ -396,7 +396,8 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("a-ct").componentTemplate(ct)).get();
 
-        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(prefix + "*"))
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(prefix + "*"))
             .template(
                 new Template(
                     null,

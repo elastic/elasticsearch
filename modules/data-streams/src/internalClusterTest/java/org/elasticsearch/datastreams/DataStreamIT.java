@@ -436,7 +436,7 @@ public class DataStreamIT extends ESIntegTestCase {
                 }""";
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id_1");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder()
+            ComposableIndexTemplate.builder()
                 // use no wildcard, so that backing indices don't match just by name
                 .indexPatterns(List.of(dataStreamName))
                 .template(new Template(null, new CompressedXContent(mapping), null))
@@ -514,7 +514,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 }""";
         PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
         createTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
                 .template(new Template(null, new CompressedXContent(mapping), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
@@ -663,7 +664,7 @@ public class DataStreamIT extends ESIntegTestCase {
         // Now replace it with a higher-priority template and delete the old one
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("id2");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder()
+            ComposableIndexTemplate.builder()
                 // Match the other data stream with a slightly different pattern
                 .indexPatterns(Collections.singletonList("metrics-foobar*"))
                 .template(new Template(null, null, null))
@@ -1200,7 +1201,8 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testIndexDocsWithCustomRoutingAllowed() throws Exception {
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-foobar*"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs-foobar*"))
             .template(new Template(null, null, null))
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, true))
             .build();
@@ -1341,7 +1343,8 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testMixedAutoCreate() throws Exception {
         PutComposableIndexTemplateAction.Request createTemplateRequest = new PutComposableIndexTemplateAction.Request("logs-foo");
         createTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-foo*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-foo*"))
                 .template(new Template(null, new CompressedXContent(generateMapping("@timestamp")), null))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
@@ -1915,7 +1918,8 @@ public class DataStreamIT extends ESIntegTestCase {
         /**
          * partition size with no routing required
          */
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs"))
             .template(
                 new Template(
                     Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
@@ -1933,7 +1937,8 @@ public class DataStreamIT extends ESIntegTestCase {
         /**
          * partition size with routing required
          */
-        template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs"))
+        template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs"))
             .template(
                 new Template(
                     Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
@@ -1956,7 +1961,8 @@ public class DataStreamIT extends ESIntegTestCase {
         /**
          * routing settings with allow custom routing false
          */
-        template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs"))
+        template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs"))
             .template(
                 new Template(
                     Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
@@ -1983,7 +1989,8 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     public void testRoutingEnabledInMappingDisabledInDataStreamTemplate() throws IOException {
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("logs"))
             .template(
                 new Template(
                     Settings.builder().put("index.number_of_shards", "3").put("index.routing_partition_size", "2").build(),
@@ -2013,7 +2020,8 @@ public class DataStreamIT extends ESIntegTestCase {
         /**
          * partition size with routing required
          */
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of("my-logs"))
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("my-logs"))
             .template(
                 new Template(
                     Settings.builder()
@@ -2293,7 +2301,8 @@ public class DataStreamIT extends ESIntegTestCase {
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(patterns)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
                 .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), aliases, lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())

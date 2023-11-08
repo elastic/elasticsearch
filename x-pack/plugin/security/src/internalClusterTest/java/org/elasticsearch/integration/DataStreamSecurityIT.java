@@ -60,7 +60,8 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
 
         var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

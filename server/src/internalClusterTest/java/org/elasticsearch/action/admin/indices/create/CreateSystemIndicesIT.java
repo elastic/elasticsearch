@@ -194,7 +194,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     private void createIndexWithComposableTemplates(String indexName, String primaryIndexName) throws Exception {
-        ComposableIndexTemplate cit = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(indexName + "*"))
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(indexName + "*"))
             .template(
                 new Template(
                     null,

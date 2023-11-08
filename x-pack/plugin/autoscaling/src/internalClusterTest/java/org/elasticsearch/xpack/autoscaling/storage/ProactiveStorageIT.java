@@ -123,7 +123,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(dataStreamName))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Collections.singletonList(dataStreamName))
                     .template(new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                     .build()

@@ -115,7 +115,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         if (randomBoolean()) {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("k8s*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
                     .template(new Template(templateSettings.build(), mapping, null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
@@ -128,7 +129,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
 
             var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
             putTemplateRequest.indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("k8s*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
                     .template(new Template(templateSettings.build(), null, null))
                     .componentTemplates(List.of("1"))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
@@ -238,7 +240,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("k8s*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
                     .template(
                         new Template(
                             Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
@@ -265,7 +268,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var request = new PutComposableIndexTemplateAction.Request("id");
             request.indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("k8s*"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("k8s*"))
                     .template(
                         new Template(
                             Settings.builder().put("index.mode", "time_series").build(),
@@ -298,7 +302,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }""";
         var request = new PutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("k8s*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
                 .template(
                     new Template(
                         Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build(),
@@ -337,7 +342,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             }""";
         var request = new PutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of("k8s*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("k8s*"))
                 .template(
                     new Template(
                         Settings.builder().put("index.routing_path", "metricset").build(),
@@ -362,7 +368,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var templateSettings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "metricset").build();
             var request = new PutComposableIndexTemplateAction.Request("id1");
             request.indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("pattern-1"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("pattern-1"))
                     .template(new Template(templateSettings, mapping, null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
@@ -375,7 +382,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         {
             var request = new PutComposableIndexTemplateAction.Request("id2");
             request.indexTemplate(
-                new ComposableIndexTemplate.Builder().indexPatterns(List.of("pattern-2"))
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("pattern-2"))
                     .template(new Template(null, mapping, null))
                     .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                     .build()
@@ -418,7 +426,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         String dataStreamName = "k8s";
         var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
                     new Template(
                         Settings.builder()

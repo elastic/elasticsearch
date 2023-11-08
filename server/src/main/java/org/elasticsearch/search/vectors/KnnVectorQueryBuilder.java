@@ -115,7 +115,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.numCands = in.readOptionalVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS)) {
+            this.numCands = in.readOptionalVInt();
+        } else {
+            this.numCands = in.readVInt();
+        }
         if (in.getTransportVersion().before(TransportVersions.V_8_7_0)
             || in.getTransportVersion().onOrAfter(TransportVersions.KNN_AS_QUERY_ADDED)) {
             this.queryVector = in.readFloatArray();
@@ -176,8 +180,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalVInt(numCands);
-
+        if (out.getTransportVersion().onOrAfter(TransportVersions.KNN_K_NUMCANDS_AS_OPTIONAL_PARAMS)) {
+            out.writeOptionalVInt(numCands);
+        } else {
+            if (numCands == null) {
+                throw new IllegalArgumentException(
+                    "[" + NUM_CANDS_FIELD.getPreferredName() + "] must be provided and be greater or equal to [size]"
+                );
+            } else {
+                out.writeVInt(numCands);
+            }
+        }
         if (out.getTransportVersion().before(TransportVersions.V_8_7_0)
             || out.getTransportVersion().onOrAfter(TransportVersions.KNN_AS_QUERY_ADDED)) {
             out.writeFloatArray(queryVector);

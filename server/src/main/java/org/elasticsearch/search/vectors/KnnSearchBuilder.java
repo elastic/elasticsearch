@@ -440,8 +440,22 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
             out.writeOptionalVInt(k);
             out.writeOptionalVInt(numCands);
         } else {
-            out.writeVInt(k);
-            out.writeVInt(numCands);
+            if (k == null) {
+                throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be provided and be greater than 0");
+            } else {
+                out.writeVInt(k);
+            }
+            if (numCands == null) {
+                throw new IllegalArgumentException(
+                    "["
+                        + NUM_CANDS_FIELD.getPreferredName()
+                        + "] must be provided and be greater or equal to ["
+                        + K_FIELD.getPreferredName()
+                        + "]"
+                );
+            } else {
+                out.writeVInt(numCands);
+            }
         }
         out.writeFloatArray(queryVector);
         out.writeNamedWriteableCollection(filterQueries);

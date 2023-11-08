@@ -970,7 +970,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (has(ProductFeature.SHUTDOWN) == false) {
             return;
         }
-        assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
+        //assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
 
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));

@@ -4,7 +4,7 @@
 
 **Syntax**
 
-[source,txt]
+[source,esql]
 ----
 ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2, ...]
 ----
@@ -15,18 +15,18 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
 The name of the enrich policy. You need to <<esql-set-up-enrich-policy,create>>
 and <<esql-execute-enrich-policy,execute>> the enrich policy first.
 
-`ON match_field`::
+`match_field`::
 The match field. `ENRICH` uses its value to look for records in the enrich
 index. If not specified, the match will be performed on the column with the same
 name as the `match_field` defined in the <<esql-enrich-policy,enrich policy>>.
 
-`WITH fieldX`::
+`fieldX`::
 The enrich fields from the enrich index that are added to the result as new
 columns. If a column with the same name as the enrich field already exists, the
 existing column will be replaced by the new column. If not specified, each of
 the enrich fields defined in the policy is added
 
-`new_nameX =`::
+`new_nameX`::
 Enables you to change the name of the column that's added for each of the enrich
 fields. Defaults to the enrich field name.
 
@@ -74,7 +74,7 @@ include::{esql-specs}/docs-IT_tests_only.csv-spec[tag=enrich_on-result]
 
 By default, each of the enrich fields defined in the policy is added as a
 column. To explicitly select the enrich fields that are added, use
-`WITH <field1>, <field2>...`:
+`WITH <field1>, <field2>, ...`:
 
 [source.merge.styled,esql]
 ----

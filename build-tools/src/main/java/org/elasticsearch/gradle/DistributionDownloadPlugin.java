@@ -88,17 +88,13 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
             DependencyHandler dependencies = project.getDependencies();
-
-            ConfigurableFileCollection from = project.getObjects().fileCollection().from(fileConfiguration);
-            ConfigurableFileCollection from2 = project.getObjects().fileCollection().from(extractedConfiguration);
-
             return new ElasticsearchDistribution(
                 name,
                 project.getObjects(),
                 dockerAvailability,
-                from,
-                from2,
-                new FinalizeDistributionAction<ElasticsearchDistribution>(distributionsResolutionStrategiesContainer, dependencies)
+                project.getObjects().fileCollection().from(fileConfiguration),
+                project.getObjects().fileCollection().from(extractedConfiguration),
+                new FinalizeDistributionAction(distributionsResolutionStrategiesContainer, dependencies)
             );
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
@@ -119,7 +115,6 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     public static Stack<DistributionResolution> getRegistrationsContainer(Project project) {
         return (Stack<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
-
 
     private static void addIvyRepo(Project project, String name, String url, String group) {
         IvyArtifactRepository ivyRepo = project.getRepositories().ivy(repo -> {
@@ -142,17 +137,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
-
-    static private class FinalizeDistributionAction<T> implements Action<ElasticsearchDistribution> {
-
-        private final List<DistributionResolution> distributionsResolutionStrategiesContainer;
-        private final DependencyHandler dependencies;
-
-        public FinalizeDistributionAction(List<DistributionResolution> distributionsResolutionStrategiesContainer, DependencyHandler dependencies) {
-            this.distributionsResolutionStrategiesContainer = distributionsResolutionStrategiesContainer;
-            this.dependencies = dependencies;
-        }
+    private record FinalizeDistributionAction(List<DistributionResolution> resolutionList, DependencyHandler dependencies)
+        implements
+            Action<ElasticsearchDistribution> {
         @Override
+
         public void execute(ElasticsearchDistribution distro) {
             finalizeDistributionDependencies(dependencies, distro);
         }
@@ -165,17 +154,18 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             if (distribution.getType().shouldExtract()) {
                 // The extracted configuration depends on the artifact directly but has
                 // an artifact transform registered to resolve it as an unpacked folder.
-                dependencies.add(DISTRO_EXTRACTED_CONFIG_PREFIX+ distribution.getName(), distributionDependency.getExtractedNotation());
+                dependencies.add(DISTRO_EXTRACTED_CONFIG_PREFIX + distribution.getName(), distributionDependency.getExtractedNotation());
             }
         }
 
-        private DistributionDependency resolveDependencyNotation(DependencyHandler dependencyHandler, ElasticsearchDistribution distribution) {
-            return distributionsResolutionStrategiesContainer.stream()
-                .map(r -> r.getResolver().resolve(dependencyHandler, distribution))
+        private DistributionDependency resolveDependencyNotation(DependencyHandler handler, ElasticsearchDistribution distro) {
+            return resolutionList.stream()
+                .map(r -> r.getResolver().resolve(handler, distro))
                 .filter(d -> d != null)
                 .findFirst()
-                .orElseGet(() -> DistributionDependency.of(dependencyNotation(distribution)));
+                .orElseGet(() -> DistributionDependency.of(dependencyNotation(distro)));
         }
+
         /**
          * Returns a dependency object representing the given distribution.
          * <p>

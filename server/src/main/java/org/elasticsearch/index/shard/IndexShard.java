@@ -285,6 +285,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private final SubscribableListener<Void> waitForStartedOrClosedShardListeners = new SubscribableListener<>();
 
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
@@ -690,7 +691,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             shardStateUpdated.countDown();
         }
         if (currentRouting.active() == false && newRouting.active()) {
-            checkAndCallWaitForPrimaryTermAndGenerationListeners();
+            checkAndCallWaitForStartedOrClosedShardListeners();
             indexEventListener.afterIndexShardStarted(this);
         }
         if (newRouting.equals(currentRouting) == false) {
@@ -1659,7 +1660,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 synchronized (mutex) {
                     changeState(IndexShardState.CLOSED, reason);
                 }
-                checkAndCallWaitForPrimaryTermAndGenerationListeners();
+                checkAndCallWaitForStartedOrClosedShardListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {
@@ -4183,11 +4184,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         waitForPrimaryTermAndGeneration(getOperationPrimaryTerm(), segmentGeneration, listener);
     }
 
-    private final SubscribableListener<Void> waitForPrimaryTermAndGenerationListeners = new SubscribableListener<Void>();
-
-    private void checkAndCallWaitForPrimaryTermAndGenerationListeners() {
+    private void checkAndCallWaitForStartedOrClosedShardListeners() {
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
-            waitForPrimaryTermAndGenerationListeners.onResponse(null);
+            waitForStartedOrClosedShardListeners.onResponse(null);
         }
     }
 
@@ -4195,13 +4194,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Registers a listener for an event when the shard advances to the provided primary term and segment generation
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForPrimaryTermAndGenerationListeners.addListener(
-            ActionListener.wrap(
-                (ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, listener),
-                listener::onFailure
+        waitForStartedOrClosedShardListeners.addListener(
+            listener.delegateFailureAndWrap(
+                (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
             )
         );
-        checkAndCallWaitForPrimaryTermAndGenerationListeners();
+        checkAndCallWaitForStartedOrClosedShardListeners();
     }
 
 }

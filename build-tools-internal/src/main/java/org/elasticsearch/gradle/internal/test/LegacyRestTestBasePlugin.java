@@ -32,9 +32,9 @@ import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.bundling.Zip;
 
-import javax.inject.Inject;
-
 import java.util.Collections;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.RestrictedBuildApiService.BUILD_API_RESTRICTIONS_SYS_PROPERTY;
 import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
@@ -73,9 +73,6 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);
         InternalPrecommitTasks.create(project, false);
-
-        // verify cacheability
-
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
@@ -108,7 +105,6 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                     );
                 }
             }
-
             configureCacheability(restIntegTestTask);
         });
 
@@ -136,8 +132,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
 
     private void configureCacheability(RestIntegTestTask restIntegTestTask) {
         TaskContainer tasks = project.getTasks();
-        Spec<Task> taskSpec = t -> tasks
-            .withType(StandaloneRestIntegTestTask.class)
+        Spec<Task> taskSpec = t -> tasks.withType(StandaloneRestIntegTestTask.class)
             .stream()
             .filter(task -> task != restIntegTestTask)
             .anyMatch(task -> Collections.disjoint(task.getClusters(), restIntegTestTask.getClusters()) == false);

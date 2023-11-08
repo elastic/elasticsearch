@@ -135,23 +135,24 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.systemProperty("tests.system_call_filter", "false");
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
-            ConfigurableFileCollection modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
+            var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
             nonInputSystemProperties.systemProperty(TESTS_CLUSTER_MODULES_PATH_SYSPROP, modulePath::getAsPath);
             registerConfigurationInputs(task, modulesConfiguration.getName(), modulePath);
-            ConfigurableFileCollection pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
+            var pluginPath = project.getObjects().fileCollection().from(pluginsConfiguration);
             nonInputSystemProperties.systemProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP, pluginPath::getAsPath);
-            registerConfigurationInputs(task, extractedPluginsConfiguration.getName(), project.getObjects().fileCollection().from(extractedPluginsConfiguration));
+            registerConfigurationInputs(
+                task,
+                extractedPluginsConfiguration.getName(),
+                project.getObjects().fileCollection().from(extractedPluginsConfiguration)
+            );
 
             // Wire up integ-test distribution by default for all test tasks
             FileCollection extracted = integTestDistro.getExtracted();
-            nonInputSystemProperties.systemProperty(
-                INTEG_TEST_DISTRIBUTION_SYSPROP,
-                () -> extracted.getSingleFile().getPath()
-            );
+            nonInputSystemProperties.systemProperty(INTEG_TEST_DISTRIBUTION_SYSPROP, () -> extracted.getSingleFile().getPath());
             nonInputSystemProperties.systemProperty(TESTS_RUNTIME_JAVA_SYSPROP, BuildParams.getRuntimeJavaHome());
 
             // Add `usesDefaultDistribution()` extension method to test tasks to indicate they require the default distro
-           task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
+            task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
                     task.dependsOn(defaultDistro);

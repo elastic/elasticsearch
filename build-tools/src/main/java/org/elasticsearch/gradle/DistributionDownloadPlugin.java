@@ -19,15 +19,12 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
-import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Stack;
 
 import javax.inject.Inject;
 
@@ -50,7 +47,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     public static final String DISTRO_CONFIG_PREFIX = "es_distro_file_";
 
     private NamedDomainObjectContainer<ElasticsearchDistribution> distributionsContainer;
-    private Stack<DistributionResolution> distributionsResolutionStrategiesContainer;
+    private List<DistributionResolution> distributionsResolutionStrategies;
 
     private Property<Boolean> dockerAvailability;
 
@@ -94,16 +91,15 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                 dockerAvailability,
                 project.getObjects().fileCollection().from(fileConfiguration),
                 project.getObjects().fileCollection().from(extractedConfiguration),
-                new FinalizeDistributionAction(distributionsResolutionStrategiesContainer, dependencies)
+                new FinalizeDistributionAction(distributionsResolutionStrategies, dependencies)
             );
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
     }
 
     private void setupResolutionsContainer(Project project) {
-        distributionsResolutionStrategiesContainer = new Stack<>();
-        // We want this ordered in the same resolution strategies are added
-        project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategiesContainer);
+        distributionsResolutionStrategies = new ArrayList<>();
+        project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategies);
     }
 
     @SuppressWarnings("unchecked")
@@ -112,8 +108,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     @SuppressWarnings("unchecked")
-    public static Stack<DistributionResolution> getRegistrationsContainer(Project project) {
-        return (Stack<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
+    public static List<DistributionResolution> getRegistrationsContainer(Project project) {
+        return (List<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
     private static void addIvyRepo(Project project, String name, String url, String group) {

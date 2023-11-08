@@ -30,8 +30,8 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.provider.Provider;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 import java.util.function.Function;
 
 /**
@@ -65,7 +65,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
-    private void registerInternalDistributionResolutions(Stack<DistributionResolution> resolutions) {
+    private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions) {
         resolutions.add(new DistributionResolution("local-build", (dependencies, distribution) -> {
             if (isCurrentVersion(distribution)) {
                 // non-external project, so depend on local build

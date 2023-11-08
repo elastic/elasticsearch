@@ -45,7 +45,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.ByteSizeDirectory;
 import org.elasticsearch.index.store.ImmutableDirectoryException;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -61,7 +60,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 
-import static co.elastic.elasticsearch.stateless.lucene.SearchIndexInput.CACHE_MISS_COUNTER;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 
 public class SearchDirectory extends ByteSizeDirectory {
@@ -80,13 +78,11 @@ public class SearchDirectory extends ByteSizeDirectory {
     private final AtomicReference<StatelessCompoundCommit> currentCommit = new AtomicReference<>(null);
     private volatile Map<String, BlobLocation> currentMetadata = Map.of();
     private volatile long currentDataSetSizeInBytes = 0L;
-    private final MeterRegistry meterRegistry;
 
-    public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId, MeterRegistry meterRegistry) {
+    public SearchDirectory(SharedBlobCacheService<FileCacheKey> cacheService, ShardId shardId) {
         super(EmptyDirectory.INSTANCE);
         this.cacheService = cacheService;
         this.shardId = shardId;
-        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -317,8 +313,7 @@ public class SearchDirectory extends ByteSizeDirectory {
             blobContainer.get().apply(location.primaryTerm()),
             cacheService,
             location.fileLength(),
-            location.offset(),
-            meterRegistry.getLongCounter(CACHE_MISS_COUNTER)
+            location.offset()
         );
     }
 

@@ -38,6 +38,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -73,7 +74,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -290,9 +290,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             nodeEnvironment,
             indexSettings.getSettings(),
             threadPool,
-            ThreadPool.Names.GENERIC
+            ThreadPool.Names.GENERIC,
+            BlobCacheMetrics.NOOP
         );
-        var directory = new SearchDirectory(cache, shardId, MeterRegistry.NOOP);
+        var directory = new SearchDirectory(cache, shardId);
         directory.setBlobContainer(primaryTerm -> storeBlobContainer(indexEngine.getEngineConfig().getStore()));
         if (copyInitialMetadata) {
             Store.MetadataSnapshot latestMetadata = indexEngine.getEngineConfig().getStore().getMetadata(null);
@@ -350,7 +351,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var shardId = new ShardId(new Index(randomAlphaOfLengthBetween(5, 10), UUIDs.randomBase64UUID(random())), randomInt(10));
         var indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         var threadPool = registerThreadPool(new TestThreadPool(getTestName() + "[" + shardId + "][search]"));
-        var directory = new SearchDirectory(null, shardId, MeterRegistry.NOOP);
+        var directory = new SearchDirectory(null, shardId);
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         return new EngineConfig(
             shardId,

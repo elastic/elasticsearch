@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -103,6 +104,13 @@ public class TestClustersPlugin implements Plugin<Project> {
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaperServiceProvider);
 
+        project.afterEvaluate(new Action<Project>() {
+            @Override
+            public void execute(Project project) {
+                container.configureEach(cluster -> cluster.finalizeConfiguration());
+            }
+        });
+
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
 
@@ -157,7 +165,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                 (Task t) -> container.forEach(cluster -> logger.lifecycle("   * {}: {}", cluster.getName(), cluster.getNumberOfNodes()))
             );
         });
-
     }
 
     static abstract class TestClustersHookPlugin implements Plugin<Project> {
@@ -165,7 +172,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         public abstract BuildEventsListenerRegistry getEventsListenerRegistry();
 
         @Inject
-        public TestClustersHookPlugin() {}
+        public TestClustersHookPlugin() {
+
+        }
 
         public void apply(Project project) {
             if (project != project.getRootProject()) {

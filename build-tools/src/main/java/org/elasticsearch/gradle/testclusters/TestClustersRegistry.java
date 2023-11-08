@@ -24,7 +24,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
-
     public Set<ElasticsearchCluster> getRunningClusters() {
         return runningClusters;
     }

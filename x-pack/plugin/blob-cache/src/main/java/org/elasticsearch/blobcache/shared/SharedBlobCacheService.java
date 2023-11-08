@@ -1239,13 +1239,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
          */
         private int maybeEvict() {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            for (int i = 0; i < maxFreq; i++) {
-                for (LFUCacheEntry entry = freqs[i]; entry != null; entry = entry.next) {
+            for (int currentFreq = 0; currentFreq < maxFreq; currentFreq++) {
+                for (LFUCacheEntry entry = freqs[currentFreq]; entry != null; entry = entry.next) {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.io != null) {
                         unlink(entry);
                         keyMapping.remove(entry.chunk.regionKey, entry);
-                        return i;
+                        return currentFreq;
                     }
                 }
             }

@@ -970,24 +970,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (has(ProductFeature.SHUTDOWN) == false) {
             return;
         }
-        //assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
 
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
 
-
-        logger.warn("NODES: " + statusResponse.get("nodes"));
-
         Object nodesResponse = statusResponse.get("nodes");
         final List<String> nodeIds;
-        if (nodesResponse instanceof Map<?, ?> nodeMap) {
-            assert minimumNodeVersion().onOrAfter(Version.V_7_13_0);
-            nodeIds = nodeMap.keySet().stream().map(Object::toString).toList();
-        } else {
-            assert nodesResponse instanceof List<?>;
+        if (nodesResponse instanceof List<?>) { // `nodes` is parsed as a List<> only if it's populated (not empty)
             assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) nodesResponse;
             nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+        } else {
+            nodeIds = List.of();
         }
 
         for (String nodeId : nodeIds) {

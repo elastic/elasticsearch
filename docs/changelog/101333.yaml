@@ -1,7 +1,7 @@
 pr: 101333
 summary: Fixed JWT principal from claims
-area: Authentication
-type: "breaking, bug"
+area: Authorization
+type: breaking
 issues: []
 breaking:
   title: Fixed JWT principal from claims

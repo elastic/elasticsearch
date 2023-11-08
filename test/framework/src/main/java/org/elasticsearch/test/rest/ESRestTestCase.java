@@ -974,11 +974,16 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
-        for (String nodeId : nodeIds) {
-            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-            assertOK(adminClient().performRequest(deleteRequest));
+
+        logger.info(statusResponse.get("nodes"));
+
+        if (statusResponse.get("nodes") instanceof List) {
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+            for (String nodeId : nodeIds) {
+                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+                assertOK(adminClient().performRequest(deleteRequest));
+            }
         }
     }
 

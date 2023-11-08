@@ -118,8 +118,7 @@ final class ModelLoaderUtils {
 
     static VocabularyParts loadVocabulary(URI uri) {
         if (uri.getPath().endsWith(".json")) {
-            try {
-                InputStream vocabInputStream = getInputStreamFromModelRepository(uri);
+            try (InputStream vocabInputStream = getInputStreamFromModelRepository(uri)) {
                 return parseVocabParts(vocabInputStream);
             } catch (Exception e) {
                 throw new ElasticsearchException("Failed to load vocabulary file", e);

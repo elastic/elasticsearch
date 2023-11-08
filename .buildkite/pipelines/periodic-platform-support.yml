@@ -33,19 +33,14 @@ steps:
   #       env: {}
   - group: platform-support-unix-aws
     steps:
-      - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-aws"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true {{matrix.GRADLE_TASK}}
+      - label: "{{matrix.image}} / platform-support-aws"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true functionalTests
         timeout_in_minutes: 420
         matrix:
           setup:
             image:
               - amazonlinux-2
               - amazonlinux-2023
-            GRADLE_TASK:
-              - checkPart1
-              - checkPart2
-              - checkPart3
-              - checkRestCompat
         agents:
           provider: aws
           imagePrefix: elasticsearch-{{matrix.image}}
@@ -53,8 +48,6 @@ steps:
           diskSizeGb: 350
           diskType: gp3
           diskName: /dev/sda1
-        env:
-          GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
   # - group: platform-support-windows
   #   steps:
   #     - label: "{{matrix.image}} / {{matrix.GRADLE_TASK}} / platform-support-windows"

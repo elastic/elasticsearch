@@ -370,7 +370,10 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         }
 
         @Override
-        protected SynonymMap loadSynonyms(ResourceLoader loader, String cname, boolean dedup, Analyzer analyzer) throws IOException, ParseException {
+        protected SynonymMap loadSynonyms(ResourceLoader loader,
+                                          String cname,
+                                          boolean dedup,
+                                          Analyzer analyzer) throws IOException, ParseException {
             SynonymMap.Parser parser = new SolrSynonymParser(false, false, analyzer);
             parser.parse(new StringReader("new york city => nyc, new york city"));
             return parser.build();

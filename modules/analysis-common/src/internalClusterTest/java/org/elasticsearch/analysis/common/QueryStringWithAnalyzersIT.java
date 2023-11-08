@@ -53,8 +53,7 @@ public class QueryStringWithAnalyzersIT extends ESIntegTestCase {
         refresh();
 
         assertHitCount(
-            client().prepareSearch("test")
-                .setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("foo.baz").defaultOperator(Operator.AND).field("field1").field("field2")),
             1L
         );
     }

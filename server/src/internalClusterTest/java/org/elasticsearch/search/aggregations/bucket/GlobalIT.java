@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -60,12 +60,11 @@ public class GlobalIT extends ESIntegTestCase {
     }
 
     public void testWithStatsSubAggregator() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(QueryBuilders.termQuery("tag", "tag1"))
+        SearchResponse response = prepareSearch("idx").setQuery(QueryBuilders.termQuery("tag", "tag1"))
             .addAggregation(global("global").subAggregation(stats("value_stats").field("value")))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Global global = response.getAggregations().get("global");
         assertThat(global, notNullValue());
@@ -91,8 +90,7 @@ public class GlobalIT extends ESIntegTestCase {
 
     public void testNonTopLevel() throws Exception {
         try {
-            client().prepareSearch("idx")
-                .setQuery(QueryBuilders.termQuery("tag", "tag1"))
+            prepareSearch("idx").setQuery(QueryBuilders.termQuery("tag", "tag1"))
                 .addAggregation(global("global").subAggregation(global("inner_global")))
                 .get();
 

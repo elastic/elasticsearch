@@ -64,7 +64,7 @@ public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
         ClusterHealthStatus status = clusterAdmin().prepareHealth("test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")), 1);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")), 1);
             Client client = client();
             SearchResponse searchResponse = client.prepareSearch("test")
                 .setPreference(preference + Integer.toString(counter++))

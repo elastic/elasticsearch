@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -497,7 +498,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     private static DiscoveryNode resolveSeedNode(String clusterAlias, String address, String proxyAddress) {
         var seedVersion = new VersionInformation(
             Version.CURRENT.minimumCompatibilityVersion(),
-            IndexVersion.MINIMUM_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
         );
         if (proxyAddress == null || proxyAddress.isEmpty()) {

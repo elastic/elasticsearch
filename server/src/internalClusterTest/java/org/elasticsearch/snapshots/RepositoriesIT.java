@@ -257,7 +257,6 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                         .put("random", randomAlphaOfLength(10))
                         .put("wait_after_unblock", 200)
                 )
-                .get()
         );
 
         logger.info("--> snapshot");

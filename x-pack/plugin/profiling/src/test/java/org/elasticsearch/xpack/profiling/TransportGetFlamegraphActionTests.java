@@ -48,7 +48,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
             Map.of("fr28zxcZ2UDasxYuu6dV-w", "containerd"),
             Map.of("2buqP1GpF-TXYmL4USW8gA", 1),
             9,
-            1.0d
+            1.0d,
+            1
         );
         GetFlamegraphResponse response = TransportGetFlamegraphAction.buildFlamegraph(stacktraces);
         assertNotNull(response);
@@ -111,10 +112,14 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getFunctionOffsets());
         assertEquals(List.of("", "", "", "", "", "", "", "", "", ""), response.getSourceFileNames());
         assertEquals(List.of(0, 0, 0, 0, 0, 0, 0, 0, 0, 0), response.getSourceLines());
+        assertEquals(1, response.getSelfCPU());
+        assertEquals(10, response.getTotalCPU());
+        assertEquals(1L, response.getTotalSamples());
+
     }
 
     public void testCreateEmptyFlamegraphWithRootNode() {
-        GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d);
+        GetStackTracesResponse stacktraces = new GetStackTracesResponse(Map.of(), Map.of(), Map.of(), Map.of(), 0, 1.0d, 0);
         GetFlamegraphResponse response = TransportGetFlamegraphAction.buildFlamegraph(stacktraces);
         assertNotNull(response);
         assertEquals(1, response.getSize());
@@ -131,5 +136,8 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0), response.getFunctionOffsets());
         assertEquals(List.of(""), response.getSourceFileNames());
         assertEquals(List.of(0), response.getSourceLines());
+        assertEquals(0, response.getSelfCPU());
+        assertEquals(0, response.getTotalCPU());
+        assertEquals(0L, response.getTotalSamples());
     }
 }

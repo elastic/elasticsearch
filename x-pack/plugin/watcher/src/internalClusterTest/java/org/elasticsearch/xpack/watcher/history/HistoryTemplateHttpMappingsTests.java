@@ -94,13 +94,11 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setSource(
-                searchSource().aggregation(terms("input_result_path").field("result.input.http.request.path"))
-                    .aggregation(terms("input_result_host").field("result.input.http.request.host"))
-                    .aggregation(terms("webhook_path").field("result.actions.webhook.request.path"))
-            )
-            .get();
+        SearchResponse response = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(
+            searchSource().aggregation(terms("input_result_path").field("result.input.http.request.path"))
+                .aggregation(terms("input_result_host").field("result.input.http.request.host"))
+                .aggregation(terms("webhook_path").field("result.actions.webhook.request.path"))
+        ).get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
@@ -166,10 +164,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertBusy(() -> {
             // ensure watcher history index has been written with this id
             flushAndRefresh(HistoryStoreField.INDEX_PREFIX + "*");
-            assertHitCount(
-                client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(QueryBuilders.termQuery("watch_id", id)),
-                1L
-            );
+            assertHitCount(prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(QueryBuilders.termQuery("watch_id", id)), 1L);
         });
 
         // ensure that enabled is set to false

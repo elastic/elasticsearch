@@ -13,6 +13,7 @@ import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -32,7 +33,7 @@ public class IndexDeprecationChecks {
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
-        if (currentCompatibilityVersion.before(IndexVersion.V_7_0_0)) {
+        if (currentCompatibilityVersion.before(IndexVersions.V_7_0_0)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 7.0",

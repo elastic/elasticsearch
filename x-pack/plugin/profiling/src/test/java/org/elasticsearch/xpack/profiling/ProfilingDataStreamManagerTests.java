@@ -42,6 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -191,7 +192,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             nodes,
             IndexMetadata.State.OPEN,
             // This is an outdated version that requires indices to be deleted upon migration
-            IndexVersion.V_8_8_2,
+            IndexVersions.V_8_8_2,
             true
         );
 
@@ -223,7 +224,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
             List.of(existingDataStream),
             nodes,
             IndexMetadata.State.OPEN,
-            IndexVersion.V_8_8_2,
+            IndexVersions.V_8_8_2,
             true
         );
 

@@ -96,8 +96,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertBusy(() -> {
             ensureGreen(HistoryStoreField.DATA_STREAM);
             refresh(HistoryStoreField.DATA_STREAM + "*");
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                .setSize(1)
+            SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSize(1)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
                 .addSort(SortBuilders.fieldSort("result.execution_time").order(SortOrder.DESC))
                 .get();
@@ -115,8 +114,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertBusy(() -> {
             // Watcher history is now written asynchronously, so we check this in an assertBusy
             ensureGreen(HistoryStoreField.DATA_STREAM);
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                .setSize(0)
+            SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSize(0)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
                 .get();
 

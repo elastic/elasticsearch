@@ -19,11 +19,13 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
@@ -68,6 +70,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
     private Clock clock;
     private Client client;
+    private ParentTaskAssigningClient parentTaskClient;
     private Client remoteClient1;
     private Client remoteClient2;
     private Client remoteClient3;
@@ -81,6 +84,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        parentTaskClient = new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456"));
         remoteClient1 = mock(Client.class);
         when(remoteClient1.threadPool()).thenReturn(threadPool);
         remoteClient2 = mock(Client.class);
@@ -253,7 +257,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
@@ -319,7 +323,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
@@ -370,7 +374,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
 
         DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             remoteClusterResolver,
             transformConfigManager,
             transformAuditor,
@@ -397,7 +401,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
         return new DefaultCheckpointProvider(
             clock,
-            client,
+            parentTaskClient,
             new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             transformConfigManager,
             transformAuditor,

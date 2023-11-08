@@ -9,8 +9,8 @@
 [[esql-basic-syntax]]
 === Basic syntax
 
-An {esql} query is composed of a <<esql-source-commands,source command>> followed
-by an optional series of <<esql-processing-commands,processing commands>>,
+An {esql} query is composed of a <<esql-commands,source_command>> followed
+by an optional series of <<esql-commands,processing commands>>,
 separated by a pipe character: `|`. For example:
 
 [source,esql]

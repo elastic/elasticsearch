@@ -87,7 +87,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         ensureGreen(restoredIndexName);
 
-        assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
+        assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
 
         mockAppender.assertAllExpectationsMatched();
         Loggers.removeAppender(logger, mockAppender);

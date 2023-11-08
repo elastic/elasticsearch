@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
@@ -42,7 +41,8 @@ public class RestPutRoleActionTests extends ESTestCase {
             .build();
         final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
 
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+        try (var threadPool = createThreadPool()) {
+            final var nodeClient = new NoOpNodeClient(threadPool);
             action.handleRequest(request, channel, nodeClient);
         }
 

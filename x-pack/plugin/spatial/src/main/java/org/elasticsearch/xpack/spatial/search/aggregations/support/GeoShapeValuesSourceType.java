@@ -13,7 +13,6 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -22,6 +21,7 @@ import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
 
 import java.io.IOException;
+import java.util.function.LongSupplier;
 
 public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
 
@@ -61,7 +61,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         ValuesSource valuesSource,
         Object rawMissing,
         DocValueFormat docValueFormat,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         GeoShapeValuesSource shapeValuesSource = (GeoShapeValuesSource) valuesSource;
         final GeoShapeValues.GeoShapeValue missing = GeoShapeValues.EMPTY.missing(rawMissing.toString());

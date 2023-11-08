@@ -107,14 +107,11 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         }
 
         for (int i = 0; i < 20; i++) {
-            client().prepareSearch(mountedIndex)
-                .setQuery(
-                    randomBoolean()
-                        ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
-                        : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
-                )
-                .setSize(randomIntBetween(0, 1000))
-                .get();
+            prepareSearch(mountedIndex).setQuery(
+                randomBoolean()
+                    ? QueryBuilders.rangeQuery("id").gte(randomIntBetween(0, 1000))
+                    : QueryBuilders.termQuery("test", "value" + randomIntBetween(0, 1000))
+            ).setSize(randomIntBetween(0, 1000)).get();
         }
 
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);

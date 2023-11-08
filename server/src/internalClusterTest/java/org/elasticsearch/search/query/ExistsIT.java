@@ -31,15 +31,14 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 public class ExistsIT extends ESIntegTestCase {
 
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")));
-        assertNoFailures(client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))));
+        assertNoFailures(prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")));
+        assertNoFailures(prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))));
     }
 
     public void testExists() throws Exception {
@@ -114,15 +113,15 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("vec", 2);
 
         final long numDocs = sources.length;
-        SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
-        assertSearchResponse(allDocs);
+        SearchResponse allDocs = prepareSearch("idx").setSize(sources.length).get();
+        assertNoFailures(allDocs);
         assertHitCount(allDocs, numDocs);
         for (Map.Entry<String, Integer> entry : expected.entrySet()) {
             final String fieldName = entry.getKey();
             final int count = entry.getValue();
             // exists
-            SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(resp);
+            SearchResponse resp = prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
+            assertNoFailures(resp);
             try {
                 assertEquals(
                     String.format(
@@ -200,8 +199,8 @@ public class ExistsIT extends ESIntegTestCase {
             String fieldName = entry.getKey();
             int expectedCount = entry.getValue();
 
-            SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
-            assertSearchResponse(response);
+            SearchResponse response = prepareSearch("idx").setQuery(QueryBuilders.existsQuery(fieldName)).get();
+            assertNoFailures(response);
             assertHitCount(response, expectedCount);
         }
     }
@@ -232,8 +231,8 @@ public class ExistsIT extends ESIntegTestCase {
         indexRequests.add(client().prepareIndex("idx").setSource("foo", 43));
         indexRandom(true, false, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")).get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch("idx").setQuery(QueryBuilders.existsQuery("foo-alias")).get();
+        assertNoFailures(response);
         assertHitCount(response, 2);
     }
 }

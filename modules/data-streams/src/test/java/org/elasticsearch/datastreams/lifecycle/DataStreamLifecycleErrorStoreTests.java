@@ -8,6 +8,7 @@
 
 package org.elasticsearch.datastreams.lifecycle;
 
+import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -27,11 +28,11 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
     @Before
     public void setupServices() {
-        errorStore = new DataStreamLifecycleErrorStore();
+        errorStore = new DataStreamLifecycleErrorStore(System::currentTimeMillis);
     }
 
     public void testRecordAndRetrieveError() {
-        String existingRecordedError = errorStore.recordError("test", new NullPointerException("testing"));
+        ErrorEntry existingRecordedError = errorStore.recordError("test", new NullPointerException("testing"));
         assertThat(existingRecordedError, is(nullValue()));
         assertThat(errorStore.getError("test"), is(notNullValue()));
         assertThat(errorStore.getAllIndices().size(), is(1));
@@ -39,7 +40,7 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
 
         existingRecordedError = errorStore.recordError("test", new IllegalStateException("bad state"));
         assertThat(existingRecordedError, is(notNullValue()));
-        assertThat(existingRecordedError, containsString("testing"));
+        assertThat(existingRecordedError.error(), containsString("testing"));
     }
 
     public void testRetrieveAfterClear() {
@@ -80,6 +81,6 @@ public class DataStreamLifecycleErrorStoreTests extends ESTestCase {
         NullPointerException exceptionWithLongMessage = new NullPointerException(randomAlphaOfLength(2000));
         errorStore.recordError("test", exceptionWithLongMessage);
         assertThat(errorStore.getError("test"), is(notNullValue()));
-        assertThat(errorStore.getError("test").length(), is(MAX_ERROR_MESSAGE_LENGTH));
+        assertThat(errorStore.getError("test").error().length(), is(MAX_ERROR_MESSAGE_LENGTH));
     }
 }

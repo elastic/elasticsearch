@@ -289,15 +289,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
-                allHits.set(t, client().prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
+                allHits.set(t, prepareSearch(indexName).setTrackTotalHits(true).get().getHits().getTotalHits());
                 barHits.set(
                     t,
-                    client().prepareSearch(indexName)
-                        .setTrackTotalHits(true)
-                        .setQuery(matchQuery("foo", "bar"))
-                        .get()
-                        .getHits()
-                        .getTotalHits()
+                    prepareSearch(indexName).setTrackTotalHits(true).setQuery(matchQuery("foo", "bar")).get().getHits().getTotalHits()
                 );
             });
             threads[i].start();

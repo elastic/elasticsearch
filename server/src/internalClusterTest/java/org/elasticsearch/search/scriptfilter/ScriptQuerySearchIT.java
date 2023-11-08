@@ -114,10 +114,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         flush();
         refresh();
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(
-                scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length > 15", emptyMap()))
-            )
+        SearchResponse response = prepareSearch().setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length > 15", emptyMap()))
+        )
             .addScriptField(
                 "sbinaryData",
                 new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length", emptyMap())
@@ -169,8 +168,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         refresh();
 
         logger.info("running doc['num1'].value > 1");
-        SearchResponse response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
+        SearchResponse response = prepareSearch().setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap()))
+        )
             .addSort("num1", SortOrder.ASC)
             .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
             .get();
@@ -185,8 +185,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         params.put("param1", 2);
 
         logger.info("running doc['num1'].value > param1");
-        response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
+        response = prepareSearch().setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params))
+        )
             .addSort("num1", SortOrder.ASC)
             .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
             .get();
@@ -198,8 +199,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
         params = new HashMap<>();
         params.put("param1", -1);
         logger.info("running doc['num1'].value > param1");
-        response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
+        response = prepareSearch().setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params))
+        )
             .addSort("num1", SortOrder.ASC)
             .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
             .get();
@@ -224,14 +226,14 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
             Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap());
-            assertNoFailures(client().prepareSearch("test-index").setQuery(scriptQuery(script)));
+            assertNoFailures(prepareSearch("test-index").setQuery(scriptQuery(script)));
 
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", false));
 
             // Set search.allow_expensive_queries to "false" => assert failure
             ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> client().prepareSearch("test-index").setQuery(scriptQuery(script)).get()
+                () -> prepareSearch("test-index").setQuery(scriptQuery(script)).get()
             );
             assertEquals(
                 "[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
@@ -240,7 +242,7 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
 
             // Set search.allow_expensive_queries to "true" => success
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", true));
-            assertNoFailures(client().prepareSearch("test-index").setQuery(scriptQuery(script)));
+            assertNoFailures(prepareSearch("test-index").setQuery(scriptQuery(script)));
         } finally {
             updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
         }

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -168,7 +167,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
-    abstract void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener);
+    abstract void refreshDestinationIndex(ActionListener<Void> responseListener);
 
     abstract void persistState(TransformState state, ActionListener<Void> listener);
 
@@ -216,10 +215,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public TransformCheckpoint getNextCheckpoint() {
         return nextCheckpoint;
-    }
-
-    public CheckpointProvider getCheckpointProvider() {
-        return checkpointProvider;
     }
 
     /**
@@ -429,12 +424,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         try {
             refreshDestinationIndex(ActionListener.wrap(response -> {
-                if (response.getFailedShards() > 0) {
-                    logger.warn(
-                        "[{}] failed to refresh transform destination index, not all data might be available after checkpoint.",
-                        getJobId()
-                    );
-                }
                 // delete data defined by retention policy
                 if (transformConfig.getRetentionPolicyConfig() != null) {
                     executeRetentionPolicy(failureHandlingListener);
@@ -470,8 +459,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
         getStats().markStartDelete();
 
-        ActionListener<RefreshResponse> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
-            refreshResponse -> finalizeCheckpoint(listener),
+        ActionListener<Void> deleteByQueryAndRefreshDoneListener = ActionListener.wrap(
+            unused -> finalizeCheckpoint(listener),
             listener::onFailure
         );
 

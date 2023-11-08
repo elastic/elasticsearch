@@ -40,9 +40,7 @@ public class EqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     public void testCancellation() throws Exception {
         assertAcked(
-            indicesAdmin().prepareCreate("test")
-                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-                .get()
+            indicesAdmin().prepareCreate("test").setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
         );
         createIndex("idx_unmapped");
 

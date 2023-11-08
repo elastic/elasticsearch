@@ -169,7 +169,6 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             indicesAdmin().preparePutTemplate("test-template")
                 .setPatterns(List.of(indexName + "*"))
                 .addAlias(new Alias(indexName + "-legacy-alias"))
-                .get()
         );
 
         String nonPrimaryIndex = indexName + "-2";
@@ -222,7 +221,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("test-composable-template").indexTemplate(cit)
-            ).get()
+            )
         );
 
         String nonPrimaryIndex = indexName + "-2";
@@ -246,7 +245,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+            )
         );
     }
 
@@ -269,7 +268,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             client().execute(
                 DeleteComposableIndexTemplateAction.INSTANCE,
                 new DeleteComposableIndexTemplateAction.Request("test-composable-template")
-            ).get()
+            )
         );
     }
 

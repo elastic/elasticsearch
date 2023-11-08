@@ -175,19 +175,19 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
     }
 
     private SearchResponse searchById(String id) {
-        return prepareSearch().setQuery(QueryBuilders.termQuery("_id", id)).get();
+        return prepareTokenCountFieldMapperSearch().setQuery(QueryBuilders.termQuery("_id", id)).get();
     }
 
     private SearchRequestBuilder searchByNumericRange(int low, int high) {
-        return prepareSearch().setQuery(
+        return prepareTokenCountFieldMapperSearch().setQuery(
             QueryBuilders.rangeQuery(
                 randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"))
             ).gte(low).lte(high)
         );
     }
 
-    private SearchRequestBuilder prepareSearch() {
-        SearchRequestBuilder request = client().prepareSearch("test");
+    private SearchRequestBuilder prepareTokenCountFieldMapperSearch() {
+        SearchRequestBuilder request = prepareSearch("test");
         request.addStoredField("foo.token_count");
         request.addStoredField("foo.token_count_without_position_increments");
         if (loadCountedFields) {

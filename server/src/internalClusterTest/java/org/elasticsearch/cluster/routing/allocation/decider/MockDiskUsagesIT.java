@@ -195,7 +195,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         }
 
         client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
-        assertSearchHits(client().prepareSearch("test"), "1");
+        assertSearchHits(prepareSearch("test"), "1");
 
         // Move all nodes above the low watermark so no shard movement can occur, and at least one node above the flood stage watermark so
         // the index is blocked
@@ -221,7 +221,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             client().prepareIndex().setIndex("test").setId("2").setSource("foo", "bar"),
             IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
         );
-        assertSearchHits(client().prepareSearch("test"), "1");
+        assertSearchHits(prepareSearch("test"), "1");
 
         logger.info("--> index is confirmed read-only, releasing disk space");
 
@@ -240,7 +240,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 throw new AssertionError("retrying", e);
             }
         });
-        assertSearchHits(client().prepareSearch("test"), "1", "3");
+        assertSearchHits(prepareSearch("test"), "1", "3");
     }
 
     public void testOnlyMovesEnoughShardsToDropBelowHighWatermark() throws Exception {

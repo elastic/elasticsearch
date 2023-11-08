@@ -1,5 +1,5 @@
 [[esql-rest]]
-== {esql} REST API
+=== {esql} REST API
 
 ++++
 <titleabbrev>REST API</titleabbrev>
@@ -38,13 +38,14 @@ James S.A. Corey |Leviathan Wakes     |561            |2011-06-02T00:00:00.000Z
 
 [discrete]
 [[esql-kibana-console]]
-=== Kibana Console
+==== Kibana Console
 
 If you are using {kibana-ref}/console-kibana.html[Kibana Console] (which is
 highly recommended), take advantage of the triple quotes `"""` when creating the
 query. This not only automatically escapes double quotes (`"`) inside the query
 string but also supports multi-line requests:
 
+// tag::esql-query-api[]
 [source,console]
 ----
 POST /_query?format=txt
@@ -61,7 +62,7 @@ POST /_query?format=txt
 
 [discrete]
 [[esql-rest-format]]
-=== Response formats
+==== Response formats
 
 {esql} can return the data in the following human readable and binary formats.
 You can set the format by specifying the `format` parameter in the URL or by
@@ -120,7 +121,7 @@ Use the `tsv` format instead.
 
 [discrete]
 [[esql-rest-filtering]]
-=== Filtering using {es} Query DSL
+==== Filtering using {es} Query DSL
 
 Specify a Query DSL query in the `filter` parameter to filter the set of
 documents that an {esql} query runs on.
@@ -160,7 +161,7 @@ Douglas Adams  |The Hitchhiker's Guide to the Galaxy|180            |1979-10-12T
 
 [discrete]
 [[esql-rest-columnar]]
-=== Columnar results
+==== Columnar results
 
 By default, {esql} returns results as rows. For example, `FROM` returns each
 individual document as one row. For the `json`, `yaml`, `cbor` and `smile`
@@ -205,7 +206,7 @@ Which returns:
 
 [discrete]
 [[esql-rest-params]]
-=== Passing parameters to a query
+==== Passing parameters to a query
 
 Values, for example for a condition, can be passed to a query "inline", by
 integrating the value in the query string itself:

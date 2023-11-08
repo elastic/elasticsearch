@@ -40,7 +40,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -94,7 +94,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 )
             )
         ).actionGet();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
     }
 
@@ -110,7 +110,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchSource().query(functionScoreQuery(scriptFunction(script))).aggregation(terms("score_agg").script(script))
             )
         ).actionGet();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
@@ -201,7 +201,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
     }
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         assertThat((int) searchResponse.getHits().getTotalHits().value, is(numMatchingDocs));
         int pos = 0;
         for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value; hitId--) {
@@ -219,7 +219,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         SearchResponse termQuery = client().search(
             new SearchRequest(new String[] {}).source(searchSource().explain(true).query(termQuery("text", "text")))
         ).get();
-        assertSearchResponse(termQuery);
+        assertNoFailures(termQuery);
         assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
 
@@ -234,7 +234,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f))
             )
         ).get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
@@ -244,7 +244,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
             )
         ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, equalTo(0L));
     }
 }

@@ -44,20 +44,14 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     @Override
     protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetFlamegraphResponse> listener) {
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), task);
-        long start = System.nanoTime();
+        StopWatch watch = new StopWatch("getFlamegraphAction");
         client.execute(GetStackTracesAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(GetStackTracesResponse response) {
-                long responseStart = System.nanoTime();
                 try {
+                    StopWatch processingWatch = new StopWatch("Processing response");
                     GetFlamegraphResponse flamegraphResponse = buildFlamegraph(response);
-                    log.debug(
-                        "getFlamegraphAction took ["
-                            + (System.nanoTime() - start) / 1_000_000.0d
-                            + "] ms (processing response: ["
-                            + (System.nanoTime() - responseStart) / 1_000_000.0d
-                            + "] ms."
-                    );
+                    log.debug(() -> watch.report() + " " + processingWatch.report());
                     listener.onResponse(flamegraphResponse);
                 } catch (Exception ex) {
                     listener.onFailure(ex);
@@ -72,7 +66,11 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     }
 
     static GetFlamegraphResponse buildFlamegraph(GetStackTracesResponse response) {
-        FlamegraphBuilder builder = new FlamegraphBuilder(response.getTotalFrames(), response.getSamplingRate());
+        FlamegraphBuilder builder = new FlamegraphBuilder(
+            response.getTotalSamples(),
+            response.getTotalFrames(),
+            response.getSamplingRate()
+        );
         if (response.getTotalFrames() == 0) {
             return builder.build();
         }
@@ -131,6 +129,9 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
     private static class FlamegraphBuilder {
         private int currentNode = 0;
         private int size = 0;
+        private int selfCPU;
+        private int totalCPU;
+        private final long totalSamples;
         // Map: FrameGroupId -> NodeId
         private final List<Map<String, Integer>> edges;
         private final List<String> fileIds;
@@ -146,7 +147,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         private final List<Integer> countExclusive;
         private final double samplingRate;
 
-        FlamegraphBuilder(int frames, double samplingRate) {
+        FlamegraphBuilder(long totalSamples, int frames, double samplingRate) {
             // as the number of frames does not account for inline frames we slightly overprovision.
             int capacity = (int) (frames * 1.1d);
             this.edges = new ArrayList<>(capacity);
@@ -161,6 +162,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             this.sourceLines = new ArrayList<>(capacity);
             this.countInclusive = new ArrayList<>(capacity);
             this.countExclusive = new ArrayList<>(capacity);
+            this.totalSamples = totalSamples;
             // always insert root node
             int nodeId = this.addNode("", 0, false, "", 0, "", 0, "", 0, 0, null);
             this.setCurrentNode(nodeId);
@@ -193,6 +195,7 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
             this.sourceFileNames.add(sourceFileName);
             this.sourceLines.add(sourceLine);
             this.countInclusive.add(samples);
+            this.totalCPU += samples;
             this.countExclusive.add(0);
             if (frameGroupId != null) {
                 this.edges.get(currentNode).put(frameGroupId, node);
@@ -216,11 +219,13 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
         public void addSamplesInclusive(int nodeId, int sampleCount) {
             Integer priorSampleCount = this.countInclusive.get(nodeId);
             this.countInclusive.set(nodeId, priorSampleCount + sampleCount);
+            this.totalCPU += sampleCount;
         }
 
         public void addSamplesExclusive(int nodeId, int sampleCount) {
             Integer priorSampleCount = this.countExclusive.get(nodeId);
             this.countExclusive.set(nodeId, priorSampleCount + sampleCount);
+            this.selfCPU += sampleCount;
         }
 
         public GetFlamegraphResponse build() {
@@ -238,7 +243,10 @@ public class TransportGetFlamegraphAction extends HandledTransportAction<GetStac
                 sourceFileNames,
                 sourceLines,
                 countInclusive,
-                countExclusive
+                countExclusive,
+                selfCPU,
+                totalCPU,
+                totalSamples
             );
         }
     }

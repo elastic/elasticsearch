@@ -14,6 +14,7 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,7 +44,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.telemetry.metric.Meter;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,7 +145,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             Settings.EMPTY,
             threadPool,
             SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            Meter.NOOP
+            BlobCacheMetrics.NOOP
         );
     }
 
@@ -168,7 +168,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.build(),
             threadPool,
             SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            Meter.NOOP
+            BlobCacheMetrics.NOOP
         );
     }
 
@@ -193,7 +193,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                 .build(),
             threadPool,
             SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            Meter.NOOP
+            BlobCacheMetrics.NOOP
         );
     }
 

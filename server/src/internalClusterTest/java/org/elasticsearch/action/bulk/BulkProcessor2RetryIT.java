@@ -136,7 +136,7 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
 
         indicesAdmin().refresh(new RefreshRequest()).get();
 
-        SearchResponse results = client().prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
+        SearchResponse results = prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0).get();
         assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
         if (rejectedExecutionExpected) {
             assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));

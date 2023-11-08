@@ -63,10 +63,12 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -92,7 +94,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool.shutdownNow();
     }
 
-    public void testDisabledDoesNotAddTemplates() {
+    public void testDisabledDoesNotAddIndexTemplates() {
         Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
             settings,
@@ -101,9 +103,34 @@ public class StackTemplateRegistryTests extends ESTestCase {
             client,
             NamedXContentRegistry.EMPTY
         );
-        assertThat(disabledRegistry.getComponentTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
-        assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
+    }
+
+    public void testDisabledStillAddsComponentTemplatesAndIlmPolicies() {
+        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
+        assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
+        assertThat(
+            disabledRegistry.getComponentTemplateConfigs()
+                .keySet()
+                .stream()
+                // We have a naming convention that internal component templates contain `@`. See also put-component-template.asciidoc.
+                .filter(t -> t.contains("@") == false)
+                .collect(Collectors.toSet()),
+            empty()
+        );
+        assertThat(disabledRegistry.getLifecyclePolicies(), not(empty()));
+        assertThat(
+            // We have a naming convention that internal ILM policies contain `@`. See also put-lifecycle.asciidoc.
+            disabledRegistry.getLifecyclePolicies().stream().filter(p -> p.getName().contains("@") == false).collect(Collectors.toSet()),
+            empty()
+        );
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() throws Exception {
@@ -356,7 +383,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 assertThat(putComposableTemplateRequest.name(), equalTo("syslog"));
                 ComposableIndexTemplate composableIndexTemplate = putComposableTemplateRequest.indexTemplate();
                 assertThat(composableIndexTemplate.composedOf(), hasSize(2));
-                assertThat(composableIndexTemplate.composedOf().get(0), equalTo("logs-settings"));
+                assertThat(composableIndexTemplate.composedOf().get(0), equalTo("logs@settings"));
                 assertThat(composableIndexTemplate.composedOf().get(1), equalTo("syslog@custom"));
                 assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates(), hasSize(1));
                 assertThat(composableIndexTemplate.getIgnoreMissingComponentTemplates().get(0), equalTo("syslog@custom"));
@@ -478,6 +505,23 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
+    }
+
+    public void testThatTemplatesAreNotDeprecated() {
+        for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
+            assertFalse(it.isDeprecated());
+        }
+        for (LifecyclePolicy ilm : registry.getLifecyclePolicies()) {
+            assertFalse(ilm.isDeprecated());
+        }
+        for (ComponentTemplate ct : registry.getComponentTemplateConfigs().values()) {
+            assertFalse(ct.deprecated());
+        }
+        registry.getIngestPipelines()
+            .stream()
+            .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
+            .map(PipelineConfiguration::getConfigAsMap)
+            .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
     }
 
     // -------------

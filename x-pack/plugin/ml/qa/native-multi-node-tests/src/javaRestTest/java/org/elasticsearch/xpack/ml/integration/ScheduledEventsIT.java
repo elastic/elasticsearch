@@ -45,7 +45,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/95096")
     public void testScheduledEvents() throws IOException {
 
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
@@ -248,8 +247,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the process was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
+            SearchResponse searchResponse = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
                 .addSort("timestamp", SortOrder.DESC)
                 .setQuery(
                     QueryBuilders.boolQuery()
@@ -335,8 +333,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the job was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
+            SearchResponse searchResponse = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
                 .addSort("timestamp", SortOrder.DESC)
                 .setQuery(
                     QueryBuilders.boolQuery()
@@ -422,8 +419,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the job was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
+            SearchResponse searchResponse = prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
                 .addSort("timestamp", SortOrder.DESC)
                 .setQuery(
                     QueryBuilders.boolQuery()

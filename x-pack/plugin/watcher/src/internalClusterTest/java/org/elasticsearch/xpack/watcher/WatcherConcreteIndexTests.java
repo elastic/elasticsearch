@@ -48,7 +48,7 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         assertBusy(() -> timeWarp().trigger("mywatch"));
 
         assertBusy(() -> {
-            SearchResponse searchResult = client().prepareSearch(watchResultsIndex).setTrackTotalHits(true).get();
+            SearchResponse searchResult = prepareSearch(watchResultsIndex).setTrackTotalHits(true).get();
             assertThat((int) searchResult.getHits().getTotalHits().value, greaterThan(0));
         });
     }

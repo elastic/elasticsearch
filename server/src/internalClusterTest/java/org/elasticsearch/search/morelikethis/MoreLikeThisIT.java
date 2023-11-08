@@ -39,11 +39,11 @@ import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -83,8 +83,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Running moreLikeThis");
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
             1L
         );
     }
@@ -117,8 +116,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Running moreLikeThis");
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
             1L
         );
     }
@@ -154,11 +152,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(
-                    moreLikeThisQuery(new String[] { "myField", "empty" }, null, new Item[] { new Item("test", "1") }).minTermFreq(1)
-                        .minDocFreq(1)
-                ),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "myField", "empty" }, null, new Item[] { new Item("test", "1") }).minTermFreq(1)
+                    .minDocFreq(1)
+            ),
             1L
         );
     }
@@ -180,8 +177,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Running moreLikeThis");
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
             0L
         );
     }
@@ -224,22 +220,21 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Running moreLikeThis on index");
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
             2L
         );
 
         logger.info("Running moreLikeThis on beta shard");
-        SearchResponse response = client().prepareSearch("beta")
-            .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1))
-            .get();
+        SearchResponse response = prepareSearch("beta").setQuery(
+            new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
+        ).get();
         assertHitCount(response, 1L);
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
 
         logger.info("Running moreLikeThis on release shard");
-        response = client().prepareSearch("release")
-            .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1))
-            .get();
+        response = prepareSearch("release").setQuery(
+            new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
+        ).get();
         assertHitCount(response, 1L);
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
 
@@ -272,9 +267,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         ).actionGet();
         refresh(indexName);
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item(aliasName, "1") }).minTermFreq(1).minDocFreq(1))
-            .get();
+        SearchResponse response = prepareSearch().setQuery(
+            new MoreLikeThisQueryBuilder(null, new Item[] { new Item(aliasName, "1") }).minTermFreq(1).minDocFreq(1)
+        ).get();
         assertHitCount(response, 2L);
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
     }
@@ -288,8 +283,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         indicesAdmin().prepareRefresh("foo").get();
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
-        assertNoFailures(client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1") })));
-        assertNoFailures(client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1") })));
+        assertNoFailures(prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1") })));
+        assertNoFailures(prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1") })));
     }
 
     // Issue #2489
@@ -304,9 +299,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .get();
         indicesAdmin().prepareRefresh("foo").get();
 
-        assertNoFailures(
-            client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("2") }))
-        );
+        assertNoFailures(prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("2") })));
     }
 
     // Issue #3039
@@ -320,9 +313,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .setRouting("4000")
             .get();
         indicesAdmin().prepareRefresh("foo").get();
-        assertNoFailures(
-            client().prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("4000") }))
-        );
+        assertNoFailures(prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("foo", "1").routing("4000") })));
     }
 
     // Issue #3252
@@ -356,90 +347,83 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         // Implicit list of fields -> ignore numeric fields
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)),
             1L
         );
 
         // Explicit list of fields including numeric fields -> fail
         assertRequestBuilderThrows(
-            client().prepareSearch()
-                .setQuery(
-                    new MoreLikeThisQueryBuilder(new String[] { "string_value", "int_value" }, null, new Item[] { new Item("test", "1") })
-                        .minTermFreq(1)
-                        .minDocFreq(1)
-                ),
+            prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(new String[] { "string_value", "int_value" }, null, new Item[] { new Item("test", "1") })
+                    .minTermFreq(1)
+                    .minDocFreq(1)
+            ),
             SearchPhaseExecutionException.class
         );
 
         // mlt query with no field -> exception because _all is not enabled)
         assertRequestBuilderThrows(
-            client().prepareSearch().setQuery(moreLikeThisQuery(new String[] { "index" }).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(moreLikeThisQuery(new String[] { "index" }).minTermFreq(1).minDocFreq(1)),
             SearchPhaseExecutionException.class
         );
 
         // mlt query with string fields
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(moreLikeThisQuery(new String[] { "string_value" }, new String[] { "index" }, null).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "string_value" }, new String[] { "index" }, null).minTermFreq(1).minDocFreq(1)
+            ),
             2L
         );
 
         // mlt query with at least a numeric field -> fail by default
         assertRequestBuilderThrows(
-            client().prepareSearch()
-                .setQuery(moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null)),
+            prepareSearch().setQuery(moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null)),
             SearchPhaseExecutionException.class
         );
 
         // mlt query with at least a numeric field -> fail by command
         assertRequestBuilderThrows(
-            client().prepareSearch()
-                .setQuery(
-                    moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null).failOnUnsupportedField(
-                        true
-                    )
-                ),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null).failOnUnsupportedField(true)
+            ),
             SearchPhaseExecutionException.class
         );
 
         // mlt query with at least a numeric field but fail_on_unsupported_field set to false
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(
-                    moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null).minTermFreq(1)
-                        .minDocFreq(1)
-                        .failOnUnsupportedField(false)
-                ),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "string_value", "int_value" }, new String[] { "index" }, null).minTermFreq(1)
+                    .minDocFreq(1)
+                    .failOnUnsupportedField(false)
+            ),
             2L
         );
 
         // mlt field query on a numeric field -> failure by default
         assertRequestBuilderThrows(
-            client().prepareSearch()
-                .setQuery(moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1).minDocFreq(1)),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1).minDocFreq(1)
+            ),
             SearchPhaseExecutionException.class
         );
 
         // mlt field query on a numeric field -> failure by command
         assertRequestBuilderThrows(
-            client().prepareSearch()
-                .setQuery(
-                    moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1)
-                        .minDocFreq(1)
-                        .failOnUnsupportedField(true)
-                ),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1)
+                    .minDocFreq(1)
+                    .failOnUnsupportedField(true)
+            ),
             SearchPhaseExecutionException.class
         );
 
         // mlt field query on a numeric field but fail_on_unsupported_field set to false
         assertHitCount(
-            client().prepareSearch()
-                .setQuery(
-                    moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1)
-                        .minDocFreq(1)
-                        .failOnUnsupportedField(false)
-                ),
+            prepareSearch().setQuery(
+                moreLikeThisQuery(new String[] { "int_value" }, new String[] { "42" }, null).minTermFreq(1)
+                    .minDocFreq(1)
+                    .failOnUnsupportedField(false)
+            ),
             0L
         );
     }
@@ -471,7 +455,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         QueryBuilder query = QueryBuilders.moreLikeThisQuery(new String[] { "alias" }, null, new Item[] { item })
             .minTermFreq(1)
             .minDocFreq(1);
-        assertHitCount(client().prepareSearch().setQuery(query), 1L);
+        assertHitCount(prepareSearch().setQuery(query), 1L);
     }
 
     public void testSimpleMoreLikeInclude() throws Exception {
@@ -510,37 +494,34 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
         logger.info("Running More Like This with include true");
         assertOrderedSearchHits(
-            client().prepareSearch()
-                .setQuery(
-                    new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1)
-                        .minDocFreq(1)
-                        .include(true)
-                        .minimumShouldMatch("0%")
-                ),
+            prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1)
+                    .minDocFreq(1)
+                    .include(true)
+                    .minimumShouldMatch("0%")
+            ),
             "1",
             "2"
         );
 
         assertOrderedSearchHits(
-            client().prepareSearch()
-                .setQuery(
-                    new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "2") }).minTermFreq(1)
-                        .minDocFreq(1)
-                        .include(true)
-                        .minimumShouldMatch("0%")
-                ),
+            prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "2") }).minTermFreq(1)
+                    .minDocFreq(1)
+                    .include(true)
+                    .minimumShouldMatch("0%")
+            ),
             "2",
             "1"
         );
 
         logger.info("Running More Like This with include false");
         assertSearchHits(
-            client().prepareSearch()
-                .setQuery(
-                    new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1)
-                        .minDocFreq(1)
-                        .minimumShouldMatch("0%")
-                ),
+            prepareSearch().setQuery(
+                new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1)
+                    .minDocFreq(1)
+                    .minimumShouldMatch("0%")
+            ),
             "2"
         );
     }
@@ -577,7 +558,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .include(true)
             .minTermFreq(1)
             .minDocFreq(1);
-        assertHitCount(client().prepareSearch().setQuery(queryBuilder), 3L);
+        assertHitCount(prepareSearch().setQuery(queryBuilder), 3L);
     }
 
     public void testMoreLikeThisMultiValueFields() throws Exception {
@@ -608,9 +589,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(1)
                 .maxQueryTerms(max_query_terms)
                 .minimumShouldMatch("0%");
-            SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
-            assertSearchResponse(response);
-            assertHitCount(response, max_query_terms);
+            assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), max_query_terms);
         }
     }
 
@@ -641,8 +620,8 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(1)
                 .minimumShouldMatch(minimumShouldMatch);
             logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
-            SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
-            assertSearchResponse(response);
+            SearchResponse response = prepareSearch("test").setQuery(mltQuery).get();
+            assertNoFailures(response);
             if (minimumShouldMatch.equals("0%")) {
                 assertHitCount(response, 10);
             } else {
@@ -671,9 +650,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("100%"); // strict all terms must match!
-        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 1);
     }
 
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
@@ -697,16 +674,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new Item[] { new Item("test", malformedFieldDoc) }).minTermFreq(0)
             .minDocFreq(0)
             .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 0);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 0);
 
         logger.info("Checking with an empty document ...");
         XContentBuilder emptyDoc = jsonBuilder().startObject().endObject();
         mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", emptyDoc) }).minTermFreq(0).minDocFreq(0).minimumShouldMatch("0%");
-        response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 0);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 0);
 
         logger.info("Checking the document matches otherwise ...");
         XContentBuilder normalDoc = jsonBuilder().startObject()
@@ -716,12 +689,10 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         mltQuery = moreLikeThisQuery(null, new Item[] { new Item("test", normalDoc) }).minTermFreq(0)
             .minDocFreq(0)
             .minimumShouldMatch("100%");  // strict all terms must match but date is ignored
-        response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 1);
     }
 
-    public void testMoreLikeThisUnlike() throws ExecutionException, InterruptedException, IOException {
+    public void testMoreLikeThisUnlike() throws InterruptedException, IOException {
         createIndex("test");
         ensureGreen();
         int numFields = randomIntBetween(5, 10);
@@ -745,9 +716,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .minDocFreq(0)
             .maxQueryTerms(100)
             .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, numFields);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), numFields);
 
         logger.info("Now check like this doc, but ignore one doc in the index, then two and so on...");
         List<Item> docs = new ArrayList<>(numFields);
@@ -759,10 +728,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .maxQueryTerms(100)
                 .include(true)
                 .minimumShouldMatch("0%");
-
-            response = client().prepareSearch("test").setQuery(mltQuery).get();
-            assertSearchResponse(response);
-            assertHitCount(response, numFields - (i + 1));
+            assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), numFields - (i + 1));
         }
     }
 
@@ -784,17 +750,13 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             .minDocFreq(0)
             .include(true)
             .minimumShouldMatch("1%");
-        SearchResponse response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 2);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 2);
 
         mltQuery = moreLikeThisQuery(new String[] { "text" }, null, new Item[] { new Item("test", "1") }).minTermFreq(0)
             .minDocFreq(0)
             .include(true)
             .minimumShouldMatch("1%");
-        response = client().prepareSearch("test").setQuery(mltQuery).get();
-        assertSearchResponse(response);
-        assertHitCount(response, 1);
+        assertHitCountAndNoFailures(prepareSearch("test").setQuery(mltQuery), 1);
     }
 
     public void testWithRouting() throws IOException {
@@ -811,7 +773,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         );
         moreLikeThisQueryBuilder.minTermFreq(1);
         moreLikeThisQueryBuilder.minDocFreq(1);
-        SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
+        SearchResponse searchResponse = prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
         assertEquals(2, searchResponse.getHits().getTotalHits().value);
     }
 
@@ -842,9 +804,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             logger.info("Running moreLikeThis with one item without routing attribute");
             SearchPhaseExecutionException exception = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch()
-                    .setQuery(new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1))
-                    .get()
+                () -> prepareSearch().setQuery(
+                    new MoreLikeThisQueryBuilder(null, new Item[] { new Item("test", "1") }).minTermFreq(1).minDocFreq(1)
+                ).get()
             );
 
             Throwable cause = exception.getCause();
@@ -856,14 +818,12 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             logger.info("Running moreLikeThis with one item with routing attribute and two items without routing attribute");
             SearchPhaseExecutionException exception = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch()
-                    .setQuery(
-                        new MoreLikeThisQueryBuilder(
-                            null,
-                            new Item[] { new Item("test", "1").routing("1"), new Item("test", "2"), new Item("test", "3") }
-                        ).minTermFreq(1).minDocFreq(1)
-                    )
-                    .get()
+                () -> prepareSearch().setQuery(
+                    new MoreLikeThisQueryBuilder(
+                        null,
+                        new Item[] { new Item("test", "1").routing("1"), new Item("test", "2"), new Item("test", "3") }
+                    ).minTermFreq(1).minDocFreq(1)
+                ).get()
             );
 
             Throwable cause = exception.getCause();

@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -364,7 +365,11 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         );
         IndexMetadata metadata = runAsSnapshot(
             threadPool,
-            () -> repository.getSnapshotIndexMetaData(PlainActionFuture.get(repository::getRepositoryData), snapshotId, indexId)
+            () -> repository.getSnapshotIndexMetaData(
+                PlainActionFuture.get(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
+                snapshotId,
+                indexId
+            )
         );
         IndexShard restoredShard = newShard(
             shardRouting,

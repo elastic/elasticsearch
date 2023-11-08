@@ -265,7 +265,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
         Set<String> watchIds = new HashSet<>(Arrays.asList(ClusterAlertsUtil.WATCH_IDS));
-        for (SearchHit hit : client().prepareSearch(".watches").setSource(searchSource).get().getHits().getHits()) {
+        for (SearchHit hit : prepareSearch(".watches").setSource(searchSource).get().getHits().getHits()) {
             String watchId = ObjectPath.eval("metadata.xpack.watch", hit.getSourceAsMap());
             assertNotNull("Missing watch ID", watchId);
             assertTrue("found unexpected watch id", watchIds.contains(watchId));
@@ -289,7 +289,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         String clusterUUID = clusterService().state().getMetadata().clusterUUID();
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource()
             .query(QueryBuilders.matchQuery("metadata.xpack.cluster_uuid", clusterUUID));
-        SearchResponse searchResponse = client().prepareSearch(".watches").setSource(searchSource).get();
+        SearchResponse searchResponse = prepareSearch(".watches").setSource(searchSource).get();
         if (searchResponse.getHits().getTotalHits().value > 0) {
             List<String> invalidWatches = new ArrayList<>();
             for (SearchHit hit : searchResponse.getHits().getHits()) {

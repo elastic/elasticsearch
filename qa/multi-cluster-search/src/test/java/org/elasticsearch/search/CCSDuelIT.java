@@ -19,7 +19,6 @@ import org.apache.lucene.tests.util.TimeUnits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -187,8 +186,7 @@ public class CCSDuelIT extends ESRestTestCase {
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
 
-        CreateIndexResponse response = createIndex(INDEX_NAME + "_empty");
-        assertTrue(response.isAcknowledged());
+        ElasticsearchAssertions.assertAcked(createIndex(INDEX_NAME + "_empty"));
 
         int numShards = randomIntBetween(1, 5);
         Settings settings = indexSettings(numShards, 0).build();
@@ -209,8 +207,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 }
               }
             }""";
-        response = createIndex(INDEX_NAME, settings, mapping);
-        assertTrue(response.isAcknowledged());
+        ElasticsearchAssertions.assertAcked(createIndex(INDEX_NAME, settings, mapping));
 
         BulkProcessor2 bulkProcessor = BulkProcessor2.builder(
             (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),

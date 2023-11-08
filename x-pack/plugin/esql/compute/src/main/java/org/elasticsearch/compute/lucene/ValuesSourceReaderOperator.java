@@ -7,18 +7,24 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.SingletonOrdinalsBuilder;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.Supplier;
 
 /**
  * Operator that extracts doc_values from a Lucene index out of pages that have been produced by {@link LuceneSourceOperator}
@@ -43,12 +48,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public record ValuesSourceReaderOperatorFactory(Supplier<List<ValueSourceInfo>> sources, int docChannel, String field)
+    public record ValuesSourceReaderOperatorFactory(List<BlockDocValuesReader.Factory> sources, int docChannel, String field)
         implements
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(sources.get(), docChannel, field);
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), sources, docChannel, field);
         }
 
         @Override
@@ -57,9 +62,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
     }
 
-    private final List<ValueSourceInfo> sources;
+    /**
+     * A list, one entry per shard, of factories for {@link BlockDocValuesReader}s
+     * which perform the actual reading.
+     */
+    private final List<BlockDocValuesReader.Factory> factories;
     private final int docChannel;
     private final String field;
+    private final ComputeBlockLoaderFactory blockFactory;
 
     private BlockDocValuesReader lastReader;
     private int lastShard = -1;
@@ -69,14 +79,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     /**
      * Creates a new extractor
-     * @param sources the value source, type and index readers to use for extraction
+     * @param factories builds {@link BlockDocValuesReader}
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      * @param field the lucene field being loaded
      */
-    public ValuesSourceReaderOperator(List<ValueSourceInfo> sources, int docChannel, String field) {
-        this.sources = sources;
+    public ValuesSourceReaderOperator(
+        BlockFactory blockFactory,
+        List<BlockDocValuesReader.Factory> factories,
+        int docChannel,
+        String field
+    ) {
+        this.factories = factories;
         this.docChannel = docChannel;
         this.field = field;
+        this.blockFactory = new ComputeBlockLoaderFactory(blockFactory);
     }
 
     @Override
@@ -95,35 +111,48 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private Block loadFromSingleLeaf(DocVector docVector) throws IOException {
         setupReader(docVector.shards().getInt(0), docVector.segments().getInt(0), docVector.docs().getInt(0));
-        return lastReader.readValues(docVector.docs());
+        return ((Block) lastReader.readValues(blockFactory, new BlockLoader.Docs() {
+            private final IntVector docs = docVector.docs();
+
+            @Override
+            public int count() {
+                return docs.getPositionCount();
+            }
+
+            @Override
+            public int get(int i) {
+                return docs.getInt(i);
+            }
+        }));
     }
 
     private Block loadFromManyLeaves(DocVector docVector) throws IOException {
         int[] forwards = docVector.shardSegmentDocMapForwards();
         int doc = docVector.docs().getInt(forwards[0]);
         setupReader(docVector.shards().getInt(forwards[0]), docVector.segments().getInt(forwards[0]), doc);
-        Block.Builder builder = lastReader.builder(forwards.length);
-        lastReader.readValuesFromSingleDoc(doc, builder);
-        for (int i = 1; i < forwards.length; i++) {
-            int shard = docVector.shards().getInt(forwards[i]);
-            int segment = docVector.segments().getInt(forwards[i]);
-            doc = docVector.docs().getInt(forwards[i]);
-            if (segment != lastSegment || shard != lastShard) {
-                setupReader(shard, segment, doc);
-            }
+        try (BlockLoader.Builder builder = lastReader.builder(blockFactory, forwards.length)) {
             lastReader.readValuesFromSingleDoc(doc, builder);
+            for (int i = 1; i < forwards.length; i++) {
+                int shard = docVector.shards().getInt(forwards[i]);
+                int segment = docVector.segments().getInt(forwards[i]);
+                doc = docVector.docs().getInt(forwards[i]);
+                if (segment != lastSegment || shard != lastShard) {
+                    setupReader(shard, segment, doc);
+                }
+                lastReader.readValuesFromSingleDoc(doc, builder);
+            }
+            try (Block orig = ((Block.Builder) builder).build()) {
+                return orig.filter(docVector.shardSegmentDocMapBackwards());
+            }
         }
-        // TODO maybe it's better for downstream consumers if we perform a copy here.
-        return builder.build().filter(docVector.shardSegmentDocMapBackwards());
     }
 
     private void setupReader(int shard, int segment, int doc) throws IOException {
         if (lastSegment == segment && lastShard == shard && BlockDocValuesReader.canReuse(lastReader, doc)) {
             return;
         }
-        var info = sources.get(shard);
-        LeafReaderContext leafReaderContext = info.reader().leaves().get(segment);
-        lastReader = BlockDocValuesReader.createBlockReader(info.source(), info.type(), info.elementType(), leafReaderContext);
+
+        lastReader = factories.get(shard).build(segment);
         lastShard = shard;
         lastSegment = segment;
         readersBuilt.compute(lastReader.toString(), (k, v) -> v == null ? 1 : v + 1);
@@ -201,6 +230,74 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+    }
+
+    private static class ComputeBlockLoaderFactory implements BlockLoader.BuilderFactory {
+        private final BlockFactory factory;
+
+        private ComputeBlockLoaderFactory(BlockFactory factory) {
+            this.factory = factory;
+        }
+
+        @Override
+        public BlockLoader.BooleanBuilder booleansFromDocValues(int expectedCount) {
+            return factory.newBooleanBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        }
+
+        @Override
+        public BlockLoader.BooleanBuilder booleans(int expectedCount) {
+            return factory.newBooleanBlockBuilder(expectedCount);
+        }
+
+        @Override
+        public BlockLoader.BytesRefBuilder bytesRefsFromDocValues(int expectedCount) {
+            return factory.newBytesRefBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        }
+
+        @Override
+        public BlockLoader.BytesRefBuilder bytesRefs(int expectedCount) {
+            return factory.newBytesRefBlockBuilder(expectedCount);
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder doublesFromDocValues(int expectedCount) {
+            return factory.newDoubleBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        }
+
+        @Override
+        public BlockLoader.DoubleBuilder doubles(int expectedCount) {
+            return factory.newDoubleBlockBuilder(expectedCount);
+        }
+
+        @Override
+        public BlockLoader.IntBuilder intsFromDocValues(int expectedCount) {
+            return factory.newIntBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        }
+
+        @Override
+        public BlockLoader.IntBuilder ints(int expectedCount) {
+            return factory.newIntBlockBuilder(expectedCount);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder longsFromDocValues(int expectedCount) {
+            return factory.newLongBlockBuilder(expectedCount).mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder longs(int expectedCount) {
+            return factory.newLongBlockBuilder(expectedCount);
+        }
+
+        @Override
+        public BlockLoader.Builder nulls(int expectedCount) {
+            return ElementType.NULL.newBlockBuilder(expectedCount, factory);
+        }
+
+        @Override
+        public BlockLoader.SingletonOrdinalsBuilder singletonOrdinalsBuilder(SortedDocValues ordinals, int count) {
+            return new SingletonOrdinalsBuilder(factory, ordinals, count);
         }
     }
 }

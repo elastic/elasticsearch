@@ -92,13 +92,11 @@ public class RandomSamplerIT extends ESIntegTestCase {
         double sampledDocCount = 0.0;
 
         for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
-            SearchRequest sampledRequest = client().prepareSearch("idx")
-                .addAggregation(
-                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
-                        .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                        .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-                )
-                .request();
+            SearchRequest sampledRequest = prepareSearch("idx").addAggregation(
+                new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                    .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                    .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+            ).request();
             InternalRandomSampler sampler = client().search(sampledRequest).actionGet().getAggregations().get("sampler");
             sampleMonotonicValue += ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
             sampleNumericValue += ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
@@ -114,8 +112,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
         double maxCountError = 6.0 * Math.sqrt(PROBABILITY * numDocs / NUM_SAMPLE_RUNS);
         assertThat(Math.abs(sampledDocCount - expectedDocCount), lessThan(maxCountError));
 
-        SearchResponse trueValueResponse = client().prepareSearch("idx")
-            .addAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+        SearchResponse trueValueResponse = prepareSearch("idx").addAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
             .addAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
             .get();
         double trueMonotonic = ((Avg) trueValueResponse.getAggregations().get("mean_monotonic")).getValue();
@@ -132,17 +129,15 @@ public class RandomSamplerIT extends ESIntegTestCase {
         Map<String, Double> sampledDocCount = new HashMap<>();
 
         for (int i = 0; i < NUM_SAMPLE_RUNS; i++) {
-            SearchRequest sampledRequest = client().prepareSearch("idx")
-                .addAggregation(
-                    new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
-                        .subAggregation(
-                            histogram("histo").field(NUMERIC_VALUE)
-                                .interval(5.0)
-                                .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                                .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-                        )
-                )
-                .request();
+            SearchRequest sampledRequest = prepareSearch("idx").addAggregation(
+                new RandomSamplerAggregationBuilder("sampler").setProbability(PROBABILITY)
+                    .subAggregation(
+                        histogram("histo").field(NUMERIC_VALUE)
+                            .interval(5.0)
+                            .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                            .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+                    )
+            ).request();
             InternalRandomSampler sampler = client().search(sampledRequest).actionGet().getAggregations().get("sampler");
             Histogram histo = sampler.getAggregations().get("histo");
             for (Histogram.Bucket bucket : histo.getBuckets()) {
@@ -163,14 +158,12 @@ public class RandomSamplerIT extends ESIntegTestCase {
             sampleMonotonicValue.put(key, sampleMonotonicValue.get(key) / NUM_SAMPLE_RUNS);
         }
 
-        SearchResponse trueValueResponse = client().prepareSearch("idx")
-            .addAggregation(
-                histogram("histo").field(NUMERIC_VALUE)
-                    .interval(5.0)
-                    .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
-                    .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
-            )
-            .get();
+        SearchResponse trueValueResponse = prepareSearch("idx").addAggregation(
+            histogram("histo").field(NUMERIC_VALUE)
+                .interval(5.0)
+                .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
+                .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
+        ).get();
         Histogram histogram = trueValueResponse.getAggregations().get("histo");
         for (Histogram.Bucket bucket : histogram.getBuckets()) {
             long numDocs = bucket.getDocCount();

@@ -64,7 +64,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -269,68 +269,65 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ).actionGet();
 
         logger.info("--> checking single filtering alias search");
-        SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1");
 
         logger.info("--> checking single filtering alias wildcard search");
-        searchResponse = client().prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("fo*").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1");
 
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with sort");
-        searchResponse = client().prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC).get();
+        searchResponse = prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_index", SortOrder.ASC).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         logger.info("--> checking single filtering alias search with global facets");
-        searchResponse = client().prepareSearch("tests")
-            .setQuery(QueryBuilders.matchQuery("name", "bar"))
+        searchResponse = prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
             .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         Global global = searchResponse.getAggregations().get("global");
         Terms terms = global.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(4));
 
         logger.info("--> checking single filtering alias search with global facets and sort");
-        searchResponse = client().prepareSearch("tests")
-            .setQuery(QueryBuilders.matchQuery("name", "bar"))
+        searchResponse = prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
             .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("test").field("name")))
             .addSort("_index", SortOrder.ASC)
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         global = searchResponse.getAggregations().get("global");
         terms = global.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(4));
 
         logger.info("--> checking single filtering alias search with non-global facets");
-        searchResponse = client().prepareSearch("tests")
-            .setQuery(QueryBuilders.matchQuery("name", "bar"))
+        searchResponse = prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
             .addAggregation(AggregationBuilders.terms("test").field("name"))
             .addSort("_index", SortOrder.ASC)
             .get();
-        assertSearchResponse(searchResponse);
+        assertNoFailures(searchResponse);
         terms = searchResponse.getAggregations().get("test");
         assertThat(terms.getBuckets().size(), equalTo(2));
 
-        searchResponse = client().prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2");
 
         logger.info("--> checking single non-filtering alias search");
-        searchResponse = client().prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
 
         logger.info("--> checking non-filtering alias and filtering alias search");
-        searchResponse = client().prepareSearch("alias1", "foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("alias1", "foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
 
         logger.info("--> checking index and filtering alias search");
-        searchResponse = client().prepareSearch("test", "foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("test", "foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
 
         logger.info("--> checking index and alias wildcard search");
-        searchResponse = client().prepareSearch("te*", "fo*").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("te*", "fo*").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
     }
 
@@ -376,61 +373,50 @@ public class IndexAliasesIT extends ESIntegTestCase {
         refresh();
 
         logger.info("--> checking filtering alias for two indices");
-        SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "5");
         assertThat(
-            client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(2L)
         );
 
         logger.info("--> checking filtering alias for one index");
-        searchResponse = client().prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2");
         assertThat(
-            client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(1L)
         );
 
         logger.info("--> checking filtering alias for two indices and one complete index");
-        searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
         assertThat(
-            client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(5L)
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
-        searchResponse = client().prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
         assertThat(
-            client().prepareSearch("foos", "aliasToTest1")
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(5L)
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
-        searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L));
         assertThat(
-            client().prepareSearch("foos", "aliasToTests")
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(8L)
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
-        searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get();
+        searchResponse = prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get();
         assertHits(searchResponse.getHits(), "4", "8");
         assertThat(
-            client().prepareSearch("foos", "aliasToTests")
-                .setSize(0)
+            prepareSearch("foos", "aliasToTests").setSize(0)
                 .setQuery(QueryBuilders.termQuery("name", "something"))
                 .get()
                 .getHits()
@@ -491,47 +477,31 @@ public class IndexAliasesIT extends ESIntegTestCase {
         refresh();
 
         logger.info("--> checking filtering alias for multiple indices");
-        SearchResponse searchResponse = client().prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "13", "33");
         assertThat(
-            client().prepareSearch("filter23", "filter13")
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(4L)
         );
 
-        searchResponse = client().prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13");
         assertThat(
-            client().prepareSearch("filter23", "filter1")
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(5L)
         );
 
-        searchResponse = client().prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "33");
         assertThat(
-            client().prepareSearch("filter13", "filter1")
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get()
-                .getHits()
-                .getTotalHits().value,
+            prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(4L)
         );
 
-        searchResponse = client().prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33");
         assertThat(
-            client().prepareSearch("filter13", "filter1", "filter23")
-                .setSize(0)
+            prepareSearch("filter13", "filter1", "filter23").setSize(0)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
@@ -539,11 +509,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
             equalTo(6L)
         );
 
-        searchResponse = client().prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33");
         assertThat(
-            client().prepareSearch("filter23", "filter13", "test2")
-                .setSize(0)
+            prepareSearch("filter23", "filter13", "test2").setSize(0)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
@@ -551,11 +520,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
             equalTo(6L)
         );
 
-        searchResponse = client().prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33");
         assertThat(
-            client().prepareSearch("filter23", "filter13", "test1", "test2")
-                .setSize(0)
+            prepareSearch("filter23", "filter13", "test1", "test2").setSize(0)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
@@ -614,7 +582,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> checking counts before delete");
         assertThat(
-            client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
             equalTo(1L)
         );
     }
@@ -1141,8 +1109,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
             client().prepareIndex("my-index").setSource("timestamp", "2016-12-12").get();
             if (i % 2 == 0) {
                 refresh();
-                assertHitCount(client().prepareSearch("filter1"), i);
-                assertHitCount(client().prepareSearch("filter2"), i);
+                assertHitCount(prepareSearch("filter1"), i);
+                assertHitCount(prepareSearch("filter2"), i);
             }
         }
     }
@@ -1239,7 +1207,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
             "test_2",
             () -> assertAcked(indicesAdmin().prepareAliases().addAlias("test_2", "test").removeIndex("test"))
         );
-        assertHitCount(client().prepareSearch("test"), 1);
+        assertHitCount(prepareSearch("test"), 1);
     }
 
     public void testHiddenAliasesMustBeConsistent() {
@@ -1331,22 +1299,21 @@ public class IndexAliasesIT extends ESIntegTestCase {
         refresh(writeIndex, nonWriteIndex);
 
         // Make sure that the doc written to the alias made it
-        SearchResponse searchResponse = client().prepareSearch(writeIndex).setQuery(QueryBuilders.matchAllQuery()).get();
+        SearchResponse searchResponse = prepareSearch(writeIndex).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2", "3");
 
         // Ensure that all docs can be gotten through the alias
-        searchResponse = client().prepareSearch(alias).setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch(alias).setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         // And querying using a wildcard with indices options set to expand hidden
-        searchResponse = client().prepareSearch("alias*")
-            .setQuery(QueryBuilders.matchAllQuery())
+        searchResponse = prepareSearch("alias*").setQuery(QueryBuilders.matchAllQuery())
             .setIndicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, true, false, false))
             .get();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         // And that querying the alias with a wildcard and no expand options fails
-        searchResponse = client().prepareSearch("alias*").setQuery(QueryBuilders.matchAllQuery()).get();
+        searchResponse = prepareSearch("alias*").setQuery(QueryBuilders.matchAllQuery()).get();
         assertThat(searchResponse.getHits().getHits(), emptyArray());
     }
 

@@ -40,7 +40,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         final CountDownLatch start = new CountDownLatch(1);
         for (int t = 0; t < threads.length; t++) {
             final int threadNum = t;
-            assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", threadNum)), docs);
+            assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", threadNum)), docs);
 
             Runnable r = () -> {
                 try {
@@ -64,7 +64,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
         }
 
         for (int t = 0; t < threads.length; t++) {
-            assertHitCount(client().prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", t)), 0);
+            assertHitCount(prepareSearch("test").setSize(0).setQuery(QueryBuilders.termQuery("field", t)), 0);
         }
     }
 
@@ -105,7 +105,7 @@ public class DeleteByQueryConcurrentTests extends ReindexTestCase {
             thread.join();
         }
 
-        assertHitCount(client().prepareSearch("test").setSize(0), 0L);
+        assertHitCount(prepareSearch("test").setSize(0), 0L);
         assertThat(deleted.get(), equalTo(docs));
     }
 }

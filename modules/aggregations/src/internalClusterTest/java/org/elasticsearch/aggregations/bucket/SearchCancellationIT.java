@@ -97,8 +97,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeSeriesAggregationBuilder timeSeriesAggregationBuilder = new TimeSeriesAggregationBuilder("test_agg");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addAggregation(
                 timeSeriesAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(

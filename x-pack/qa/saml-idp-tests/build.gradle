@@ -31,6 +31,12 @@ tasks.register("copyIdpFiles", Sync) {
   }
 }
 
+normalization {
+  runtimeClasspath {
+    ignore 'idp-metadata.xml'
+  }
+}
+
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
   classpath += files(tasks.named("copyIdpFiles"))

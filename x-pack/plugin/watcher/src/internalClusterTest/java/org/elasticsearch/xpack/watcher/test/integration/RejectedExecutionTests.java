@@ -50,7 +50,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
 
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
+            SearchResponse searchResponse = prepareSearch(".watcher-history-*").get();
             assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L));
         });
     }

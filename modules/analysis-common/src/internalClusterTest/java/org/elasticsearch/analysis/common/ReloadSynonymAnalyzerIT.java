@@ -17,7 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,15 +41,6 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);
-    }
-
-    /**
-     * This test needs to write to the config directory, this is difficult in an external cluster so we overwrite this to force running with
-     * {@link InternalTestCluster}
-     */
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException, InterruptedException {
@@ -83,8 +73,8 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "foo").get();
         assertNoFailures(indicesAdmin().prepareRefresh("test").execute().actionGet());
 
-        assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
-        assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
+        assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+        assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")), 0L);
         Response analyzeResponse = indicesAdmin().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
         assertEquals(2, analyzeResponse.getTokens().size());
         assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
@@ -124,9 +114,9 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
                 assertTrue(tokens.contains(testTerm));
             }
 
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")), 1L);
             long expectedHitCount = preview ? 0L : 1L;
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", testTerm)), expectedHitCount);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", testTerm)), expectedHitCount);
         }
     }
 }

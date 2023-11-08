@@ -488,7 +488,7 @@ public class PlanNamedTypesTests extends ESTestCase {
 
     public void testMvExpand() throws IOException {
         var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
-        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute());
+        var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry);
         PlanNamedTypes.writeMvExpand(out, orig);
@@ -671,12 +671,13 @@ public class PlanNamedTypesTests extends ESTestCase {
         if (depth > 2) {
             return Map.of(); // prevent infinite recursion (between EsField and properties)
         }
+        depth += 1;
         int size = randomIntBetween(0, 5);
         Map<String, EsField> map = new HashMap<>();
         for (int i = 0; i < size; i++) {
             map.put(
                 randomAlphaOfLength(randomIntBetween(1, 10)), // name
-                randomEsField(depth++)
+                randomEsField(depth)
             );
         }
         return Map.copyOf(map);

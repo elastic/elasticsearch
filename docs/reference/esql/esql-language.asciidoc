@@ -1,16 +1,24 @@
 [[esql-language]]
-== {esql} language
+== Learning {esql}
 
 ++++
-<titleabbrev>{esql} language</titleabbrev>
+<titleabbrev>Learning {esql}</titleabbrev>
 ++++
 
 Detailed information about the {esql} language:
 
 * <<esql-syntax>>
-* <<esql-multivalued-fields>>
+* <<esql-commands>>
+* <<esql-functions>>
 * <<esql-metadata-fields>>
+* <<esql-multivalued-fields>>
+* <<esql-enrich-data>>
+* <<esql-process-data-with-dissect-and-grok>>
 
 include::esql-syntax.asciidoc[]
-include::multivalued-fields.asciidoc[]
+include::esql-commands.asciidoc[]
+include::esql-functions-operators.asciidoc[]
 include::metadata-fields.asciidoc[]
+include::multivalued-fields.asciidoc[]
+include::esql-process-data-with-dissect-grok.asciidoc[]
+include::esql-enrich-data.asciidoc[]

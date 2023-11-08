@@ -190,7 +190,7 @@ public class DesiredNodeTests extends ESTestCase {
         }
     }
 
-    public void testDesiredNodeIsCompatible() {
+    public void testDesiredNodeHasRangeFloatProcessors() {
         final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10)).build();
 
         {
@@ -201,8 +201,8 @@ public class DesiredNodeTests extends ESTestCase {
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
             );
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+            assertThat(desiredNode.clusterHasRequiredFeatures(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED::equals), is(true));
+            assertThat(desiredNode.clusterHasRequiredFeatures(nf -> false), is(false));
         }
 
         {
@@ -213,14 +213,14 @@ public class DesiredNodeTests extends ESTestCase {
                 ByteSizeValue.ofGb(1),
                 Version.CURRENT
             );
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(false)));
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+            assertThat(desiredNode.clusterHasRequiredFeatures(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED::equals), is(true));
+            assertThat(desiredNode.clusterHasRequiredFeatures(nf -> false), is(false));
         }
 
         {
             final var desiredNode = new DesiredNode(settings, 2.0f, ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1), Version.CURRENT);
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_2_0), is(equalTo(true)));
-            assertThat(desiredNode.isCompatibleWithVersion(Version.V_8_3_0), is(equalTo(true)));
+            assertThat(desiredNode.clusterHasRequiredFeatures(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED::equals), is(true));
+            assertThat(desiredNode.clusterHasRequiredFeatures(nf -> false), is(true));
         }
     }
 

@@ -96,7 +96,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -456,8 +455,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
         )
             .prepareMultiSearch()
-            .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
-            .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
             .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -473,8 +472,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareMultiSearch()
-            .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
-            .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+            .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
             .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -491,14 +490,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
             .prepareMultiSearch()
             .add(
-                client().prepareSearch("test1")
-                    .addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
-                    .setQuery(QueryBuilders.matchAllQuery())
+                prepareSearch("test1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN)).setQuery(QueryBuilders.matchAllQuery())
             )
             .add(
-                client().prepareSearch("test2")
-                    .addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
-                    .setQuery(QueryBuilders.matchAllQuery())
+                prepareSearch("test2").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN)).setQuery(QueryBuilders.matchAllQuery())
             )
             .get();
         assertFalse(response.getResponses()[0].isFailure());
@@ -541,14 +536,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         SearchResponse result = client().filterWithHeader(
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
         ).prepareSearch("query_index").setQuery(new PercolateQueryBuilder("query", "doc_index", "1", null, null, null)).get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 can access the query_index itself (without performing percolate search)
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("query_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 cannot access doc#1 of the doc_index so the percolate search fails because doc#1 cannot be found
         ResourceNotFoundException e = expectThrows(
@@ -596,14 +591,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
             requestBuilder.setQuery(shapeQuery);
         }
         result = requestBuilder.get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         // user2 does not have access to doc#1 of the shape_index
         result = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
             .prepareSearch("search_index")
             .setQuery(QueryBuilders.matchAllQuery())
             .get();
-        assertSearchResponse(result);
+        assertNoFailures(result);
         assertHitCount(result, 1);
         IllegalArgumentException e;
         if (randomBoolean()) {
@@ -926,9 +921,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field2", "value2").setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex("test").setId("3").setSource("field3", "value3").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse response = client().prepareSearch("test")
-            .addAggregation(AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("field2").field("field2")))
-            .get();
+        SearchResponse response = prepareSearch("test").addAggregation(
+            AggregationBuilders.global("global").subAggregation(AggregationBuilders.terms("field2").field("field2"))
+        ).get();
         assertHitCount(response, 3);
         assertSearchHits(response, "1", "2", "3");
 
@@ -1024,14 +1019,11 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     private void verifyParentChild() {
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.None)).get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test")
-            .setQuery(hasParentQuery("parent", matchAllQuery(), false))
+        searchResponse = prepareSearch("test").setQuery(hasParentQuery("parent", matchAllQuery(), false))
             .addSort("id", SortOrder.ASC)
             .get();
         assertHitCount(searchResponse, 3L);
@@ -1357,9 +1349,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         );
 
         // Term suggester:
-        SearchResponse response = client().prepareSearch("test")
-            .suggest(new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1")))
-            .get();
+        SearchResponse response = prepareSearch("test").suggest(
+            new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new TermSuggestionBuilder("suggest_field1"))
+        ).get();
         assertNoFailures(response);
 
         TermSuggestion termSuggestion = response.getSuggest().getSuggestion("_name1");
@@ -1382,9 +1374,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
 
         // Phrase suggester:
-        response = client().prepareSearch("test")
-            .suggest(new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1")))
-            .get();
+        response = prepareSearch("test").suggest(
+            new SuggestBuilder().setGlobalText("valeu").addSuggestion("_name1", new PhraseSuggestionBuilder("suggest_field1"))
+        ).get();
         assertNoFailures(response);
 
         PhraseSuggestion phraseSuggestion = response.getSuggest().getSuggestion("_name1");
@@ -1403,9 +1395,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(e.getMessage(), equalTo("Suggest isn't supported if document level security is enabled"));
 
         // Completion suggester:
-        response = client().prepareSearch("test")
-            .suggest(new SuggestBuilder().setGlobalText("valu").addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2")))
-            .get();
+        response = prepareSearch("test").suggest(
+            new SuggestBuilder().setGlobalText("valu").addSuggestion("_name1", new CompletionSuggestionBuilder("suggest_field2"))
+        ).get();
         assertNoFailures(response);
 
         CompletionSuggestion completionSuggestion = response.getSuggest().getSuggestion("_name1");
@@ -1450,10 +1442,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setMapping("field1", "type=text", "other_field", "type=text", "yet_another", "type=text")
         );
 
-        SearchResponse response = client().prepareSearch("test")
-            .setProfile(true)
-            .setQuery(new FuzzyQueryBuilder("other_field", "valeu"))
-            .get();
+        SearchResponse response = prepareSearch("test").setProfile(true).setQuery(new FuzzyQueryBuilder("other_field", "valeu")).get();
         assertNoFailures(response);
 
         assertThat(response.getProfileResults().size(), equalTo(1));

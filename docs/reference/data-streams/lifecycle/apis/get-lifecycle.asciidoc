@@ -4,7 +4,7 @@
 <titleabbrev>Get Data Stream Lifecycle</titleabbrev>
 ++++
 
-preview:[]
+preview::[]
 
 Gets the lifecycle of a set of data streams.
 

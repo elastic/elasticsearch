@@ -73,7 +73,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             flushAndRefresh(".watcher-history-*");
-            assertHitCount(client().prepareSearch(".watcher-history-*"), 1);
+            assertHitCount(prepareSearch(".watcher-history-*"), 1);
         });
     }
 
@@ -106,7 +106,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            assertHitCount(client().prepareSearch(".watcher-history*").setSize(0), 1);
+            assertHitCount(prepareSearch(".watcher-history*").setSize(0), 1);
         });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
@@ -151,7 +151,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            assertHitCount(client().prepareSearch(".watcher-history*").setSize(0), 1);
+            assertHitCount(prepareSearch(".watcher-history*").setSize(0), 1);
         });
 
         // as fields with dots are allowed in 5.0 again, the mapping must be checked in addition
@@ -187,7 +187,7 @@ public class HistoryIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
         assertBusy(() -> {
             refresh(".watcher-history*");
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(1).get();
+            SearchResponse searchResponse = prepareSearch(".watcher-history*").setSize(1).get();
             assertHitCount(searchResponse, 1);
             SearchHit hit = searchResponse.getHits().getAt(0);
 

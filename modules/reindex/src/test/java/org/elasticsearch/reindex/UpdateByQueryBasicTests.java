@@ -34,7 +34,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test").setId("3").setSource("foo", "b"),
             client().prepareIndex("test").setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("test").setSize(0), 4);
+        assertHitCount(prepareSearch("test").setSize(0), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
 
@@ -74,7 +74,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             client().prepareIndex("test").setId("3").setSource("foo", "b"),
             client().prepareIndex("test").setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("test").setSize(0), 4);
+        assertHitCount(prepareSearch("test").setSize(0), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
 
@@ -124,7 +124,7 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         indexRandom(true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
-            assertHitCount(client().prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
+            assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
         int slices = randomSlices(1, 10);

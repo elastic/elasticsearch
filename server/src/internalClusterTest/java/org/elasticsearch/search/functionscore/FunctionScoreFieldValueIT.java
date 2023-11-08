@@ -43,7 +43,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                     .endObject()
                     .endObject()
                     .endObject()
-            ).get()
+            )
         );
 
         client().prepareIndex("test").setId("1").setSource("test", 5, "body", "foo").get();
@@ -54,8 +54,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // document 2 scores higher because 17 > 5
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(functionScoreQuery(simpleQueryStringQuery("foo"), fieldValueFactorFunction("test"))),
             "2",
             "1"
@@ -63,8 +62,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // try again, but this time explicitly use the do-nothing modifier
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         simpleQueryStringQuery("foo"),
@@ -77,8 +75,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // document 1 scores higher because 1/5 > 1/17
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         simpleQueryStringQuery("foo"),
@@ -91,8 +88,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // doc 3 doesn't have a "test" field, so an exception will be thrown
         try {
-            SearchResponse response = client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            SearchResponse response = prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(functionScoreQuery(matchAllQuery(), fieldValueFactorFunction("test")))
                 .get();
             assertFailures(response);
@@ -102,8 +98,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // doc 3 doesn't have a "test" field but we're defaulting it to 100 so it should be last
         assertOrderedSearchHits(
-            client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         matchAllQuery(),
@@ -116,8 +111,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
         );
 
         // field is not mapped but we're defaulting it to 100 so all documents should have the same score
-        SearchResponse response = client().prepareSearch("test")
-            .setExplain(randomBoolean())
+        SearchResponse response = prepareSearch("test").setExplain(randomBoolean())
             .setQuery(
                 functionScoreQuery(
                     matchAllQuery(),
@@ -132,8 +126,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
 
         // -1 divided by 0 is infinity, which should provoke an exception.
         try {
-            response = client().prepareSearch("test")
-                .setExplain(randomBoolean())
+            response = prepareSearch("test").setExplain(randomBoolean())
                 .setQuery(
                     functionScoreQuery(
                         simpleQueryStringQuery("foo"),

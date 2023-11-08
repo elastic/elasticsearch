@@ -9,8 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,12 +32,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverTests extends ESTestCase {
 
-    public void testThreadContext() {
+    public void testThreadContext() throws Exception {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
@@ -58,27 +58,28 @@ public class DriverTests extends ESTestCase {
                 outPages.add(page);
             }), () -> {});
             ThreadContext threadContext = threadPool.getThreadContext();
-            SubscribableListener<Void> future = new SubscribableListener<>();
+            CountDownLatch latch = new CountDownLatch(1);
             try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                 threadContext.putHeader("user", "user1");
-                Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), future);
+                Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), ActionListener.running(() -> {
+                    try {
+                        assertRunningWithRegularUser(threadPool);
+                        assertThat(outPages, equalTo(inPages));
+                        Map<String, Set<String>> actualResponseHeaders = new HashMap<>();
+                        for (Map.Entry<String, List<String>> e : threadPool.getThreadContext().getResponseHeaders().entrySet()) {
+                            actualResponseHeaders.put(e.getKey(), Sets.newHashSet(e.getValue()));
+                        }
+                        Map<String, Set<String>> expectedResponseHeaders = new HashMap<>(warning1.warnings);
+                        for (Map.Entry<String, Set<String>> e : warning2.warnings.entrySet()) {
+                            expectedResponseHeaders.merge(e.getKey(), e.getValue(), Sets::union);
+                        }
+                        assertThat(actualResponseHeaders, equalTo(expectedResponseHeaders));
+                    } finally {
+                        latch.countDown();
+                    }
+                }));
             }
-            future.addListener(ActionListener.running(() -> {
-                assertRunningWithRegularUser(threadPool);
-                assertThat(outPages, equalTo(inPages));
-                Map<String, Set<String>> actualResponseHeaders = new HashMap<>();
-                for (Map.Entry<String, List<String>> e : threadPool.getThreadContext().getResponseHeaders().entrySet()) {
-                    actualResponseHeaders.put(e.getKey(), Sets.newHashSet(e.getValue()));
-                }
-                Map<String, Set<String>> expectedResponseHeaders = new HashMap<>(warning1.warnings);
-                for (Map.Entry<String, Set<String>> e : warning2.warnings.entrySet()) {
-                    expectedResponseHeaders.merge(e.getKey(), e.getValue(), Sets::union);
-                }
-                assertThat(actualResponseHeaders, equalTo(expectedResponseHeaders));
-            }));
-            PlainActionFuture<Void> completion = new PlainActionFuture<>();
-            future.addListener(completion);
-            completion.actionGet(TimeValue.timeValueSeconds(30));
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
         } finally {
             terminate(threadPool);
         }

@@ -57,11 +57,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "source_index";
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
@@ -282,7 +277,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         );
 
         // Checks that the all documents have been indexed and correctly counted
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0), numDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numDocs);
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
         ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)

@@ -29,13 +29,13 @@ File repositoryDir = fixture.fsRepositoryDir as File
 tasks.named("javaRestTest").configure {
   dependsOn fixture.getTasks().named("postProcessFixture")
 
-  systemProperty 'test.url.fs.repo.dir', repositoryDir.absolutePath
+  nonInputProperties.systemProperty 'test.url.fs.repo.dir', repositoryDir.absolutePath
   nonInputProperties.systemProperty 'test.url.http', "${-> fixtureAddress('nginx-fixture')}"
 }
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  setting 'path.repo', repositoryDir.absolutePath
+  setting 'path.repo', repositoryDir.absolutePath, IGNORE_VALUE
   setting 'repositories.url.allowed_urls', { "${-> fixtureAddress('nginx-fixture')}" }, IGNORE_VALUE
 
   setting 'xpack.license.self_generated.type', 'trial'

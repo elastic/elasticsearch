@@ -54,11 +54,7 @@ public final class CountDistinctBooleanAggregatorFunction implements AggregatorF
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock block = (BooleanBlock) uncastBlock;
+    BooleanBlock block = page.getBlock(channels.get(0));
     BooleanVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

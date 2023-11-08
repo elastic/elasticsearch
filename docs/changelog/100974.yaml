@@ -1,0 +1,5 @@
+pr: 100974
+summary: Create new cluster state API for querying features present on a cluster
+area: "Infra/Core"
+type: feature
+issues: []

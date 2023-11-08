@@ -48,9 +48,9 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         flush();
         refresh();
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setSource(searchSource().aggregation(terms("index_action_indices").field("result.actions.index.response.index")))
-            .get();
+        SearchResponse response = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(
+            searchSource().aggregation(terms("index_action_indices").field("result.actions.index.response.index"))
+        ).get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));

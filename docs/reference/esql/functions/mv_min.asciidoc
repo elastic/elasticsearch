@@ -1,6 +1,9 @@
 [discrete]
 [[esql-mv_min]]
 === `MV_MIN`
+[.text-center]
+image::esql/functions/signature/mv_min.svg[Embedded,opts=inline]
+
 Converts a multivalued field into a single valued field containing the minimum value. For example:
 
 [source.merge.styled,esql]
@@ -23,3 +26,7 @@ include::{esql-specs}/string.csv-spec[tag=mv_min]
 |===
 include::{esql-specs}/string.csv-spec[tag=mv_min-result]
 |===
+
+Supported types:
+
+include::types/mv_min.asciidoc[]

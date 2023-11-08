@@ -141,13 +141,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
         refresh();
 
-        SearchResponse response = client().prepareSearch("output1").get();
+        SearchResponse response = prepareSearch("output1").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
 
-        response = client().prepareSearch("output2").get();
+        response = prepareSearch("output2").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
@@ -186,12 +186,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
         refresh();
 
-        SearchResponse response = client().prepareSearch("output1").get();
+        SearchResponse response = prepareSearch("output1").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
 
-        response = client().prepareSearch("output2").get();
+        response = prepareSearch("output2").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("mytestresult"));
@@ -225,13 +225,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         assertWatchWithMinimumPerformedActionsCount("_id2", 1, false);
         refresh();
 
-        SearchResponse response = client().prepareSearch("output1").get();
+        SearchResponse response = prepareSearch("output1").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
 
-        response = client().prepareSearch("output2").get();
+        response = prepareSearch("output2").get();
         assertNoFailures(response);
         assertThat(response.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
@@ -35,16 +34,16 @@ public final class NodeMetadata {
 
     private final String nodeId;
 
-    private final Version nodeVersion;
+    private final NodeMetadataVersion nodeVersion;
 
-    private final Version previousNodeVersion;
+    private final NodeMetadataVersion previousNodeVersion;
 
     private final IndexVersion oldestIndexVersion;
 
     private NodeMetadata(
         final String nodeId,
-        final Version nodeVersion,
-        final Version previousNodeVersion,
+        final NodeMetadataVersion nodeVersion,
+        final NodeMetadataVersion previousNodeVersion,
         final IndexVersion oldestIndexVersion
     ) {
         this.nodeId = Objects.requireNonNull(nodeId);
@@ -53,7 +52,7 @@ public final class NodeMetadata {
         this.oldestIndexVersion = Objects.requireNonNull(oldestIndexVersion);
     }
 
-    public NodeMetadata(final String nodeId, final Version nodeVersion, final IndexVersion oldestIndexVersion) {
+    public NodeMetadata(final String nodeId, final NodeMetadataVersion nodeVersion, final IndexVersion oldestIndexVersion) {
         this(nodeId, nodeVersion, nodeVersion, oldestIndexVersion);
     }
 
@@ -92,7 +91,7 @@ public final class NodeMetadata {
         return nodeId;
     }
 
-    public Version nodeVersion() {
+    public NodeMetadataVersion nodeVersion() {
         return nodeVersion;
     }
 
@@ -102,7 +101,7 @@ public final class NodeMetadata {
      * the current version of the node ({@link NodeMetadata#upgradeToCurrentVersion()} before storing the node metadata again on disk.
      * In doing so, {@code previousNodeVersion} refers to the previously last known version that this node was started on.
      */
-    public Version previousNodeVersion() {
+    public NodeMetadataVersion previousNodeVersion() {
         return previousNodeVersion;
     }
 
@@ -111,25 +110,26 @@ public final class NodeMetadata {
     }
 
     public void verifyUpgradeToCurrentVersion() {
-        assert (nodeVersion.equals(Version.V_EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
+        // TODO[wrb]: this is a poison pill for 9.0
+        assert (nodeVersion.equals(NodeMetadataVersion.EMPTY) == false) || (Version.CURRENT.major <= Version.V_7_0_0.major + 1)
             : "version is required in the node metadata from v9 onwards";
 
-        if (nodeVersion.before(Version.CURRENT.minimumCompatibilityVersion())) {
+        if (nodeVersion.before(NodeMetadataVersion.MINIMUM_COMPATIBLE)) {
             throw new IllegalStateException(
-                "cannot upgrade a node from version ["
+                "cannot upgrade a node with metadata version ["
                     + nodeVersion
-                    + "] directly to version ["
-                    + Build.current().version()
+                    + "] directly to metadata version ["
+                    + NodeMetadataVersion.current()
                     + "], "
-                    + "upgrade to version ["
-                    + Build.current().minWireCompatVersion()
+                    + "upgrade to metadata version ["
+                    + NodeMetadataVersion.MINIMUM_COMPATIBLE
                     + "] first."
             );
         }
 
-        if (nodeVersion.after(Version.CURRENT)) {
+        if (nodeVersion.after(NodeMetadataVersion.current())) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Build.current().version() + "]"
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + NodeMetadataVersion.current() + "]"
             );
         }
     }
@@ -137,13 +137,15 @@ public final class NodeMetadata {
     public NodeMetadata upgradeToCurrentVersion() {
         verifyUpgradeToCurrentVersion();
 
-        return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT, nodeVersion, oldestIndexVersion);
+        return nodeVersion.equals(NodeMetadataVersion.current())
+            ? this
+            : new NodeMetadata(nodeId, new NodeMetadataVersion(NodeMetadataVersion.current().id()), nodeVersion, oldestIndexVersion);
     }
 
     private static class Builder {
         String nodeId;
-        Version nodeVersion;
-        Version previousNodeVersion;
+        NodeMetadataVersion nodeVersion;
+        NodeMetadataVersion previousNodeVersion;
         IndexVersion oldestIndexVersion;
 
         public void setNodeId(String nodeId) {
@@ -151,11 +153,11 @@ public final class NodeMetadata {
         }
 
         public void setNodeVersionId(int nodeVersionId) {
-            this.nodeVersion = Version.fromId(nodeVersionId);
+            this.nodeVersion = new NodeMetadataVersion(nodeVersionId);
         }
 
         public void setPreviousNodeVersionId(int previousNodeVersionId) {
-            this.previousNodeVersion = Version.fromId(previousNodeVersionId);
+            this.previousNodeVersion = new NodeMetadataVersion(previousNodeVersionId);
         }
 
         public void setOldestIndexVersion(int oldestIndexVersion) {
@@ -163,11 +165,12 @@ public final class NodeMetadata {
         }
 
         public NodeMetadata build() {
-            final Version nodeVersion;
+            final NodeMetadataVersion nodeVersion;
             final IndexVersion oldestIndexVersion;
             if (this.nodeVersion == null) {
+                // TODO poison pill for v9
                 assert Version.CURRENT.major <= Version.V_7_0_0.major + 1 : "version is required in the node metadata from v9 onwards";
-                nodeVersion = Version.V_EMPTY;
+                nodeVersion = NodeMetadataVersion.EMPTY;
             } else {
                 nodeVersion = this.nodeVersion;
             }
@@ -210,7 +213,7 @@ public final class NodeMetadata {
         @Override
         public void toXContent(XContentBuilder builder, NodeMetadata nodeMetadata) throws IOException {
             builder.field(NODE_ID_KEY, nodeMetadata.nodeId);
-            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id);
+            builder.field(NODE_VERSION_KEY, nodeMetadata.nodeVersion.id());
             builder.field(OLDEST_INDEX_VERSION_KEY, nodeMetadata.oldestIndexVersion.id());
         }
 

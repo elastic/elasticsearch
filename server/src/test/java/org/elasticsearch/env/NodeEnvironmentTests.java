@@ -16,7 +16,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -600,11 +599,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 allOf(
                     containsString("Cannot start this node"),
                     containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
-                    containsString(
-                        "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)
-                            + "]"
-                    )
+                    containsString("Revert this node to version [" + new NodeMetadataVersion(previousNodeVersion.id()) + "]")
                 )
             );
 
@@ -628,8 +623,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertThat(
                 ex.getMessage(),
                 allOf(
-                    startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"),
-                    containsString("upgrade to version [" + Build.current().minWireCompatVersion())
+                    startsWith("cannot upgrade a node with metadata version [" + new NodeMetadataVersion(oldVersion.id()) + "] directly"),
+                    containsString("upgrade to metadata version [" + NodeMetadataVersion.MINIMUM_COMPATIBLE)
                 )
             );
         }

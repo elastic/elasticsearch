@@ -70,6 +70,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.env.NodeMetadataVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -344,7 +345,7 @@ public class PersistedClusterStateService {
     @Nullable
     public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
         String nodeId = null;
-        Version version = null;
+        NodeMetadataVersion version = null;
         IndexVersion oldestIndexVersion = IndexVersions.ZERO;
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
@@ -361,7 +362,7 @@ public class PersistedClusterStateService {
                         );
                     } else if (nodeId == null) {
                         nodeId = thisNodeId;
-                        version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                        version = new NodeMetadataVersion(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
                         if (userData.containsKey(OLDEST_INDEX_VERSION_KEY)) {
                             oldestIndexVersion = IndexVersion.fromId(Integer.parseInt(userData.get(OLDEST_INDEX_VERSION_KEY)));
                         } else {

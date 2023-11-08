@@ -106,8 +106,8 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             elasticsearchException.getMessage(),
             allOf(
                 containsString("compatible with current version"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString())
+                containsString(NodeMetadataVersion.current().toString()),
+                containsString(new NodeMetadataVersion(nodeVersion.id()).toString())
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
@@ -129,14 +129,14 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                 containsString("too old"),
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString())
+                containsString(NodeMetadataVersion.current().toString()),
+                containsString(new NodeMetadataVersion(nodeVersion.id()).toString())
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(new NodeMetadataVersion(nodeVersion.id())));
     }
 
     public void testWarnsIfTooNew() throws Exception {
@@ -154,14 +154,14 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString())
+                containsString(NodeMetadataVersion.current().toString()),
+                containsString(new NodeMetadataVersion(nodeVersion.id()).toString())
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(new NodeMetadataVersion(nodeVersion.id())));
     }
 
     public void testOverwritesIfTooOld() throws Exception {
@@ -176,15 +176,15 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
                 containsString("too old"),
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString()),
+                containsString(NodeMetadataVersion.current().toString()),
+                containsString(new NodeMetadataVersion(nodeVersion.id()).toString()),
                 containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(NodeMetadataVersion.current()));
     }
 
     public void testOverwritesIfTooNew() throws Exception {
@@ -198,14 +198,14 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             allOf(
                 containsString("data loss"),
                 containsString("You should not use this tool"),
-                containsString(Version.CURRENT.toString()),
-                containsString(nodeVersion.toString()),
+                containsString(NodeMetadataVersion.current().toString()),
+                containsString(new NodeMetadataVersion(nodeVersion.id()).toString()),
                 containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)
             )
         );
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
-        assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
+        assertThat(nodeMetadata.nodeVersion(), equalTo(NodeMetadataVersion.current()));
     }
 }

@@ -55,6 +55,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.env.NodeMetadataVersion;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -1439,13 +1440,13 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
             }
             NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(Version.CURRENT, prevMetadata.nodeVersion());
+            assertEquals(NodeMetadataVersion.current(), prevMetadata.nodeVersion());
             PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
             NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(Version.V_8_0_0, metadata.nodeVersion());
+            assertEquals(NodeMetadataVersion.V_8_0_0, metadata.nodeVersion());
             for (Path p : persistedClusterStateService.getDataPaths()) {
                 NodeMetadata individualMetadata = PersistedClusterStateService.nodeMetadata(p);
-                assertEquals(Version.V_8_0_0, individualMetadata.nodeVersion());
+                assertEquals(NodeMetadataVersion.V_8_0_0, individualMetadata.nodeVersion());
             }
         }
     }

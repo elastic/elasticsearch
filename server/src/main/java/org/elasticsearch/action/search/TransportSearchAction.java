@@ -10,11 +10,13 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -278,7 +280,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new);
+        ActionListener<SearchResponse> loggingListener = listener.delegateFailureAndWrap((l, searchResponse) -> {
+            if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {
+                // Deduplicate failures by exception message and index
+                ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
+                for (ShardOperationFailedException f : groupedFailures) {
+                    if (f.status().getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false)
+                        logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                }
+            }
+            l.onResponse(searchResponse);
+        });
+        executeRequest((SearchTask) task, searchRequest, loggingListener, AsyncSearchActionProvider::new);
     }
 
     void executeRequest(

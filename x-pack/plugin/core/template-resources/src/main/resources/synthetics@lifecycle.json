@@ -12,5 +12,6 @@
   "_meta": {
     "description": "default policy for the synthetics index template installed by x-pack",
     "managed": true
-  }
+  },
+  "deprecated": ${xpack.stack.template.deprecated}
 }

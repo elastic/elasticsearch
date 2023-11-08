@@ -25,8 +25,6 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
@@ -51,6 +49,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
@@ -329,10 +328,14 @@ public class IndexDirectory extends ByteSizeDirectory {
         private final AtomicBoolean removeOnce = new AtomicBoolean();
 
         /**
-         * Listener to be completed once the file is uploaded to the object store. This is used to force the reopening of inputs.
+         * Listeners to be completed once the file is uploaded to the object store. This is used to force the reopening of inputs.
          */
-        // TODO Use something different to allow ReopeningIndexInputs to unsubscribe once they are closed
-        private final SubscribableListener<Void> listener = new SubscribableListener<>();
+        private Set<ReopeningIndexInput> listeners = null;
+
+        /**
+         * Flag to indicate if listeners have been completed
+         */
+        private boolean completed = false;
 
         /**
          * File name to use when deleting the file on filesystem (pending_segments_N files are renamed before commit)
@@ -374,7 +377,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         public void markAsUploaded() {
             if (uploaded.compareAndSet(false, true)) {
                 logger.trace("{} {} local file is marked as uploaded", cacheDirectory.getShardId(), name);
-                listener.onResponse(null);
+                completeListeners();
                 decRefOnce();
             }
         }
@@ -383,16 +386,68 @@ public class IndexDirectory extends ByteSizeDirectory {
          * Adds a {@link ReopeningIndexInput} that will be reopened once the local file has been uploaded to the object store
          */
         private void addListener(ReopeningIndexInput input) {
-            listener.addListener(ActionListener.wrap(ignored -> {
-                try {
-                    input.reopenInputFromCache();
-                } catch (IOException e) {
-                    logger.error(() -> format("{} failed to reopen {} from cache", cacheDirectory.getShardId(), input), e);
+            boolean completeNow = false;
+            synchronized (this) {
+                if (completed == false) {
+                    if (listeners == null) {
+                        listeners = new HashSet<>();
+                    }
+                    var added = listeners.add(input);
+                    assert added : "listener already exists: " + input;
+                } else {
+                    assert listeners == null;
+                    completeNow = true;
                 }
-            }, e -> {
+            }
+            if (completeNow) {
+                assert assertEmptyListeners();
+                reopenIndexInput(input);
+            }
+        }
+
+        /**
+         * Removes a {@link ReopeningIndexInput} from the set of upload listeners
+         */
+        private void removeListener(ReopeningIndexInput input) {
+            synchronized (this) {
+                assert listeners != null || completed;
+                if (completed == false) {
+                    var removed = listeners.remove(input);
+                    assert removed : "listener not found: " + input;
+                    if (listeners.isEmpty()) {
+                        listeners = null;
+                    }
+                }
+            }
+        }
+
+        private void completeListeners() {
+            Set<ReopeningIndexInput> listenersToComplete = Set.of();
+            synchronized (this) {
+                assert completed == false : "listeners already completed";
+                if (listeners != null) {
+                    listenersToComplete = listeners;
+                    listeners = null;
+                }
+                completed = true;
+            }
+            listenersToComplete.forEach(this::reopenIndexInput);
+        }
+
+        private void reopenIndexInput(ReopeningIndexInput input) {
+            try {
+                input.reopenInputFromCache();
+            } catch (Exception e) {
                 assert false : e;
                 logger.warn(() -> format("{} unexpected exception when reopening {}", cacheDirectory.getShardId(), input), e);
-            }));
+            }
+        }
+
+        private boolean assertEmptyListeners() {
+            synchronized (this) {
+                assert listeners == null : listeners;
+            }
+            return true;
         }
 
         /**
@@ -407,6 +462,7 @@ public class IndexDirectory extends ByteSizeDirectory {
 
         @Override
         protected void closeInternal() {
+            assert assertEmptyListeners();
             final String name = this.name;
             long length = -1L;
             try {
@@ -566,6 +622,7 @@ public class IndexDirectory extends ByteSizeDirectory {
         @Override
         public synchronized void close() throws IOException {
             if (closed == false && clone == false) {
+                localFile.removeListener(this);
                 delegate.close();
             }
             closed = true;

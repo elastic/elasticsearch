@@ -244,11 +244,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testMinimumVersionSameAsNewVersion() throws Exception {
         var newVersion = VersionInformation.CURRENT;
         var oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.CURRENT.minimumCompatibilityVersion(),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -269,15 +265,16 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
 
         var minVersion = VersionUtils.randomVersionBetween(
-                random(),
-                allVersions().get(allVersions().indexOf(oldVersion.nodeVersion()) + 1),
-                newVersion.nodeVersion()
-            );
+            random(),
+            allVersions().get(allVersions().indexOf(oldVersion.nodeVersion()) + 1),
+            newVersion.nodeVersion()
+        );
 
         testMixedVersionsShardsSearch(newVersion, oldVersion, minVersion);
     }
 
-    private void testMixedVersionsShardsSearch(VersionInformation oldVersion, VersionInformation newVersion, Version minVersion) throws Exception {
+    private void testMixedVersionsShardsSearch(VersionInformation oldVersion, VersionInformation newVersion, Version minVersion)
+        throws Exception {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),

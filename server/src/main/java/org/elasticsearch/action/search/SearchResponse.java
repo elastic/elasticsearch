@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
@@ -60,6 +62,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
+    private static final Logger logger = LogManager.getLogger(SearchResponse.class);
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -559,9 +562,10 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             int running = getClusterStateCount(Cluster.Status.RUNNING);
             int partial = getClusterStateCount(Cluster.Status.PARTIAL);
             int failed = getClusterStateCount(Cluster.Status.FAILED);
+            int cancelled = getClusterStateCount(Cluster.Status.CANCELLED);
             this.ccsMinimizeRoundtrips = false;
             assert total >= 0 : "total is negative: " + total;
-            assert total == successful + skipped + running + partial + failed
+            assert total == successful + skipped + running + partial + failed + cancelled
                 : "successful + skipped + running + partial + failed is not equal to total. total: "
                     + total
                     + " successful: "
@@ -573,7 +577,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                     + " partial: "
                     + partial
                     + " failed: "
-                    + failed;
+                    + failed
+                    + " cancelled: "
+                    + cancelled;
         }
 
         private Clusters(Map<String, Cluster> clusterInfoMap) {
@@ -679,6 +685,26 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
                 return new Clusters(total, successful, skipped);
             } else {
                 return new Clusters(clusterInfoMap);
+            }
+        }
+
+        /**
+         * Changes the status of any Cluster objects with RUNNING status to CANCELLED.
+         */
+        public void notifySearchCancelled() {
+            assert clusterInfo != null : "ClusterInfo map should never be null";
+
+            for (Cluster cluster : clusterInfo.values()) {
+                if (cluster.getStatus() == Cluster.Status.RUNNING) {
+                    swapCluster(cluster.getClusterAlias(), (k, v) -> {
+                        if (v.getStatus() == Cluster.Status.RUNNING) {
+                            return new Cluster.Builder(v).setStatus(Cluster.Status.CANCELLED).build();
+                        } else {
+                            return v;
+                        }
+                    });
+                }
+                logger.warn("JJJ Clusters.notifySearchCancelled: cluster status AFTER: " + cluster.getStatus()); // FIXME - remove
             }
         }
 
@@ -801,17 +827,12 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
 
         /**
-         * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED or RUNNING status.
+         * @return true if any underlying Cluster objects have PARTIAL, SKIPPED, FAILED, RUNNING or CANCELLED status.
          *              or any Cluster is marked as timedOut.
          */
         public boolean hasPartialResults() {
             for (Cluster cluster : clusterInfo.values()) {
-                switch (cluster.getStatus()) {
-                    case PARTIAL, SKIPPED, FAILED, RUNNING -> {
-                        return true;
-                    }
-                }
-                if (cluster.isTimedOut()) {
+                if (cluster.getStatus() != Cluster.Status.SUCCESSFUL || cluster.isTimedOut()) {
                     return true;
                 }
             }
@@ -870,7 +891,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             SUCCESSFUL,  // all shards completed search
             PARTIAL,     // only some shards completed the search, partial results from cluster
             SKIPPED,     // entire cluster was skipped
-            FAILED;      // search was failed due to errors on this cluster
+            FAILED,     // search was failed due to errors on this cluster
+            CANCELLED;   // search was cancelled before it completed
 
             @Override
             public String toString() {

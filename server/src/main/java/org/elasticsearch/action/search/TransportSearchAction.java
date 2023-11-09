@@ -69,6 +69,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -570,7 +571,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (skipUnavailable) {
                         listener.onResponse(SearchResponse.empty(timeProvider::buildTookInMillis, clusters));
                     } else {
-                        listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
+                        listener.onFailure(wrapRemoteClusterFailure(clusterAlias, false, e));
                     }
                 }
             });
@@ -1465,8 +1466,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
+                boolean failImmediately = false;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    exception = wrapRemoteClusterFailure(clusterAlias, e);
+                    // TODO support minimize_roundtrips=false
+                    failImmediately = clusters.isCcsMinimizeRoundtrips();
+                    exception = wrapRemoteClusterFailure(clusterAlias, failImmediately, e);
+                    if (failImmediately) {
+                        if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+                            // don't use the force fail path if the search task is being cancelled - let it cancel naturally
+                            failImmediately = false;
+                        }
+                    }
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {
                     exceptions.accumulateAndGet(exception, (previous, current) -> {
@@ -1523,8 +1533,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
     }
 
-    private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e) {
-        return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", e);
+    /**
+     *
+     * @param clusterAlias cluster alias the error occurred on (null for local cluster)
+     * @param fatal whether this fail is "fatal" to the search and should cause it to return an error to the user
+     * @param e underlying Exception/cause
+     * @return RemoteTransportException wrapping the incoming Exception
+     */
+    private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, boolean fatal, Exception e) {
+        return new RemoteTransportException("error while communicating with remote cluster [" + clusterAlias + "]", clusterAlias, fatal, e);
     }
 
     static Map<String, OriginalIndices> getIndicesFromSearchContexts(SearchContextId searchContext, IndicesOptions indicesOptions) {

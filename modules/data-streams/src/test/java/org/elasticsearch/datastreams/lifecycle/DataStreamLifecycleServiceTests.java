@@ -1383,7 +1383,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         long delta = randomLongBetween(10, 10000);
         DataStreamLifecycleService service = new DataStreamLifecycleService(
             Settings.EMPTY,
-            client,
+            getTransportRequestsRecordingClient(),
             clusterService,
             Clock.systemUTC(),
             threadPool,

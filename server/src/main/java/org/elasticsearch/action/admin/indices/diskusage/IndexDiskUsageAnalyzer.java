@@ -314,6 +314,7 @@ final class IndexDiskUsageAnalyzer {
             if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
+            assert false : "unsupported postings format: " + termState;
         }
         return null;
     }

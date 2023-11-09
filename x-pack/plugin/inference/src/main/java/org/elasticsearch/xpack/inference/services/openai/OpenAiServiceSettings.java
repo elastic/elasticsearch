@@ -49,7 +49,7 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
         if (url.isEmpty()) {
             validationException.addValidationError(MapParsingUtils.mustBeNonEmptyString(URL, ModelConfigurations.TASK_SETTINGS));
         } else {
-            uri = convertToUri(url, URL, ModelConfigurations.TASK_SETTINGS, validationException);
+            uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         }
 
         if (validationException.validationErrors().isEmpty() == false) {

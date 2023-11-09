@@ -38,7 +38,10 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("[service_settings] does not contain the required setting [%s]", HuggingFaceElserServiceSettings.URL)
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] does not contain the required setting [%s];",
+                    HuggingFaceElserServiceSettings.URL
+                )
             )
         );
     }
@@ -52,7 +55,13 @@ public class HuggingFaceElserServiceSettingsTests extends AbstractWireSerializin
 
         assertThat(
             thrownException.getMessage(),
-            containsString(Strings.format("Invalid url [%s] received in setting [service_settings]", url))
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];",
+                    url,
+                    HuggingFaceElserServiceSettings.URL
+                )
+            )
         );
     }
 

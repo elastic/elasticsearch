@@ -16,7 +16,9 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -158,7 +160,81 @@ public class MapParsingUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors().get(0), is("[scope] does not contain the required setting [abc]"));
     }
 
-    // TODO add more tests for extract methods
+    public void testExtractRequiredSecureString_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertNull(createdString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractRequiredString_CreatesString() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractRequiredString(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(createdString);
+        assertThat(createdString, is("value"));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredString_AddsException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractRequiredSecureString(map, "abc", "scope", validation);
+
+        assertNull(createdString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertThat(map.size(), is(1));
+        assertThat(validation.validationErrors().get(0), is("[scope] does not contain the required setting [abc]"));
+    }
+
+    public void testExtractRequiredString_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertNull(createdString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractOptionalString_CreatesString() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(createdString);
+        assertThat(createdString, is("value"));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalString_DoesNotAddException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractOptionalString(map, "abc", "scope", validation);
+
+        assertNull(createdString);
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalString_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertNull(createdString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
 
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
         return new HashMap<>(aMap);

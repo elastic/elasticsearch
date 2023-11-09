@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.rolemapping;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +42,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
     private RoleMapperExpression rules = null;
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
+    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
 
     public PutRoleMappingRequest(StreamInput in) throws IOException {
         super(in);
@@ -53,6 +55,9 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.PUT_ROLE_MAPPING_REQUEST_ACTIVE_SHARD)) {
+            this.activeShardCount = ActiveShardCount.readFrom(in);
+        }
     }
 
     public PutRoleMappingRequest() {}
@@ -149,6 +154,14 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         return metadata;
     }
 
+    public ActiveShardCount getActiveShardCount() {
+        return activeShardCount;
+    }
+
+    public void setActiveShardCount(ActiveShardCount activeShardCount) {
+        this.activeShardCount = activeShardCount;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -160,6 +173,9 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         }
         ExpressionParser.writeExpression(rules, out);
         out.writeGenericMap(metadata);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.PUT_ROLE_MAPPING_REQUEST_ACTIVE_SHARD)) {
+            activeShardCount.writeTo(out);
+        }
         refreshPolicy.writeTo(out);
     }
 

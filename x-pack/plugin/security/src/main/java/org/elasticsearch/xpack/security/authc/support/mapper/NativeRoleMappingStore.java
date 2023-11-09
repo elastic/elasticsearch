@@ -243,6 +243,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     .setId(getIdForName(mapping.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
+                    .setWaitForActiveShards(request.getActiveShardCount())
                     .request(),
                 new ActionListener<DocWriteResponse>() {
                     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.action.rolemapping;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.reservedstate.NonStateTransformResult;
@@ -126,6 +127,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         });
 
         for (var request : requests) {
+            // Avoid waiting for search shards since the security index may still be bootstrapping
+            request.setActiveShardCount(ActiveShardCount.NONE);
             roleMappingStore.putRoleMapping(request, taskListener);
         }
 

@@ -77,7 +77,7 @@ public class TumblingWindow implements Executable {
      */
     private static final int MISSING_EVENTS_SEQUENCES_CHECK_BATCH_SIZE = 1000;
 
-    private final Logger log = LogManager.getLogger(TumblingWindow.class);
+    private static final Logger log = LogManager.getLogger(TumblingWindow.class);
 
     /**
      * Simple cache for removing duplicate strings (such as index name or common keys).

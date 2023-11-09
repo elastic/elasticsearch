@@ -942,7 +942,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         public final class ClusterNode {
-            private final Logger logger = LogManager.getLogger(ClusterNode.class);
+            private static final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
             Coordinator coordinator;

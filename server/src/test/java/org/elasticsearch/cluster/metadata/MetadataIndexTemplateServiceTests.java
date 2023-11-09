@@ -1016,7 +1016,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
         assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", randomBoolean()));
 
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct"), null, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -1033,7 +1033,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
         assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), "index", true));
 
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), null, List.of("ct"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -1051,7 +1051,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
         assertNull(MetadataIndexTemplateService.findV2Template(state.metadata(), indexName, true));
 
-        ComponentTemplate ct = ComponentTemplateTests.randomInstance();
+        ComponentTemplate ct = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = service.addComponentTemplate(state, true, "ct", ct);
         ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("index-*"), null, List.of("ct"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
@@ -1789,17 +1789,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveRequiredAndNonRequiredComponents() throws Exception {
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate(
-            Collections.singletonList("pattern"),
-            null,
-            List.of("required1", "non-required", "required2"),
-            null,
-            null,
-            null,
-            null,
-            null,
-            Collections.singletonList("non-required")
-        );
+        ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("pattern"))
+            .componentTemplates(List.of("required1", "non-required", "required2"))
+            .ignoreMissingComponentTemplates(Collections.singletonList("non-required"))
+            .build();
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
 
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
@@ -2009,7 +2003,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testPutExistingComponentTemplateIsNoop() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        ComponentTemplate componentTemplate = ComponentTemplateTests.randomInstance();
+        ComponentTemplate componentTemplate = ComponentTemplateTests.randomNonDeprecatedInstance();
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
         assertNotNull(state.metadata().componentTemplates().get("foo"));
@@ -2423,17 +2417,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Arrays.asList("metrics-test-*"),
-            null,
-            componentTemplates,
-            1L,
-            null,
-            null,
-            null,
-            null,
-            ignoreMissingComponentTemplates
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Arrays.asList("metrics-test-*"))
+            .componentTemplates(componentTemplates)
+            .priority(1L)
+            .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
+            .build();
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
 
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
@@ -2452,17 +2441,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Arrays.asList("metrics-foo-*"),
-            null,
-            componentTemplates,
-            1L,
-            null,
-            null,
-            null,
-            null,
-            ignoreMissingComponentTemplates
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Arrays.asList("metrics-foo-*"))
+            .componentTemplates(componentTemplates)
+            .priority(1L)
+            .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
+            .build();
 
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, indexTemplateName, template);
@@ -2492,17 +2476,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ignoreMissingComponentTemplates.add("bar");
         ignoreMissingComponentTemplates.add("foo");
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Arrays.asList("metrics-foo-*"),
-            null,
-            componentTemplates,
-            1L,
-            null,
-            null,
-            null,
-            null,
-            ignoreMissingComponentTemplates
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Arrays.asList("metrics-foo-*"))
+            .componentTemplates(componentTemplates)
+            .priority(1L)
+            .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
+            .build();
 
         ComponentTemplate ct = new ComponentTemplate(new Template(Settings.EMPTY, null, null), null, null);
 
@@ -2595,6 +2574,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             parsedMappings.get(1),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
         );
+    }
+
+    public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+
+        ComponentTemplate ct = ComponentTemplateTests.randomInstance(false, true);
+        state = service.addComponentTemplate(state, true, "ct", ct);
+
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test*"))
+            .componentTemplates(List.of("ct"))
+            .version(1L)
+            .build();
+        service.addIndexTemplateV2(state, false, "foo", it);
+
+        assertWarnings("index template [foo] uses deprecated component template [ct]");
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

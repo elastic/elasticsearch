@@ -1217,15 +1217,11 @@ public class ApiKeyService {
         }
     }
 
-    /**
-     * Gets the API Key from the <code>Authorization</code> header if the header begins with
-     * <code>ApiKey </code>
-     */
-    ApiKeyCredentials getCredentialsFromThreadContext(ThreadContext threadContext) {
+    ApiKeyCredentials parseCredentialsFromApiKeyString(SecureString apiKeyString) {
         if (false == isEnabled()) {
             return null;
         }
-        return getCredentialsFromHeader(threadContext.getHeader("Authorization"), ApiKey.Type.REST);
+        return parseApiKey(apiKeyString, ApiKey.Type.REST);
     }
 
     static ApiKeyCredentials getCredentialsFromHeader(final String header, ApiKey.Type expectedType) {

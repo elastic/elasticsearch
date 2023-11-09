@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -48,7 +46,6 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
 
     public static final String NAME = AddIndexBlockAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
-    protected Logger logger = LogManager.getLogger(getClass());
 
     @Inject
     public TransportVerifyShardIndexBlockAction(

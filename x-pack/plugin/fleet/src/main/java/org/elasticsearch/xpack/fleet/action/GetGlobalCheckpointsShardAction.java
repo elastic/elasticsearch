@@ -33,6 +33,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeoutException;
 
@@ -108,6 +110,13 @@ public class GetGlobalCheckpointsShardAction extends ActionType<GetGlobalCheckpo
 
         public ShardId getShardId() {
             return shardId;
+        }
+
+        @Override
+        public List<ShardId> shards() {
+            var shards = new ArrayList<>(super.shards());
+            shards.add(shardId);
+            return shards;
         }
 
         public TimeValue timeout() {

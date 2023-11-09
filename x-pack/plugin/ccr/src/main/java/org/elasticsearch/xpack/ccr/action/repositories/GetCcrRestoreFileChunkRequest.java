@@ -18,10 +18,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.ccr.Ccr.TRANSPORT_VERSION_ACTION_WITH_SHARD_ID;
 
-public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
+public class GetCcrRestoreFileChunkRequest extends ActionRequest implements RemoteClusterAwareRequest, IndicesRequest.ShardsRequest {
 
     private final DiscoveryNode node;
     private final String sessionUUID;
@@ -81,6 +83,11 @@ public class GetCcrRestoreFileChunkRequest extends ActionRequest implements Remo
 
     ShardId getShardId() {
         return shardId;
+    }
+
+    @Override
+    public List<ShardId> shards() {
+        return Collections.singletonList(shardId);
     }
 
     @Override

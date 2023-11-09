@@ -29,7 +29,6 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
-import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -399,11 +399,12 @@ public class RBACEngine implements AuthorizationEngine {
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
 
                     IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup);
-                    if (request instanceof SingleShardRequest<?> ssr && ssr.getInternalShardId() != null) {
-                        var shardId = ssr.getInternalShardId();
-                        var shardIdAccessPermissions = result.getIndicesAccessControl().getIndexPermissions(shardId.getIndexName());
-                        if (shardIdAccessPermissions == null) {
-                            throw new IllegalArgumentException("this is unauthorized");
+                    if (request instanceof IndicesRequest.ShardsRequest shardsRequest && shardsRequest.shards() != null) {
+                        for (ShardId shardId : shardsRequest.shards()) {
+                            if (shardId != null && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl()) == false) {
+                                listener.onResponse(IndexAuthorizationResult.DENIED);
+                                return;
+                            }
                         }
                     }
                     delegateListener.onResponse(result);
@@ -412,6 +413,24 @@ public class RBACEngine implements AuthorizationEngine {
         } else {
             listener.onResponse(IndexAuthorizationResult.DENIED);
         }
+    }
+
+    private static boolean shardIdAuthorized(IndicesRequest request, ShardId shardId, IndicesAccessControl accessControl) {
+        var shardIdAccessPermissions = accessControl.getIndexPermissions(shardId.getIndexName());
+        if (shardIdAccessPermissions != null) {
+            return true;
+        }
+
+        logger.warn(
+            Strings.format(
+                "bad request of type [%s], request's stated indices %s are authorized but specified internal shard "
+                    + "ID %s is not authorized",
+                request.getClass().getCanonicalName(),
+                request.indices(),
+                shardId
+            )
+        );
+        return false;
     }
 
     private static boolean allowsRemoteIndices(TransportRequest transportRequest) {

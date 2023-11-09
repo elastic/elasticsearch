@@ -24,6 +24,8 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -88,7 +90,7 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         }
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest implements IndicesRequest.ShardsRequest {
 
         private final Set<ShardId> shards;
         private final OriginalIndices originalIndices;
@@ -161,6 +163,11 @@ public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.
         @Override
         public String[] indices() {
             return originalIndices.indices();
+        }
+
+        @Override
+        public Collection<ShardId> shards() {
+            return Collections.unmodifiableSet(shards);
         }
 
         @Override

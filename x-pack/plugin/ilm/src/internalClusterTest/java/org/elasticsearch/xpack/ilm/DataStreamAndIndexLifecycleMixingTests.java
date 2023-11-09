@@ -167,7 +167,8 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
 
         indexDocs(dataStreamName, 2);
 
-        // data stream was rolled over and has 3 indices, two managed by ILM and the write index will be unmanaged
+        // data stream was rolled over and has 3 indices, two managed by ILM and one will be managed by data stream lifecycle with infinite
+        // retention
         assertBusy(() -> {
             GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
             GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -203,21 +204,15 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             IndexLifecycleExplainResponse thirdGenerationExplain = explainResponse.getIndexResponses().get(writeIndex);
             assertThat(thirdGenerationExplain.managedByILM(), is(false));
 
-            // the write index is not managed by DSL either
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
                 ExplainDataStreamLifecycleAction.INSTANCE,
                 new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
             ).actionGet();
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataStreamLifecycle writeIndexDataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);
-            assertThat(writeIndexDataStreamLifecycleExplain.isManagedByLifecycle(), is(false));
+            assertThat(writeIndexDataStreamLifecycleExplain.isManagedByLifecycle(), is(true));
+            assertThat(writeIndexDataStreamLifecycleExplain.getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
         });
-
-        // let's make the write index of the data stream managed by DSL
-        client().execute(
-            PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, new DataStreamLifecycle())
-        ).actionGet();
 
         // at this point we should be able to rollover the data stream by indexing only one document (as the data stream lifecycle is
         // configured to)
@@ -238,7 +233,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
             new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getEffectiveDataRetention())
-        ).actionGet();
+        );
 
         assertBusy(() -> {
             List<String> backingIndices = getBackingIndices(dataStreamName);
@@ -556,21 +551,17 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(secondGenerationExplain.getPhase(), is("hot"));
             assertThat(secondGenerationExplain.getStep(), is(PhaseCompleteStep.NAME));
 
-            // the write index is unmanaged
+            // the write index is managed by the data stream lifecycle
             ExplainDataStreamLifecycleAction.Response dataStreamLifecycleExplainResponse = client().execute(
                 ExplainDataStreamLifecycleAction.INSTANCE,
                 new ExplainDataStreamLifecycleAction.Request(new String[] { writeIndex })
             ).actionGet();
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(1));
             ExplainIndexDataStreamLifecycle dataStreamLifecycleExplain = dataStreamLifecycleExplainResponse.getIndices().get(0);
-            assertThat(dataStreamLifecycleExplain.isManagedByLifecycle(), is(false));
+            assertThat(dataStreamLifecycleExplain.isManagedByLifecycle(), is(true));
+            assertThat(dataStreamLifecycleExplain.getLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+            assertThat(dataStreamLifecycleExplain.getIndex(), is(writeIndex));
         });
-
-        // let's make the write index of the data stream managed by DSL
-        client().execute(
-            PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, new DataStreamLifecycle())
-        ).actionGet();
 
         // at this point, the write index of the data stream is managed by data stream lifecycle and not by ILM anymore so we can just index
         // one document to trigger the rollover
@@ -580,7 +571,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
             new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getEffectiveDataRetention())
-        ).actionGet();
+        );
 
         // data stream was rolled over and has 4 indices, 2 managed by ILM, and 2 managed by the custom data stream lifecycle
         assertBusy(() -> {
@@ -640,7 +631,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
             new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, TimeValue.timeValueDays(90), false)
-        ).actionGet();
+        );
 
         // At this point the data stream is not managed by the data stream lifecycle and all the indices fallback to ILM.
         assertBusy(() -> {

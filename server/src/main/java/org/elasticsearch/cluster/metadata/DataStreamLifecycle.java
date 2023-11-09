@@ -57,6 +57,8 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Setting.Property.NodeScope
     );
 
+    public static final DataStreamLifecycle DEFAULT = new DataStreamLifecycle();
+
     public static final String DATA_STREAM_LIFECYCLE_ORIGIN = "data_stream_lifecycle";
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");

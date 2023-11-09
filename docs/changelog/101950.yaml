@@ -1,0 +1,5 @@
+pr: 101950
+summary: Derive expected shard size from forecast field
+area: Allocation
+type: enhancement
+issues: []

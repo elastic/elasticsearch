@@ -4199,7 +4199,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
             )
         );
-        checkAndCallWaitForStartedOrClosedShardListeners();
     }
 
 }

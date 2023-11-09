@@ -25,7 +25,13 @@ if (BuildParams.inFipsJvm) {
     File fipsTrustStore = new File(fipsResourcesDir, 'cacerts.bcfks')
     def bcFips = dependencies.create('org.bouncycastle:bc-fips:1.0.2.4')
     def bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.17')
-
+    def manualDebug = false; //change this to manually debug bouncy castle in an IDE
+    if(manualDebug) {
+      bcFips = dependencies.create('org.bouncycastle:bc-fips-debug:1.0.2.4')
+      bcTlsFips = dependencies.create('org.bouncycastle:bctls-fips:1.0.17'){
+        exclude group: 'org.bouncycastle', module: 'bc-fips'  // to avoid jar hell
+      }
+    }
     pluginManager.withPlugin('java-base') {
       TaskProvider<ExportElasticsearchBuildResourcesTask> fipsResourcesTask = project.tasks.register('fipsResources', ExportElasticsearchBuildResourcesTask)
       fipsResourcesTask.configure {

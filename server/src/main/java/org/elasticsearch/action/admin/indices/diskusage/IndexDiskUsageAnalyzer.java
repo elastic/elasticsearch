@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.diskusage;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.backward_codecs.lucene84.Lucene84PostingsFormat;
+import org.apache.lucene.backward_codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.KnnVectorsReader;
@@ -18,7 +19,7 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
+import org.apache.lucene.codecs.lucene99.Lucene99PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
@@ -301,6 +302,9 @@ final class IndexDiskUsageAnalyzer {
     private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
+            if (termState instanceof final Lucene99PostingsFormat.IntBlockTermState blockTermState) {
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
@@ -310,6 +314,7 @@ final class IndexDiskUsageAnalyzer {
             if (termState instanceof final Lucene50PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
+            assert false : "unsupported postings format: " + termState;
         }
         return null;
     }

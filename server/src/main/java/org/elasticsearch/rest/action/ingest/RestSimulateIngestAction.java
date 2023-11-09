@@ -53,7 +53,12 @@ public class RestSimulateIngestAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_ingest/_simulate"), new Route(POST, "/_ingest/_simulate"));
+        return List.of(
+            new Route(GET, "/_ingest/_simulate"),
+            new Route(POST, "/_ingest/_simulate"),
+            new Route(GET, "/_ingest/{index}/_simulate"),
+            new Route(POST, "/_ingest/{index}/_simulate")
+        );
     }
 
     @Override

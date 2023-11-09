@@ -94,6 +94,10 @@ POST /_ingest/_simulate
 
 `GET /_ingest/_simulate`
 
+`POST /_ingest/<target>/_simulate`
+
+`GET /_ingest/<target>/_simulate`
+
 [[simulate-ingest-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -128,16 +132,19 @@ definitions that are already in the system. This can be used to replace
 existing pipeline definitions or to create new ones. The pipeline
 substitutions are only used within this request.
 
+[[simulate-ingest-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string)
+The index to simulate ingesting into. This can be overridden by specifying an index
+on each document. If you provide a <target> in the request path, it is used for any
+documents that don’t explicitly specify an index argument.
 
 [[simulate-ingest-api-query-params]]
 ==== {api-query-parms-title}
 
-`<index>`::
-(Optional, string)
-The index to simulate ingesting into. This can be overridden by specifying an index
-on each document.
-
-`<pipeline>`::
+`pipeline`::
 (Optional, string)
 Pipeline to use as the default pipeline. This can be used to override the default pipeline
 of the index being ingested into.

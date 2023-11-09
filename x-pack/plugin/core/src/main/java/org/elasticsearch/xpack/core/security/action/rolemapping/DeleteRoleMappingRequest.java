@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,15 +23,11 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
 
     private String name;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
-    private ActiveShardCount activeShardCount = ActiveShardCount.DEFAULT;
 
     public DeleteRoleMappingRequest(StreamInput in) throws IOException {
         super(in);
         name = in.readString();
         refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_MAPPING_REQUESTS_WITH_ACTIVE_SHARD_COUNT)) {
-            this.activeShardCount = ActiveShardCount.readFrom(in);
-        }
     }
 
     public DeleteRoleMappingRequest() {}
@@ -66,21 +60,10 @@ public class DeleteRoleMappingRequest extends ActionRequest implements WriteRequ
         return name;
     }
 
-    public ActiveShardCount getActiveShardCount() {
-        return activeShardCount;
-    }
-
-    public void setActiveShardCount(ActiveShardCount activeShardCount) {
-        this.activeShardCount = activeShardCount;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
         refreshPolicy.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_MAPPING_REQUESTS_WITH_ACTIVE_SHARD_COUNT)) {
-            activeShardCount.writeTo(out);
-        }
     }
 }

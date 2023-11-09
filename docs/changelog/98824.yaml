@@ -1,6 +1,0 @@
-pr: 98824
-summary: Consider node shutdown in `DataTierAllocationDecider`
-area: "Allocation"
-type: bug
-issues:
- - 97207

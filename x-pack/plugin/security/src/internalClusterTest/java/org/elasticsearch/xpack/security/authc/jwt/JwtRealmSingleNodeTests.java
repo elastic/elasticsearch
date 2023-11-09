@@ -188,53 +188,56 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testAnyJwtRealmWillExtractTheToken() throws ParseException {
-        final List<JwtRealm> jwtRealms = getJwtRealms();
-        final JwtRealm jwtRealm = randomFrom(jwtRealms);
+        for (JwtRealm jwtRealm : getJwtRealms()) {
+            final String sharedSecret = randomBoolean() ? randomAlphaOfLengthBetween(10, 20) : null;
+            final String iss = randomAlphaOfLengthBetween(5, 18);
+            final List<String> aud = List.of(randomAlphaOfLengthBetween(5, 18), randomAlphaOfLengthBetween(5, 18));
+            final String sub = randomAlphaOfLengthBetween(5, 18);
 
-        final String sharedSecret = randomBoolean() ? randomAlphaOfLengthBetween(10, 20) : null;
-        final String iss = randomAlphaOfLengthBetween(5, 18);
-        final String aud = randomAlphaOfLengthBetween(5, 18);
-        final String sub = randomAlphaOfLengthBetween(5, 18);
+            // JWT1 has all iss, sub, aud, principal claims.
+            final SignedJWT signedJWT1 = getSignedJWT(Map.of("iss", iss, "aud", aud, "sub", sub));
+            final ThreadContext threadContext1 = prepareThreadContext(signedJWT1, sharedSecret);
+            final var token1 = (JwtAuthenticationToken) jwtRealm.token(threadContext1);
+            final String principal1 = Strings.format("'aud:%s,%s' 'iss:%s' 'sub:%s'", aud.get(0), aud.get(1), iss, sub);
+            assertJwtToken(token1, principal1, sharedSecret, signedJWT1);
 
-        // Realm 1 will extract the token because the JWT has all iss, sub, aud, principal claims.
-        // Their values do not match what realm 1 expects but that does not matter when extracting the token
-        final SignedJWT signedJWT1 = getSignedJWT(Map.of("iss", iss, "aud", aud, "sub", sub));
-        final ThreadContext threadContext1 = prepareThreadContext(signedJWT1, sharedSecret);
-        final var token1 = (JwtAuthenticationToken) jwtRealm.token(threadContext1);
-        final String principal1 = Strings.format("%s/%s/%s/%s", iss, aud, sub, sub);
-        assertJwtToken(token1, principal1, sharedSecret, signedJWT1);
+            // JWT2, JWT3, and JWT4 don't have the sub claim.
+            // Some realms define fallback claims for the sub claim (which themselves might not exist),
+            // but that is not relevant for token building (it's used for user principal assembling).
+            final String appId = randomAlphaOfLengthBetween(5, 18);
+            final SignedJWT signedJWT2 = getSignedJWT(Map.of("iss", iss, "aud", aud, "client_id", sub, "appid", appId));
+            final ThreadContext threadContext2 = prepareThreadContext(signedJWT2, sharedSecret);
+            final var token2 = (JwtAuthenticationToken) jwtRealm.token(threadContext2);
+            final String principal2 = Strings.format(
+                "'appid:%s' 'aud:%s,%s' 'client_id:%s' 'iss:%s'",
+                appId,
+                aud.get(0),
+                aud.get(1),
+                sub,
+                iss
+            );
+            assertJwtToken(token2, principal2, sharedSecret, signedJWT2);
 
-        // Realm 2 for extracting the token from the following JWT
-        // Because it does not have the sub claim but client_id, which is configured as fallback by realm 2
-        final String appId = randomAlphaOfLengthBetween(5, 18);
-        final SignedJWT signedJWT2 = getSignedJWT(Map.of("iss", iss, "aud", aud, "client_id", sub, "appid", appId));
-        final ThreadContext threadContext2 = prepareThreadContext(signedJWT2, sharedSecret);
-        final var token2 = (JwtAuthenticationToken) jwtRealm.token(threadContext2);
-        final String principal2 = Strings.format("%s/%s/%s/%s", iss, aud, sub, appId);
-        assertJwtToken(token2, principal2, sharedSecret, signedJWT2);
+            final String email = randomAlphaOfLengthBetween(5, 18) + "@example.com";
+            final SignedJWT signedJWT3 = getSignedJWT(Map.of("iss", iss, "aud", aud, "oid", sub, "email", email));
+            final ThreadContext threadContext3 = prepareThreadContext(signedJWT3, sharedSecret);
+            final var token3 = (JwtAuthenticationToken) jwtRealm.token(threadContext3);
+            final String principal3 = Strings.format("'aud:%s,%s' 'email:%s' 'iss:%s' 'oid:%s'", aud.get(0), aud.get(1), email, iss, sub);
+            assertJwtToken(token3, principal3, sharedSecret, signedJWT3);
 
-        // Realm 3 will extract the token from the following JWT
-        // Because it has the oid claim which is configured as a fallback by realm 3
-        final String email = randomAlphaOfLengthBetween(5, 18) + "@example.com";
-        final SignedJWT signedJWT3 = getSignedJWT(Map.of("iss", iss, "aud", aud, "oid", sub, "email", email));
-        final ThreadContext threadContext3 = prepareThreadContext(signedJWT3, sharedSecret);
-        final var token3 = (JwtAuthenticationToken) jwtRealm.token(threadContext3);
-        final String principal3 = Strings.format("%s/%s/%s/%s", iss, aud, sub, email);
-        assertJwtToken(token3, principal3, sharedSecret, signedJWT3);
+            final SignedJWT signedJWT4 = getSignedJWT(Map.of("iss", iss, "aud", aud, "azp", sub, "email", email));
+            final ThreadContext threadContext4 = prepareThreadContext(signedJWT4, sharedSecret);
+            final var token4 = (JwtAuthenticationToken) jwtRealm.token(threadContext4);
+            final String principal4 = Strings.format("'aud:%s,%s' 'azp:%s' 'email:%s' 'iss:%s'", aud.get(0), aud.get(1), sub, email, iss);
+            assertJwtToken(token4, principal4, sharedSecret, signedJWT4);
 
-        // The JWT does not match any realm's configuration, a token with generic token principal will be extracted
-        final SignedJWT signedJWT4 = getSignedJWT(Map.of("iss", iss, "aud", aud, "azp", sub, "email", email));
-        final ThreadContext threadContext4 = prepareThreadContext(signedJWT4, sharedSecret);
-        final var token4 = (JwtAuthenticationToken) jwtRealm.token(threadContext4);
-        final String principal4 = Strings.format("<unrecognized-jwt> by %s", iss);
-        assertJwtToken(token4, principal4, sharedSecret, signedJWT4);
-
-        // The JWT does not have an issuer, a token with generic token principal will be extracted
-        final SignedJWT signedJWT5 = getSignedJWT(Map.of("aud", aud, "sub", sub));
-        final ThreadContext threadContext5 = prepareThreadContext(signedJWT5, sharedSecret);
-        final var token5 = (JwtAuthenticationToken) jwtRealm.token(threadContext5);
-        final String principal5 = "<unrecognized-jwt>";
-        assertJwtToken(token5, principal5, sharedSecret, signedJWT5);
+            // JWT5 does not have an issuer.
+            final SignedJWT signedJWT5 = getSignedJWT(Map.of("aud", aud, "sub", sub));
+            final ThreadContext threadContext5 = prepareThreadContext(signedJWT5, sharedSecret);
+            final var token5 = (JwtAuthenticationToken) jwtRealm.token(threadContext5);
+            final String principal5 = Strings.format("'aud:%s,%s' 'sub:%s'", aud.get(0), aud.get(1), sub);
+            assertJwtToken(token5, principal5, sharedSecret, signedJWT5);
+        }
     }
 
     public void testJwtRealmReturnsNullTokenWhenJwtCredentialIsAbsent() {

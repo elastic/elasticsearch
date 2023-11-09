@@ -245,7 +245,13 @@ public class InferenceProcessor extends AbstractProcessor {
                     }
                 }
             }
-            return InferModelAction.Request.forTextInput(modelId, inferenceConfig, requestInputs);
+            return InferModelAction.Request.forTextInput(
+                modelId,
+                inferenceConfig,
+                requestInputs,
+                previouslyLicensed,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+            );
         } else {
             Map<String, Object> fields = new HashMap<>(ingestDocument.getSourceAndMetadata());
             // Add ingestMetadata as previous processors might have added metadata from which we are predicting (see: foreach processor)
@@ -254,7 +260,13 @@ public class InferenceProcessor extends AbstractProcessor {
             }
 
             LocalModel.mapFieldsIfNecessary(fields, fieldMap);
-            return InferModelAction.Request.forIngestDocs(modelId, List.of(fields), inferenceConfig, previouslyLicensed);
+            return InferModelAction.Request.forIngestDocs(
+                modelId,
+                List.of(fields),
+                inferenceConfig,
+                previouslyLicensed,
+                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+            );
         }
     }
 

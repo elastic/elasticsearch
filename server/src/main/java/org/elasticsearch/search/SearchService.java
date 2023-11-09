@@ -739,7 +739,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                processScroll(request, readerContext, searchContext);
+                processScroll(request, searchContext);
                 QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
@@ -830,7 +830,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ) {
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
-                processScroll(request, readerContext, searchContext);
+                processScroll(request, searchContext);
                 searchContext.addQueryResult();
                 QueryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
@@ -1506,7 +1506,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.docIdsToLoad(docIdsToLoad);
     }
 
-    private static void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
+    private static void processScroll(InternalScrollSearchRequest request, SearchContext context) {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();

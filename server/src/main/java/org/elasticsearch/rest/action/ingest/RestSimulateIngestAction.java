@@ -132,18 +132,20 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         return BytesReference.fromByteBuffers(buffers);
     }
 
-    /**
+    /*
      * The simulate ingest API is intended to have inputs and outputs that are formatted similarly to the simulate pipeline API for the
      * sake of consistency. But internally it uses the same code as the _bulk API, so that we have confidence that we are simulating what
      * really happens on ingest. This class is used in place of RestToXContentListener to transform simulate-style outputs into an
      * simulate-style xcontent.
+     * Non-private for unit testing
      */
-    private static class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
+    static class SimulateIngestRestToXContentListener extends RestToXContentListener<BulkResponse> {
 
         SimulateIngestRestToXContentListener(RestChannel channel) {
             super(channel);
         }
 
+        @Override
         public RestResponse buildResponse(BulkResponse response, XContentBuilder builder) throws Exception {
             assert response.isFragment() == false;
             toXContent(response, builder, channel.request());

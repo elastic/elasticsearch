@@ -8,11 +8,23 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.rest.AbstractRestChannel;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -139,5 +151,99 @@ public class RestSimulateIngestActionTests extends ESTestCase {
         BytesReference bulkXcontentBytes = RestSimulateIngestAction.convertToBulkRequestXContentBytes(sourceMap);
         String bulkRequestJson = XContentHelper.convertToJson(bulkXcontentBytes, false, XContentType.JSON);
         assertThat(bulkRequestJson, equalTo(expectedOutputJson));
+    }
+
+    public void testSimulateIngestRestToXContentListener() throws Exception {
+        // First, make sure it works with success responses:
+        BulkItemResponse[] responses = new BulkItemResponse[3];
+        responses[0] = getSuccessBulkItemResponse("123", "{\"foo\": \"bar\"}");
+        responses[1] = getFailureBulkItemResponse("678", "This has failed");
+        responses[2] = getSuccessBulkItemResponse("456", "{\"bar\": \"baz\"}");
+        BulkResponse bulkResponse = new BulkResponse(responses, randomLongBetween(0, 50000));
+        String expectedXContent = """
+            {
+              "docs" : [
+                {
+                  "doc" : {
+                    "_id" : "123",
+                    "_index" : "index1",
+                    "_version" : 3,
+                    "_source" : {
+                      "foo" : "bar"
+                    },
+                    "executed_pipelines" : [
+                      "pipeline1",
+                      "pipeline2"
+                    ]
+                  }
+                },
+                {
+                  "doc" : {
+                    "_id" : "678",
+                    "_index" : "index1",
+                    "error" : {
+                      "type" : "runtime_exception",
+                      "reason" : "This has failed"
+                    }
+                  }
+                },
+                {
+                  "doc" : {
+                    "_id" : "456",
+                    "_index" : "index1",
+                    "_version" : 3,
+                    "_source" : {
+                      "bar" : "baz"
+                    },
+                    "executed_pipelines" : [
+                      "pipeline1",
+                      "pipeline2"
+                    ]
+                  }
+                }
+              ]
+            }""";
+        testSimulateIngestRestToXContentListener(bulkResponse, expectedXContent);
+    }
+
+    private BulkItemResponse getFailureBulkItemResponse(String id, String failureMessage) {
+        return BulkItemResponse.failure(
+            randomInt(),
+            randomFrom(DocWriteRequest.OpType.values()),
+            new BulkItemResponse.Failure("index1", id, new RuntimeException(failureMessage))
+        );
+    }
+
+    private BulkItemResponse getSuccessBulkItemResponse(String id, String source) {
+        ByteBuffer[] sourceByteBuffer = new ByteBuffer[1];
+        sourceByteBuffer[0] = ByteBuffer.wrap(source.getBytes(StandardCharsets.UTF_8));
+        return BulkItemResponse.success(
+            randomInt(),
+            randomFrom(DocWriteRequest.OpType.values()),
+            new SimulateIndexResponse(
+                id,
+                "index1",
+                3,
+                BytesReference.fromByteBuffers(sourceByteBuffer),
+                XContentType.JSON,
+                List.of("pipeline1", "pipeline2")
+            )
+        );
+    }
+
+    private void testSimulateIngestRestToXContentListener(BulkResponse bulkResponse, String expectedResult) throws Exception {
+        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
+        final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        RestSimulateIngestAction.SimulateIngestRestToXContentListener listener =
+            new RestSimulateIngestAction.SimulateIngestRestToXContentListener(new AbstractRestChannel(request, true) {
+                @Override
+                public void sendResponse(RestResponse response) {
+                    responseSetOnce.set(response);
+                }
+            });
+        listener.onResponse(bulkResponse);
+        RestResponse response = responseSetOnce.get();
+        String bulkRequestJson = XContentHelper.convertToJson(response.content(), true, true, XContentType.JSON);
+        assertThat(bulkRequestJson, equalTo(expectedResult));
     }
 }

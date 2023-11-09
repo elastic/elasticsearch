@@ -54,12 +54,15 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
                 randomAlphaOfLength(10),
                 Stream.generate(InferModelActionRequestTests::randomMap).limit(randomInt(10)).collect(Collectors.toList()),
                 randomInferenceConfigUpdate(),
-                randomBoolean()
+                randomBoolean(),
+                TimeValue.timeValueMillis(randomLongBetween(1, 2048))
             )
             : Request.forTextInput(
                 randomAlphaOfLength(10),
                 randomInferenceConfigUpdate(),
-                Arrays.asList(generateRandomStringArray(3, 5, false))
+                Arrays.asList(generateRandomStringArray(3, 5, false)),
+                randomBoolean(),
+                TimeValue.timeValueMillis(randomLongBetween(1, 2048))
             );
 
         request.setHighPriority(randomBoolean());
@@ -114,7 +117,6 @@ public class InferModelActionRequestTests extends AbstractBWCWireSerializationTe
 
         var r = new Request(modelId, update, objectsToInfer, textInput, timeout, previouslyLicensed);
         r.setHighPriority(highPriority);
-        r.setInferenceTimeout(timeout);
         return r;
     }
 

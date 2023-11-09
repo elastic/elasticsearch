@@ -37,7 +37,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
     private final long defaultValue = randomLongBetween(-1, 0);
 
-    public void testShouldFallbackToDefaultValue() {
+    public void testFallbackToDefaultValue() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
         var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
@@ -47,7 +47,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(defaultValue));
     }
 
-    public void testShouldReadExpectedSizeFromClusterInfo() {
+    public void testReadExpectedSizeFromClusterInfo() {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
@@ -59,7 +59,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(shardSize));
     }
 
-    public void testShouldReadExpectedSizeWhenInitializingFromSnapshot() {
+    public void testReadExpectedSizeWhenInitializingFromSnapshot() {
 
         var snapshotShardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
@@ -83,7 +83,7 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(snapshotShardSize));
     }
 
-    public void testShouldReadSizeFromClonedShard() {
+    public void testReadSizeFromClonedShard() {
 
         var sourceShardSize = randomLongBetween(100, 1000);
         var source = newShardRouting(new ShardId("source", "_na_", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
@@ -114,6 +114,37 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
 
         assertThat(getExpectedShardSize(target, defaultValue, allocation), equalTo(sourceShardSize));
+    }
+
+    public void testReadExpectedSizeFromForecast() {
+
+        var forecastedShardSize = randomLongBetween(100, 1000);
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata(index("my-index").shardSizeInBytesForecast(forecastedShardSize)))
+            .build();
+        var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+
+        var clusterInfo = ClusterInfo.EMPTY;
+        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+
+        assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(forecastedShardSize));
+    }
+
+    public void testExpectedSizeIsMaxOfCurrentAndForecast() {
+
+        var observedShardSize = randomLongBetween(100, 1000);
+        var forecastedShardSize = randomLongBetween(100, 1000);
+
+        var state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata(index("my-index").shardSizeInBytesForecast(forecastedShardSize)))
+            .build();
+        var shard = newShardRouting("my-index", 0, randomIdentifier(), true, ShardRoutingState.INITIALIZING);
+
+        var clusterInfo = createClusterInfo(shard, observedShardSize);
+        var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
+
+        assertThat(getExpectedShardSize(shard, defaultValue, allocation), equalTo(Math.max(observedShardSize, forecastedShardSize)));
     }
 
     private static RoutingAllocation createRoutingAllocation(

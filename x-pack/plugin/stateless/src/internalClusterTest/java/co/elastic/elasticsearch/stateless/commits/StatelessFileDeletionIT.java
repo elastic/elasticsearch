@@ -793,8 +793,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         assertThat(blobsAfterNodeIsStale.containsAll(blobsBeforeTriggeringForceMerge), is(true));
     }
 
-    // Since the commit deletion relies on a NewCommitNotification being process on all unpromotables, while an unpromtable is
+    // Since the commit deletion relies on a NewCommitNotification being process on all unpromotables, while an unpromotable is
     // recovering (and cannot process a NewCommitNotification), commits should not be deleted.
+    // TODO: re-adjust after ES-7163 if needed, since that may modify how a recovering search shard responds to new commit notification
     public void testCommitsNotDeletedWhileAnUnpromotableIsRecovering() throws Exception {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -829,7 +830,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // While search shard is recovering, create new commits by merge/refresh which should normally delete older commits
         var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
         forceMerge();
-        client().admin().indices().prepareRefresh(indexName).execute().get();
+        var refreshFuture = client().admin().indices().prepareRefresh(indexName).execute();
         var blobsAfterMergeAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
         // No deletion should happen since there is a RECOVERING unpromotable
         assertThat(
@@ -840,8 +841,9 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         // Allow recovery to finish and verify that the commits are deleted.
         newCommitCreated.countDown();
         ensureGreen(indexName);
-        // We need a new commit to trigger file deletion
+        // We need a new commit to trigger file deletion and trigger the previous refresh future
         indexDocsAndFlush(indexName);
+        assertThat(refreshFuture.get().getFailedShards(), equalTo(0));
         assertBusy(() -> {
             var blobsAfterRecoveryAndRefresh = listBlobsWithAbsolutePath(shardCommitsContainer);
             assertThat(Sets.intersection(blobsAfterRecoveryAndRefresh, blobsBeforeMerge), is(empty()));

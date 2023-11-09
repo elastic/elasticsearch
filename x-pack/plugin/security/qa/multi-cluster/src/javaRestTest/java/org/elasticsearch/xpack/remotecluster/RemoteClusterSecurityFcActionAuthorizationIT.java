@@ -9,12 +9,20 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.single.shard.SingleShardRequestHelper;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.UUIDs;
@@ -32,6 +40,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionInfo;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.ClearCcrRestoreSessionRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAction;
@@ -420,6 +430,84 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                 )
             );
         }
+    }
+
+    public void testMalformedShardLevelActionIsRejected() throws IOException {
+        final Map<String, Object> crossClusterApiKeyMap = createCrossClusterAccessApiKey(adminClient(), """
+            {
+              "search": [
+                {
+                   "names": ["idx-a, idx-b"]
+                }
+              ]
+            }""");
+
+        final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+        bulkRequest.setJsonEntity(Strings.format("""
+            { "index": { "_index": "idx-a", "_id": "1" } }
+            { "name": "doc-1" }
+            { "index": { "_index": "idx-b", "_id": "1" } }
+            { "name": "doc-1" }
+            """));
+        assertOK(adminClient().performRequest(bulkRequest));
+
+        final Request getIndexSettingsRequest = new Request("GET", "/idx-b/_settings");
+        getIndexSettingsRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+        final ObjectPath indexSettings = assertOKAndCreateObjectPath(adminClient().performRequest(getIndexSettingsRequest));
+        String otherIndexId = indexSettings.evaluate(".idx-b.settings.index.uuid");
+
+        // Create the malformed request with a mismatch between with the request index and shard ID
+        final GetRequest getRequest = new GetRequest("idx-a", "user-admin");
+        SingleShardRequestHelper.setInternalShardId(getRequest, new ShardId("idx-b", otherIndexId, 0));
+
+        try (
+            MockTransportService service = startTransport(
+                "node",
+                threadPool,
+                (String) crossClusterApiKeyMap.get("encoded"),
+                Map.of(GetAction.NAME + "[s]", buildCrossClusterAccessSubjectInfo("idx-a"))
+            )
+        ) {
+            final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            final List<RemoteConnectionInfo> remoteConnectionInfos = remoteClusterService.getRemoteConnectionInfos().toList();
+            assertThat(remoteConnectionInfos, hasSize(1));
+            assertThat(remoteConnectionInfos.get(0).isConnected(), is(true));
+
+            final PlainActionFuture<GetResponse> future = new PlainActionFuture<>();
+            service.sendRequest(
+                remoteClusterService.getConnection("my_remote_cluster"),
+                GetAction.NAME + "[s]",
+                getRequest,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(future, (in) -> {
+                    throw new AssertionError("this should never be called");
+                }, TransportResponseHandler.TRANSPORT_WORKER)
+            );
+
+            try {
+                final GetResponse getResponse = future.actionGet();
+                fail(
+                    "It should be impossible to get here, we should fail at the decoder even if the request isn't rejected. " + getResponse
+                );
+            } catch (ElasticsearchSecurityException e) {
+                assertThat(e.getMessage(), containsString("is unauthorized"));
+            }
+        }
+    }
+
+    private static CrossClusterAccessSubjectInfo buildCrossClusterAccessSubjectInfo(String... indices) throws IOException {
+        return new CrossClusterAccessSubjectInfo(
+            Authentication.newRealmAuthentication(new User("query-user", "role"), new Authentication.RealmRef("file", "file", "node")),
+            new RoleDescriptorsIntersection(
+                new RoleDescriptor(
+                    "cross_cluster",
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read", "read_cross_cluster").build() },
+                    null
+                )
+            )
+        );
     }
 
     private static MockTransportService startTransport(final String nodeName, final ThreadPool threadPool, String encodedApiKey) {

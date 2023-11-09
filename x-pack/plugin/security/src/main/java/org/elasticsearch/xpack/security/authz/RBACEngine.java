@@ -399,7 +399,9 @@ public class RBACEngine implements AuthorizationEngine {
                         : "expanded wildcards for local indices OR the request should not expand wildcards at all";
 
                     IndexAuthorizationResult result = buildIndicesAccessControl(action, role, resolvedIndices, aliasOrIndexLookup);
-                    if (request instanceof IndicesRequest.ShardsRequest shardsRequest && shardsRequest.shards() != null) {
+                    if (requestInfo.getAuthentication().isCrossClusterAccess()
+                        && request instanceof IndicesRequest.ShardsRequest shardsRequest
+                        && shardsRequest.shards() != null) {
                         for (ShardId shardId : shardsRequest.shards()) {
                             if (shardId != null && shardIdAuthorized(shardsRequest, shardId, result.getIndicesAccessControl()) == false) {
                                 listener.onResponse(IndexAuthorizationResult.DENIED);

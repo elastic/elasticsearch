@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
 
-    private final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
+    private static final Logger logger = LogManager.getLogger(AwarenessAllocationIT.class);
 
     @Override
     protected int numberOfReplicas() {

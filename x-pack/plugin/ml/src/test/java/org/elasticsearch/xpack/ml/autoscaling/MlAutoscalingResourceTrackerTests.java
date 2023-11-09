@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.ml.autoscaling;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.net.InetAddress;
 import java.util.Collections;
@@ -1071,6 +1075,105 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(1, stats.minNodes());
                 assertEquals(0, stats.extraSingleNodeProcessors());
                 assertEquals(memory, stats.removeNodeMemoryInBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
+            }
+        );
+    }
+
+    // scenario: 3 ml nodes, could scale down purely considering memory but high availability needs prevent it
+    public void testGetMemoryAndProcessorsScaleDownPreventedByMinNodes() throws InterruptedException {
+        long memory = 8589934592L;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "3435134976",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "4.0",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "11.0.0"
+        );
+        Settings settings = Settings.builder().put(MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT.getKey(), true).build();
+        DiscoveryNode firstNode = DiscoveryNodeUtils.builder("ml-node-1")
+            .name("ml-node-name-1")
+            .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+            .attributes(nodeAttr)
+            .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+            .build();
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(
+                ".elser_model_2_linux-x86_64",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        ".elser_model_2_linux-x86_64",
+                        ".elser_model_2_linux-x86_64",
+                        274756282,
+                        4,
+                        2,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    )
+                )
+                    .addRoutingEntry("ml-node-1", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
+                    .addRoutingEntry("ml-node-2", new RoutingInfo(2, 2, RoutingState.STARTED, ""))
+                    .build(),
+                "intfloat__multilingual-e5-base",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "intfloat__multilingual-e5-base",
+                        "intfloat__multilingual-e5-base",
+                        1109885608,
+                        1,
+                        1,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    )
+                ).addRoutingEntry("ml-node-3", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build()
+            ),
+            List.of(
+                firstNode,
+                DiscoveryNodeUtils.builder("ml-node-2")
+                    .name("ml-node-name-2")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build(),
+                DiscoveryNodeUtils.builder("ml-node-3")
+                    .name("ml-node-name-3")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-node-1", memory, "ml-node-2", memory, "ml-node-3", memory),
+                NativeMemoryCalculator.allowedBytesForMl(firstNode, settings).getAsLong(),
+                4,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.perNodeMemoryInBytes());
+                assertEquals(3, stats.nodes());
+                assertEquals(3, stats.minNodes());
+                assertEquals(0, stats.extraSingleNodeProcessors());
+                assertEquals(0, stats.removeNodeMemoryInBytes());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.perNodeMemoryOverheadInBytes());
             }
         );

@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -83,17 +81,14 @@ public class Utils {
         }
     }
 
-    public static ThreadPool createThreadPool(String name) {
-        return new TestThreadPool(
-            name,
-            new ScalingExecutorBuilder(
-                UTILITY_THREAD_POOL_NAME,
-                1,
-                4,
-                TimeValue.timeValueMinutes(10),
-                false,
-                "xpack.inference.utility_thread_pool"
-            )
+    public static ScalingExecutorBuilder inferenceUtilityPool() {
+        return new ScalingExecutorBuilder(
+            UTILITY_THREAD_POOL_NAME,
+            1,
+            4,
+            TimeValue.timeValueMinutes(10),
+            false,
+            "xpack.inference.utility_thread_pool"
         );
     }
 }

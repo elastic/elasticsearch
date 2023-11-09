@@ -69,9 +69,7 @@ public class GeoTileGridAggregatorTests extends GeoGridAggregatorTestCase<Intern
             ? decodeLongitude(encodedLeft + 1)
             : decodeLongitude(encodedLeft);
         final int encodedTop = encodeLatitude(bbox.top());
-        final double bottom = encodeLatitude(minTile.getMinY()) == encodedTop
-            ? decodeLongitude(encodedTop + 1)
-            : decodeLatitude(encodedTop);
+        final double bottom = encodeLatitude(minTile.getMinY()) == encodedTop ? decodeLatitude(encodedTop + 1) : decodeLatitude(encodedTop);
         // compute tile at the bottom right
         final Rectangle maxTile = GeoTileUtils.toBoundingBox(
             GeoTileUtils.getXTile(bbox.right(), tiles),

@@ -1,0 +1,29 @@
+pr: 101333
+summary: Fixed JWT principal from claims
+area: Authorization
+type: breaking
+issues: []
+breaking:
+  title: Fixed JWT principal from claims
+  area: Authorization
+  details: "This changes the format of a JWT's principal before the JWT is actually\
+    \ validated by any JWT realm. The JWT's principal is a convenient way to refer\
+    \ to a JWT that has not yet been verified by a JWT realm. The JWT's principal\
+    \ is printed in the audit and regular logs (notably for auditing authn failures)\
+    \ as well as the smart realm chain reordering optimization. The JWT principal\
+    \ is NOT required to be identical to the JWT-authenticated user's principal, but\
+    \ in general, they should be similar. Previously, the JWT's principal was built\
+    \ by individual realms in the same way the realms built the authenticated user's\
+    \ principal. This had the advantage that, in simpler JWT realms configurations\
+    \ (e.g. a single JWT realm in the chain), the JWT principal and the authenticated\
+    \ user's principal are very similar. However the drawback is that, in general,\
+    \ the JWT principal and the user principal can be very different (i.e. in the\
+    \ case where one JWT realm builds the JWT principal and a different one builds\
+    \ the user principal). Another downside is that the (unauthenticated) JWT principal\
+    \ depended on realm ordering, which makes identifying the JWT from its principal\
+    \ dependent on the ES authn realm configuration. This PR implements a consistent\
+    \ fixed logic to build the JWT principal, which only depends on the JWT's claims\
+    \ and no ES configuration."
+  impact: "Users will observe changed format and values for the `user.name` attribute\
+    \ of `authentication_failed` audit log events, in the JWT (failed) authn case."
+  notable: false

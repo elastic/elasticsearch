@@ -866,9 +866,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final long ingestStartTimeInNanos = System.nanoTime();
         final BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(original);
-        int numberOfActions = original.numberOfActions();
         getIngestService(original).executeBulkRequest(
-            numberOfActions,
+            original.numberOfActions(),
             () -> bulkRequestModifier,
             bulkRequestModifier::markItemAsDropped,
             bulkRequestModifier::markItemAsFailed,

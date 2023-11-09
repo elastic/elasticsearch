@@ -67,13 +67,14 @@ public class RestSimulateIngestAction extends BaseRestHandler {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
         }
-        SimulateBulkRequest bulkRequest = new SimulateBulkRequest();
         String defaultIndex = request.param("index");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
         String defaultPipeline = request.param("pipeline");
         Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         Map<String, Object> sourceMap = XContentHelper.convertToMap(sourceTuple.v2(), false, sourceTuple.v1()).v2();
-        bulkRequest.setPipelineSubstitutions((Map<String, Map<String, Object>>) sourceMap.remove("pipeline_substitutions"));
+        SimulateBulkRequest bulkRequest = new SimulateBulkRequest(
+            (Map<String, Map<String, Object>>) sourceMap.remove("pipeline_substitutions")
+        );
         BytesReference transformedData = convertToBulkRequestXContentBytes(sourceMap);
         bulkRequest.add(
             transformedData,

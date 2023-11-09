@@ -54,7 +54,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
         ingestService.innerUpdatePipelines(ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest((Map<String, Map<String, Object>>) null);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline.getProcessors().size(), equalTo(1));
@@ -63,7 +63,6 @@ public class SimulateIngestServiceTests extends ESTestCase {
         }
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
             Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
                 {
                     put("pipeline1", new HashMap<>() {
@@ -90,7 +89,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
                     });
                 }
             };
-            simulateBulkRequest.setPipelineSubstitutions(pipelineSubstitutions);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline1.getProcessors().size(), equalTo(2));
@@ -105,7 +104,6 @@ public class SimulateIngestServiceTests extends ESTestCase {
              * Here we make sure that if we have a substitution for a new pipeline we still get the original one back (as well as the new
              * one).
              */
-            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
             Map<String, Map<String, Object>> pipelineSubstitutions = new HashMap<>() {
                 {
                     put("pipeline2", new HashMap<>() {
@@ -119,7 +117,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
                     });
                 }
             };
-            simulateBulkRequest.setPipelineSubstitutions(pipelineSubstitutions);
+            SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
             Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
             assertThat(pipeline1.getProcessors().size(), equalTo(1));

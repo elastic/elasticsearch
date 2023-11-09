@@ -59,7 +59,7 @@ public class SimulateIndexResponse extends IndexResponse {
         builder.field("_index", getShardId().getIndexName());
         builder.field("_version", getVersion());
         builder.field("_source", XContentHelper.convertToMap(source, false, sourceXContentType).v2());
-        assert executedPipelines != null; // This ought to never be null because we always ask to list pipelines in simulate mode
+        assert executedPipelines != null : "executedPipelines is null when it shouldn't be - we always list pipelines in simulate mode";
         builder.array("executed_pipelines", executedPipelines.toArray());
         return builder;
     }

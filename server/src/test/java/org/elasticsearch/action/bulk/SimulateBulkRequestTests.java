@@ -20,8 +20,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         Map<String, Map<String, Object>> pipelineSubstitutions = getTestPipelineSubstitutions();
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest();
-        simulateBulkRequest.setPipelineSubstitutions(pipelineSubstitutions);
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
          * Writable

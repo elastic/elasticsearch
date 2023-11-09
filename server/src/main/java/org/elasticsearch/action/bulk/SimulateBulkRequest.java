@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Map;
@@ -50,10 +51,20 @@ import java.util.Map;
  *   processor definitions.
  */
 public class SimulateBulkRequest extends BulkRequest {
-    private Map<String, Map<String, Object>> pipelineSubstitutions = Map.of();
+    private final Map<String, Map<String, Object>> pipelineSubstitutions;
 
-    public SimulateBulkRequest() {
+    /**
+     * @param pipelineSubstitutions The pipeline definitions that are to be used in place of any pre-existing pipeline definitions with
+     *                              the same pipelineId. The key of the map is the pipelineId, and the value the pipeline definition as
+     *                              parsed by XContentHelper.convertToMap().
+     */
+    /**
+     *
+     * @param pipelineSubstitutions
+     */
+    public SimulateBulkRequest(@Nullable Map<String, Map<String, Object>> pipelineSubstitutions) {
         super();
+        this.pipelineSubstitutions = pipelineSubstitutions;
     }
 
     @SuppressWarnings("unchecked")
@@ -66,15 +77,6 @@ public class SimulateBulkRequest extends BulkRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeGenericValue(pipelineSubstitutions);
-    }
-
-    /**
-     * This sets the pipeline definitions that are to be used in place of any pre-existing pipeline definitions with the same pipelineId.
-     * The key of the map is the pipelineId, and the value the pipeline definition as parsed by XContentHelper.convertToMap().
-     * @param pipelineSubstitutions
-     */
-    public void setPipelineSubstitutions(Map<String, Map<String, Object>> pipelineSubstitutions) {
-        this.pipelineSubstitutions = pipelineSubstitutions;
     }
 
     public Map<String, Map<String, Object>> getPipelineSubstitutions() {

@@ -66,11 +66,11 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
     private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions) {
-        resolutions.add(new DistributionResolution("local-build", (dependencies, distribution) -> {
+        resolutions.add(new DistributionResolution("local-build", (project, distribution) -> {
             if (isCurrentVersion(distribution)) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
-                    config -> projectDependency(dependencies, distributionProjectPath(distribution), config)
+                    config -> projectDependency(project.getDependencies(), distributionProjectPath(distribution), config)
                 );
             }
             return null;
@@ -90,7 +90,7 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 }
                 String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath(), projectConfig)
+                    (config) -> projectDependency(project.getDependencies(), unreleasedInfo.gradleProjectPath(), projectConfig)
                 );
             }
             return null;

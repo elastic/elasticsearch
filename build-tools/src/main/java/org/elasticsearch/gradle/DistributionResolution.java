@@ -8,16 +8,20 @@
 
 package org.elasticsearch.gradle;
 
-import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.Project;
 
 public class DistributionResolution {
     private Resolver resolver;
-    private String name;
+    private final String name;
     private int priority;
 
     public DistributionResolution(String name, Resolver resolver) {
-        this.name = name;
+        this(name);
         this.resolver = resolver;
+    }
+
+    public DistributionResolution(String name) {
+        this.name = name;
     }
 
     public String getName() {
@@ -41,6 +45,6 @@ public class DistributionResolution {
     }
 
     public interface Resolver {
-        DistributionDependency resolve(DependencyHandler dependencyHandler, ElasticsearchDistribution distribution);
+        DistributionDependency resolve(Project project, ElasticsearchDistribution distribution);
     }
 }

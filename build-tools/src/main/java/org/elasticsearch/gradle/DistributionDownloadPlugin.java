@@ -84,14 +84,13 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             Configuration extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-            DependencyHandler dependencies = project.getDependencies();
             return new ElasticsearchDistribution(
                 name,
                 project.getObjects(),
                 dockerAvailability,
                 project.getObjects().fileCollection().from(fileConfiguration),
                 project.getObjects().fileCollection().from(extractedConfiguration),
-                new FinalizeDistributionAction(distributionsResolutionStrategies, dependencies)
+                new FinalizeDistributionAction(distributionsResolutionStrategies, project)
             );
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
@@ -133,30 +132,31 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
-    private record FinalizeDistributionAction(List<DistributionResolution> resolutionList, DependencyHandler dependencies)
+    private record FinalizeDistributionAction(List<DistributionResolution> resolutionList, Project project)
         implements
             Action<ElasticsearchDistribution> {
         @Override
 
         public void execute(ElasticsearchDistribution distro) {
-            finalizeDistributionDependencies(dependencies, distro);
+            finalizeDistributionDependencies(project, distro);
         }
 
-        private void finalizeDistributionDependencies(DependencyHandler dependencies, ElasticsearchDistribution distribution) {
+        private void finalizeDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
             // for the distribution as a file, just depend on the artifact directly
-            DistributionDependency distributionDependency = resolveDependencyNotation(dependencies, distribution);
-            dependencies.add(DISTRO_CONFIG_PREFIX + distribution.getName(), distributionDependency.getDefaultNotation());
+            DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
+            project.getDependencies().add(DISTRO_CONFIG_PREFIX + distribution.getName(), distributionDependency.getDefaultNotation());
             // no extraction needed for rpm, deb or docker
             if (distribution.getType().shouldExtract()) {
                 // The extracted configuration depends on the artifact directly but has
                 // an artifact transform registered to resolve it as an unpacked folder.
-                dependencies.add(DISTRO_EXTRACTED_CONFIG_PREFIX + distribution.getName(), distributionDependency.getExtractedNotation());
+                project.getDependencies()
+                    .add(DISTRO_EXTRACTED_CONFIG_PREFIX + distribution.getName(), distributionDependency.getExtractedNotation());
             }
         }
 
-        private DistributionDependency resolveDependencyNotation(DependencyHandler handler, ElasticsearchDistribution distro) {
+        private DistributionDependency resolveDependencyNotation(Project project, ElasticsearchDistribution distro) {
             return resolutionList.stream()
-                .map(r -> r.getResolver().resolve(handler, distro))
+                .map(r -> r.getResolver().resolve(project, distro))
                 .filter(d -> d != null)
                 .findFirst()
                 .orElseGet(() -> DistributionDependency.of(dependencyNotation(distro)));

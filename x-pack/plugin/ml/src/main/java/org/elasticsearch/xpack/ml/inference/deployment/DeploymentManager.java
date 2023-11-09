@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -167,6 +168,7 @@ public class DeploymentManager {
 
         ActionListener<TrainedModelConfig> getVerifiedModel = ActionListener.wrap((modelConfig) -> {
             processContext.modelInput.set(modelConfig.getInput());
+            processContext.prefixes.set(modelConfig.getPrefixStrings());
 
             if (modelConfig.getInferenceConfig() instanceof NlpConfig nlpConfig) {
                 task.init(nlpConfig);
@@ -336,6 +338,7 @@ public class DeploymentManager {
             processContext,
             config,
             input,
+            skipQueue,
             threadPool,
             parentActionTask,
             listener
@@ -437,6 +440,7 @@ public class DeploymentManager {
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
+        private final SetOnce<TrainedModelPrefixStrings> prefixes = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final PriorityProcessWorkerExecutorService priorityProcessWorker;
@@ -680,6 +684,10 @@ public class DeploymentManager {
 
         SetOnce<NlpTask.Processor> getNlpTaskProcessor() {
             return nlpTaskProcessor;
+        }
+
+        SetOnce<TrainedModelPrefixStrings> getPrefixStrings() {
+            return prefixes;
         }
     }
 }

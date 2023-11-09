@@ -4,10 +4,6 @@ setup:
       reason: 'Dynamic mapping of floats to dense_vector was added in 8.11'
 ---
 "Fields indexed as strings won't be transformed into dense_vector":
-  - skip:
-      # TODO adjust after backport
-      version: ' - 8.11.99'
-      reason: 'Dynamic mapping of things other than numbers is fixed in 8.12'
   - do:
       index:
         index: strings-are-not-floats

@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -490,10 +489,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "inference_counts",
                 nodeDistribution.asMap(),
                 "stats_by_model",
-                statsByModel.values()
-                    .stream()
-                    .map(ModelStats::asMap)
-                    .collect(Collectors.toList())
+                statsByModel.values().stream().map(ModelStats::asMap).collect(Collectors.toList())
             )
         );
     }

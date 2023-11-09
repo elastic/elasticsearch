@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -676,6 +677,41 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final BiConsumer<Thread, Exception> onCompletion,
         final String executorName
     ) {
+        // FIXME: Remove in refactoring step
+        //  Run ingest service as if failure store is disabled
+        executeBulkRequest(
+            numberOfActionRequests,
+            actionRequests,
+            onDropped,
+            (s) -> false,
+            (slot, targetIndex, e) -> onFailure.accept(slot, e),
+            onFailure,
+            onCompletion,
+            executorName
+        );
+    }
+
+    private record IngestPipelinesExecutionResult(boolean success, boolean kept, Exception exception, String failedIndex) {}
+    private static IngestPipelinesExecutionResult successResult() {
+        return new IngestPipelinesExecutionResult(true, true, null, null);
+    }
+    private static IngestPipelinesExecutionResult discardResult() {
+        return new IngestPipelinesExecutionResult(true, false, null, null);
+    }
+    private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
+        return new IngestPipelinesExecutionResult(false, true, e, index);
+    }
+
+    public void executeBulkRequest(
+        final int numberOfActionRequests,
+        final Iterable<DocWriteRequest<?>> actionRequests,
+        final IntConsumer onDropped,
+        final Predicate<String> shouldStoreFailure,
+        final TriConsumer<Integer, String, Exception> onStoreFailure,
+        final BiConsumer<Integer, Exception> onFailure,
+        final BiConsumer<Thread, Exception> onCompletion,
+        final String executorName
+    ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
         threadPool.executor(executorName).execute(new AbstractRunnable() {
@@ -708,14 +744,24 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         totalMetrics.preIngest();
                         final int slot = i;
                         final Releasable ref = refs.acquire();
+                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
+                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
-                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
+                        final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(new ActionListener<>() {
                             @Override
-                            public void onResponse(Boolean kept) {
-                                assert kept != null;
-                                if (kept == false) {
-                                    onDropped.accept(slot);
+                            public void onResponse(IngestPipelinesExecutionResult result) {
+                                assert result != null;
+                                if (result.success) {
+                                    if (result.kept == false) {
+                                        onDropped.accept(slot);
+                                    }
+                                } else {
+                                    // We were given a failure result in the onResponse method, so we must store the failure
+                                    // Recover the original document state, track a failed ingest, and pass it along
+                                    updateIndexRequestMetadata(indexRequest, ingestDocument.getOriginalMetadata());
+                                    totalMetrics.ingestFailed();
+                                    onStoreFailure.apply(slot, result.failedIndex, result.exception);
                                 }
                             }
 
@@ -731,11 +777,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             totalMetrics.postIngest(ingestTimeInNanos);
                             ref.close();
                         });
-                        DocumentParsingObserver documentParsingObserver = documentParsingObserverSupplier.get();
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest, documentParsingObserver);
-
-                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener);
+                        executePipelines(
+                            pipelines,
+                            indexRequest,
+                            ingestDocument,
+                            shouldStoreFailure,
+                            documentListener
+                        );
                         indexRequest.setPipelinesHaveRun();
 
                         assert actionRequest.index() != null;
@@ -825,7 +874,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
-        final ActionListener<Boolean> listener
+        final Predicate<String> shouldStoreFailure,
+        final ActionListener<IngestPipelinesExecutionResult> listener
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -835,13 +885,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
         ingestDocument.resetReroute();
+        final String originalIndex = indexRequest.indices()[0];
 
         try {
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
             indexRequest.addPipeline(pipelineId);
-            final String originalIndex = indexRequest.indices()[0];
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
 
@@ -855,12 +905,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ),
                         e
                     );
-                    listener.onFailure(e);
+                    if (shouldStoreFailure.test(originalIndex)) {
+                        listener.onResponse(failAndStoreFor(originalIndex, e));
+                    } else {
+                        listener.onFailure(e);
+                    }
                     return; // document failed!
                 }
 
                 if (keep == false) {
-                    listener.onResponse(false);
+                    listener.onResponse(discardResult());
                     return; // document dropped!
                 }
 
@@ -875,17 +929,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
-                    listener.onFailure(
-                        new IllegalArgumentException(
-                            format(
-                                "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
-                                pipelineId,
-                                indexRequest.index(),
-                                indexRequest.id()
-                            ),
-                            ex
-                        )
+                    Exception documentContainsSelfReferenceException = new IllegalArgumentException(
+                        format(
+                            "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
+                            pipelineId,
+                            indexRequest.index(),
+                            indexRequest.id()
+                        ),
+                        ex
                     );
+                    if (shouldStoreFailure.test(originalIndex)) {
+                        listener.onResponse(failAndStoreFor(originalIndex, documentContainsSelfReferenceException));
+                    } else {
+                        listener.onFailure(documentContainsSelfReferenceException);
+                    }
                     return; // document failed!
                 }
 
@@ -895,17 +952,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (isFinalPipeline) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                format(
-                                    "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
-                                    pipelineId,
-                                    originalIndex,
-                                    newIndex,
-                                    indexRequest.id()
-                                )
+                        Exception finalPipelineChangedIndexException = new IllegalStateException(
+                            format(
+                                "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
+                                pipelineId,
+                                originalIndex,
+                                newIndex,
+                                indexRequest.id()
                             )
                         );
+                        if (shouldStoreFailure.test(originalIndex)) {
+                            listener.onResponse(failAndStoreFor(originalIndex, finalPipelineChangedIndexException));
+                        } else {
+                            listener.onFailure(finalPipelineChangedIndexException);
+                        }
                         return; // document failed!
                     }
 
@@ -914,16 +974,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     if (cycle) {
                         List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
                         indexCycle.add(newIndex);
-                        listener.onFailure(
-                            new IllegalStateException(
-                                format(
-                                    "index cycle detected while processing pipeline [%s] for document [%s]: %s",
-                                    pipelineId,
-                                    indexRequest.id(),
-                                    indexCycle
-                                )
+                        Exception indexCycleDetectedException = new IllegalStateException(
+                            format(
+                                "index cycle detected while processing pipeline [%s] for document [%s]: %s",
+                                pipelineId,
+                                indexRequest.id(),
+                                indexCycle
                             )
                         );
+                        if (shouldStoreFailure.test(originalIndex)) {
+                            listener.onResponse(failAndStoreFor(originalIndex, indexCycleDetectedException));
+                        } else {
+                            listener.onFailure(indexCycleDetectedException);
+                        }
                         return; // document failed!
                     }
 
@@ -941,12 +1004,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, listener);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, shouldStoreFailure, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
-                    listener.onResponse(true); // document succeeded!
+                    listener.onResponse(successResult()); // document succeeded!
                 }
             });
         } catch (Exception e) {
@@ -954,7 +1017,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
-            listener.onFailure(e); // document failed!
+            if (shouldStoreFailure.test(originalIndex)) {
+                listener.onResponse(failAndStoreFor(originalIndex, e));
+            } else {
+                listener.onFailure(e); // document failed!
+            }
         }
     }
 

@@ -132,7 +132,7 @@ and that the next generation index will also be managed by {ilm-init}:
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[]/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[],"store_failures":false/]
 
 <1> The name of the backing index.
 <2> For each backing index we display the value of the <<index-lifecycle-prefer-ilm, prefer_ilm>>
@@ -265,7 +265,7 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[]/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[],"store_failures":false/]
 
 <1> The existing backing index will continue to be managed by {ilm-init}
 <2> The existing backing index will continue to be managed by {ilm-init}
@@ -344,7 +344,7 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[]/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[],"store_failures":false/]
 
 <1> The backing indices that existed before rollover will continue to be managed by {ilm-init}
 <2> The backing indices that existed before rollover will continue to be managed by {ilm-init}
@@ -438,7 +438,7 @@ GET _data_stream/dsl-data-stream
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
 // TESTRESPONSE[s/"index_name": ".ds-dsl-data-stream-2023.10.19-000003"/"index_name": $body.data_streams.0.indices.2.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8abcd1"/"index_uuid": $body.data_streams.0.indices.2.index_uuid/]
-// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[]/]
+// TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW","failure_stores":[],"store_failures":false/]
 <1> The write index is now managed by {ilm-cap}
 <2> The `lifecycle` configured on the data stream is now disabled.
 <3> The next write index will be managed by {ilm-cap}

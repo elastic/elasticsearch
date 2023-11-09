@@ -297,8 +297,8 @@ Transform::
 * Add accessors required to recreate `TransformStats` object from the fields {es-pull}98844[#98844]
 
 Vector Search::
-* Add new max_inner_product vector similarity function {es-pull}99445[#99445]
-* Adds `nested` support for indexed `dense_vector` fields {es-pull}99532[#99532]
+* Add new max_inner_product vector similarity function {es-pull}99527[#99527]
+* Adds `nested` support for indexed `dense_vector` fields {es-pull}99763[#99763]
 * Dense vector field types are indexed by default {es-pull}98268[#98268]
 * Increase the max vector dims to 4096 {es-pull}99682[#99682]
 

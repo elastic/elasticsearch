@@ -276,6 +276,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                     SECURITY_ORIGIN,
                     client.prepareDelete(SECURITY_MAIN_ALIAS, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
+                        .setWaitForActiveShards(request.getActiveShardCount())
                         .request(),
                     new ActionListener<DeleteResponse>() {
 

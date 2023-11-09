@@ -135,6 +135,8 @@ public class ReservedRoleMappingAction implements ReservedClusterStateHandler<Li
         for (var mappingToDelete : toDelete) {
             var deleteRequest = new DeleteRoleMappingRequest();
             deleteRequest.setName(mappingToDelete);
+            // Avoid waiting for search shards since the security index may still be bootstrapping
+            deleteRequest.setActiveShardCount(ActiveShardCount.NONE);
             roleMappingStore.deleteRoleMapping(deleteRequest, taskListener);
         }
     }

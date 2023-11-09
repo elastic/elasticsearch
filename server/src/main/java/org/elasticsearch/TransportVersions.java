@@ -161,7 +161,7 @@ public class TransportVersions {
     public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
     public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
     public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
-    public static final TransportVersion PUT_ROLE_MAPPING_REQUEST_ACTIVE_SHARD = def(8_534_00_0);
+    public static final TransportVersion ROLE_MAPPING_REQUESTS_WITH_ACTIVE_SHARD_COUNT = def(8_534_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

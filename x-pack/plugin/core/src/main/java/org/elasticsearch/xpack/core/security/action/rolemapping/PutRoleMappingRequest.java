@@ -55,7 +55,7 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PUT_ROLE_MAPPING_REQUEST_ACTIVE_SHARD)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_MAPPING_REQUESTS_WITH_ACTIVE_SHARD_COUNT)) {
             this.activeShardCount = ActiveShardCount.readFrom(in);
         }
     }
@@ -173,10 +173,10 @@ public class PutRoleMappingRequest extends ActionRequest implements WriteRequest
         }
         ExpressionParser.writeExpression(rules, out);
         out.writeGenericMap(metadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PUT_ROLE_MAPPING_REQUEST_ACTIVE_SHARD)) {
+        refreshPolicy.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_MAPPING_REQUESTS_WITH_ACTIVE_SHARD_COUNT)) {
             activeShardCount.writeTo(out);
         }
-        refreshPolicy.writeTo(out);
     }
 
     public ExpressionRoleMapping getMapping() {

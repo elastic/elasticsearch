@@ -30,6 +30,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
+    private static final boolean IS_SINGLE_PROCESSOR_TEST = Boolean.parseBoolean(
+        System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
+    );
+
     private Logger logger = LogManager.getLogger(MlAssignmentPlannerUpgradeIT.class);
 
     // See PyTorchModelIT for how this model was created
@@ -61,9 +65,9 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", isOriginalClusterVersionAtLeast(Version.V_8_0_0));
+        assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
         logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);
 

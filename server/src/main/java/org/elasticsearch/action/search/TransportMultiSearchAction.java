@@ -8,6 +8,9 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -31,6 +34,7 @@ import java.util.function.LongSupplier;
 
 public class TransportMultiSearchAction extends HandledTransportAction<MultiSearchRequest, MultiSearchResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportMultiSearchAction.class);
     private final int allocatedProcessors;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -155,6 +159,9 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
 
             @Override
             public void onFailure(final Exception e) {
+                if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                    logger.warn("TransportMultiSearchAction failure", e);
+                }
                 handleResponse(request.responseSlot, new MultiSearchResponse.Item(null, e));
             }
 

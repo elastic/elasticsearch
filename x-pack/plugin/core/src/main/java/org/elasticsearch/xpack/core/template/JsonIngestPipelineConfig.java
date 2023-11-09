@@ -12,7 +12,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
-import java.util.Map;
 
 public class JsonIngestPipelineConfig extends IngestPipelineConfig {
     public JsonIngestPipelineConfig(String id, String resource, int version, String versionProperty) {
@@ -23,17 +22,6 @@ public class JsonIngestPipelineConfig extends IngestPipelineConfig {
         super(id, resource, version, versionProperty, dependencies);
     }
 
-    public JsonIngestPipelineConfig(
-        String id,
-        String resource,
-        int version,
-        String versionProperty,
-        List<String> dependencies,
-        Map<String, String> variables
-    ) {
-        super(id, resource, version, versionProperty, dependencies, variables);
-    }
-
     @Override
     public XContentType getXContentType() {
         return XContentType.JSON;
@@ -41,6 +29,6 @@ public class JsonIngestPipelineConfig extends IngestPipelineConfig {
 
     @Override
     public BytesReference loadConfig() {
-        return new BytesArray(TemplateUtils.loadTemplate(resource, String.valueOf(version), versionProperty, variables));
+        return new BytesArray(TemplateUtils.loadTemplate(resource, String.valueOf(version), versionProperty));
     }
 }

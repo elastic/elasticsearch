@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -336,29 +337,29 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(500));
             assertThat(source.getValue("inference.deployments.count"), equalTo(3));
-            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(12.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(3.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.task_type"), equalTo("ner"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.last_access"),
-                equalTo(lastAccess(3).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.total"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.min"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.avg"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.task_type"), equalTo("regression"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.last_access"),
-                equalTo(lastAccess(4).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.total"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.min"), equalTo(1.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.max"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.avg"), equalTo(2.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.model_id"), equalTo("model_3"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.task_type"), equalTo("ner"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.last_access"), equalTo(lastAccess(3).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.total"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.min"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.avg"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.model_id"), equalTo("model_4"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.task_type"), equalTo("text_expansion"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.last_access"), equalTo(lastAccess(44).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.min"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.avg"), equalTo(4.5));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(500.0));
-            assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(45.55555555555556, 1e-10));
+            assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(44.0, 1e-10));
         }
     }
 
@@ -434,29 +435,29 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(500));
             assertThat(source.getValue("inference.deployments.count"), equalTo(3));
-            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(12.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(3.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.task_type"), equalTo("ner"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.last_access"),
-                equalTo(lastAccess(3).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.total"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.min"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.avg"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.task_type"), equalTo("regression"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.last_access"),
-                equalTo(lastAccess(4).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.total"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.min"), equalTo(1.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.max"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.avg"), equalTo(2.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.model_id"), equalTo("model_3"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.task_type"), equalTo("ner"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.last_access"), equalTo(lastAccess(3).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.total"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.min"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.avg"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.model_id"), equalTo("model_4"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.task_type"), equalTo("text_expansion"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.last_access"), equalTo(lastAccess(44).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.min"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.avg"), equalTo(4.5));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(500.0));
-            assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(45.55555555555556, 1e-10));
+            assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(44.0, 1e-10));
         }
     }
 
@@ -903,27 +904,28 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             expectedDfaCountByAnalysis.put(analysisName, ++analysisCount);
         });
 
-        TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance(".internal_model_1")
+        TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance("model_1")
             .setModelSize(100)
             .setEstimatedOperations(200)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .setInferenceConfig(ClassificationConfig.EMPTY_PARAMS)
             .build();
-        TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("third_party_model_2")
+        TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("model_2")
             .setModelSize(200)
             .setEstimatedOperations(400)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
-        TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance(".internal_model_3")
+        TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance("model_3")
             .setModelSize(300)
             .setEstimatedOperations(600)
             .setInferenceConfig(new NerConfig(null, null, null, null))
             .build();
-        TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("third_party_model_4")
+        TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("model_4")
             .setTags(Collections.singletonList("prepackaged"))
             .setModelSize(1000)
             .setEstimatedOperations(2000)
+            .setInferenceConfig(new TextExpansionConfig(null, null, null))
             .build();
         givenTrainedModels(Arrays.asList(trainedModel1, trainedModel2, trainedModel3, trainedModel4));
 
@@ -980,33 +982,13 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             null,
                             new AssignmentStats(
                                 "deployment_2",
-                                "third_party_model_2",
+                                "model_2",
                                 2,
                                 2,
                                 1000,
                                 ByteSizeValue.ofBytes(1000),
                                 Instant.now(),
-                                List.of(
-                                    AssignmentStats.NodeStats.forStartedState(
-                                        DiscoveryNodeUtils.create("baz", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
-                                        3,
-                                        50.0,
-                                        50.0,
-                                        0,
-                                        1,
-                                        1L,
-                                        2,
-                                        3,
-                                        lastAccess(2),
-                                        Instant.now(),
-                                        randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16),
-                                        2L,
-                                        4L,
-                                        34.0,
-                                        1L
-                                    )
-                                ),
+                                List.of(),
                                 Priority.NORMAL
                             ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
                         ),
@@ -1031,7 +1013,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             null,
                             new AssignmentStats(
                                 "deployment_3",
-                                ".internal_model_3",
+                                "model_3",
                                 null,
                                 null,
                                 null,
@@ -1040,9 +1022,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 List.of(
                                     AssignmentStats.NodeStats.forStartedState(
                                         DiscoveryNodeUtils.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
-                                        5,
-                                        42.0,
-                                        42.0,
+                                        3,
+                                        41.0,
+                                        41.0,
                                         0,
                                         1,
                                         3L,
@@ -1082,7 +1064,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             null,
                             new AssignmentStats(
                                 "deployment_4",
-                                "third_party_model_4",
+                                "model_4",
                                 2,
                                 2,
                                 1000,
@@ -1090,8 +1072,27 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 Instant.now(),
                                 List.of(
                                     AssignmentStats.NodeStats.forStartedState(
-                                        DiscoveryNodeUtils.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
+                                        DiscoveryNodeUtils.create("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2)),
+                                        5,
+                                        41.0,
+                                        41.0,
+                                        0,
                                         1,
+                                        3L,
+                                        2,
+                                        3,
+                                        lastAccess(4),
+                                        Instant.now(),
+                                        randomIntBetween(1, 16),
+                                        randomIntBetween(1, 16),
+                                        1L,
+                                        2L,
+                                        33.0,
+                                        1L
+                                    ),
+                                    AssignmentStats.NodeStats.forStartedState(
+                                        DiscoveryNodeUtils.create("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3)),
+                                        4,
                                         50.0,
                                         50.0,
                                         0,
@@ -1099,7 +1100,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2,
                                         3,
-                                        lastAccess(4),
+                                        lastAccess(44),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
                                         randomIntBetween(1, 16),

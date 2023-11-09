@@ -70,6 +70,9 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
             .filter(entry -> entry.hasShardsInInitState() && entry.isClone() == false)
             .map(entry -> entry.shards().get(shardId))
             .filter(
+                // TODO we want to block INIT and ABORTED shards from moving because they are still doing work on the data node, but can we
+                //  allow a WAITING shard to move? But if we allow all WAITING shards to move, they may move forever and never reach INIT
+                //  state, so maybe only permit a move if the node is shutting down for removal?
                 shardSnapshotStatus -> shardSnapshotStatus != null
                     && shardSnapshotStatus.state().completed() == false
                     && shardSnapshotStatus.nodeId() != null

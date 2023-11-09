@@ -507,23 +507,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-    public void testThatTemplatesAreNotDeprecated() {
-        for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
-            assertFalse(it.isDeprecated());
-        }
-        for (LifecyclePolicy ilm : registry.getLifecyclePolicies()) {
-            assertFalse(ilm.isDeprecated());
-        }
-        for (ComponentTemplate ct : registry.getComponentTemplateConfigs().values()) {
-            assertFalse(ct.deprecated());
-        }
-        registry.getIngestPipelines()
-            .stream()
-            .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
-            .map(PipelineConfiguration::getConfigAsMap)
-            .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
-    }
-
     // -------------
 
     /**

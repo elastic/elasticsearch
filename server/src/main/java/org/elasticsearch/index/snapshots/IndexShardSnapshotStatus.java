@@ -222,14 +222,6 @@ public class IndexShardSnapshotStatus {
         }
     }
 
-    private synchronized void moveToPaused(final long endTime) {
-        if (stage.getAndSet(Stage.FAILURE) != Stage.FAILURE) {
-            abortListeners.onResponse(AbortStatus.NO_ABORT);
-            this.totalTime = Math.max(0L, endTime - startTime);
-            this.failure = failure;
-        }
-    }
-
     public ShardGeneration generation() {
         return generation.get();
     }

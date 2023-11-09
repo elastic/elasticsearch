@@ -285,8 +285,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // Deduplicate failures by exception message and index
                 ShardOperationFailedException[] groupedFailures = ExceptionsHelper.groupBy(searchResponse.getShardFailures());
                 for (ShardOperationFailedException f : groupedFailures) {
-                    if (f.status().getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false)
+                    boolean causeHas500Status = false;
+                    if (f.getCause() != null) {
+                        causeHas500Status = ExceptionsHelper.status(f.getCause()).getStatus() >= 500;
+                    }
+                    if ((f.status().getStatus() >= 500 || causeHas500Status)
+                        && ExceptionsHelper.isNodeOrShardUnavailableTypeException(f.getCause()) == false) {
                         logger.warn("TransportSearchAction shard failure (partial results response)", f);
+                    }
                 }
             }
             l.onResponse(searchResponse);

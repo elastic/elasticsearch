@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -67,6 +69,32 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransportAction {
+
+    private static class ModelStats {
+
+        private final String taskType;
+        private final StatsAccumulator inferenceCounts = new StatsAccumulator();
+        private Instant lastAccess;
+
+        ModelStats(String taskType) {
+            this.taskType = taskType;
+        }
+
+        void update(AssignmentStats.NodeStats stats) {
+            inferenceCounts.add(stats.getInferenceCount().orElse(0L));
+            if (stats.getLastAccess() != null && (lastAccess == null || stats.getLastAccess().isAfter(lastAccess))) {
+                lastAccess = stats.getLastAccess();
+            }
+        }
+
+        Map<String, ?> asMap() {
+            return ImmutableOpenMap.<String, Object>builder()
+                .fPut("task_type", taskType)
+                .fPut("inference_counts", inferenceCounts.asMap())
+                .fPut("last_access", lastAccess == null ? null : lastAccess.toString())
+                .build();
+        }
+    }
 
     private static final Logger logger = LogManager.getLogger(MachineLearningUsageTransportAction.class);
 
@@ -399,7 +427,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                     Map<String, Object> inferenceUsage = new LinkedHashMap<>();
                     addInferenceIngestUsage(getStatsResponse, inferenceUsage);
                     addTrainedModelStats(getModelsResponse, getStatsResponse, inferenceUsage);
-                    addDeploymentStats(getStatsResponse, inferenceUsage);
+                    addDeploymentStats(getModelsResponse, getStatsResponse, inferenceUsage);
                     listener.onResponse(inferenceUsage);
                 }, listener::onFailure));
             }, listener::onFailure));
@@ -408,18 +436,27 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         }
     }
 
-    private static void addDeploymentStats(GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+    private static void addDeploymentStats(
+        GetTrainedModelsAction.Response modelsResponse,
+        GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
+        Map<String, String> taskTypes = modelsResponse.getResources().results().stream()
+            .collect(Collectors.toMap(TrainedModelConfig::getModelId, cfg -> cfg.getInferenceConfig().getName()));
         StatsAccumulator modelSizes = new StatsAccumulator();
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
-        HashMap<String, StatsAccumulator> nodeDistributionByModel = new HashMap<>();
+        Map<String, ModelStats> statsByModel = new HashMap<>();
         for (var stats : statsResponse.getResources().results()) {
             AssignmentStats deploymentStats = stats.getDeploymentStats();
             if (deploymentStats == null) {
                 continue;
             }
             deploymentsCount++;
+            // If the model ID starts with a dot, it's an internal model, and the stats should be
+            // reported separately. If not, it's a third party model, whose stats are aggregated.
+            // The leading dot is stripped, because it's inconvenient to handle it downstream.
+            String modelId = deploymentStats.getModelId().startsWith(".") ? deploymentStats.getModelId().substring(1) : "other";
+            String taskType = taskTypes.get(deploymentStats.getModelId());
             TrainedModelSizeStats modelSizeStats = stats.getModelSizeStats();
             if (modelSizeStats != null) {
                 modelSizes.add(modelSizeStats.getModelSizeBytes());
@@ -428,11 +465,11 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
                 avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;
                 nodeDistribution.add(nodeInferenceCount);
-                // If the model ID starts with a dot, it's an internal model, and the stats should be
-                // reported separately. If not, it's a third party model, whose stats are aggregated.
-                // The leading dot is stripped, because it's inconvenient to handle it downstream.
-                String modelId = deploymentStats.getModelId().startsWith(".") ? deploymentStats.getModelId().substring(1) : "other";
-                nodeDistributionByModel.computeIfAbsent(modelId, key -> new StatsAccumulator()).add(nodeInferenceCount);
+
+                // TODO(jan): right now, for the model ID "other", the first task type ends up in
+                //            the stats, which is incorrect. Wait for further specs and fix it.
+                ModelStats modelStats = statsByModel.computeIfAbsent(modelId, key -> new ModelStats(taskType));
+                modelStats.update(nodeStats);
             }
         }
 
@@ -447,8 +484,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 modelSizes.asMap(),
                 "inference_counts",
                 nodeDistribution.asMap(),
-                "inference_counts_by_model",
-                Maps.transformValues(nodeDistributionByModel, StatsAccumulator::asMap)
+                "stats_by_model",
+                Maps.transformValues(statsByModel, ModelStats::asMap)
             )
         );
     }

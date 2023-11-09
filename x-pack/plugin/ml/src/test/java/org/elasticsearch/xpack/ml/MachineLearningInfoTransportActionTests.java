@@ -340,14 +340,20 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.total"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.min"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.avg"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.total"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.min"), equalTo(1.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.max"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.avg"), equalTo(2.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.task_type"), equalTo("ner"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.last_access"),
+                equalTo(lastAccess(3).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.total"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.min"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.avg"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.task_type"), equalTo("regression"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.last_access"),
+                equalTo(lastAccess(4).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.total"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.min"), equalTo(1.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.avg"), equalTo(2.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
@@ -432,14 +438,20 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.total"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.min"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.avg"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.total"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.min"), equalTo(1.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.max"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.avg"), equalTo(2.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.task_type"), equalTo("ner"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.last_access"),
+                equalTo(lastAccess(3).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.total"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.min"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.internal_model_3.inference_counts.avg"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.task_type"), equalTo("regression"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.last_access"),
+                equalTo(lastAccess(4).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.total"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.min"), equalTo(1.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.other.inference_counts.avg"), equalTo(2.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
@@ -891,24 +903,24 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             expectedDfaCountByAnalysis.put(analysisName, ++analysisCount);
         });
 
-        TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance("model_1")
+        TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance(".internal_model_1")
             .setModelSize(100)
             .setEstimatedOperations(200)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .setInferenceConfig(ClassificationConfig.EMPTY_PARAMS)
             .build();
-        TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("model_2")
+        TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("third_party_model_2")
             .setModelSize(200)
             .setEstimatedOperations(400)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
             .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
-        TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance("model_3")
+        TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance(".internal_model_3")
             .setModelSize(300)
             .setEstimatedOperations(600)
             .setInferenceConfig(new NerConfig(null, null, null, null))
             .build();
-        TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("model_4")
+        TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("third_party_model_4")
             .setTags(Collections.singletonList("prepackaged"))
             .setModelSize(1000)
             .setEstimatedOperations(2000)
@@ -985,7 +997,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2,
                                         3,
-                                        Instant.now(),
+                                        lastAccess(2),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
                                         randomIntBetween(1, 16),
@@ -1036,7 +1048,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         3L,
                                         2,
                                         3,
-                                        Instant.now(),
+                                        lastAccess(3),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
                                         randomIntBetween(1, 16),
@@ -1087,7 +1099,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         1L,
                                         2,
                                         3,
-                                        Instant.now(),
+                                        lastAccess(4),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
                                         randomIntBetween(1, 16),
@@ -1107,5 +1119,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             )
         );
         return expectedDfaCountByAnalysis;
+    }
+
+    private static Instant lastAccess(int i) {
+        return Instant.ofEpochSecond(1_000_000_000 + i);
     }
 }

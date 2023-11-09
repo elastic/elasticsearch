@@ -183,7 +183,7 @@ GET /_xpack/usage
           "avg": 0.0,
           "max": 0.0
         },
-        "inference_counts_by_model": {},
+        "stats_by_model": {},
         "model_sizes_bytes": {
           "total": 0.0,
           "min": 0.0,

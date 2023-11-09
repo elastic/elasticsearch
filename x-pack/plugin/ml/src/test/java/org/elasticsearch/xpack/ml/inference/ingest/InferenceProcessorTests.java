@@ -303,14 +303,19 @@ public class InferenceProcessorTests extends ESTestCase {
         };
         IngestDocument document = TestIngestDocument.ofIngestWithNullableVersion(source, new HashMap<>());
 
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(source));
+        var request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(source));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
         document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
 
         Map<String, Object> expected = new HashMap<>(source);
         expected.put("_ingest", ingestMetadata);
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expected));
+
+        request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(expected));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
     }
 
     public void testGenerateWithMapping() {
@@ -346,14 +351,18 @@ public class InferenceProcessorTests extends ESTestCase {
         expectedMap.put("categorical", "foo");
         expectedMap.put("new_categorical", "foo");
         expectedMap.put("un_touched", "bar");
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+        var request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(expectedMap));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", "baz");
         document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
         expectedMap = new HashMap<>(expectedMap);
         expectedMap.put("metafield", "baz");
         expectedMap.put("_ingest", ingestMetadata);
-        assertThat(processor.buildRequest(document).getObjectsToInfer().get(0), equalTo(expectedMap));
+        request = processor.buildRequest(document);
+        assertThat(request.getObjectsToInfer().get(0), equalTo(expectedMap));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
     }
 
     public void testGenerateWithMappingNestedFields() {
@@ -597,6 +606,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertTrue(request.getObjectsToInfer().isEmpty());
         var requestInputs = request.getTextInput();
         assertThat(requestInputs, contains("body_text", "title_text"));
+        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, request.getInferenceTimeout());
     }
 
     public void testBuildRequestWithInputFields_WrongType() {

@@ -17,7 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -42,15 +41,6 @@ public class ReloadSynonymAnalyzerIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);
-    }
-
-    /**
-     * This test needs to write to the config directory, this is difficult in an external cluster so we overwrite this to force running with
-     * {@link InternalTestCluster}
-     */
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public void testSynonymsUpdateable() throws FileNotFoundException, IOException, InterruptedException {

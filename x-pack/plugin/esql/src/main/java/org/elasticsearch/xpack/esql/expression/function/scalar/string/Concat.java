@@ -12,7 +12,6 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -98,12 +97,7 @@ public class Concat extends ScalarFunction implements EvaluatorMapper {
             length += v.length;
         }
         if (length > MAX_CONCAT_LENGTH) {
-            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported") {
-                @Override
-                public RestStatus status() {
-                    return RestStatus.BAD_REQUEST; // return a 400 response
-                }
-            };
+            throw new EsqlClientException("concatenating more than [" + MAX_CONCAT_LENGTH + "] bytes is not supported");
         }
         return length;
     }

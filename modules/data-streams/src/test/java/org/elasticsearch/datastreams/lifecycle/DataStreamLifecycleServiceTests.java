@@ -126,7 +126,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private DataStreamLifecycleService dataStreamLifecycleService;
     private List<TransportRequest> clientSeenRequests;
-    private Client client;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
 
@@ -145,7 +144,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Clock clock = Clock.fixed(Instant.ofEpochMilli(now), ZoneId.of(randomFrom(ZoneId.getAvailableZoneIds())));
         clientSeenRequests = new CopyOnWriteArrayList<>();
 
-        client = getTransportRequestsRecordingClient();
+        final Client client = getTransportRequestsRecordingClient();
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(
                 new HashSet<>(
@@ -178,7 +177,6 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.close();
         clusterService.close();
         threadPool.shutdownNow();
-        client.close();
     }
 
     public void testOperationsExecutedOnce() {
@@ -1500,7 +1498,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
      * (it does not even notify the listener), but tests can provide an implementation of clientDelegate to provide any needed behavior.
      */
     private Client getTransportRequestsRecordingClient() {
-        return new NoOpClient(getTestName()) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,

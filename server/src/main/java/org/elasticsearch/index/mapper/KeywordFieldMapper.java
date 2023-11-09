@@ -137,7 +137,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
@@ -184,7 +184,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final IndexVersion indexCreatedVersion;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, IndexVersion indexCreatedVersion) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
@@ -1008,7 +1007,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         return syntheticFieldLoader(simpleName());
     }
 
-    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+    SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }

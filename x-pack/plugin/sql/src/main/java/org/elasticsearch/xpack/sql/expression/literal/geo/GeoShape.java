@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
 
@@ -60,7 +61,7 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new QlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
+            throw new InvalidArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
         }
     }
 
@@ -69,7 +70,7 @@ public class GeoShape implements ToXContentFragment, ConstantNamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new QlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
+            throw new InvalidArgumentException("Cannot parse [" + value + "] as a geo_shape or shape value", ex);
         }
     }
 

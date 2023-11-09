@@ -82,13 +82,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     }
 
     /**
-     * Returns the compression factor of the t-digest sketches used
-     */
-    public double compression() {
-        return compression;
-    }
-
-    /**
      * Set the compression factor of the t-digest sketches used
      */
     public MedianAbsoluteDeviationAggregationBuilder compression(double compression) {
@@ -185,11 +178,6 @@ public class MedianAbsoluteDeviationAggregationBuilder extends SingleMetricAggre
     @Override
     public String getType() {
         return NAME;
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override

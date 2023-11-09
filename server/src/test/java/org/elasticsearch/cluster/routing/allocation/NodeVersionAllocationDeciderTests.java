@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -77,8 +75,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
-
-    private final Logger logger = LogManager.getLogger(NodeVersionAllocationDeciderTests.class);
 
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(

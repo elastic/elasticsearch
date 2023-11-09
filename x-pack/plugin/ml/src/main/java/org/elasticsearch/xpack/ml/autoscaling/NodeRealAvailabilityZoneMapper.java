@@ -34,7 +34,6 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
 
     private volatile List<String> awarenessAttributes;
 
-    @SuppressWarnings("this-escape")
     public NodeRealAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
         this(settings, clusterSettings, null);
     }

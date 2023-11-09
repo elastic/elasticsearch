@@ -463,6 +463,9 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         if (version.before(TransportVersions.ML_TRAINED_MODEL_CONFIG_PLATFORM_ADDED)) {
             builder.setPlatformArchitecture(null);
         }
+        if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+            builder.setPrefixStrings(null);
+        }
         return builder.build();
     }
 }

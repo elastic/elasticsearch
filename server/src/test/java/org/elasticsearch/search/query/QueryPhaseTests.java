@@ -44,6 +44,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
@@ -720,7 +721,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                 @SuppressWarnings("unchecked")
                 FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
                     1,
-                    i == 0
+                    i == 0 ? Pruning.GREATER_THAN : Pruning.NONE
                 );
                 int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
                 if (cmp == 0) {

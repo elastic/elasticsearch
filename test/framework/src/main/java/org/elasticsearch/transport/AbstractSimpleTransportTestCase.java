@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -878,6 +879,31 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         final ExecutionException e = expectThrows(ExecutionException.class, res::get);
         assertThat(e.getCause().getCause().getMessage(), equalTo("runtime_exception: bad message !!!"));
+    }
+
+    public void testExceptionOnConnect() {
+        final var transportA = serviceA.getOriginalTransport();
+
+        final var nullProfileFuture = new PlainActionFuture<Transport.Connection>();
+        transportA.openConnection(nodeB, null, nullProfileFuture);
+        assertTrue(nullProfileFuture.isDone());
+        expectThrows(ExecutionException.class, NullPointerException.class, nullProfileFuture::get);
+
+        final var profile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
+        final var nullNodeFuture = new PlainActionFuture<Transport.Connection>();
+        transportA.openConnection(null, profile, nullNodeFuture);
+        assertTrue(nullNodeFuture.isDone());
+        expectThrows(ExecutionException.class, ConnectTransportException.class, nullNodeFuture::get);
+
+        serviceA.stop();
+        assertEquals(Lifecycle.State.STOPPED, transportA.lifecycleState());
+        serviceA.close();
+        assertEquals(Lifecycle.State.CLOSED, transportA.lifecycleState());
+
+        final var closedTransportFuture = new PlainActionFuture<Transport.Connection>();
+        transportA.openConnection(nodeB, profile, closedTransportFuture);
+        assertTrue(closedTransportFuture.isDone());
+        expectThrows(ExecutionException.class, IllegalStateException.class, closedTransportFuture::get);
     }
 
     public void testDisconnectListener() throws Exception {

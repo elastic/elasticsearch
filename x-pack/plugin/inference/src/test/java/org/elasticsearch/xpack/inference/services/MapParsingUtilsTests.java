@@ -8,14 +8,19 @@
 package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.convertToUri;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.createUri;
+import static org.elasticsearch.xpack.inference.services.MapParsingUtils.extractRequiredSecureString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class MapParsingUtilsTests extends ESTestCase {
 
@@ -87,5 +92,75 @@ public class MapParsingUtilsTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE));
         assertNull(MapParsingUtils.removeAsType(new HashMap<>(), "missing", Integer.class));
         assertThat(map.entrySet(), hasSize(3));
+    }
+
+    public void testConvertToUri_CreatesUri() {
+        var validation = new ValidationException();
+        var uri = convertToUri("www.elastic.co", "name", "scope", validation);
+
+        assertNotNull(uri);
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(uri.toString(), is("www.elastic.co"));
+    }
+
+    public void testConvertToUri_ThrowsNullPointerException_WhenPassedNull() {
+        var validation = new ValidationException();
+        expectThrows(NullPointerException.class, () -> convertToUri(null, "name", "scope", validation));
+
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testConvertToUri_AddsValidationError_WhenUrlIsInvalid() {
+        var validation = new ValidationException();
+        var uri = convertToUri("^^", "name", "scope", validation);
+
+        assertNull(uri);
+        assertThat(validation.validationErrors().size(), is(1));
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid url [^^] received for field [name]"));
+    }
+
+    public void testCreateUri_CreatesUri() {
+        var uri = createUri("www.elastic.co");
+
+        assertNotNull(uri);
+        assertThat(uri.toString(), is("www.elastic.co"));
+    }
+
+    public void testCreateUri_ThrowsException_WithInvalidUrl() {
+        var exception = expectThrows(IllegalArgumentException.class, () -> createUri("^^"));
+
+        assertThat(exception.getMessage(), is("unable to parse url [^^]"));
+    }
+
+    public void testCreateUri_ThrowsException_WithNullUrl() {
+        expectThrows(NullPointerException.class, () -> createUri(null));
+    }
+
+    public void testExtractRequiredSecureString_CreatesSecureString() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var secureString = extractRequiredSecureString(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(secureString);
+        assertThat(secureString.toString(), is("value"));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredSecureString_AddsException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var secureString = extractRequiredSecureString(map, "abc", "scope", validation);
+
+        assertNull(secureString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertThat(map.size(), is(1));
+        assertThat(validation.validationErrors().get(0), is("[scope] does not contain the required setting [abc]"));
+    }
+
+    // TODO add more tests for extract methods
+
+    private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
+        return new HashMap<>(aMap);
     }
 }

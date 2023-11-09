@@ -43,9 +43,9 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
             this.connector = connector;
         }
 
-        public Request(StreamInput in, Connector connector) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
-            this.connector = connector;
+            this.connector = new Connector(in);
         }
 
         public Request(String connectorId, BytesReference content, XContentType contentType) {
@@ -54,7 +54,7 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
+            return connector.toXContent(builder, params);
         }
 
         @Override
@@ -68,6 +68,11 @@ public class PutConnectorAction extends ActionType<PutConnectorAction.Response> 
 
             return validationException;
         }
+
+        public Connector connector() {
+            return connector;
+        }
+
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {

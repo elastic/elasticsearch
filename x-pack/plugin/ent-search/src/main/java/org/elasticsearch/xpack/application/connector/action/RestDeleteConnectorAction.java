@@ -18,34 +18,27 @@ import org.elasticsearch.xpack.application.utils.LicenseUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class RestPutConnectorAction extends EnterpriseSearchBaseRestHandler {
-    public RestPutConnectorAction(XPackLicenseState licenseState) {
+public class RestDeleteConnectorAction extends EnterpriseSearchBaseRestHandler {
+
+    public RestDeleteConnectorAction(XPackLicenseState licenseState) {
         super(licenseState, LicenseUtils.Product.CONNECTOR);
     }
 
     @Override
     public String getName() {
-        return "connector_put_action";
+        return "connector_delete_action";
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTORS_API_ENDPOINT + "/{connector_id}"));
+        return List.of(new Route(DELETE, "/" + EnterpriseSearch.CONNECTORS_API_ENDPOINT + "/{connector_id}"));
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PutConnectorAction.Request request = new PutConnectorAction.Request(
-            restRequest.param("connector_id"),
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
-        return channel -> client.execute(
-            PutConnectorAction.INSTANCE,
-            request,
-            new RestToXContentListener<>(channel, PutConnectorAction.Response::status, r -> null)
-        );
+        DeleteConnectorAction.Request request = new DeleteConnectorAction.Request(restRequest.param("connector_id"));
+        return channel -> client.execute(DeleteConnectorAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

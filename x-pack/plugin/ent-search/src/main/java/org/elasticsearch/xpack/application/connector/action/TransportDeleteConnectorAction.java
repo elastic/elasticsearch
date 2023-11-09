@@ -10,39 +10,39 @@ package org.elasticsearch.xpack.application.connector.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 
-public class TransportPutConnectorAction extends HandledTransportAction<PutConnectorAction.Request, PutConnectorAction.Response> {
+public class TransportDeleteConnectorAction extends HandledTransportAction<DeleteConnectorAction.Request, AcknowledgedResponse> {
 
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
-    public TransportPutConnectorAction(
+    public TransportDeleteConnectorAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
         Client client
     ) {
         super(
-            PutConnectorAction.NAME,
+            DeleteConnectorAction.NAME,
             transportService,
             actionFilters,
-            PutConnectorAction.Request::new,
+            DeleteConnectorAction.Request::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.connectorIndexService = new ConnectorIndexService(client, clusterService.getClusterSettings());
     }
 
     @Override
-    protected void doExecute(Task task, PutConnectorAction.Request request, ActionListener<PutConnectorAction.Response> listener) {
-        Connector connector = request.connector();
-        connectorIndexService.putConnector(connector, listener.map(r -> new PutConnectorAction.Response(r.getResult())));
+    protected void doExecute(Task task, DeleteConnectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        String connectorId = request.connectorId();
+        connectorIndexService.deleteConnector(connectorId, listener.map(v -> AcknowledgedResponse.TRUE));
     }
 }

@@ -41,6 +41,12 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.PutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestDeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.RestPutConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportDeleteConnectorAction;
+import org.elasticsearch.xpack.application.connector.action.TransportPutConnectorAction;
 import org.elasticsearch.xpack.application.rules.QueryRulesConfig;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
 import org.elasticsearch.xpack.application.rules.RuleQueryBuilder;
@@ -142,6 +148,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new ActionHandler<>(GetQueryRulesetAction.INSTANCE, TransportGetQueryRulesetAction.class),
             new ActionHandler<>(ListQueryRulesetsAction.INSTANCE, TransportListQueryRulesetsAction.class),
             new ActionHandler<>(PutQueryRulesetAction.INSTANCE, TransportPutQueryRulesetAction.class),
+
+            // Connectors
+            new ActionHandler<>(DeleteConnectorAction.INSTANCE, TransportDeleteConnectorAction.class),
+            new ActionHandler<>(PutConnectorAction.INSTANCE, TransportPutConnectorAction.class),
+
             usageAction,
             infoAction
         );
@@ -181,7 +192,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
             new RestDeleteQueryRulesetAction(getLicenseState()),
             new RestGetQueryRulesetAction(getLicenseState()),
             new RestListQueryRulesetsAction(getLicenseState()),
-            new RestPutQueryRulesetAction(getLicenseState())
+            new RestPutQueryRulesetAction(getLicenseState()),
+
+            // Connectors
+            new RestDeleteConnectorAction(getLicenseState()),
+            new RestPutConnectorAction(getLicenseState())
         );
     }
 

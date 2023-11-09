@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -110,6 +111,10 @@ public class Connector implements Writeable, ToXContentObject {
 
     public Connector(String id) {
         this.id = id;
+    }
+
+    public Connector(StreamInput in) throws IOException {
+        this.id = in.readString();
     }
 
     private static final ConstructingObjectParser<Connector, String> PARSER = new ConstructingObjectParser<>(

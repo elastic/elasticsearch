@@ -430,7 +430,8 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 nodeDistribution.add(nodeInferenceCount);
                 // If the model ID starts with a dot, it's an internal model, and the stats should be
                 // reported separately. If not, it's a third party model, whose stats are aggregated.
-                String modelId = deploymentStats.getModelId().startsWith(".") ? deploymentStats.getModelId() : "other";
+                // The leading dot is stripped, because it's inconvenient to handle it downstream.
+                String modelId = deploymentStats.getModelId().startsWith(".") ? deploymentStats.getModelId().substring(1) : "other";
                 nodeDistributionByModel.computeIfAbsent(modelId, key -> new StatsAccumulator()).add(nodeInferenceCount);
             }
         }

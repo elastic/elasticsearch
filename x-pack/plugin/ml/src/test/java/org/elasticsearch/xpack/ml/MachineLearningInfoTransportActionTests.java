@@ -340,14 +340,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "total"}),
-                equalTo(5.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "min"}),
-                equalTo(5.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "max"}),
-                equalTo(5.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "avg"}),
-                equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.total"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.min"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.avg"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.total"), equalTo(4.0));
             assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.max"), equalTo(3.0));
@@ -436,14 +432,10 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "total"}),
-                equalTo(5.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "min"}),
-                equalTo(5.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "max"}),
-                equalTo(5.0));
-            assertThat(source.getValue(new String[]{"inference", "deployments", "inference_counts_by_model", ".internal_model_3", "avg"}),
-                equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.total"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.min"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts_by_model.internal_model_3.avg"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.total"), equalTo(4.0));
             assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.min"), equalTo(1.0));
             assertThat(source.getValue("inference.deployments.inference_counts_by_model.other.max"), equalTo(3.0));

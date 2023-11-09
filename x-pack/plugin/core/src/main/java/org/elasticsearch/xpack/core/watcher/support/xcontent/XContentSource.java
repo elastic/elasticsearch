@@ -109,17 +109,6 @@ public class XContentSource implements ToXContent {
         return (T) ObjectPath.eval(path, data());
     }
 
-    /**
-     * Extracts a value identified by the given path in the source.
-     *
-     * @param path the path segments to the requested value
-     * @return The extracted value or {@code null} if no value is associated with the given path
-     */
-    @SuppressWarnings("unchecked")
-    public <T> T getValue(String[] path) {
-        return (T) ObjectPath.eval(path, data());
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // EMPTY is safe here because we never use namedObject

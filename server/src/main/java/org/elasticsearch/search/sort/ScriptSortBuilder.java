@@ -295,7 +295,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -343,7 +343,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }
@@ -374,7 +374,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
-                            public boolean advanceExact(int doc) throws IOException {
+                            public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
                                 return true;
                             }

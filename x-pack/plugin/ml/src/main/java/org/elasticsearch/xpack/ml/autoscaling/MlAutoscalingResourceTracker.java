@@ -270,11 +270,13 @@ public final class MlAutoscalingResourceTracker {
         // - modelMemory on nodes is available
         // - no jobs wait for assignment
         // - the total memory usage is less than memory usage after taking away 1 node
+        // - the current number of nodes is greater than the minimum number of nodes
         if (perNodeMemoryInBytes > 0
             && perNodeAvailableModelMemoryInBytes > 0
             && extraModelMemoryInBytes == 0
             && extraProcessors == 0
             && modelMemoryBytesSum <= perNodeMemoryInBytes * (numberMlNodes - 1)
+            && minNodes < numberMlNodes
             && (perNodeModelMemoryInBytes.size() < numberMlNodes // a node has no assigned jobs
                 || checkIfOneNodeCouldBeRemoved(
                     perNodeModelMemoryInBytes,

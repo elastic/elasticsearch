@@ -377,6 +377,7 @@ public abstract class CheckForbiddenApisTask extends DefaultTask implements Patt
             parameters.getTargetCompatibility().set(getTargetCompatibility());
             parameters.getIgnoreFailures().set(getIgnoreFailures());
             parameters.getSuccessMarker().set(getSuccessMarker());
+            parameters.getSignaturesFiles().from(getSignaturesFiles());
         });
     }
 

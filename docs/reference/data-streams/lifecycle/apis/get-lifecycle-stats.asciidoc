@@ -64,6 +64,7 @@ Let's retrieve the data stream lifecycle stats of a cluster that has already exe
 --------------------------------------------------
 GET _lifecycle/stats?human&pretty
 --------------------------------------------------
+// TEST[skip:this is for demonstration purposes only, we cannot ensure that DSL has run
 
 The response will look like the following:
 
@@ -89,4 +90,3 @@ The response will look like the following:
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:the result is for illustrating purposes only]

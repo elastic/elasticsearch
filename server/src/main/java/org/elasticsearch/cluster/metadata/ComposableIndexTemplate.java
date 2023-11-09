@@ -107,6 +107,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         return PARSER.parse(parser, null);
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * @deprecated use {@link Builder} instead
+     */
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -115,9 +123,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Long version,
         @Nullable Map<String, Object> metadata
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null, null, null);
     }
 
+    /**
+     * @deprecated use {@link Builder} instead
+     */
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -127,9 +139,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable Map<String, Object> metadata,
         @Nullable DataStreamTemplate dataStreamTemplate
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null, null, null);
     }
 
+    /**
+     * @deprecated use {@link Builder} instead
+     */
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -140,34 +156,13 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         @Nullable DataStreamTemplate dataStreamTemplate,
         @Nullable Boolean allowAutoCreate
     ) {
-        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, allowAutoCreate, null);
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, allowAutoCreate, null, null);
     }
 
-    ComposableIndexTemplate(
-        List<String> indexPatterns,
-        @Nullable Template template,
-        @Nullable List<String> componentTemplates,
-        @Nullable Long priority,
-        @Nullable Long version,
-        @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate,
-        @Nullable Boolean allowAutoCreate,
-        @Nullable List<String> ignoreMissingComponentTemplates
-    ) {
-        this(
-            indexPatterns,
-            template,
-            componentTemplates,
-            priority,
-            version,
-            metadata,
-            dataStreamTemplate,
-            allowAutoCreate,
-            ignoreMissingComponentTemplates,
-            null
-        );
-    }
-
+    /**
+     * @deprecated use {@link Builder} instead
+     */
+    @Deprecated(forRemoval = true)
     public ComposableIndexTemplate(
         List<String> indexPatterns,
         @Nullable Template template,
@@ -285,10 +280,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     @Nullable
     public List<String> getIgnoreMissingComponentTemplates() {
         return ignoreMissingComponentTemplates;
-    }
-
-    public Boolean deprecated() {
-        return deprecated;
     }
 
     public boolean isDeprecated() {
@@ -410,6 +401,10 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return true;
         }
         return false;
+    }
+
+    public Builder toBuilder() {
+        return new Builder(this);
     }
 
     @Override
@@ -535,7 +530,24 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private List<String> ignoreMissingComponentTemplates;
         private Boolean deprecated;
 
+        /**
+         * @deprecated use {@link ComposableIndexTemplate#builder()}
+         */
+        @Deprecated(forRemoval = true)
         public Builder() {}
+
+        private Builder(ComposableIndexTemplate template) {
+            this.indexPatterns = template.indexPatterns;
+            this.template = template.template;
+            this.componentTemplates = template.componentTemplates;
+            this.priority = template.priority;
+            this.version = template.version;
+            this.metadata = template.metadata;
+            this.dataStreamTemplate = template.dataStreamTemplate;
+            this.allowAutoCreate = template.allowAutoCreate;
+            this.ignoreMissingComponentTemplates = template.ignoreMissingComponentTemplates;
+            this.deprecated = template.deprecated;
+        }
 
         public Builder indexPatterns(List<String> indexPatterns) {
             this.indexPatterns = indexPatterns;

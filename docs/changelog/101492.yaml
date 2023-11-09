@@ -1,6 +1,0 @@
-pr: 101492
-summary: "ESQL: check type before casting"
-area: ES|QL
-type: bug
-issues:
- - 101489

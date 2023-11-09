@@ -63,11 +63,6 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, Ccr.class);
     }

@@ -1,0 +1,5 @@
+pr: 101577
+summary: Add metrics to the shared blob cache
+area: Search
+type: enhancement
+issues: []

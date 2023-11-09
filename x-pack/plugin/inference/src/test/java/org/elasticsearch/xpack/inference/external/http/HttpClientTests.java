@@ -42,7 +42,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.external.http.Utils.createThreadPool;
+import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.hamcrest.Matchers.equalTo;
@@ -63,7 +63,7 @@ public class HttpClientTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(getTestName());
+        threadPool = createThreadPool(inferenceUtilityPool());
     }
 
     @After

@@ -58,6 +58,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             origin = in.readString();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.UPDATE_NON_DYNAMIC_SETTINGS_ADDED)) {
+            reopen = in.readBoolean();
+        }
     }
 
     public UpdateSettingsRequest() {}
@@ -200,6 +203,9 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeString(origin);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.UPDATE_NON_DYNAMIC_SETTINGS_ADDED)) {
+            out.writeBoolean(reopen);
+        }
     }
 
     @Override
@@ -257,12 +263,13 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
             && Objects.equals(settings, that.settings)
             && Objects.equals(indicesOptions, that.indicesOptions)
             && Objects.equals(preserveExisting, that.preserveExisting)
+            && Objects.equals(reopen, that.reopen)
             && Arrays.equals(indices, that.indices);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, Arrays.hashCode(indices));
+        return Objects.hash(masterNodeTimeout, timeout, settings, indicesOptions, preserveExisting, reopen, Arrays.hashCode(indices));
     }
 
 }

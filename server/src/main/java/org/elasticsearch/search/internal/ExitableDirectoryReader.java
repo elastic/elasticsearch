@@ -142,8 +142,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
             }
-            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-            // match all docs to allow timeout checking.
             in.searchNearestVectors(field, target, collector, new TimeOutCheckingBits(acceptDocs));
         }
 
@@ -162,9 +160,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
             }
-            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-            // match all docs to allow timeout checking.
-            in.searchNearestVectors(field, target, collector, acceptDocs);
+            in.searchNearestVectors(field, target, collector, new TimeOutCheckingBits(acceptDocs));
         }
 
         private class TimeOutCheckingBits implements Bits {
@@ -173,6 +169,8 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             private int calls;
 
             TimeOutCheckingBits(Bits acceptDocs) {
+                // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
+                // match all docs to allow timeout checking.
                 this.updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
             }
 

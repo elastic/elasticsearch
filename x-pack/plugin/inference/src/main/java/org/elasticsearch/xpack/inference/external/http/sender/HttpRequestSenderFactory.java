@@ -81,7 +81,7 @@ public class HttpRequestSenderFactory {
         private final HttpRequestExecutorService service;
         private final AtomicBoolean started = new AtomicBoolean(false);
         private volatile TimeValue maxRequestTimeout;
-        private final CountDownLatch startCompleted = new CountDownLatch(1);
+        private final CountDownLatch startCompleted = new CountDownLatch(2);
 
         private HttpRequestSender(
             String serviceName,
@@ -92,7 +92,7 @@ public class HttpRequestSenderFactory {
         ) {
             this.threadPool = Objects.requireNonNull(threadPool);
             this.manager = Objects.requireNonNull(httpClientManager);
-            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool);
+            service = new HttpRequestExecutorService(serviceName, manager.getHttpClient(), threadPool, startCompleted);
 
             this.maxRequestTimeout = MAX_REQUEST_TIMEOUT.get(settings);
             addSettingsUpdateConsumers(clusterService);

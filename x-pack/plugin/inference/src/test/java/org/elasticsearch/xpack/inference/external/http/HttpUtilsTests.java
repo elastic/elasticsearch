@@ -35,7 +35,7 @@ public class HttpUtilsTests extends ESTestCase {
             () -> checkForFailureStatusCode(mockThrottlerManager(), mock(Logger.class), mock(HttpRequestBase.class), result)
         );
 
-        assertThat(thrownException.getMessage(), is("Received a failure status code for request [null] status [300]"));
+        assertThat(thrownException.getMessage(), is("Unhandled redirection for request [null] status [300]"));
     }
 
     public void testCheckForFailureStatusCode_DoesNotThrowWhenStatusCodeIs200() {

@@ -30,6 +30,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
+/**
+ * Provides a wrapper around a {@link CloseableHttpAsyncClient} to move the responses to a separate thread for processing.
+ */
 public class HttpClient implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClient.class);
 

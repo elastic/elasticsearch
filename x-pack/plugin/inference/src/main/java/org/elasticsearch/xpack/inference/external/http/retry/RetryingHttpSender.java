@@ -8,99 +8,141 @@
 package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 public class RetryingHttpSender implements Retrier {
-    private static final Logger classLogger = LogManager.getLogger(RetryingHttpSender.class);
-
     private final Sender sender;
     private final ThrottlerManager throttlerManager;
     private final Logger logger;
     private final RetrySettings retrySettings;
+    private final ThreadPool threadPool;
+    private final Executor executor;
 
-    public RetryingHttpSender(Sender sender, ThrottlerManager throttlerManager, Logger logger, RetrySettings retrySettings) {
+    public RetryingHttpSender(
+        Sender sender,
+        ThrottlerManager throttlerManager,
+        Logger logger,
+        RetrySettings retrySettings,
+        ThreadPool threadPool
+    ) {
+        this(sender, throttlerManager, logger, retrySettings, threadPool, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+    }
+
+    // For testing only
+    RetryingHttpSender(
+        Sender sender,
+        ThrottlerManager throttlerManager,
+        Logger logger,
+        RetrySettings retrySettings,
+        ThreadPool threadPool,
+        Executor executor
+    ) {
         this.sender = Objects.requireNonNull(sender);
         this.throttlerManager = Objects.requireNonNull(throttlerManager);
         this.logger = Objects.requireNonNull(logger);
         this.retrySettings = Objects.requireNonNull(retrySettings);
+        this.threadPool = Objects.requireNonNull(threadPool);
+        this.executor = Objects.requireNonNull(executor);
+    }
+
+    private class InternalRetrier extends RetryableAction<InferenceResults> {
+        private final HttpRequestBase request;
+        private final ResponseHandler responseHandler;
+
+        InternalRetrier(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceResults> listener) {
+            super(
+                logger,
+                threadPool,
+                retrySettings.getSettings().initialDelay(),
+                retrySettings.getSettings().maxDelayBound(),
+                retrySettings.getSettings().timeoutValue(),
+                listener,
+                executor
+            );
+            this.request = request;
+            this.responseHandler = responseHandler;
+        }
+
+        @Override
+        public void tryAction(ActionListener<InferenceResults> listener) {
+            ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
+                try {
+                    responseHandler.validateResponse(throttlerManager, logger, request, result);
+                    InferenceResults inferenceResults = responseHandler.parseResult(result);
+
+                    listener.onResponse(inferenceResults);
+                } catch (Exception e) {
+                    logException(request, result, responseHandler.getRequestType(), e);
+                    listener.onFailure(e);
+                }
+            }, e -> {
+                logException(request, responseHandler.getRequestType(), e);
+                listener.onFailure(transformIfRetryable(e));
+            });
+
+            sender.send(request, responseListener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (e instanceof RetryException) {
+                return ((RetryException) e).shouldRetry();
+            }
+
+            return false;
+        }
+
+        /**
+         * If the connection gets closed by the server or because of a TTL we'll likely get a
+         * {@link org.apache.http.ConnectionClosedException} exception which is a child of IOException. For now,
+         * we'll consider all IOExceptions retryable because something failed while we were trying to send the request
+         * @param e the Exception received while sending the request
+         * @return a {@link RetryException} if this exception can be retried
+         */
+        private Exception transformIfRetryable(Exception e) {
+            var exceptionToReturn = e;
+            if (e instanceof IOException) {
+                exceptionToReturn = new RetryException(true, e);
+            }
+
+            return exceptionToReturn;
+        }
     }
 
     @Override
     public void send(HttpRequestBase request, ResponseHandler responseHandler, ActionListener<InferenceResults> listener) {
-        int failureCount = 0;
-        retryingSend(request, responseHandler, failureCount, listener);
-    }
-
-    private void retryingSend(
-        HttpRequestBase request,
-        ResponseHandler responseHandler,
-        int failureCount,
-        ActionListener<InferenceResults> listener
-    ) {
-        ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
-            try {
-                responseHandler.validateResponse(throttlerManager, logger, request, result);
-                InferenceResults inferenceResults = responseHandler.parseResult(result);
-
-                listener.onResponse(inferenceResults);
-            } catch (ElasticsearchException e) {
-                logException(request, result, responseHandler.getRequestType(), e);
-                attemptRetry(request, responseHandler, e, failureCount, listener);
-            } catch (Exception e) {
-                logException(request, result, responseHandler.getRequestType(), e);
-
-                attemptRetry(
-                    request,
-                    responseHandler,
-                    new ElasticsearchException(format("Failed to process request [%s]", request.getRequestLine()), e),
-                    failureCount,
-                    listener
-                );
-            }
-        }, e -> {
-            logException(request, responseHandler.getRequestType(), e);
-            attemptRetry(request, responseHandler, e, failureCount, listener);
-        });
-
-        sender.send(request, responseListener);
+        InternalRetrier retrier = new InternalRetrier(request, responseHandler, listener);
+        retrier.run();
     }
 
     private void logException(HttpRequestBase request, String requestType, Exception exception) {
+        var causeException = ExceptionsHelper.unwrapCause(exception);
+
         throttlerManager.warn(
             logger,
             format("Failed while sending request [%s] of type [%s]", request.getRequestLine(), requestType),
-            exception
-        );
-    }
-
-    private void logException(HttpRequestBase request, HttpResult result, String requestType, IOException exception) {
-        throttlerManager.warn(
-            logger,
-            format(
-                "Failed to parse the response for request [%s] of type [%s] with status [%s] [%s]",
-                request.getRequestLine(),
-                requestType,
-                result.response().getStatusLine().getStatusCode(),
-                result.response().getStatusLine().getReasonPhrase()
-            ),
-            exception
+            causeException
         );
     }
 
     private void logException(HttpRequestBase request, HttpResult result, String requestType, Exception exception) {
+        var causeException = ExceptionsHelper.unwrapCause(exception);
+
         throttlerManager.warn(
             logger,
             format(
@@ -110,43 +152,7 @@ public class RetryingHttpSender implements Retrier {
                 result.response().getStatusLine().getStatusCode(),
                 result.response().getStatusLine().getReasonPhrase()
             ),
-            exception
+            causeException
         );
-    }
-
-    private void attemptRetry(
-        HttpRequestBase request,
-        ResponseHandler responseHandler,
-        Exception exception,
-        int failureCount,
-        ActionListener<InferenceResults> listener
-    ) {
-        try {
-            // Let's retry all exceptions for now
-            if (failureCount >= retrySettings.getMaxRetries()) {
-                listener.onFailure(
-                    new ElasticsearchException(
-                        format("Failed sending request [%s] after [%s] retries", request.getRequestLine(), retrySettings.getMaxRetries()),
-                        exception
-                    )
-                );
-                return;
-            }
-
-            classLogger.debug(
-                () -> format("Failed sending request [%s], [%s] times, retrying", request.getRequestLine(), failureCount),
-                exception
-            );
-
-            TimeUnit.SECONDS.sleep(retrySettings.getRetryWaitTime().getSeconds());
-            retryingSend(request, responseHandler, failureCount + 1, listener);
-        } catch (Exception e) {
-            listener.onFailure(
-                new ElasticsearchException(
-                    format("Failed while attempting to retry request [%s] on retry number [%s]", request.getRequestLine(), failureCount),
-                    e
-                )
-            );
-        }
     }
 }

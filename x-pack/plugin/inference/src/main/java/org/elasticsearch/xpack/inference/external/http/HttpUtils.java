@@ -22,15 +22,31 @@ public class HttpUtils {
         HttpResult result
     ) {
         if (result.response().getStatusLine().getStatusCode() >= 300) {
-            String message = format(
-                "Received a failure status code for request [%s] status [%s]",
-                request.getRequestLine(),
-                result.response().getStatusLine().getStatusCode()
-            );
+            String message = getStatusCodeErrorMessage(request, result);
 
             throttlerManager.warn(logger, message);
 
             throw new IllegalStateException(message);
+        }
+    }
+
+    private static String getStatusCodeErrorMessage(HttpRequestBase request, HttpResult result) {
+        int statusCode = result.response().getStatusLine().getStatusCode();
+
+        if (statusCode >= 400) {
+            return format(
+                "Received a failure status code for request [%s] status [%s]",
+                request.getRequestLine(),
+                result.response().getStatusLine().getStatusCode()
+            );
+        } else if (statusCode >= 300) {
+            return format(
+                "Unhandled redirection for request [%s] status [%s]",
+                request.getRequestLine(),
+                result.response().getStatusLine().getStatusCode()
+            );
+        } else {
+            return "";
         }
     }
 

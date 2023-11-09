@@ -13,8 +13,6 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
-import java.io.IOException;
-
 /**
  * A contract for clients to specify behavior for handling http responses. Clients can pass this contract to the retry sender to parse
  * the response and help with logging.
@@ -29,18 +27,18 @@ public interface ResponseHandler {
      * @param logger the logger to use for logging
      * @param request the original request
      * @param result the response from the server
-     * @throws IllegalStateException if the response is invalid
+     * @throws RetryException if the response is invalid
      */
     void validateResponse(ThrottlerManager throttlerManager, Logger logger, HttpRequestBase request, HttpResult result)
-        throws IllegalStateException;
+        throws RetryException;
 
     /**
      * A method for parsing the response from the server.
      * @param result The wrapped response from the server.
      * @return the parsed inference results
-     * @throws IOException if a parsing error occurs
+     * @throws RetryException if a parsing error occurs
      */
-    InferenceResults parseResult(HttpResult result) throws IOException;
+    InferenceResults parseResult(HttpResult result) throws RetryException;
 
     /**
      * A string to uniquely identify the type of request that is being handled. This allows loggers to clarify which type of request

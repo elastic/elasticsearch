@@ -11,7 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.metrics;
 import io.opentelemetry.api.metrics.LongCounter;
 import io.opentelemetry.api.metrics.Meter;
 
-import org.elasticsearch.telemetry.apm.AbstractInstrument;
+import org.elasticsearch.telemetry.apm.internal.AbstractInstrument;
 
 import java.util.Map;
 import java.util.Objects;

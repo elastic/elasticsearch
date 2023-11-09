@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
-import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -26,12 +25,12 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -43,8 +42,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         final String dataNodeName = internalCluster().startDataOnlyNode();
         final String policyName = "test";
         putAutoscalingPolicy(policyName, Settings.EMPTY);
-
-        final String dsName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String dsName = randomIdentifier();
         createDataStreamAndTemplate(dsName);
         final int rolloverCount = between(1, 5);
         for (int i = 0; i < rolloverCount; ++i) {
@@ -67,9 +65,19 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         // just check it does not throw when not refreshed.
         capacity();
 
-        IndicesStatsResponse stats = indicesAdmin().prepareStats(dsName).clear().setStore(true).get();
+        var stats = indicesAdmin().prepareStats(dsName).clear().setStore(true).get();
+        var metadata = clusterAdmin().prepareState().get().getState().getMetadata();
         long used = stats.getTotal().getStore().getSizeInBytes();
-        long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
+        long maxShardSize = LongStream.concat(
+            // forecasts
+            metadata.dataStreams()
+                .get(dsName)
+                .getIndices()
+                .stream()
+                .flatMapToLong(index -> metadata.index(index).getForecastedShardSizeInBytes().stream()),
+            // shard sizes
+            Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes())
+        ).max().orElseThrow();
         // As long as usage is above low watermark, we will trigger a proactive scale up, since the simulated shards have an in-sync
         // set and therefore allocating these do not skip the low watermark check in the disk threshold decider.
         // Fixing this simulation should be done as a separate effort, but we should still ensure that the low watermark is in effect

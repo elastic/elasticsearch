@@ -174,6 +174,37 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             }
             return queryCancellation.isEnabled() ? new ExitableFloatVectorValues(vectorValues, queryCancellation) : vectorValues;
         }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            if (queryCancellation.isEnabled() == false) {
+                in.searchNearestVectors(field, target, collector, acceptDocs);
+                return;
+            }
+            // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
+            // match all docs to allow timeout checking.
+            final Bits updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
+            Bits timeoutCheckingAcceptDocs = new Bits() {
+                private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+                private int calls;
+
+                @Override
+                public boolean get(int index) {
+                    if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                        queryCancellation.checkCancelled();
+                    }
+
+                    return updatedAcceptDocs.get(index);
+                }
+
+                @Override
+                public int length() {
+                    return updatedAcceptDocs.length();
+                }
+            };
+
+            in.searchNearestVectors(field, target, collector, timeoutCheckingAcceptDocs);
+        }
     }
 
     /**

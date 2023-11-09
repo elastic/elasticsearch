@@ -20,9 +20,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -44,6 +46,18 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 @ServerlessScope(Scope.INTERNAL)
 public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
 
+    private static final ConstructingObjectParser<Grant.ClientAuthentication, Void> CLIENT_AUTHENTICATION_PARSER =
+        new ConstructingObjectParser<>("client_authentication", a -> new Grant.ClientAuthentication((String) a[0], (SecureString) a[1]));
+    static {
+        CLIENT_AUTHENTICATION_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("scheme"));
+        CLIENT_AUTHENTICATION_PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            RestGrantApiKeyAction::getSecureString,
+            new ParseField("value"),
+            ObjectParser.ValueType.STRING
+        );
+    }
+
     static final ObjectParser<GrantApiKeyRequest, Void> PARSER = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);
     static {
         PARSER.declareString((req, str) -> req.getGrant().setType(str), new ParseField("grant_type"));
@@ -60,13 +74,12 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
             new ParseField("access_token"),
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareField(
-            (req, secStr) -> req.getGrant().setBearerToken(secStr),
-            RestGrantApiKeyAction::getSecureString,
-            new ParseField("bearer_token"),
-            ObjectParser.ValueType.STRING
-        );
         PARSER.declareString((req, str) -> req.getGrant().setRunAsUsername(str), new ParseField("run_as"));
+        PARSER.declareObject(
+            (req, clientAuthentication) -> req.getGrant().setClientAuthentication(clientAuthentication),
+            CLIENT_AUTHENTICATION_PARSER,
+            new ParseField("client_authentication")
+        );
         PARSER.declareObject(
             (req, api) -> req.setApiKeyRequest(api),
             (parser, ignore) -> CreateApiKeyRequestBuilder.parse(parser),

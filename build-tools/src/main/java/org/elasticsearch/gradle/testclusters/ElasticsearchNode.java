@@ -121,6 +121,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private final String path;
     private final String name;
+    transient private final Project project;
     private final Provider<ReaperService> reaperServiceProvider;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -170,12 +171,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
 
-    private List<String> versions;
-
     ElasticsearchNode(
         String clusterName,
         String path,
         String name,
+        Project project,
         Provider<ReaperService> reaperServiceProvider,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
@@ -187,6 +187,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     ) {
         this.path = path;
         this.name = name;
+        this.project = project;
         this.reaperServiceProvider = reaperServiceProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
@@ -220,29 +221,28 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Version getVersion() {
+    public Version getVersion() {
         return Version.fromString(distributions.get(currentDistro).getVersion());
     }
 
     @Override
     public void setVersion(String version) {
-        setVersions(Arrays.asList(version));
+        requireNonNull(version, "null version passed when configuring test cluster `" + this + "`");
+        checkFrozen();
+        distributions.clear();
+        doSetVersion(version);
     }
 
     @Override
     public void setVersions(List<String> versions) {
         requireNonNull(versions, "null version list passed when configuring test cluster `" + this + "`");
-        this.versions = versions;
-    }
-
-    public void finalizeConfiguration(Project project) {
+        distributions.clear();
         for (String version : versions) {
-            doSetVersion(project, version);
+            doSetVersion(version);
         }
     }
 
-    private void doSetVersion(Project project, String version) {
-        System.out.println("ElasticsearchNode.doSetVersion " + project.getPath() + " " + version);
+    private void doSetVersion(String version) {
         String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
         if (container.findByName(distroName) == null) {

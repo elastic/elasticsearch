@@ -630,8 +630,8 @@ public class TopHitsIT extends ESIntegTestCase {
 
             SearchHit hit = hits.getAt(0);
             HighlightField highlightField = hit.getHighlightFields().get("text");
-            assertThat(highlightField.getFragments().length, equalTo(1));
-            assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em> to entertain"));
+            assertThat(highlightField.fragments().length, equalTo(1));
+            assertThat(highlightField.fragments()[0].string(), equalTo("some <em>text</em> to entertain"));
 
             Explanation explanation = hit.getExplanation();
             assertThat(explanation.toString(), containsString("text:text"));
@@ -903,8 +903,8 @@ public class TopHitsIT extends ESIntegTestCase {
         assertThat(searchHit.getNestedIdentity().getOffset(), equalTo(0));
 
         HighlightField highlightField = searchHit.getHighlightFields().get("comments.message");
-        assertThat(highlightField.getFragments().length, equalTo(1));
-        assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>comment</em>"));
+        assertThat(highlightField.fragments().length, equalTo(1));
+        assertThat(highlightField.fragments()[0].string(), equalTo("some <em>comment</em>"));
 
         // Can't explain nested hit with the main query, since both are in a different scopes, also the nested doc may not
         // even have matched with the main query.
@@ -961,8 +961,8 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(extractValue("id", searchHits.getAt(j).getSourceAsMap()), equalTo(0));
 
                 HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("comments.message");
-                assertThat(highlightField.getFragments().length, equalTo(1));
-                assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em>"));
+                assertThat(highlightField.fragments().length, equalTo(1));
+                assertThat(highlightField.fragments()[0].string(), equalTo("some <em>text</em>"));
             }
         }
     }

@@ -166,11 +166,6 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public String getMinimumIntervalExpression() {
         return minimumIntervalExpression;
     }

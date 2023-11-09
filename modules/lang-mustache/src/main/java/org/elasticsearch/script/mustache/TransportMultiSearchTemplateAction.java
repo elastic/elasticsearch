@@ -8,6 +8,9 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -30,6 +33,8 @@ import java.util.List;
 import static org.elasticsearch.script.mustache.TransportSearchTemplateAction.convert;
 
 public class TransportMultiSearchTemplateAction extends HandledTransportAction<MultiSearchTemplateRequest, MultiSearchTemplateResponse> {
+
+    private static final Logger logger = LogManager.getLogger(TransportMultiSearchTemplateAction.class);
 
     private final ScriptService scriptService;
     private final NamedXContentRegistry xContentRegistry;
@@ -76,6 +81,9 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 searchRequest = convert(searchTemplateRequest, searchTemplateResponse, scriptService, xContentRegistry, searchUsageHolder);
             } catch (Exception e) {
                 items[i] = new MultiSearchTemplateResponse.Item(null, e);
+                if (ExceptionsHelper.status(e).getStatus() >= 500 && ExceptionsHelper.isNodeOrShardUnavailableTypeException(e) == false) {
+                    logger.warn("MultiSearchTemplate convert failure", e);
+                }
                 continue;
             }
             items[i] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);

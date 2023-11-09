@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.profiling;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -27,7 +29,7 @@ import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
 import org.junit.After;
 import org.junit.Before;
 
-import java.time.Instant;
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -72,18 +74,6 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Only the index "profiling-events-all" is always present. All other indices (e.g. "profiling-events-5pow02") are created on demand
-     * at a later point when there are enough samples. With this flag we simulate that data should be retrieved briefly after cluster
-     * start when only profiling-events-all is present. We expect that also in this case, available data is returned but we rely only
-     * on the single existing index.
-     *
-     * @return <code>true</code> iff this test should rely on only "profiling-events-all" being present.
-     */
-    protected boolean useOnlyAllEvents() {
-        return randomBoolean();
-    }
-
-    /**
      * @return <code>true</code> iff this test relies that data (and the corresponding indices / data streams) are present for this test.
      */
     protected boolean requiresDataSetup() {
@@ -112,6 +102,16 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         assertTrue("Update of profiling templates enabled setting is not acknowledged", response.isAcknowledged());
     }
 
+    protected final byte[] read(String resource) throws IOException {
+        return ProfilingTestCase.class.getClassLoader().getResourceAsStream(resource).readAllBytes();
+    }
+
+    protected final void bulkIndex(String file) throws Exception {
+        byte[] bulkData = read(file);
+        BulkResponse response = client().prepareBulk().add(bulkData, 0, bulkData.length, XContentType.JSON).execute().actionGet();
+        assertFalse(response.hasFailures());
+    }
+
     @Before
     public void setupData() throws Exception {
         if (requiresDataSetup() == false) {
@@ -119,30 +119,13 @@ public abstract class ProfilingTestCase extends ESIntegTestCase {
         }
         // only enable index management while setting up indices to avoid interfering with the rest of the test infrastructure
         updateProfilingTemplatesEnabled(true);
-        Collection<String> eventsIndices = useOnlyAllEvents() ? List.of(EventsIndex.FULL_INDEX.getName()) : EventsIndex.indexNames();
         waitForIndices();
         ensureGreen();
 
-        // ensure that we have this in every index, so we find an event
-        for (String idx : eventsIndices) {
-            indexDoc(
-                idx,
-                "QjoLteG7HX3VUUXr-J4kHQ",
-                Map.of("@timestamp", Instant.now().toEpochMilli(), "Stacktrace.id", "QjoLteG7HX3VUUXr-J4kHQ", "Stacktrace.count", 1)
-            );
-        }
-
-        indexDoc(
-            "profiling-stacktraces",
-            "QjoLteG7HX3VUUXr-J4kHQ",
-            Map.of("Stacktrace.frame.ids", "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf", "Stacktrace.frame.types", "AQI")
-        );
-        indexDoc(
-            "profiling-stackframes",
-            "QCCDqjSg3bMK1C4YRK6TiwAAAAAAEIpf",
-            Map.of("Stackframe.function.name", List.of("_raw_spin_unlock_irqrestore", "inlined_frame_1", "inlined_frame_0"))
-        );
-        indexDoc("profiling-executables", "QCCDqjSg3bMK1C4YRK6Tiw", Map.of("Executable.file.name", "libc.so.6"));
+        bulkIndex("data/profiling-events-all.ndjson");
+        bulkIndex("data/profiling-stacktraces.ndjson");
+        bulkIndex("data/profiling-stackframes.ndjson");
+        bulkIndex("data/profiling-executables.ndjson");
 
         refresh();
     }

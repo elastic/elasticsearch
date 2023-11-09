@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
 import static org.elasticsearch.action.search.SearchPhaseController.setShardIndex;
@@ -263,22 +262,31 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public synchronized void close() {
+            assert assertCircuitBreakerConsistent();
+            if (hasAggs) {
+                releaseAggs();
+            }
+            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+            circuitBreakerBytes = 0;
+
+            if (hasPendingMerges()) {
+                // This is a theoretically unreachable exception.
+                throw new IllegalStateException("Attempted to close with partial reduce in-flight");
+            }
+        }
+
+        private boolean assertCircuitBreakerConsistent() {
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
             } else {
                 assert circuitBreakerBytes >= 0;
             }
+            return true;
+        }
 
-            List<Releasable> toRelease = buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(toCollection(ArrayList::new));
-            toRelease.add(() -> {
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
-            });
-            Releasables.close(toRelease);
-
-            if (hasPendingMerges()) {
-                // This is a theoretically unreachable exception.
-                throw new IllegalStateException("Attempted to close with partial reduce in-flight");
+        private void releaseAggs() {
+            for (int i = 0; i < buffer.size(); i++) {
+                buffer.get(i).releaseAggs();
             }
         }
 
@@ -350,7 +358,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                             addEstimateAndMaybeBreak(aggsSize);
                         } catch (Exception exc) {
                             result.releaseAggs();
-                            buffer.forEach(QuerySearchResult::releaseAggs);
+                            releaseAggs();
                             buffer.clear();
                             onMergeFailure(exc);
                             next.run();

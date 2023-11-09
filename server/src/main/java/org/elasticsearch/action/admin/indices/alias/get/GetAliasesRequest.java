@@ -10,12 +10,17 @@ package org.elasticsearch.action.admin.indices.alias.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> implements AliasesRequest {
 
@@ -33,6 +38,11 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
 
     public GetAliasesRequest() {}
 
+    /**
+     * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until we no
+     * longer need to support {@link org.elasticsearch.TransportVersions#CLUSTER_FEATURES_ADDED} and earlier. Once we remove this we can
+     * also make this class a regular ActionRequest instead of a MasterNodeReadRequest.
+     */
     public GetAliasesRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
@@ -43,11 +53,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeStringArray(indices);
-        out.writeStringArray(aliases);
-        indicesOptions.writeIndicesOptions(out);
-        out.writeStringArray(originalAliases);
+        TransportAction.localOnly();
     }
 
     @Override
@@ -107,5 +113,10 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     @Override
     public boolean includeDataStreams() {
         return true;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

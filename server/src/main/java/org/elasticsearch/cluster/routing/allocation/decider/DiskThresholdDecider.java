@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -29,12 +27,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
-import java.util.Set;
+
+import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 
 /**
  * The {@link DiskThresholdDecider} checks that the node a shard is potentially
@@ -539,61 +535,6 @@ public class DiskThresholdDecider extends AllocationDecider {
             return YES_USAGES_UNAVAILABLE;
         }
         return null;
-    }
-
-    public static long getExpectedShardSize(ShardRouting shardRouting, long defaultSize, RoutingAllocation allocation) {
-        return DiskThresholdDecider.getExpectedShardSize(
-            shardRouting,
-            defaultSize,
-            allocation.clusterInfo(),
-            allocation.snapshotShardSizeInfo(),
-            allocation.metadata(),
-            allocation.routingTable()
-        );
-    }
-
-    /**
-     * Returns the expected shard size for the given shard or the default value provided if not enough information are available
-     * to estimate the shards size.
-     */
-    public static long getExpectedShardSize(
-        ShardRouting shard,
-        long defaultValue,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo snapshotShardSizeInfo,
-        Metadata metadata,
-        RoutingTable routingTable
-    ) {
-        final IndexMetadata indexMetadata = metadata.getIndexSafe(shard.index());
-        if (indexMetadata.getResizeSourceIndex() != null
-            && shard.active() == false
-            && shard.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
-            // the worst case
-            long targetShardSize = 0;
-            final Index mergeSourceIndex = indexMetadata.getResizeSourceIndex();
-            final IndexMetadata sourceIndexMeta = metadata.index(mergeSourceIndex);
-            if (sourceIndexMeta != null) {
-                final Set<ShardId> shardIds = IndexMetadata.selectRecoverFromShards(
-                    shard.id(),
-                    sourceIndexMeta,
-                    indexMetadata.getNumberOfShards()
-                );
-                final IndexRoutingTable indexRoutingTable = routingTable.index(mergeSourceIndex.getName());
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
-                    if (shardIds.contains(shardRoutingTable.shardId())) {
-                        targetShardSize += clusterInfo.getShardSize(shardRoutingTable.primaryShard(), 0);
-                    }
-                }
-            }
-            return targetShardSize == 0 ? defaultValue : targetShardSize;
-        } else {
-            if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
-                return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
-            }
-            return clusterInfo.getShardSize(shard, defaultValue);
-        }
     }
 
     record DiskUsageWithRelocations(DiskUsage diskUsage, long relocatingShardSize) {

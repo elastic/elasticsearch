@@ -402,11 +402,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,

@@ -1,5 +1,5 @@
 pr: 101989
-summary: Add message field to `HealthPeriodicLogger` output
+summary: Add message field to `HealthPeriodicLogger` and `S3RequestRetryStats`
 area: Health
 type: enhancement
 issues: []

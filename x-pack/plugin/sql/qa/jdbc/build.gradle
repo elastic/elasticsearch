@@ -101,7 +101,7 @@ subprojects {
           classpath = sourceSets.javaRestTest.runtimeClasspath + driverConfiguration
           testClassesDirs = sourceSets.javaRestTest.output.classesDirs
           systemProperty 'jdbc.driver.version', bwcVersionString
-          nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",")}")
+          nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.get().allHttpSocketURI.join(",")}")
           nonInputProperties.systemProperty('tests.clustername', baseName)
       }
     }

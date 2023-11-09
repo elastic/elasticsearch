@@ -1,0 +1,5 @@
+pr: 101989
+summary: Add message field to `HealthPeriodicLogger` output
+area: Health
+type: enhancement
+issues: []

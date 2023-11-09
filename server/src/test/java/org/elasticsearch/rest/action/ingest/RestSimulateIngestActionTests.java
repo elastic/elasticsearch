@@ -55,7 +55,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 {"my-keyword-field":"FOO"}
                 {"index":{}}
                 {"my-keyword-field":"BAR"}
-                                """;
+                """;
             testInputJsonConvertsToOutputJson(simulateRequestJson, bulkRequestJson);
         }
 
@@ -86,7 +86,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 {"foo":"bar"}
                 {"index":{"_index":"index","_id":"456"}}
                 {"foo":"rab"}
-                                                """;
+                """;
             testInputJsonConvertsToOutputJson(simulateRequestJson, bulkRequestJson);
         }
 
@@ -103,7 +103,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 {"foo":"bar"}
                 {"index":{"_index":"index","_id":"456"}}
                 {"foo":"rab"}
-                                                """;
+                """;
             expectThrows(IllegalArgumentException.class, () -> testInputJsonConvertsToOutputJson(simulateRequestJson, bulkRequestJson));
         }
 
@@ -129,7 +129,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
             String bulkRequestJson = """
                 {"index":{"_index":"index","_id":"123"}}
                 {"some_object":{"prop1":"val1","some_array":[1,2,3,4]},"foo":"bar"}
-                                                """;
+                """;
             testInputJsonConvertsToOutputJson(simulateRequestJson, bulkRequestJson);
         }
     }

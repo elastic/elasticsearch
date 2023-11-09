@@ -64,7 +64,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
      * request gets a corresponding CREATE response, using information from the request.
      */
     @Override
-    protected void indexData(
+    protected void createMissingIndicesAndindexData(
         Task task,
         BulkRequest bulkRequest,
         String executorName,

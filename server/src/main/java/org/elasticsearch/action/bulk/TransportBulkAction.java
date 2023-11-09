@@ -369,13 +369,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         // Step 3: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
-        indexData(task, bulkRequest, executorName, listener, autoCreateIndices, indicesThatCannotBeCreated, startTime);
+        createMissingIndicesAndindexData(
+            task,
+            bulkRequest,
+            executorName,
+            listener,
+            autoCreateIndices,
+            indicesThatCannotBeCreated,
+            startTime
+        );
     }
 
     /*
      * This method is responsible for creating any missing indices and indexing the data in the BulkRequest
      */
-    protected void indexData(
+    protected void createMissingIndicesAndindexData(
         Task task,
         BulkRequest bulkRequest,
         String executorName,

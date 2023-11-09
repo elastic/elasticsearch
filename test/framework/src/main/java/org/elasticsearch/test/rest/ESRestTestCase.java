@@ -242,7 +242,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (moduleName.equals("x-pack-shutdown")) {
                         availableFeatures.add(ProductFeature.SHUTDOWN);
                     }
-                    if (moduleName.equals("x-pack-searchable-snapshots")) {
+                    if (moduleName.equals("searchable-snapshots")) {
                         availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
                     }
                     if (moduleName.startsWith("serverless-")) {

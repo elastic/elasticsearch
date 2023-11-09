@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchResult;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
@@ -39,6 +39,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     private final NlpInferenceInput input;
     @Nullable
     private final CancellableTask parentActionTask;
+    private final boolean forSearch;
 
     InferencePyTorchAction(
         String deploymentId,
@@ -47,6 +48,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         DeploymentManager.ProcessContext processContext,
         InferenceConfig config,
         NlpInferenceInput input,
+        boolean forSearch,
         ThreadPool threadPool,
         @Nullable CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
@@ -54,6 +56,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         super(deploymentId, requestId, timeout, processContext, threadPool, listener);
         this.config = config;
         this.input = input;
+        this.forSearch = forSearch;
         this.parentActionTask = parentActionTask;
     }
 
@@ -83,15 +86,26 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
         final String requestIdStr = String.valueOf(getRequestId());
         try {
+            String inputText = input.extractInput(getProcessContext().getModelInput().get());
+            var prefixStrings = getProcessContext().getPrefixStrings().get();
+            if (prefixStrings != null) {
+                if (forSearch && Strings.isNullOrEmpty(prefixStrings.searchPrefix()) == false) {
+                    inputText = prefixStrings.searchPrefix() + inputText;
+                } else if (forSearch == false && Strings.isNullOrEmpty(prefixStrings.ingestPrefix()) == false) {
+                    inputText = prefixStrings.ingestPrefix() + inputText;
+                }
+            }
+
             // The request builder expect a list of inputs which are then batched.
             // TODO batching was implemented for expected use-cases such as zero-shot classification but is not used here.
-            List<String> text = Collections.singletonList(input.extractInput(getProcessContext().getModelInput().get()));
+            var inputs = List.of(inputText);
+
             NlpTask.Processor processor = getProcessContext().getNlpTaskProcessor().get();
-            processor.validateInputs(text);
+            processor.validateInputs(inputs);
             assert config instanceof NlpConfig;
             NlpConfig nlpConfig = (NlpConfig) config;
             NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
-                .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
+                .buildRequest(inputs, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
             logger.debug(() -> format("handling request [%s]", requestIdStr));
 
             // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process

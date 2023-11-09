@@ -85,6 +85,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private final ConfigurableFileCollection pluginAndModuleConfiguration;
 
+    private final Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
+
     public ElasticsearchCluster(
         String path,
         String clusterName,
@@ -223,26 +225,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(each -> each.setTestDistribution(distribution));
     }
 
-    @Override
-    public void plugin(Provider<RegularFile> plugin) {
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    @Override
-    public void plugin(TaskProvider<Zip> plugin) {
-        Provider<RegularFile> regularFileProvider = plugin.flatMap(AbstractArchiveTask::getArchiveFile);
-        nodes.all(each -> each.plugin(regularFileProvider));
-    }
-
-    @Override
-    public void plugin(String pluginProjectPath) {
-        Provider<RegularFile> plugin = maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip");
-        registerExtractedConfig(plugin);
-        nodes.all(each -> each.plugin(plugin));
-    }
-
-    private final Attribute<Boolean> bundleAttribute = Attribute.of("bundle", Boolean.class);
-
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
         Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
@@ -252,21 +234,33 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void module(Provider<RegularFile> module) {
-        nodes.all(each -> each.module(module));
+    public void plugin(String pluginProjectPath) {
+        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip"));
+    }
+
+    public void plugin(TaskProvider<Zip> plugin) {
+        plugin(plugin.flatMap(AbstractArchiveTask::getArchiveFile));
     }
 
     @Override
+    public void plugin(Provider<RegularFile> plugin) {
+        registerExtractedConfig(plugin);
+        nodes.all(each -> each.plugin(plugin));
+    }
+
+    @Override
+    public void module(Provider<RegularFile> module) {
+        registerExtractedConfig(module);
+        nodes.all(each -> each.module(module));
+    }
+
     public void module(TaskProvider<Sync> module) {
-        Provider<RegularFile> moduleProvider = project.getLayout().file(module.map(Sync::getDestinationDir));
-        nodes.all(each -> each.module(moduleProvider));
+        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
     }
 
     @Override
     public void module(String moduleProjectPath) {
-        Provider<RegularFile> module = maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG);
-        registerExtractedConfig(module);
-        nodes.all(each -> each.module(module));
+        module(maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG));
     }
 
     private void configureArtifactTransforms() {

@@ -35,7 +35,7 @@ import java.util.function.Predicate;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ApmIT extends ESRestTestCase {
+public class MetricsApmIT extends ESRestTestCase {
     private static final XContentProvider.FormatProvider XCONTENT = XContentProvider.provider().getJsonXContent();
 
     @ClassRule
@@ -83,6 +83,8 @@ public class ApmIT extends ESRestTestCase {
         Consumer<String> messageConsumer = (String message) -> {
             var apmMessage = parseMap(message);
             if (isElasticsearchMetric(apmMessage)) {
+                logger.info("Apm metric message received: " + message);
+
                 var metricset = (Map<String, Object>) apmMessage.get("metricset");
                 var samples = (Map<String, Object>) metricset.get("samples");
 

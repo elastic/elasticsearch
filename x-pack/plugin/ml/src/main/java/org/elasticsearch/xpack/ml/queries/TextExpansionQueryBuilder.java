@@ -126,7 +126,9 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
             modelId,
             TextExpansionConfigUpdate.EMPTY_UPDATE,
-            List.of(modelText)
+            List.of(modelText),
+            false,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
         inferRequest.setHighPriority(true);
 

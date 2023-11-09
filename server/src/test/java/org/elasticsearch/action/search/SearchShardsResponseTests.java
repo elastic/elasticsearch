@@ -109,16 +109,14 @@ public class SearchShardsResponseTests extends AbstractWireSerializingTestCase<S
     }
 
     public void testLegacyResponse() {
-        DiscoveryNode node1 = DiscoveryNodeUtils.create(
-            "node-1",
-            new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-            VersionUtils.randomVersion(random())
-        );
-        DiscoveryNode node2 = DiscoveryNodeUtils.create(
-            "node-2",
-            new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-            VersionUtils.randomVersion(random())
-        );
+        DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1")
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
+            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
+        DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2")
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
+            .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+            .build();
         final ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[2];
         {
             ShardId shardId = new ShardId("index-1", "uuid-1", 0);

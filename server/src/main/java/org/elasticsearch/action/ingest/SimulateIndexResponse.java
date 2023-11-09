@@ -47,7 +47,7 @@ public class SimulateIndexResponse extends IndexResponse {
         List<String> pipelines
     ) {
         // We don't actually care about most of the IndexResponse fields:
-        super(new ShardId(index, "", 0), id == null ? "" : id, 0, 0, version, true, pipelines);
+        super(new ShardId(index, "", 0), id == null ? "<n/a>" : id, 0, 0, version, true, pipelines);
         this.source = source;
         this.sourceXContentType = sourceXContentType;
         setShardInfo(new ReplicationResponse.ShardInfo(0, 0));

@@ -113,8 +113,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
     private final ThreadPool threadPool;
-    private final IngestMetric totalMetrics;
-    private final List<Consumer<ClusterState>> ingestClusterStateListeners;
+    private final IngestMetric totalMetrics = new IngestMetric();
+    private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
@@ -184,8 +184,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         Supplier<DocumentParsingObserver> documentParsingObserverSupplier
     ) {
-        this.totalMetrics = new IngestMetric();
-        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.documentParsingObserverSupplier = documentParsingObserverSupplier;
@@ -214,8 +212,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @param ingestService
      */
     IngestService(IngestService ingestService) {
-        this.totalMetrics = new IngestMetric();
-        this.ingestClusterStateListeners = new CopyOnWriteArrayList<>();
         this.clusterService = ingestService.clusterService;
         this.scriptService = ingestService.scriptService;
         this.documentParsingObserverSupplier = ingestService.documentParsingObserverSupplier;

@@ -30,7 +30,7 @@ public class SimulateIngestService extends IngestService {
                 throw new RuntimeException(e);
             }
         } else {
-            pipelineSubstitutions = Map.of();
+            throw new IllegalArgumentException("Expecting a SimulateBulkRequest but got " + request.getClass());
         }
     }
 

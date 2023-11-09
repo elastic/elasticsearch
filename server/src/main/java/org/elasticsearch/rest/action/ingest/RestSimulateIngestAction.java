@@ -95,8 +95,9 @@ public class RestSimulateIngestAction extends BaseRestHandler {
      * The simulate ingest API is intended to have inputs and outputs that are formatted similarly to the simulate pipeline API for the
      * sake of consistency. But internally it uses the same code as the _bulk API, so that we have confidence that we are simulating what
      * really happens on ingest. This method transforms simulate-style inputs into an input that the bulk API can accept.
+     * Non-private for unit testing
      */
-    private BytesReference convertToBulkRequestXContentBytes(Map<String, Object> sourceMap) throws IOException {
+    static BytesReference convertToBulkRequestXContentBytes(Map<String, Object> sourceMap) throws IOException {
         List<Map<String, Object>> docs = ConfigurationUtils.readList(null, null, sourceMap, "docs");
         if (docs.isEmpty()) {
             throw new IllegalArgumentException("must specify at least one document in [docs]");
@@ -108,20 +109,14 @@ public class RestSimulateIngestAction extends BaseRestHandler {
                 throw new IllegalArgumentException("malformed [docs] section, should include an inner object");
             }
             Map<String, Object> document = ConfigurationUtils.readMap(null, null, doc, "_source");
-            String index = ConfigurationUtils.readStringOrIntProperty(
-                null,
-                null,
-                doc,
-                IngestDocument.Metadata.INDEX.getFieldName(),
-                "_index"
-            );
-            String id = ConfigurationUtils.readStringOrIntProperty(null, null, doc, IngestDocument.Metadata.ID.getFieldName(), "_id");
+            String index = ConfigurationUtils.readOptionalStringProperty(null, null, doc, IngestDocument.Metadata.INDEX.getFieldName());
+            String id = ConfigurationUtils.readOptionalStringProperty(null, null, doc, IngestDocument.Metadata.ID.getFieldName());
             XContentBuilder actionXContentBuilder = XContentFactory.contentBuilder(XContentType.JSON).lfAtEnd();
             actionXContentBuilder.startObject().field("index").startObject();
-            if ("_index".equals(index) == false) {
+            if (index != null) {
                 actionXContentBuilder.field("_index", index);
             }
-            if ("id".equals(id) == false) {
+            if (id != null) {
                 actionXContentBuilder.field("_id", id);
             }
             actionXContentBuilder.endObject().endObject();

@@ -10,6 +10,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +20,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class SimulateBulkRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        Map<String, Map<String, Object>> pipelineSubstitutions = getTestPipelineSubstitutions();
+        testSerialization(getTestPipelineSubstitutions());
+        testSerialization(null);
+        testSerialization(Map.of());
+    }
+
+    private void testSerialization(Map<String, Map<String, Object>> pipelineSubstitutions) throws IOException {
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions);
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a

@@ -24,14 +24,18 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -104,6 +108,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
@@ -1859,6 +1864,84 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         assertThat(failed.get(), equalTo(toFailCount));
         assertThat(receivedRegistration.get(), greaterThan(toFailCount));
+    }
+
+    public void testRefreshOfRecoveringSearchShard() throws Exception {
+        startIndexNode();
+        var searchNode = startSearchNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        int totalDocs = randomIntBetween(1, 100);
+        logger.info("--> Indexed {} docs", totalDocs);
+        indexDocs(indexName, totalDocs);
+
+        var unpromotableRefreshLatch = new CountDownLatch(1);
+        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
+        mockTransportService.addRequestHandlingBehavior(
+            TransportUnpromotableShardRefreshAction.NAME + "[u]",
+            (handler, request, channel, task) -> {
+                handler.messageReceived(request, channel, task);
+                unpromotableRefreshLatch.countDown();
+            }
+        );
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        repository.setBlockOnAnyFiles();
+        setReplicaCount(1, indexName);
+        var future = client().admin().indices().prepareRefresh(indexName).execute();
+        safeAwait(unpromotableRefreshLatch);
+        repository.unblock();
+
+        int newDocs = randomIntBetween(1, 100);
+        indexDocsAndRefresh(indexName, newDocs); // TODO: can be removed once ES-7163 is handled
+        logger.info("--> Indexed {} more docs", newDocs);
+        totalDocs += newDocs;
+
+        var refreshResponse = future.get();
+        assertThat("Refresh should have been successful", refreshResponse.getSuccessfulShards(), equalTo(1));
+
+        var searchResponse = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).get();
+        assertNoFailures(searchResponse);
+        assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
+    }
+
+    public void testRefreshOfRecoveringSearchShardAndDeleteIndex() throws Exception {
+        var indexNode = startIndexNode();
+        var searchNode = startSearchNode();
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        int totalDocs = randomIntBetween(1, 10);
+        logger.info("--> Indexed {} docs", totalDocs);
+        indexDocs(indexName, totalDocs);
+
+        var unpromotableRefreshLatch = new CountDownLatch(1);
+        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, searchNode);
+        mockTransportService.addRequestHandlingBehavior(
+            TransportUnpromotableShardRefreshAction.NAME + "[u]",
+            (handler, request, channel, task) -> {
+                handler.messageReceived(request, channel, task);
+                unpromotableRefreshLatch.countDown();
+            }
+        );
+
+        ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, searchNode);
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        repository.setBlockOnAnyFiles();
+        setReplicaCount(1, indexName);
+        var future = client(indexNode).admin().indices().prepareRefresh(indexName).execute();
+        safeAwait(unpromotableRefreshLatch);
+
+        logger.info("--> deleting index");
+        assertAcked(client(indexNode).admin().indices().delete(new DeleteIndexRequest(indexName)).actionGet());
+        logger.info("--> unblocking recovery");
+        repository.unblock();
+        var refreshResponse = future.get();
+        assertThat("Refresh should have failed", refreshResponse.getFailedShards(), equalTo(1));
+        Throwable cause = ExceptionsHelper.unwrapCause(refreshResponse.getShardFailures()[0].getCause());
+        assertThat("Cause should be engine closed", cause, instanceOf(AlreadyClosedException.class));
     }
 
     // If during a relocation, a commit registration is triggered right after the last pre-handoff flush,

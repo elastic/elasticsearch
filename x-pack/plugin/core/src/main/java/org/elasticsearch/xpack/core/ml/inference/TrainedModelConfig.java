@@ -299,6 +299,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             platformArchitecture = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         }
     }
@@ -487,6 +488,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
             out.writeOptionalWriteable(prefixStrings);
         }
     }

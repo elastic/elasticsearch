@@ -3233,6 +3233,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     return;
                 }
 
+                // TODO if the snapshot is aborted but the update moves it back to WAITING (indicating a concurrent pause for shutdown) then
+                //  we should map that on to FAILED. There should be no WAITING shards in an ABORTED snapshot.
+
                 logger.trace(
                     "[{}] Updating shard [{}] with status [{}]",
                     updateSnapshotState.snapshot,

@@ -134,7 +134,7 @@ public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implement
         }
     }
 
-    private static final Set<String> FILTERED_FIELDS = Set.of("password", "access_token", "bearer_token");
+    private static final Set<String> FILTERED_FIELDS = Set.of("password", "access_token", "client_authentication.value");
 
     @Override
     public Set<String> getFilteredFields() {

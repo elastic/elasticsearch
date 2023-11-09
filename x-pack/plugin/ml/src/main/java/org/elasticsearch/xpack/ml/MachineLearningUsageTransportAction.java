@@ -63,6 +63,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -87,14 +88,6 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
             if (stats.getLastAccess() != null && (lastAccess == null || stats.getLastAccess().isAfter(lastAccess))) {
                 lastAccess = stats.getLastAccess();
             }
-        }
-
-        String getModelId() {
-            return modelId;
-        }
-
-        String getTaskType() {
-            return taskType;
         }
 
         Map<String, Object> asMap() {
@@ -451,14 +444,18 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
     private static void addDeploymentStats(
         GetTrainedModelsAction.Response modelsResponse,
-        GetTrainedModelsStatsAction.Response statsResponse, Map<String, Object> inferenceUsage) {
-        Map<String, String> taskTypes = modelsResponse.getResources().results().stream()
+        GetTrainedModelsStatsAction.Response statsResponse,
+        Map<String, Object> inferenceUsage
+    ) {
+        Map<String, String> taskTypes = modelsResponse.getResources()
+            .results()
+            .stream()
             .collect(Collectors.toMap(TrainedModelConfig::getModelId, cfg -> cfg.getInferenceConfig().getName()));
         StatsAccumulator modelSizes = new StatsAccumulator();
         int deploymentsCount = 0;
         double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
-        Map<String, ModelStats> statsByModel = new HashMap<>();
+        Map<String, ModelStats> statsByModel = new TreeMap<>();
         for (var stats : statsResponse.getResources().results()) {
             AssignmentStats deploymentStats = stats.getDeploymentStats();
             if (deploymentStats == null) {
@@ -493,9 +490,10 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "inference_counts",
                 nodeDistribution.asMap(),
                 "stats_by_model",
-                statsByModel.values().stream()
-                    .sorted(Comparator.comparing(ModelStats::getModelId).thenComparing(ModelStats::getTaskType))
-                    .map(ModelStats::asMap).collect(Collectors.toList())
+                statsByModel.values()
+                    .stream()
+                    .map(ModelStats::asMap)
+                    .collect(Collectors.toList())
             )
         );
     }

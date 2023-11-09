@@ -336,29 +336,29 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1500));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(500));
-            assertThat(source.getValue("inference.deployments.count"), equalTo(3));
+            assertThat(source.getValue("inference.deployments.count"), equalTo(2));
             assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(12.0));
             assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(3.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.model_id"), equalTo("model_3"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.task_type"), equalTo("ner"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.last_access"), equalTo(lastAccess(3).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.total"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.min"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.max"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.model_id"), equalTo("model_4"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.task_type"), equalTo("text_expansion"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.last_access"), equalTo(lastAccess(44).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.total"), equalTo(9.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.min"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.avg"), equalTo(4.5));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.model_id"), equalTo("model_3"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.task_type"), equalTo("ner"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.last_access"), equalTo(lastAccess(3).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.total"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.min"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.avg"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.model_id"), equalTo("model_4"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.task_type"), equalTo("text_expansion"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.last_access"), equalTo(lastAccess(44).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.min"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.avg"), equalTo(4.5));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1300.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(300.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(500.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(650.0));
             assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(44.0, 1e-10));
         }
     }
@@ -434,29 +434,29 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1500));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(100));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(500));
-            assertThat(source.getValue("inference.deployments.count"), equalTo(3));
+            assertThat(source.getValue("inference.deployments.count"), equalTo(2));
             assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(12.0));
             assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(3.0));
             assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
             assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.model_id"), equalTo("model_3"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.task_type"), equalTo("ner"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.last_access"), equalTo(lastAccess(3).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.total"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.min"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.max"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.avg"), equalTo(3.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.model_id"), equalTo("model_4"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.task_type"), equalTo("text_expansion"));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.last_access"), equalTo(lastAccess(44).toString()));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.total"), equalTo(9.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.min"), equalTo(4.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.max"), equalTo(5.0));
-            assertThat(source.getValue("inference.deployments.stats_by_model.2.inference_counts.avg"), equalTo(4.5));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1500.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(200.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.model_id"), equalTo("model_3"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.task_type"), equalTo("ner"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.last_access"), equalTo(lastAccess(3).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.total"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.min"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.max"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.0.inference_counts.avg"), equalTo(3.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.model_id"), equalTo("model_4"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.task_type"), equalTo("text_expansion"));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.last_access"), equalTo(lastAccess(44).toString()));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.min"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.stats_by_model.1.inference_counts.avg"), equalTo(4.5));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(1300.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(300.0));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(1000.0));
-            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(500.0));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(650.0));
             assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(44.0, 1e-10));
         }
     }
@@ -980,17 +980,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             2,
                             null,
-                            new AssignmentStats(
-                                "deployment_2",
-                                "model_2",
-                                2,
-                                2,
-                                1000,
-                                ByteSizeValue.ofBytes(1000),
-                                Instant.now(),
-                                List.of(),
-                                Priority.NORMAL
-                            ).setState(AssignmentState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
+                            null
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel3.getModelId(),

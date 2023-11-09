@@ -24,7 +24,7 @@ Gets stats about the execution of data stream lifecycle.
 Gets stats about the execution of the data stream lifecycle. The data stream level stats include only stats managed by the
 data stream lifecycle.
 
-[[get-lifecycle-api-response-body]]
+[[get-lifecycle-stats-api-response-body]]
 ==== {api-response-body-title}
 
 `last_run_duration_in_millis`::

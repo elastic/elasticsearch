@@ -160,9 +160,9 @@ Computes the dot product of two unit vectors. This option provides an optimized 
 to perform cosine similarity. The constraints and computed score are defined
 by `element_type`.
 +
-When `element_type` is `float`, all vectors must be unit length, including both
-document and query vectors. The document `_score` is computed as
-`(1 + dot_product(query, vector)) / 2`.
+When `element_type` is `float`, all vectors are automatically converted to unit length, including both
+document and query vectors. Consequently, `dot_product` does not allow vectors with a zero magnitude.
+The document `_score` is computed as `(1 + dot_product(query, vector)) / 2`.
 +
 When `element_type` is `byte`, all vectors must have the same
 length including both document and query vectors or results will be inaccurate.
@@ -172,9 +172,9 @@ where `dims` is the number of dimensions per vector.
 
 `cosine`:::
 Computes the cosine similarity. Note that the most efficient way to perform
-cosine similarity is to normalize all vectors to unit length, and instead use
+cosine similarity is to have all vectors normalized to unit length, and instead use
 `dot_product`. You should only use `cosine` if you need to preserve the
-original vectors and cannot normalize them in advance. The document `_score`
+original vectors and cannot allow Elasticsearch to normalize them. The document `_score`
 is computed as `(1 + cosine(query, vector)) / 2`. The `cosine` similarity does
 not allow vectors with zero magnitude, since cosine is not defined in this
 case.

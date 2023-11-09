@@ -342,7 +342,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", VectorSimilarity.DOT_PRODUCT)
             )
         );
-        float[] vector = { -12.1f, 2.7f, -4 };
+        float[] vector = { 0f, 0f, 0f };
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", vector)))
@@ -351,23 +351,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getCause().getMessage(),
             containsString(
-                "The [dot_product] similarity can only be used with unit-length vectors. Preview of invalid vector: [-12.1, 2.7, -4.0]"
-            )
-        );
-
-        DocumentMapper mapperWithLargerDim = createDocumentMapper(
-            fieldMapping(
-                b -> b.field("type", "dense_vector").field("dims", 6).field("index", true).field("similarity", VectorSimilarity.DOT_PRODUCT)
-            )
-        );
-        float[] largerVector = { -12.1f, 2.7f, -4, 1.05f, 10.0f, 29.9f };
-        e = expectThrows(DocumentParsingException.class, () -> mapperWithLargerDim.parse(source(b -> b.array("field", largerVector))));
-        assertNotNull(e.getCause());
-        assertThat(
-            e.getCause().getMessage(),
-            containsString(
-                "The [dot_product] similarity can only be used with unit-length vectors. "
-                    + "Preview of invalid vector: [-12.1, 2.7, -4.0, 1.05, 10.0, ...]"
+                "The [dot_product] similarity does not support vectors with zero magnitude. Preview of invalid vector: [0.0, 0.0, 0.0]"
             )
         );
     }
@@ -571,7 +555,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertNull(denseVectorFieldType.getSimilarity());
     }
 
-    public void testtParamsBeforeIndexByDefault() throws Exception {
+    public void testParamsBeforeIndexByDefault() throws Exception {
         DocumentMapper documentMapper = createDocumentMapper(INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION, fieldMapping(b -> {
             b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", "dot_product");
         }));

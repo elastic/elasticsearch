@@ -436,3 +436,122 @@ setup:
   - length: {hits.hits: 1}
   - match: {hits.hits.0._id: "2"}
   - close_to: {hits.hits.0._score: {value: 33686.29, error: 0.01}}
+---
+"kNN search with dot-product auto-normalized":
+  - skip:
+      features: close_to
+      version: ' - 8.11.99'
+      reason: 'dense_vector auto-normalized dot_product in 8.12'
+
+  - do:
+      indices.create:
+        index: test_dot_product
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              dot_product_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: dot_product
+              cosine_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+
+  - do:
+      index:
+        index: test_dot_product
+        id: "1"
+        body:
+          name: cow.jpg
+          dot_product_vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+          cosine_vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+
+  - do:
+      index:
+        index: test_dot_product
+        id: "2"
+        body:
+          name: moose.jpg
+          dot_product_vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+          cosine_vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
+
+  - do:
+      index:
+        index: test_dot_product
+        id: "3"
+        body:
+          name: rabbit.jpg
+          dot_product_vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+          cosine_vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test_dot_product
+        body:
+          fields: [ "name" ]
+          knn:
+            field: dot_product_vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._id: "2"}
+  - set: { hits.hits.0._score: score_0 }
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: {hits.hits.1._id: "3"}
+  - set: { hits.hits.1._score: score_1 }
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+
+  - do:
+      search:
+        index: test_dot_product
+        body:
+          fields: [ "name" ]
+          knn:
+            field: cosine_vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 3
+
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._id: "2"}
+  - close_to: { hits.hits.0._score: { value: $score_0, error: 0.00001 } }
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+  - match: {hits.hits.1._id: "3"}
+  - close_to: { hits.hits.1._score: { value: $score_1, error: 0.00001 } }
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+---
+"kNN search fails with non-normalized dot-product in older versions":
+  - skip:
+      version: '8.11.99 - '
+      reason: 'dense_vector auto-normalized dot_product in 8.12'
+
+  - do:
+      indices.create:
+        index: test_failing_dot_product
+        body:
+          mappings:
+            properties:
+              dot_product_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: dot_product
+
+  - do:
+      catch: bad_request
+      index:
+        index: test_failing_dot_product
+        id: "1"
+        body:
+          name: cow.jpg
+          dot_product_vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]

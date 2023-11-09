@@ -613,6 +613,7 @@ public final class DocumentParser {
                 || context.isCopyToField(fullFieldName)
                 || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
                 || mappers.size() > MAX_DIMS_COUNT
+                || mappers.stream().anyMatch(m -> m instanceof NumberFieldMapper.Builder == false)
                 || mappers.stream()
                     .allMatch(m -> m instanceof NumberFieldMapper.Builder nb && nb.type != NumberFieldMapper.NumberType.FLOAT)) {
                 return;

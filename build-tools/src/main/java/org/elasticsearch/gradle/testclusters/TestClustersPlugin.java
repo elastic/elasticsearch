@@ -104,13 +104,6 @@ public class TestClustersPlugin implements Plugin<Project> {
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaperServiceProvider);
 
-        project.afterEvaluate(new Action<Project>() {
-            @Override
-            public void execute(Project project) {
-                container.configureEach(cluster -> cluster.finalizeConfiguration());
-            }
-        });
-
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
 

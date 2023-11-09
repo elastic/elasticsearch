@@ -74,7 +74,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final Project project;
+    transient private final Project project;
     private final Provider<ReaperService> reaper;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
@@ -119,6 +119,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 safeName(clusterName),
                 path,
                 clusterName + "-0",
+                project,
                 reaper,
                 fileSystemOperations,
                 archiveOperations,
@@ -163,6 +164,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     safeName(clusterName),
                     path,
                     clusterName + "-" + i,
+                    project,
                     reaper,
                     fileSystemOperations,
                     archiveOperations,
@@ -660,7 +662,4 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return "cluster{" + path + ":" + clusterName + "}";
     }
 
-    public void finalizeConfiguration() {
-        nodes.forEach(n -> n.finalizeConfiguration(project));
-    }
 }

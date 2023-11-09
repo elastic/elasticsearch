@@ -851,7 +851,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     static String readName(StreamInput in) throws IOException {
         String name = in.readString();
-        in.readString(); // clear out the timestamp field, which is always @timestamp
+        in.readString(); // TODO: clear out the timestamp field, which is a constant https://github.com/elastic/elasticsearch/issues/101991
         return name;
     }
 
@@ -866,7 +866,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeString(TIMESTAMP_FIELD_NAME);
+        out.writeString(TIMESTAMP_FIELD_NAME); // TODO: clear this out in the future https://github.com/elastic/elasticsearch/issues/101991
         out.writeCollection(indices);
         out.writeVLong(generation);
         out.writeGenericMap(metadata);

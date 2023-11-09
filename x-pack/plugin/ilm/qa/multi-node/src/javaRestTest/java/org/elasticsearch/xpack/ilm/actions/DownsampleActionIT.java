@@ -406,6 +406,7 @@ public class DownsampleActionIT extends ESRestTestCase {
         assertTrue("Source index should not have been deleted", indexExists(index));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101428")
     public void testDownsampleTwice() throws Exception {
         // Create the ILM policy
         Request request = new Request("PUT", "_ilm/policy/" + policy);

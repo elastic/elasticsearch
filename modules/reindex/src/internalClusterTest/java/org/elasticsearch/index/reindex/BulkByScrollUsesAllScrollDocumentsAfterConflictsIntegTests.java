@@ -201,65 +201,71 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         // Ensure that the write thread blocking task is currently executing
         barrier.await();
 
-        final SearchResponse searchResponse = prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
-            .addSort(SORTING_FIELD, SortOrder.DESC)
-            .execute()
-            .actionGet();
+        SearchResponse searchResponse = null;
+        try {
+            searchResponse = prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
+                .addSort(SORTING_FIELD, SortOrder.DESC)
+                .execute()
+                .actionGet();
 
-        // Modify a subset of the target documents concurrently
-        final List<SearchHit> originalDocs = Arrays.asList(searchResponse.getHits().getHits());
-        int conflictingOps = randomIntBetween(maxDocs, numDocs);
-        final List<SearchHit> docsModifiedConcurrently = randomSubsetOf(conflictingOps, originalDocs);
 
-        BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
-        for (SearchHit searchHit : docsModifiedConcurrently) {
-            if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
-                conflictingOps--;
+            // Modify a subset of the target documents concurrently
+            final List<SearchHit> originalDocs = Arrays.asList(searchResponse.getHits().getHits());
+            int conflictingOps = randomIntBetween(maxDocs, numDocs);
+            final List<SearchHit> docsModifiedConcurrently = randomSubsetOf(conflictingOps, originalDocs);
+
+            BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
+            for (SearchHit searchHit : docsModifiedConcurrently) {
+                if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
+                    conflictingOps--;
+                }
+                conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency));
             }
-            conflictingUpdatesBulkRequest.add(createUpdatedIndexRequest(searchHit, targetIndex, useOptimisticConcurrency));
+
+            // The bulk request is enqueued before the update by query
+            // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
+            // this test makes use of a deterministic task order in the data node write
+            // thread pool. To ensure that ordering, execute the TransportBulkAction
+            // in a coordinator node preventing that additional tasks are scheduled into
+            // the data node write thread pool.
+            final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
+
+            // Ensure that the concurrent writes are enqueued before the update by query request is sent
+            assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
+
+            requestBuilder.source(sourceIndex).maxDocs(maxDocs).abortOnVersionConflict(false);
+
+            if (scriptEnabled) {
+                final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
+                ((AbstractBulkIndexByScrollRequestBuilder) requestBuilder).script(script);
+            }
+
+            final SearchRequestBuilder source = requestBuilder.source();
+            source.setSize(scrollSize);
+            source.addSort(SORTING_FIELD, SortOrder.DESC);
+            source.setQuery(QueryBuilders.matchAllQuery());
+            final ActionFuture<BulkByScrollResponse> updateByQueryResponse = requestBuilder.execute();
+
+            assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(2)));
+
+            // Allow tasks from the write thread to make progress
+            latch.countDown();
+
+            final BulkResponse bulkItemResponses = bulkFuture.actionGet();
+            for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
+                assertThat(Strings.toString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
+            }
+
+            final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();
+            assertThat(bulkByScrollResponse.getVersionConflicts(), lessThanOrEqualTo((long) conflictingOps));
+            // When scripts are enabled, the first maxDocs are a NoOp
+            final int candidateOps = scriptEnabled ? numDocs - maxDocs : numDocs;
+            int successfulOps = Math.min(candidateOps - conflictingOps, maxDocs);
+            assertThat(bulkByScrollResponse.getNoops(), is((long) (scriptEnabled ? maxDocs : 0)));
+            resultConsumer.accept(bulkByScrollResponse, successfulOps);
+        }finally {
+            if(searchResponse != null) searchResponse.decRef();
         }
-
-        // The bulk request is enqueued before the update by query
-        // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
-        // this test makes use of a deterministic task order in the data node write
-        // thread pool. To ensure that ordering, execute the TransportBulkAction
-        // in a coordinator node preventing that additional tasks are scheduled into
-        // the data node write thread pool.
-        final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
-
-        // Ensure that the concurrent writes are enqueued before the update by query request is sent
-        assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
-
-        requestBuilder.source(sourceIndex).maxDocs(maxDocs).abortOnVersionConflict(false);
-
-        if (scriptEnabled) {
-            final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
-            ((AbstractBulkIndexByScrollRequestBuilder) requestBuilder).script(script);
-        }
-
-        final SearchRequestBuilder source = requestBuilder.source();
-        source.setSize(scrollSize);
-        source.addSort(SORTING_FIELD, SortOrder.DESC);
-        source.setQuery(QueryBuilders.matchAllQuery());
-        final ActionFuture<BulkByScrollResponse> updateByQueryResponse = requestBuilder.execute();
-
-        assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(2)));
-
-        // Allow tasks from the write thread to make progress
-        latch.countDown();
-
-        final BulkResponse bulkItemResponses = bulkFuture.actionGet();
-        for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
-            assertThat(Strings.toString(bulkItemResponses), bulkItemResponse.isFailed(), is(false));
-        }
-
-        final BulkByScrollResponse bulkByScrollResponse = updateByQueryResponse.actionGet();
-        assertThat(bulkByScrollResponse.getVersionConflicts(), lessThanOrEqualTo((long) conflictingOps));
-        // When scripts are enabled, the first maxDocs are a NoOp
-        final int candidateOps = scriptEnabled ? numDocs - maxDocs : numDocs;
-        int successfulOps = Math.min(candidateOps - conflictingOps, maxDocs);
-        assertThat(bulkByScrollResponse.getNoops(), is((long) (scriptEnabled ? maxDocs : 0)));
-        resultConsumer.accept(bulkByScrollResponse, successfulOps);
     }
 
     private void createIndexWithSingleShard(String index) throws Exception {

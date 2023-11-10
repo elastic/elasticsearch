@@ -61,6 +61,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 
 @SuppressWarnings("removal")
@@ -182,51 +184,63 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             assertEquals(200, refreshResponse.getStatusLine().getStatusCode());
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index"), RequestOptions.DEFAULT);
-                assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
-                assertEquals(10, response.getHits().getTotalHits().value);
-                assertEquals(10, response.getHits().getHits().length);
+                assertResponse(restHighLevelClient.search(new SearchRequest("index"), RequestOptions.DEFAULT), response -> {
+                    assertSame(SearchResponse.Clusters.EMPTY, response.getClusters());
+                    assertEquals(10, response.getHits().getTotalHits().value);
+                    assertEquals(10, response.getHits().getHits().length);
+                });
             }
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT);
-                assertEquals(2, response.getClusters().getTotal());
-                assertEquals(2, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(10, response.getHits().getTotalHits().value);
-                assertEquals(10, response.getHits().getHits().length);
+                assertResponse(restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT),
+                    response -> {
+                        assertEquals(2, response.getClusters().getTotal());
+                        assertEquals(2, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                        assertEquals(10, response.getHits().getTotalHits().value);
+                        assertEquals(10, response.getHits().getHits().length);
+                    });
             }
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT);
-                assertEquals(1, response.getClusters().getTotal());
-                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(0, response.getHits().getTotalHits().value);
+                assertResponse(restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT),
+                    response -> {
+                        assertEquals(1, response.getClusters().getTotal());
+                        assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                        assertEquals(0, response.getHits().getTotalHits().value);
+                    });
             }
 
             {
-                SearchResponse response = restHighLevelClient.search(
+                assertCheckedResponse(restHighLevelClient.search(
                     new SearchRequest("index", "remote1:index").scroll("1m"),
                     RequestOptions.DEFAULT
-                );
-                assertEquals(2, response.getClusters().getTotal());
-                assertEquals(2, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(10, response.getHits().getTotalHits().value);
-                assertEquals(10, response.getHits().getHits().length);
-                String scrollId = response.getScrollId();
-                SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
-                assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
-                assertEquals(10, scrollResponse.getHits().getTotalHits().value);
-                assertEquals(0, scrollResponse.getHits().getHits().length);
+                ), response -> {
+                    assertEquals(2, response.getClusters().getTotal());
+                    assertEquals(2, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(10, response.getHits().getTotalHits().value);
+                    assertEquals(10, response.getHits().getHits().length);
+                    String scrollId = response.getScrollId();
+                    SearchResponse scrollResponse = null;
+                    try {
+                        scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
+                        assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
+                        assertEquals(10, scrollResponse.getHits().getTotalHits().value);
+                        assertEquals(0, scrollResponse.getHits().getHits().length);
+                    } finally {
+                        if (scrollResponse != null)
+                            scrollResponse.decRef();
+                    }
+                });
             }
 
             remoteTransport.close();
@@ -234,45 +248,56 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
             updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", true));
 
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT);
-                assertEquals(2, response.getClusters().getTotal());
-                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(10, response.getHits().getTotalHits().value);
-                assertEquals(10, response.getHits().getHits().length);
+                assertResponse(restHighLevelClient.search(new SearchRequest("index", "remote1:index"), RequestOptions.DEFAULT),
+                    response -> {
+                        assertEquals(2, response.getClusters().getTotal());
+                        assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                        assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                        assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                        assertEquals(10, response.getHits().getTotalHits().value);
+                        assertEquals(10, response.getHits().getHits().length);
+                    });
             }
             {
-                SearchResponse response = restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT);
-                assertEquals(1, response.getClusters().getTotal());
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(0, response.getHits().getTotalHits().value);
+                assertResponse(restHighLevelClient.search(new SearchRequest("remote1:index"), RequestOptions.DEFAULT),
+                response -> {
+                    assertEquals(1, response.getClusters().getTotal());
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(0, response.getHits().getTotalHits().value);
+                });
             }
 
             {
-                SearchResponse response = restHighLevelClient.search(
+                assertCheckedResponse(restHighLevelClient.search(
                     new SearchRequest("index", "remote1:index").scroll("1m"),
                     RequestOptions.DEFAULT
-                );
-                assertEquals(2, response.getClusters().getTotal());
-                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
-                assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
-                assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
-                assertEquals(10, response.getHits().getTotalHits().value);
-                assertEquals(10, response.getHits().getHits().length);
-                String scrollId = response.getScrollId();
-                SearchResponse scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
-                assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
-                assertEquals(10, scrollResponse.getHits().getTotalHits().value);
-                assertEquals(0, scrollResponse.getHits().getHits().length);
+                ), response -> {
+                    assertEquals(2, response.getClusters().getTotal());
+                    assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL));
+                    assertEquals(1, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.SKIPPED));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.RUNNING));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.PARTIAL));
+                    assertEquals(0, response.getClusters().getClusterStateCount(SearchResponse.Cluster.Status.FAILED));
+                    assertEquals(10, response.getHits().getTotalHits().value);
+                    assertEquals(10, response.getHits().getHits().length);
+                    String scrollId = response.getScrollId();
+                    SearchResponse scrollResponse = null;
+                    try {
+                        scrollResponse = restHighLevelClient.scroll(new SearchScrollRequest(scrollId), RequestOptions.DEFAULT);
+                        assertSame(SearchResponse.Clusters.EMPTY, scrollResponse.getClusters());
+                        assertEquals(10, scrollResponse.getHits().getTotalHits().value);
+                        assertEquals(0, scrollResponse.getHits().getHits().length);
+                    } finally {
+                        if (scrollResponse != null)
+                            scrollResponse.decRef();
+                    }
+                });
             }
 
             updateRemoteClusterSettings(Collections.singletonMap("skip_unavailable", false));

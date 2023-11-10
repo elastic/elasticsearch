@@ -35,6 +35,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+
 public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
     public void testHDRHistogram() throws Exception {
@@ -103,11 +105,15 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
 
-        SearchResponse response = client().prepareSearch("raw").setTrackTotalHits(true).get();
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
+        assertResponse(client().prepareSearch("raw").setTrackTotalHits(true),
+            response -> {
+                assertEquals(numDocs, response.getHits().getTotalHits().value);
+            });
 
-        response = client().prepareSearch("pre_agg").get();
-        assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
+        assertResponse(client().prepareSearch("pre_agg"),
+            response -> {
+                assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
+            });
 
         PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
             .field("data")
@@ -115,16 +121,25 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
             .numberOfSignificantValueDigits(numberOfSignificantValueDigits)
             .percentiles(10);
 
-        SearchResponse responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
-        SearchResponse responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();
-        SearchResponse responseBoth = client().prepareSearch("pre_agg", "raw").addAggregation(builder).get();
+        SearchResponse responseRaw = null;
+        SearchResponse responsePreAgg = null;
+        SearchResponse responseBoth = null;
+        try {
+            responseRaw = client().prepareSearch("raw").addAggregation(builder).get();
+            responsePreAgg = client().prepareSearch("pre_agg").addAggregation(builder).get();
+            responseBoth = client().prepareSearch("pre_agg", "raw").addAggregation(builder).get();
 
-        InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
-        InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
-        InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
-        for (int i = 1; i < 100; i++) {
-            assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
-            assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
+            InternalHDRPercentiles percentilesRaw = responseRaw.getAggregations().get("agg");
+            InternalHDRPercentiles percentilesPreAgg = responsePreAgg.getAggregations().get("agg");
+            InternalHDRPercentiles percentilesBoth = responseBoth.getAggregations().get("agg");
+            for (int i = 1; i < 100; i++) {
+                assertEquals(percentilesRaw.percentile(i), percentilesPreAgg.percentile(i), 0.0);
+                assertEquals(percentilesRaw.percentile(i), percentilesBoth.percentile(i), 0.0);
+            }
+        } finally {
+            if (responseRaw != null) responseRaw.decRef();
+            if (responsePreAgg != null) responsePreAgg.decRef();
+            if (responseBoth != null) responseBoth.decRef();
         }
     }
 

@@ -457,7 +457,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
         String otherIndexId = indexSettings.evaluate(".idx-b.settings.index.uuid");
 
         // Create the malformed request with a mismatch between with the request index and shard ID
-        final GetRequest getRequest = new GetRequest("idx-a", "user-admin");
+        final GetRequest getRequest = new GetRequest("idx-a", "1");
         SingleShardRequestHelper.setInternalShardId(getRequest, new ShardId("idx-b", otherIndexId, 0));
 
         try (

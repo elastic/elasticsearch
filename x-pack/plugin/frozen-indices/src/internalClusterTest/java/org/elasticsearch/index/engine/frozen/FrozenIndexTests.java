@@ -128,18 +128,22 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                 .setSize(1)
                 .get();
             do {
-                assertHitCount(scrollResponse, 3);
-                assertEquals(1, scrollResponse.getHits().getHits().length);
-                SearchService searchService = getInstanceFromNode(SearchService.class);
-                assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
-                for (int i = 0; i < 2; i++) {
-                    shard = indexService.getShard(i);
-                    engine = IndexShardTestCase.getEngine(shard);
-                    // scrolls keep the reader open
-                    assertTrue(((FrozenEngine) engine).isReaderOpen());
+                String scrollId;
+                try {
+                    assertHitCount(scrollResponse, 3);
+                    assertEquals(1, scrollResponse.getHits().getHits().length);
+                    SearchService searchService = getInstanceFromNode(SearchService.class);
+                    assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+                    for (int i = 0; i < 2; i++) {
+                        shard = indexService.getShard(i);
+                        engine = IndexShardTestCase.getEngine(shard);
+                        // scrolls keep the reader open
+                        assertTrue(((FrozenEngine) engine).isReaderOpen());
+                    }
+                    scrollId = scrollResponse.getScrollId();
+                } finally {
+                    if (scrollResponse != null) scrollResponse.decRef();
                 }
-                final String scrollId = scrollResponse.getScrollId();
-                scrollResponse.decRef();
                 scrollResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
             } while (scrollResponse.getHits().getHits().length > 0);
             client().prepareClearScroll().addScrollId(scrollResponse.getScrollId()).get();

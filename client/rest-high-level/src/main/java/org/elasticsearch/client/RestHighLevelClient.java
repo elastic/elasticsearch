@@ -334,7 +334,6 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Executes a search request using the Search API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-search.html">Search API on elastic.co</a>
-     *
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response

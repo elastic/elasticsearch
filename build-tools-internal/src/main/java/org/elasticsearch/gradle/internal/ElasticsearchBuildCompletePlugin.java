@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-public abstract class ElasticsearchBuildFinishedPlugin implements Plugin<Project> {
+public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project> {
 
     @Inject
     protected abstract FlowScope getFlowScope();

@@ -29,7 +29,7 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id 'elasticsearch.build-finished'
+  id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
   id 'elasticsearch.jdk-download'
   id 'elasticsearch.internal-distribution-download'

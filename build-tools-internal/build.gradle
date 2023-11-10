@@ -35,9 +35,9 @@ gradlePlugin {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
     }
-    buildFinished {
-      id = 'elasticsearch.build-finished'
-      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildFinishedPlugin'
+    buildComplete {
+      id = 'elasticsearch.build-complete'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
     }
     distro {
       id = 'elasticsearch.distro'

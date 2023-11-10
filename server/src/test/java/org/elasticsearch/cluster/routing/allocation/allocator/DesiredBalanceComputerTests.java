@@ -1037,7 +1037,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
             )
         );
 
@@ -1104,7 +1104,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
             )
         );
 
@@ -1171,7 +1171,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
             )
         );
 
@@ -1238,7 +1238,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             Map.ofEntries(
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
                 Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
             )
         );
 

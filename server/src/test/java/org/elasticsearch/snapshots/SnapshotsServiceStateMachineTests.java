@@ -111,6 +111,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -755,8 +756,12 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
         }
 
         @Override
-        public void getRepositoryData(ActionListener<RepositoryData> listener) {
-            threadPool.generic().execute(ActionRunnable.supply(listener, () -> repositoryData));
+        public void getRepositoryData(Executor executor, ActionListener<RepositoryData> listener) {
+            if (randomBoolean()) {
+                listener.onResponse(repositoryData);
+            } else {
+                executor.execute(ActionRunnable.supply(listener, () -> repositoryData));
+            }
         }
 
         @Override
@@ -769,7 +774,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
 
             SubscribableListener
                 // get current repo data
-                .newForked(this::getRepositoryData)
+                .<RepositoryData>newForked(l -> getRepositoryData(threadPool.generic(), l))
 
                 // capture index metadata
                 // TODO this duplicates quite some work in BlobStoreRepository, should we move more of it into SnapshotsServce?
@@ -878,7 +883,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
             assertTrue(writeRepositoryDataPermits.tryAcquire()); // TODO will not hold on master failover
             SubscribableListener
                 // get current repo data
-                .newForked(this::getRepositoryData)
+                .<RepositoryData>newForked(l -> getRepositoryData(threadPool.generic(), l))
 
                 // compute new repository data
                 .<DeleteResult>andThen(threadPool.generic(), null, (l, currentRepositoryData) -> {
@@ -1083,7 +1088,7 @@ public class SnapshotsServiceStateMachineTests extends ESTestCase {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             throw new UnsupportedOperationException();
         }
 

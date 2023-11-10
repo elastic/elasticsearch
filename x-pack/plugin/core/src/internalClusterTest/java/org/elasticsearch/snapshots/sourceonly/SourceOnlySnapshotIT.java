@@ -273,7 +273,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             };
             assertConsumer.accept(searchResponse, sourceHadDeletions);
             assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
-            searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+            SearchResponse scrollResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
                 .setScroll("1m")
                 .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
                 .setSize(randomIntBetween(1, 10))
@@ -281,15 +281,16 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             try {
                 do {
                     // now do a scroll with a slice
-                    assertConsumer.accept(searchResponse, true);
-                    searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                        .setScroll(TimeValue.timeValueMinutes(1))
-                        .get();
-                } while (searchResponse.getHits().getHits().length > 0);
+                    assertConsumer.accept(scrollResponse, true);
+                    final String scrollId = scrollResponse.getScrollId();
+                    scrollResponse.decRef();
+                    scrollResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
+                } while (scrollResponse.getHits().getHits().length > 0);
             } finally {
-                if (searchResponse.getScrollId() != null) {
-                    client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+                if (scrollResponse.getScrollId() != null) {
+                    client().prepareClearScroll().addScrollId(scrollResponse.getScrollId()).get();
                 }
+                scrollResponse.decRef();
             }
         });
     }

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -89,7 +90,10 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertResponse(searchByNumericRange(4, 4), response -> assertSearchReturns(response, "single"));
         assertResponse(searchByNumericRange(10, 10), response -> assertSearchReturns(response, "multibulk2"));
         assertResponse(searchByNumericRange(7, 10), response -> assertSearchReturns(response, "multi", "multibulk1", "multibulk2"));
-        assertResponse(searchByNumericRange(1, 10), response -> assertSearchReturns(response, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2"));
+        assertResponse(
+            searchByNumericRange(1, 10),
+            response -> assertSearchReturns(response, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2")
+        );
         assertResponse(searchByNumericRange(12, 12), this::assertSearchReturns);
     }
 
@@ -100,15 +104,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         init();
 
         String facetField = randomFrom(Arrays.asList("foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
-        assertResponse(
-            searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)),
-            result -> {
-                assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
-                assertThat(result.getAggregations().asList().size(), equalTo(1));
-                Terms terms = (Terms) result.getAggregations().asList().get(0);
-                assertThat(terms.getBuckets().size(), equalTo(9));
-            }
-        );
+        assertResponse(searchByNumericRange(1, 10).addAggregation(AggregationBuilders.terms("facet").field(facetField)), result -> {
+            assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+            assertThat(result.getAggregations().asList().size(), equalTo(1));
+            Terms terms = (Terms) result.getAggregations().asList().get(0);
+            assertThat(terms.getBuckets().size(), equalTo(9));
+        });
     }
 
     private void init() throws IOException {

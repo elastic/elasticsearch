@@ -276,7 +276,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("indices").add(indexUUID));
     }
 
-    public BlobContainer getTermLeaseBlobContainer() {
+    public BlobContainer getClusterStateBlobContainer() {
         final BlobStoreRepository objectStore = getObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state"));
     }
@@ -286,7 +286,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state").add(String.valueOf(term)));
     }
 
-    public BlobContainer getLeaderHeartbeatContainer() {
+    public BlobContainer getClusterStateHeartbeatContainer() {
         final BlobStoreRepository objectStore = getObjectStore();
         return objectStore.blobStore().blobContainer(objectStore.basePath().add("cluster_state").add("heartbeat"));
     }

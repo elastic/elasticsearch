@@ -16,12 +16,14 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.http.HttpEntity;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -34,6 +36,14 @@ import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.Grant;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtAuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -46,17 +56,22 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings.CLIENT_AUTH_SHARED_SECRET_ROTATION_GRACE_PERIOD;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
@@ -134,6 +149,71 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
 
     protected boolean addMockHttpTransport() {
         return false;
+    }
+
+    public void testGrantApiKeyForJWT() throws Exception {
+        final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
+        final String subject;
+        final String sharedSecret;
+        if (randomBoolean()) {
+            subject = "me";
+            // JWT "id_token" valid for jwt0
+            jwtClaims.audience("es-01")
+                .issuer("my-issuer-01")
+                .subject(subject)
+                .claim("groups", "admin")
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(600)))
+                .build();
+            sharedSecret = jwt0SharedSecret;
+        } else {
+            subject = "me@example.com";
+            // JWT "access_token" valid for jwt2
+            jwtClaims.audience("es-03")
+                .issuer("my-issuer-03")
+                .subject("user-03")
+                .claim("groups", "admin")
+                .claim("email", subject)
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)));
+            sharedSecret = jwt2SharedSecret;
+        }
+        {
+            // JWT is valid but it no (required) client authentication is passed in
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(getSignedJWT(jwtClaims.build()), null);
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
+        {
+            // both JWT and client authentication are valid
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(getSignedJWT(jwtClaims.build()), sharedSecret);
+            CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
+            assertThat(createApiKeyResponse.getId(), notNullValue());
+            assertThat(createApiKeyResponse.getKey(), notNullValue());
+            final String base64ApiKeyKeyValue = Base64.getEncoder()
+                .encodeToString((createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
+            AuthenticateResponse authenticateResponse = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue))
+                .execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE)
+                .actionGet();
+            assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is(subject));
+            assertThat(authenticateResponse.authentication().getAuthenticationType(), is(Authentication.AuthenticationType.API_KEY));
+        }
+        {
+            // client authentication is valid but the JWT is not
+            SignedJWT wrongSignedJWT = getSignedJWT(
+                jwtClaims.build(),
+                ("wrong key that's longer" + " than 256 bits").getBytes(StandardCharsets.UTF_8)
+            );
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(wrongSignedJWT, sharedSecret);
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -382,20 +462,24 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         );
     }
 
-    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet) throws Exception {
+    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {
         JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
-        OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(jwtHmacKey.getBytes(StandardCharsets.UTF_8));
+        OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(hmacKeyBytes);
         jwt0signer.algorithm(JWSAlgorithm.HS256);
         SignedJWT jwt = new SignedJWT(jwtHeader, claimsSet);
         jwt.sign(new MACSigner(jwt0signer.build()));
         return jwt;
     }
 
-    private Request getRequest(SignedJWT jwt, String shardSecret) {
+    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet) throws Exception {
+        return getSignedJWT(claimsSet, jwtHmacKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Request getRequest(SignedJWT jwt, String sharedSecret) {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader("Authorization", "Bearer  " + jwt.serialize());
-        options.addHeader("ES-Client-Authentication", "SharedSecret " + shardSecret);
+        options.addHeader("ES-Client-Authentication", "SharedSecret " + sharedSecret);
         request.setOptions(options);
         return request;
     }
@@ -452,5 +536,18 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             );
         }
         return threadContext;
+    }
+
+    private static GrantApiKeyRequest getGrantApiKeyForJWT(SignedJWT signedJWT, String sharedSecret) {
+        GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
+        grantApiKeyRequest.getGrant().setType("access_token");
+        grantApiKeyRequest.getGrant().setAccessToken(new SecureString(signedJWT.serialize().toCharArray()));
+        if (sharedSecret != null) {
+            grantApiKeyRequest.getGrant()
+                .setClientAuthentication(new Grant.ClientAuthentication("SharedSecret", new SecureString(sharedSecret.toCharArray())));
+        }
+        grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
+        grantApiKeyRequest.getApiKeyRequest().setName(randomAlphaOfLength(8));
+        return grantApiKeyRequest;
     }
 }

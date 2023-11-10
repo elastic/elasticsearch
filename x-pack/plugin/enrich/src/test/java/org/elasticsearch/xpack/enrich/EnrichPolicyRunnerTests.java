@@ -1551,8 +1551,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     }
 
     public void testRunnerTwoObjectLevelsSourceMappingDateRangeWithFormat() throws Exception {
-        //TODO: this is the only method that needs the import for SearchResponse. Revisit once the todo below w.r.t. a possible
-        // typo is addressed.
         final String sourceIndex = "source-index";
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
         mappingBuilder.startObject()

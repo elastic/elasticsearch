@@ -131,11 +131,12 @@ public class RemoteClusterSecurityTopologyRestIT extends AbstractRemoteClusterSe
                 responseAsParser(performRequestWithRemoteMetricUser(searchRequest))
             );
             final Request scrollRequest = new Request("GET", "/_search/scroll");
+            final String scrollId;
             try {
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L));
                 assertThat(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).toList(), contains("shared-metrics"));
                 documentFieldValues.add(searchResponse.getHits().getHits()[0].getSourceAsMap().get("name"));
-                final String scrollId = searchResponse.getScrollId();
+                scrollId = searchResponse.getScrollId();
                 // Scroll should be able to fetch all documents from all nodes even when some nodes are not directly accessible in sniff
                 // mode
                 scrollRequest.setJsonEntity(Strings.format("""

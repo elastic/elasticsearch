@@ -126,6 +126,7 @@ buildScan {
       }
 
       buildFinished { result ->
+
         buildScanPublished { scan ->
           // Attach build scan link as build metadata
           // See: https://buildkite.com/docs/pipelines/build-meta-data

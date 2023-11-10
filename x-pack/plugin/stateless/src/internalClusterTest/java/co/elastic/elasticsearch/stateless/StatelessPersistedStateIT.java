@@ -45,7 +45,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(3);
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode2);
-        var blobContainerForTermLease = objectStoreService.getTermLeaseBlobContainer();
+        var blobContainerForTermLease = objectStoreService.getClusterStateBlobContainer();
         final long nodeLeftGenerationBeforeNodeLeft;
         try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
@@ -74,7 +74,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(2);
 
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode1);
-        var blobContainerForTermLease = objectStoreService.getTermLeaseBlobContainer();
+        var blobContainerForTermLease = objectStoreService.getClusterStateBlobContainer();
         final long termBeforeRootDeleted;
         try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());

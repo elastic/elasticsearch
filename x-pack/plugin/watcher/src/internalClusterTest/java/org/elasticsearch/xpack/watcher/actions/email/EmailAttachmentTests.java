@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
 import javax.mail.BodyPart;
 import javax.mail.Multipart;
 import javax.mail.Part;
@@ -205,8 +204,13 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                     throw e;
                 }
             }
-            assertNotNull(searchResponse);
-            assertHitCount(searchResponse, 1);
+            try {
+                assertNotNull(searchResponse);
+                assertHitCount(searchResponse, 1);
+            } finally {
+                searchResponse.decRef();
+            }
+
         });
 
         if (latch.await(5, TimeUnit.SECONDS) == false) {

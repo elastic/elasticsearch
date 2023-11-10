@@ -1,0 +1,5 @@
+pr: 101656
+summary: Adjust interception of requests for specific shard IDs
+area: Authorization
+type: bug
+issues: []

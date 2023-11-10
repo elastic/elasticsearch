@@ -455,6 +455,29 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
+    public void testWildcardOverlapWithAliasExcludeIndex() {
+        final User user = new User("data-stream-tester3", "data_stream_test3");
+        SearchRequest request = new SearchRequest("logs*", "-logs-00002");
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        String[] expectedIndices = new String[] { "logs-00001", "logs-00003" };
+        assertThat(indices, hasSize(expectedIndices.length));
+        assertThat(request.indices().length, equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+    }
+
+    public void testWildcardOverlapWithAliasExcludeAlias() {
+        final User user = new User("data-stream-tester3", "data_stream_test3");
+        SearchRequest request = new SearchRequest("logs*", "-logs-alias");
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        // as stated in the documentation the concrete indices are included even if the alias is removed
+        String[] expectedIndices = new String[] { "logs-00001", "logs-00002", "logs-00003" };
+        assertThat(indices, hasSize(expectedIndices.length));
+        assertThat(request.indices().length, equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+    }
+
     public void testExplicitDashIndices() {
         SearchRequest request = new SearchRequest("-index10", "-index20");
         List<String> indices = resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal();

@@ -41,7 +41,10 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
     public void testStoresHeartbeatIntoTheBlobStore() throws Exception {
         try (var statelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var objectStoreService = statelessNode.objectStoreService;
-            var heartbeatStore = new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, statelessNode.threadPool);
+            var heartbeatStore = new StatelessHeartbeatStore(
+                objectStoreService::getClusterStateHeartbeatContainer,
+                statelessNode.threadPool
+            );
 
             var heartbeat = randomHeartbeat();
             PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(heartbeat, f));
@@ -74,7 +77,10 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
             }
         }) {
             var objectStoreService = statelessNode.objectStoreService;
-            var heartbeatStore = new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, statelessNode.threadPool);
+            var heartbeatStore = new StatelessHeartbeatStore(
+                objectStoreService::getClusterStateHeartbeatContainer,
+                statelessNode.threadPool
+            );
 
             var heartbeat = randomHeartbeat();
             expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(heartbeat, f)));
@@ -118,7 +124,10 @@ public class StatelessHeartbeatStoreTests extends ESTestCase {
             }
         }) {
             var objectStoreService = statelessNode.objectStoreService;
-            var heartbeatStore = new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, statelessNode.threadPool);
+            var heartbeatStore = new StatelessHeartbeatStore(
+                objectStoreService::getClusterStateHeartbeatContainer,
+                statelessNode.threadPool
+            );
 
             var heartbeat = randomHeartbeat();
             PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(heartbeat, f));

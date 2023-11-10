@@ -519,7 +519,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
                 // ignore
             }
             assertThat(
-                statelessNode.objectStoreService.getTermLeaseBlobContainer().listBlobs(randomFrom(OperationPurpose.values())),
+                statelessNode.objectStoreService.getClusterStateBlobContainer().listBlobs(randomFrom(OperationPurpose.values())),
                 is(emptyMap())
             );
             IOUtils.close(persistedState, statelessNode);

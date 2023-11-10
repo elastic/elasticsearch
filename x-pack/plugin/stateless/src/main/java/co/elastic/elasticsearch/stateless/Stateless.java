@@ -379,12 +379,12 @@ public class Stateless extends Plugin
         components.add(sharedBlobCacheServiceSupplier);
         var statelessElectionStrategy = setAndGet(
             this.electionStrategy,
-            new StatelessElectionStrategy(objectStoreService::getTermLeaseBlobContainer, threadPool)
+            new StatelessElectionStrategy(objectStoreService::getClusterStateBlobContainer, threadPool)
         );
         setAndGet(
             this.storeHeartbeatService,
             StoreHeartbeatService.create(
-                new StatelessHeartbeatStore(objectStoreService::getLeaderHeartbeatContainer, threadPool),
+                new StatelessHeartbeatStore(objectStoreService::getClusterStateHeartbeatContainer, threadPool),
                 threadPool,
                 environment.settings(),
                 statelessElectionStrategy::getCurrentLeaseTerm

@@ -74,7 +74,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     public void testTermIsClaimedOnNewElections() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var electionStrategy = new StatelessElectionStrategy(
-                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 fakeStatelessNode.threadPool
             );
 
@@ -100,7 +100,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             boolean failToReadRegister = randomBoolean();
             boolean failCASOperation = failToReadRegister == false || randomBoolean();
-            var termLeaseBlobContainer = new FilterBlobContainer(fakeStatelessNode.objectStoreService.getTermLeaseBlobContainer()) {
+            var termLeaseBlobContainer = new FilterBlobContainer(fakeStatelessNode.objectStoreService.getClusterStateBlobContainer()) {
                 @Override
                 protected BlobContainer wrapChild(BlobContainer child) {
                     return child;
@@ -145,7 +145,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     public void testElectionQuorum() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var electionStrategy = new StatelessElectionStrategy(
-                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 fakeStatelessNode.threadPool
             );
             var localNode = newDiscoveryNode("local-node");
@@ -185,7 +185,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     public void testPublishQuorum() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var electionStrategy = new StatelessElectionStrategy(
-                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 fakeStatelessNode.threadPool
             );
             var localNode = newDiscoveryNode("local-node");
@@ -215,7 +215,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var localNode = newDiscoveryNode("local-node");
             var electionStrategy = new StatelessElectionStrategy(
-                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 fakeStatelessNode.threadPool
             );
             PlainActionFuture.<StartJoinRequest, Exception>get(f -> electionStrategy.onNewElection(localNode, 1, f));
@@ -249,7 +249,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
             }
         }) {
             var electionStrategy = new StatelessElectionStrategy(
-                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 capturingThreadPool
             );
             registerValueRef.set(OptionalBytesReference.MISSING);
@@ -302,7 +302,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     public void testTermsAreAssignedOncePerNode() throws Exception {
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry())) {
             var electionStrategy = new StatelessElectionStrategy(
-                fakeStatelessNode.objectStoreService::getTermLeaseBlobContainer,
+                fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
                 fakeStatelessNode.threadPool
             );
 

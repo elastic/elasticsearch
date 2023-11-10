@@ -66,7 +66,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
             var statelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry());
             return new StatelessCoordinatorStrategy(
                 inMemoryHeartBeatStore,
-                statelessNode.objectStoreService.getTermLeaseBlobContainer(),
+                statelessNode.objectStoreService.getClusterStateBlobContainer(),
                 statelessNode
             );
         } catch (IOException e) {

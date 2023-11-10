@@ -137,6 +137,18 @@ now() - 2023-10-26
 include::esql-enrich-data.asciidoc[tag=limitations]
 
 [discrete]
+[[esql-limitations-dissect]]
+=== Dissect limitations
+
+include::esql-process-data-with-dissect-grok.asciidoc[tag=dissect-limitations]
+
+[discrete]
+[[esql-limitations-grok]]
+=== Grok limitations
+
+include::esql-process-data-with-dissect-grok.asciidoc[tag=grok-limitations]
+
+[discrete]
 [[esql-limitations-mv]]
 === Multivalue limitations
 

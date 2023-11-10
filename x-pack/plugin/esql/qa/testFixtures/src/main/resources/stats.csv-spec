@@ -681,3 +681,19 @@ c:l |  job_positions:s
 4   |Reporting Analyst
 4   |Tech Lead    
 ;
+
+duplicateAggregationsWithoutGrouping
+from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1);
+
+c:l | m:i | m1:i | c1:l
+100 | 25324 | 25324  | 100
+;
+
+duplicateAggregationsWithGrouping
+from employees | eval x = salary | stats c = count(), m = min(x), m1 = min(salary), c1 = count(1) by gender | sort gender;
+
+c:l| m:i   | m1:i  | c1:l| gender:s
+33 | 25976 | 25976 | 33  | F
+57 | 25945 | 25945 | 57  | M
+10 | 25324 | 25324 | 10  | null
+;

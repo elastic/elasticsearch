@@ -28,7 +28,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -79,9 +79,9 @@ public class FilterIT extends ESIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1"))).get();
+        SearchResponse response = prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1"))).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());
@@ -93,9 +93,9 @@ public class FilterIT extends ESIntegTestCase {
     // https://github.com/elastic/elasticsearch/issues/8438
     public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
-        SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).get();
+        SearchResponse response = prepareSearch("idx").addAggregation(filter("tag1", emptyFilter)).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());
@@ -103,11 +103,11 @@ public class FilterIT extends ESIntegTestCase {
     }
 
     public void testWithSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value").field("value")))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value").field("value"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Filter filter = response.getAggregations().get("tag1");
         assertThat(filter, notNullValue());
@@ -128,11 +128,11 @@ public class FilterIT extends ESIntegTestCase {
     }
 
     public void testAsSubAggregation() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(histogram("histo").field("value").interval(2L).subAggregation(filter("filter", matchAllQuery())))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            histogram("histo").field("value").interval(2L).subAggregation(filter("filter", matchAllQuery()))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
@@ -147,7 +147,7 @@ public class FilterIT extends ESIntegTestCase {
 
     public void testWithContextBasedSubAggregation() throws Exception {
         try {
-            client().prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value"))).get();
+            prepareSearch("idx").addAggregation(filter("tag1", termQuery("tag", "tag1")).subAggregation(avg("avg_value"))).get();
 
             fail(
                 "expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source"
@@ -160,8 +160,7 @@ public class FilterIT extends ESIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(filter("filter", matchAllQuery())))
             .get();
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
@@ -64,7 +65,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private final boolean createdOnOrAfterV8;
 
         Builder(IndexVersion indexVersionCreated) {
-            this(indexVersionCreated.onOrAfter(IndexVersion.V_8_0_0));
+            this(indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0));
         }
 
         Builder(boolean createdOnOrAfterV8) {
@@ -101,7 +102,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.indexVersionCreated().onOrAfter(IndexVersion.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
+        c -> c.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
         c -> new Builder(c.indexVersionCreated())
     );
 

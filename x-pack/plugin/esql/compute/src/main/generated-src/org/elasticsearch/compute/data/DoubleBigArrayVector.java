@@ -60,11 +60,19 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new FilterDoubleVector(this, positions);
+        final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length, true);
+        for (int i = 0; i < positions.length; i++) {
+            filtered.set(i, values.get(positions[i]));
+        }
+        return new DoubleBigArrayVector(filtered, positions.length, blockFactory);
     }
 
     @Override
     public void close() {
+        if (released) {
+            throw new IllegalStateException("can't release already released vector [" + this + "]");
+        }
+        released = true;
         values.close();
     }
 

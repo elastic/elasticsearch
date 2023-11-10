@@ -88,7 +88,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         assertFalse(indexService.getIndexSettings().isExplicitRefresh());
         ensureGreen();
         AtomicInteger totalNumDocs = new AtomicInteger(Integer.MAX_VALUE);
-        assertNoSearchHits(client().prepareSearch().get());
+        assertNoSearchHits(client().prepareSearch());
         int numDocs = scaledRandomIntBetween(25, 100);
         totalNumDocs.set(numDocs);
         CountDownLatch indexingDone = new CountDownLatch(numDocs);
@@ -161,7 +161,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         CountDownLatch refreshLatch = new CountDownLatch(1);
         // async on purpose to make sure it happens concurrently
         indicesAdmin().prepareRefresh().execute(ActionListener.running(refreshLatch::countDown));
-        assertHitCount(client().prepareSearch().get(), 1);
+        assertHitCount(client().prepareSearch(), 1);
         client().prepareIndex("test").setId("1").setSource("{\"foo\" : \"bar\"}", XContentType.JSON).get();
         scheduleRefresh(shard, false);
         assertTrue(shard.hasRefreshPending());
@@ -171,7 +171,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         indicesAdmin().prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build())
             .execute(ActionListener.running(updateSettingsLatch::countDown));
-        assertHitCount(client().prepareSearch().get(), 2);
+        assertHitCount(client().prepareSearch(), 2);
         // wait for both to ensure we don't have in-flight operations
         updateSettingsLatch.await();
         refreshLatch.await();
@@ -183,7 +183,7 @@ public class SearchIdleIT extends ESSingleNodeTestCase {
         scheduleRefresh(shard, true);
         assertFalse(shard.hasRefreshPending());
         assertTrue(shard.isSearchIdle());
-        assertHitCount(client().prepareSearch().get(), 3);
+        assertHitCount(client().prepareSearch(), 3);
         final IndicesStatsResponse statsResponse = indicesAdmin().stats(new IndicesStatsRequest()).actionGet();
         for (ShardStats shardStats : statsResponse.getShards()) {
             if (shardStats.isSearchIdle()) {

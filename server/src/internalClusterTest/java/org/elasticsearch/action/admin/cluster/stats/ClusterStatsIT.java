@@ -41,7 +41,10 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -201,22 +204,23 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
         ClusterStatsResponse response = clusterAdmin().prepareClusterStats().get();
         String msg = response.toString();
-        assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000
-        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), Matchers.greaterThan(0L));
+        assertThat(msg, response.getTimestamp(), greaterThan(946681200000L)); // 1 Jan 2000
+        assertThat(msg, response.indicesStats.getStore().getSizeInBytes(), greaterThan(0L));
 
-        assertThat(msg, response.nodesStats.getFs().getTotal().getBytes(), Matchers.greaterThan(0L));
-        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getFs().getTotal().getBytes(), greaterThan(0L));
+        assertThat(msg, response.nodesStats.getJvm().getVersions().size(), greaterThan(0));
 
-        assertThat(msg, response.nodesStats.getVersions().size(), Matchers.greaterThan(0));
-        assertThat(msg, response.nodesStats.getVersions().contains(Version.CURRENT), Matchers.equalTo(true));
-        assertThat(msg, response.nodesStats.getPlugins().size(), Matchers.greaterThanOrEqualTo(0));
+        assertThat(msg, response.nodesStats.getVersions(), hasSize(greaterThan(0)));
+        // TODO: Build.current().unqualifiedVersion() -- or Build.current().version() if/when we move NodeInfo to Build version(s)
+        assertThat(msg, response.nodesStats.getVersions(), hasItem(Version.CURRENT.toString()));
+        assertThat(msg, response.nodesStats.getPlugins(), hasSize(greaterThanOrEqualTo(0)));
 
-        assertThat(msg, response.nodesStats.getProcess().count, Matchers.greaterThan(0));
+        assertThat(msg, response.nodesStats.getProcess().count, greaterThan(0));
         // 0 happens when not supported on platform
-        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getProcess().getAvgOpenFileDescriptors(), greaterThanOrEqualTo(0L));
         // these can be -1 if not supported on platform
-        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
-        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), greaterThanOrEqualTo(-1L));
+        assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), greaterThanOrEqualTo(-1L));
 
         NodesStatsResponse nodesStatsResponse = clusterAdmin().prepareNodesStats().setOs(true).get();
         long total = 0;

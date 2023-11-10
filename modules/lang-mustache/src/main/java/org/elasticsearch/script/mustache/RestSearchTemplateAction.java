@@ -77,7 +77,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             searchTemplateRequest.setExplain(searchRequest.source().explain());
         }
         return channel -> client.execute(
-            SearchTemplateAction.INSTANCE,
+            MustachePlugin.SEARCH_TEMPLATE_ACTION,
             searchTemplateRequest,
             new RestToXContentListener<>(channel, SearchTemplateResponse::status)
         );

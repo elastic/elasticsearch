@@ -48,11 +48,9 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearRealmCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRealmCacheRequest::new,
             ClearRealmCacheRequest.Node::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

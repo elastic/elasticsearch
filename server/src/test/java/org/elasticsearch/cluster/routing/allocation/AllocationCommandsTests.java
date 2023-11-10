@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -51,6 +49,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -77,7 +76,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AllocationCommandsTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(AllocationCommandsTests.class);
 
     public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(
@@ -713,9 +711,9 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder()
-                    .add(newNode("node-0", Version.V_8_10_0, IndexVersion.V_8_10_0))
-                    .add(newNode("node-1", Version.V_8_9_0, IndexVersion.V_8_9_0))
-                    .add(newNode("node-2", Version.V_8_9_0, IndexVersion.V_8_9_0))
+                    .add(newNode("node-0", Version.V_8_10_0, IndexVersions.V_8_10_0))
+                    .add(newNode("node-1", Version.V_8_9_0, IndexVersions.V_8_9_0))
+                    .add(newNode("node-2", Version.V_8_9_0, IndexVersions.V_8_9_0))
             )
             .metadata(Metadata.builder().put(indexMetadata, false))
             .routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(shardId.getIndex()).addShard(primary).addShard(replica)))

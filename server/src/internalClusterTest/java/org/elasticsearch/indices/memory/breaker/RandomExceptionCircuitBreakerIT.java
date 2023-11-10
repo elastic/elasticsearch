@@ -152,7 +152,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         }
 
         for (int i = 0; i < numSearches; i++) {
-            SearchRequestBuilder searchRequestBuilder = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery());
+            SearchRequestBuilder searchRequestBuilder = prepareSearch().setQuery(QueryBuilders.matchAllQuery());
             if (random().nextBoolean()) {
                 searchRequestBuilder.addSort("test-str", SortOrder.ASC);
             }

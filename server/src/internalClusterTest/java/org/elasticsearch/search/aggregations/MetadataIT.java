@@ -22,7 +22,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.maxBucket;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class MetadataIT extends ESIntegTestCase {
 
@@ -39,14 +39,11 @@ public class MetadataIT extends ESIntegTestCase {
         final var nestedMetadata = Map.of("nested", "value");
         var metadata = Map.of("key", "value", "numeric", 1.2, "bool", true, "complex", nestedMetadata);
 
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
-            )
-            .addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
+        ).addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata)).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Aggregations aggs = response.getAggregations();
         assertNotNull(aggs);

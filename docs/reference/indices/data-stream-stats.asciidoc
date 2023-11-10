@@ -160,9 +160,8 @@ the {wikipedia}/Unix_time[Unix epoch].
 +
 [NOTE]
 =====
-This timestamp is provided as a best effort. The data stream may contain
-`@timestamp` values higher than this if one or more of the following conditions
-are met:
+The data stream may contain `@timestamp` values higher than this if one or more
+of the following conditions are met:
 
 * The stream contains <<indices-open-close,closed>> backing indices.
 * Backing indices with a <<data-streams-generation,lower generation>> contain

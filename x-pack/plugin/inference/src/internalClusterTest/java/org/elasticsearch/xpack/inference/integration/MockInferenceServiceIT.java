@@ -75,7 +75,17 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
     public void testMockService() {
         String modelId = "test-mock";
-        ModelConfigurations putModel = putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations putModel = putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
+        ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
+        assertModelsAreEqual(putModel, readModel);
+
+        // The response is randomly generated, the input can be anything
+        inferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, randomAlphaOfLength(10));
+    }
+
+    public void testMockInClusterService() {
+        String modelId = "test-mock-in-cluster";
+        ModelConfigurations putModel = putMockService(modelId, "test_service_in_cluster_service", TaskType.SPARSE_EMBEDDING);
         ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
         assertModelsAreEqual(putModel, readModel);
 
@@ -85,7 +95,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String modelId = "test-mock";
-        putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
         ModelConfigurations readModel = getModel(modelId, TaskType.SPARSE_EMBEDDING);
 
         assertThat(readModel.getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
@@ -103,7 +113,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
 
     public void testGetUnparsedModelMap_ForTestServiceModel_ReturnsSecretsPopulated() {
         String modelId = "test-unparsed";
-        putMockService(modelId, TaskType.SPARSE_EMBEDDING);
+        putMockService(modelId, "test_service", TaskType.SPARSE_EMBEDDING);
 
         var listener = new PlainActionFuture<ModelRegistry.ModelConfigMap>();
         modelRegistry.getUnparsedModelMap(modelId, listener);
@@ -114,10 +124,10 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         assertThat(secrets.apiKey(), is("abc64"));
     }
 
-    private ModelConfigurations putMockService(String modelId, TaskType taskType) {
-        String body = """
+    private ModelConfigurations putMockService(String modelId, String serviceName, TaskType taskType) {
+        String body = Strings.format("""
             {
-              "service": "test_service",
+              "service": "%s",
               "service_settings": {
                 "model": "my_model",
                 "api_key": "abc64"
@@ -126,7 +136,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
                 "temperature": 3
               }
             }
-            """;
+            """, serviceName);
         var request = new PutInferenceModelAction.Request(
             taskType.toString(),
             modelId,
@@ -135,7 +145,7 @@ public class MockInferenceServiceIT extends ESIntegTestCase {
         );
 
         var response = client().execute(PutInferenceModelAction.INSTANCE, request).actionGet();
-        assertEquals("test_service", response.getModel().getService());
+        assertEquals(serviceName, response.getModel().getService());
 
         assertThat(response.getModel().getServiceSettings(), instanceOf(TestInferenceServicePlugin.TestServiceSettings.class));
         var serviceSettings = (TestInferenceServicePlugin.TestServiceSettings) response.getModel().getServiceSettings();

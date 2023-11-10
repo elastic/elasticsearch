@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.inference.services.elser;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.core.TimeValue;
@@ -24,8 +26,10 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus.State.STARTED;
 import static org.elasticsearch.xpack.inference.services.MapParsingUtils.removeFromMapOrThrowIfNull;
@@ -33,38 +37,18 @@ import static org.elasticsearch.xpack.inference.services.MapParsingUtils.throwIf
 
 public class ElserMlNodeService implements InferenceService {
 
-    public static final String NAME = "elser_mlnode";
+    public static final String NAME = "elser";
 
-    private static final String ELSER_V1_MODEL = ".elser_model_1";
+    static final String ELSER_V1_MODEL = ".elser_model_1";
+    // Default non platform specific v2 model
+    static final String ELSER_V2_MODEL = ".elser_model_2";
+    static final String ELSER_V2_MODEL_LINUX_X86 = ".elser_model_2_linux-x86_64";
 
-    public static ElserMlNodeModel parseConfig(
-        boolean throwOnUnknownFields,
-        String modelId,
-        TaskType taskType,
-        Map<String, Object> settings,
-        Map<String, Object> secrets
-    ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.SERVICE_SETTINGS);
-        var serviceSettings = serviceSettingsFromMap(serviceSettingsMap);
-
-        Map<String, Object> taskSettingsMap;
-        // task settings are optional
-        if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
-            taskSettingsMap = removeFromMapOrThrowIfNull(settings, ModelConfigurations.TASK_SETTINGS);
-        } else {
-            taskSettingsMap = Map.of();
-        }
-
-        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
-
-        if (throwOnUnknownFields) {
-            throwIfNotEmptyMap(settings, NAME);
-            throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            throwIfNotEmptyMap(taskSettingsMap, NAME);
-        }
-
-        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettings, taskSettings);
-    }
+    public static Set<String> VALID_ELSER_MODELS = Set.of(
+        ElserMlNodeService.ELSER_V1_MODEL,
+        ElserMlNodeService.ELSER_V2_MODEL,
+        ElserMlNodeService.ELSER_V2_MODEL_LINUX_X86
+    );
 
     private final OriginSettingClient client;
 
@@ -72,9 +56,47 @@ public class ElserMlNodeService implements InferenceService {
         this.client = new OriginSettingClient(context.client(), ClientHelper.INFERENCE_ORIGIN);
     }
 
+    public boolean isInClusterService() {
+        return true;
+    }
+
     @Override
-    public ElserMlNodeModel parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parseConfig(true, modelId, taskType, config, config);
+    public ElserMlNodeModel parseRequestConfig(
+        String modelId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Set<String> modelArchitectures
+    ) {
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+
+        // choose a default model version based on the cluster architecture
+        if (serviceSettingsBuilder.getModelVariant() == null) {
+            boolean homogenous = modelArchitectures.size() == 1;
+            if (homogenous && modelArchitectures.iterator().next().equals("linux-x86_64")) {
+                // Use the hardware optimized model
+                serviceSettingsBuilder.setModelVariant(ELSER_V2_MODEL_LINUX_X86);
+            } else {
+                // default to the platform-agnostic model
+                serviceSettingsBuilder.setModelVariant(ELSER_V2_MODEL);
+            }
+        }
+
+        Map<String, Object> taskSettingsMap;
+        // task settings are optional
+        if (config.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        } else {
+            taskSettingsMap = Map.of();
+        }
+
+        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
+
+        throwIfNotEmptyMap(config, NAME);
+        throwIfNotEmptyMap(serviceSettingsMap, NAME);
+        throwIfNotEmptyMap(taskSettingsMap, NAME);
+
+        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
     @Override
@@ -84,7 +106,20 @@ public class ElserMlNodeService implements InferenceService {
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return parseConfig(false, modelId, taskType, config, secrets);
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        var serviceSettingsBuilder = ElserMlNodeServiceSettings.fromMap(serviceSettingsMap);
+
+        Map<String, Object> taskSettingsMap;
+        // task settings are optional
+        if (config.containsKey(ModelConfigurations.TASK_SETTINGS)) {
+            taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        } else {
+            taskSettingsMap = Map.of();
+        }
+
+        var taskSettings = taskSettingsFromMap(taskType, taskSettingsMap);
+
+        return new ElserMlNodeModel(modelId, taskType, NAME, serviceSettingsBuilder.build(), taskSettings);
     }
 
     @Override
@@ -106,7 +141,10 @@ public class ElserMlNodeService implements InferenceService {
         var elserModel = (ElserMlNodeModel) model;
         var serviceSettings = elserModel.getServiceSettings();
 
-        var startRequest = new StartTrainedModelDeploymentAction.Request(ELSER_V1_MODEL, model.getConfigurations().getModelId());
+        var startRequest = new StartTrainedModelDeploymentAction.Request(
+            serviceSettings.getModelVariant(),
+            model.getConfigurations().getModelId()
+        );
         startRequest.setNumberOfAllocations(serviceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(serviceSettings.getNumThreads());
         startRequest.setWaitForState(STARTED);
@@ -144,10 +182,6 @@ public class ElserMlNodeService implements InferenceService {
         }, listener::onFailure));
     }
 
-    private static ElserMlNodeServiceSettings serviceSettingsFromMap(Map<String, Object> config) {
-        return ElserMlNodeServiceSettings.fromMap(config);
-    }
-
     private static ElserMlNodeTaskSettings taskSettingsFromMap(TaskType taskType, Map<String, Object> config) {
         if (taskType != TaskType.SPARSE_EMBEDDING) {
             throw new ElasticsearchStatusException(TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
@@ -160,5 +194,13 @@ public class ElserMlNodeService implements InferenceService {
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public void close() throws IOException {}
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ELSER_SERVICE_MODEL_VERSION_ADDED;
     }
 }

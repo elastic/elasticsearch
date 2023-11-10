@@ -23,7 +23,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
@@ -95,21 +94,17 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     if (node == other) {
                         continue;
                     }
-                    final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        node.getName()
-                    );
-                    final MockTransportService receiverTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        other.getName()
-                    );
-                    senderTransportService.addSendBehavior(receiverTransportService, (connection, requestId, action, request, options) -> {
-                        if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
-                            throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
-                        } else {
-                            connection.sendRequest(requestId, action, request, options);
-                        }
-                    });
+                    MockTransportService.getInstance(node.getName())
+                        .addSendBehavior(
+                            MockTransportService.getInstance(other.getName()),
+                            (connection, requestId, action, request, options) -> {
+                                if ("indices:admin/seq_no/global_checkpoint_sync[r]".equals(action)) {
+                                    throw new IllegalStateException("blocking indices:admin/seq_no/global_checkpoint_sync[r]");
+                                } else {
+                                    connection.sendRequest(requestId, action, request, options);
+                                }
+                            }
+                        );
                 }
             }
         }, client -> {
@@ -120,15 +115,7 @@ public class GlobalCheckpointSyncIT extends ESIntegTestCase {
                     if (node == other) {
                         continue;
                     }
-                    final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        node.getName()
-                    );
-                    final MockTransportService receiverTransportService = (MockTransportService) internalCluster().getInstance(
-                        TransportService.class,
-                        other.getName()
-                    );
-                    senderTransportService.clearOutboundRules(receiverTransportService);
+                    MockTransportService.getInstance(node.getName()).clearOutboundRules(MockTransportService.getInstance(other.getName()));
                 }
             }
         });

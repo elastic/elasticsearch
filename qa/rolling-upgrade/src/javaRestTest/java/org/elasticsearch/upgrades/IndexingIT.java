@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -139,8 +140,7 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
             Request waitForGreen = new Request("GET", "/_cluster/health");
             waitForGreen.addParameter("wait_for_nodes", "3");
             client().performRequest(waitForGreen);
-            Version minNodeVersion = minNodeVersion();
-            if (minNodeVersion.before(Version.V_7_5_0)) {
+            if (clusterSupportsBulkApi() == false) {
                 ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                 assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
                 assertThat(
@@ -410,19 +410,13 @@ public class IndexingIT extends ParameterizedRollingUpgradeTestCase {
         );
     }
 
-    private Version minNodeVersion() throws IOException {
+    // TODO[lor]: replace this check with a (historical) feature check ("supports bulk requests")
+    private boolean clusterSupportsBulkApi() throws IOException {
         Map<?, ?> response = entityAsMap(client().performRequest(new Request("GET", "_nodes")));
         Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-        Version minNodeVersion = null;
-        for (Map.Entry<?, ?> node : nodes.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) node.getValue();
-            Version nodeVersion = Version.fromString(nodeInfo.get("version").toString());
-            if (minNodeVersion == null) {
-                minNodeVersion = nodeVersion;
-            } else if (nodeVersion.before(minNodeVersion)) {
-                minNodeVersion = nodeVersion;
-            }
-        }
-        return minNodeVersion;
+
+        Predicate<Map<?, ?>> nodeSupportsBulkApi = n -> Version.fromString(n.get("version").toString()).onOrAfter(Version.V_7_5_0);
+
+        return nodes.values().stream().map(o -> (Map<?, ?>) o).allMatch(nodeSupportsBulkApi);
     }
 }

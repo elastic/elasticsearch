@@ -25,10 +25,12 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
@@ -49,7 +51,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -63,6 +67,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -95,7 +100,10 @@ import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -164,8 +172,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return client -> client.filterWithHeader(headers);
     }
 
-    @Override
-    protected Settings externalClusterClientSettings() {
+    private Settings externalClusterClientSettings() {
         final Path home = createTempDir();
         final Path xpackConf = home.resolve("config");
         try {
@@ -204,6 +211,35 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         builder.put("xpack.security.transport.ssl.key_passphrase", "testnode");
         builder.put("xpack.security.transport.ssl.verification_mode", "certificate");
         return builder.build();
+    }
+
+    @Override
+    protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        final String clusterAddresses = System.getProperty(TESTS_CLUSTER);
+        assertTrue(TESTS_CLUSTER + " must be set", Strings.hasLength(clusterAddresses));
+        if (scope == Scope.TEST) {
+            throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+        }
+        final String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
+        if (Strings.isNullOrEmpty(clusterName)) {
+            throw new IllegalArgumentException("External test cluster name must be provided");
+        }
+        final String[] stringAddresses = clusterAddresses.split(",");
+        final TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+        int i = 0;
+        for (String stringAddress : stringAddresses) {
+            URL url = new URL("http://" + stringAddress);
+            InetAddress inetAddress = InetAddress.getByName(url.getHost());
+            transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
+        }
+        return new ExternalTestCluster(
+            createTempDir(),
+            externalClusterClientSettings(),
+            nodePlugins(),
+            getClientWrapper(),
+            clusterName,
+            transportAddresses
+        );
     }
 
     protected void cleanUp() {
@@ -319,6 +355,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new));
             entries.add(
                 new NamedWriteableRegistry.Entry(
                     PersistentTaskParams.class,

@@ -27,6 +27,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -475,7 +476,7 @@ public class IndexMetadataTests extends ESTestCase {
             final IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> IndexMetadata.builder("index")
-                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_5_0))
                     .numberOfShards(1)
                     .numberOfReplicas(0)
                     .putAlias(AliasMetadata.builder("index").build())
@@ -487,7 +488,7 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testRepairIndexAndAliasWithSameName() {
         final IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_5_0))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_5_0))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putAlias(AliasMetadata.builder("index").build())

@@ -20,8 +20,11 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -60,7 +63,7 @@ import static org.mockito.Mockito.when;
 
 public class DenseVectorFieldMapperTests extends MapperTestCase {
 
-    private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersion.V_8_10_0;
+    private static final IndexVersion INDEXED_BY_DEFAULT_PREVIOUS_INDEX_VERSION = IndexVersions.V_8_10_0;
     private final ElementType elementType;
     private final boolean indexed;
     private final boolean indexOptionsSet;
@@ -231,6 +234,26 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testMergeDims() throws IOException {
+        XContentBuilder mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "dense_vector");
+            b.endObject();
+        });
+        MapperService mapperService = createMapperService(mapping);
+
+        mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "dense_vector").field("dims", 4).field("similarity", "cosine").field("index", true);
+            b.endObject();
+        });
+        merge(mapperService, mapping);
+        assertEquals(
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
+        );
+    }
+
     public void testDefaults() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
@@ -391,6 +414,40 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testMaxInnerProductWithValidNorm() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 3)
+                    .field("index", true)
+                    .field("similarity", VectorSimilarity.MAX_INNER_PRODUCT)
+            )
+        );
+        float[] vector = { -12.1f, 2.7f, -4 };
+        // Shouldn't throw
+        mapper.parse(source(b -> b.array("field", vector)));
+    }
+
+    public void testWithExtremeFloatVector() throws Exception {
+        for (VectorSimilarity vs : List.of(VectorSimilarity.COSINE, VectorSimilarity.DOT_PRODUCT, VectorSimilarity.COSINE)) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", vs))
+            );
+            float[] vector = { 0.07247924f, -4.310546E-11f, -1.7255947E30f };
+            DocumentParsingException e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", vector)))
+            );
+            assertNotNull(e.getCause());
+            assertThat(
+                e.getCause().getMessage(),
+                containsString(
+                    "NaN or Infinite magnitude detected, this usually means the vector values are too extreme to fit within a float."
+                )
+            );
+        }
+    }
+
     public void testInvalidParameters() {
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
@@ -535,7 +592,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
-        IndexVersion indexVersion = IndexVersion.V_7_4_0;
+        IndexVersion indexVersion = IndexVersions.V_7_4_0;
         DocumentMapper mapper = createDocumentMapper(
             indexVersion,
             fieldMapping(b -> b.field("index", false).field("type", "dense_vector").field("dims", 3))

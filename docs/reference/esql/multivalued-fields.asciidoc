@@ -1,5 +1,5 @@
 [[esql-multivalued-fields]]
-== {esql} multivalued fields
+=== {esql} multivalued fields
 
 ++++
 <titleabbrev>Multivalued fields</titleabbrev>
@@ -17,7 +17,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -65,7 +65,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -106,7 +106,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv"
+  "query": "FROM mv | LIMIT 2"
 }
 ----
 
@@ -148,7 +148,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | EVAL b=TO_STRING(b)"
+  "query": "FROM mv | EVAL b=TO_STRING(b) | LIMIT 2"
 }
 ----
 
@@ -183,7 +183,7 @@ POST /mv/_bulk?refresh
 
 POST /_query
 {
-  "query": "FROM mv | EVAL b + 2, a + b"
+  "query": "FROM mv | EVAL b + 2, a + b | LIMIT 4"
 }
 ----
 
@@ -217,7 +217,7 @@ Work around this limitation by converting the field to single value with one of:
 ----
 POST /_query
 {
-  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b"
+  "query": "FROM mv | EVAL b=MV_MIN(b) | EVAL b + 2, a + b | LIMIT 4"
 }
 ----
 // TEST[continued]

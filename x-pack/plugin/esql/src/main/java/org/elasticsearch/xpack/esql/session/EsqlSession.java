@@ -54,7 +54,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
@@ -151,22 +150,33 @@ public class EsqlSession {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         Set<String> policyNames = new HashSet<>(preAnalysis.policyNames);
         EnrichResolution resolution = new EnrichResolution(ConcurrentCollections.newConcurrentSet(), enrichPolicyResolver.allPolicyNames());
-        AtomicReference<IndexResolution> resolvedIndex = new AtomicReference<>();
+
         ActionListener<Void> groupedListener = listener.delegateFailureAndWrap((l, unused) -> {
             assert resolution.resolvedPolicies().size() == policyNames.size()
                 : resolution.resolvedPolicies().size() + " != " + policyNames.size();
-            assert resolvedIndex.get() != null : "index wasn't resolved";
-            l.onResponse(action.apply(resolvedIndex.get(), resolution));
+
+            // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
+            var matchFields = resolution.resolvedPolicies()
+                .stream()
+                .filter(p -> p.index().isValid()) // only if the policy by the specified name was found; later the Verifier will be
+                                                  // triggered
+                .map(p -> p.policy().getMatchField())
+                .collect(Collectors.toSet());
+
+            preAnalyzeIndices(
+                parsed,
+                ActionListener.wrap(indexResolution -> l.onResponse(action.apply(indexResolution, resolution)), listener::onFailure),
+                matchFields
+            );
         });
         try (RefCountingListener refs = new RefCountingListener(groupedListener)) {
-            preAnalyzeIndices(parsed, refs.acquire(resolvedIndex::set));
             for (String policyName : policyNames) {
                 enrichPolicyResolver.resolvePolicy(policyName, refs.acquire(resolution.resolvedPolicies()::add));
             }
         }
     }
 
-    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener) {
+    private <T> void preAnalyzeIndices(LogicalPlan parsed, ActionListener<IndexResolution> listener, Set<String> enrichPolicyMatchFields) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (preAnalysis.indices.size() > 1) {
@@ -176,7 +186,20 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed);
-            indexResolver.resolveAsMergedMapping(table.index(), fieldNames, false, Map.of(), listener, EsqlSession::specificValidity);
+
+            if (enrichPolicyMatchFields.isEmpty() == false && fieldNames != IndexResolver.ALL_FIELDS) {
+                fieldNames.addAll(enrichPolicyMatchFields);
+                fieldNames.addAll(subfields(enrichPolicyMatchFields));
+            }
+            indexResolver.resolveAsMergedMapping(
+                table.index(),
+                fieldNames,
+                false,
+                Map.of(),
+                listener,
+                EsqlSession::specificValidity,
+                IndexResolver.PRESERVE_PROPERTIES
+            );
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
@@ -246,9 +269,7 @@ public class EsqlSession {
         if (fieldNames.isEmpty()) {
             return IndexResolver.ALL_FIELDS;
         } else {
-            fieldNames.addAll(
-                fieldNames.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet())
-            );
+            fieldNames.addAll(subfields(fieldNames));
             return fieldNames;
         }
     }
@@ -259,6 +280,10 @@ public class EsqlSession {
             return false;
         }
         return isPattern ? Regex.simpleMatch(attr.qualifiedName(), other) : attr.qualifiedName().equals(other);
+    }
+
+    private static Set<String> subfields(Set<String> names) {
+        return names.stream().filter(name -> name.endsWith(WILDCARD) == false).map(name -> name + ".*").collect(Collectors.toSet());
     }
 
     public void optimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {

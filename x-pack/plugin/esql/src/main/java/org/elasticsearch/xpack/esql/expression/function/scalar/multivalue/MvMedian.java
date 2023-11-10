@@ -45,11 +45,11 @@ public class MvMedian extends AbstractMultivalueFunction {
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> dvrCtx -> new MvMedianDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvMedianIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+            case DOUBLE -> new MvMedianDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMedianIntEvaluator.Factory(fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? dvrCtx -> new MvMedianUnsignedLongEvaluator(fieldEval.get(dvrCtx), dvrCtx)
-                : dvrCtx -> new MvMedianLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
+                ? new MvMedianUnsignedLongEvaluator.Factory(fieldEval)
+                : new MvMedianLongEvaluator.Factory(fieldEval);
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.datastreams;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -20,7 +19,6 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99764")
 public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public DataStreamsClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {

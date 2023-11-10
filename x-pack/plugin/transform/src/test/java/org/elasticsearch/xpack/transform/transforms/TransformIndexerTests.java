@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -200,8 +199,8 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
+        void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
         }
 
         @Override
@@ -281,13 +280,12 @@ public class TransformIndexerTests extends ESTestCase {
     public void setUpMocks() {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
-        client = new NoOpClient(getTestName());
         threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 

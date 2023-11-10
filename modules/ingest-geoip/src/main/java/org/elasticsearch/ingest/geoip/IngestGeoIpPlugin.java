@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,9 +24,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Processor;
@@ -43,14 +39,10 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -107,30 +99,20 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     }
 
     @Override
-    public Collection<Object> createComponents(
-        Client client,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ResourceWatcherService resourceWatcherService,
-        ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
-        Environment environment,
-        NodeEnvironment nodeEnvironment,
-        NamedWriteableRegistry namedWriteableRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        TelemetryProvider telemetryProvider,
-        AllocationService allocationService,
-        IndicesService indicesService
-    ) {
+    public Collection<?> createComponents(PluginServices services) {
         try {
-            String nodeId = nodeEnvironment.nodeId();
-            databaseRegistry.get().initialize(nodeId, resourceWatcherService, ingestService.get());
+            String nodeId = services.nodeEnvironment().nodeId();
+            databaseRegistry.get().initialize(nodeId, services.resourceWatcherService(), ingestService.get());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
+        geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(
+            services.client(),
+            new HttpClient(),
+            services.clusterService(),
+            services.threadPool()
+        );
         geoIpDownloaderTaskExecutor.init();
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }

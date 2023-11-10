@@ -59,11 +59,7 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -95,6 +91,10 @@ public final class PercentileIntAggregatorFunction implements AggregatorFunction
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+    Block uncastBlock = page.getBlock(channels.get(0));
+    if (uncastBlock.areAllValuesNull()) {
+      return;
+    }
     BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
     assert quart.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();

@@ -131,8 +131,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                 int docToQuery = between(0, numDocs - 1);
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
+                SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults)
                     .get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), test.numPrimaries);
@@ -140,8 +139,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch()
-                    .setQuery(QueryBuilders.matchAllQuery())
+                searchResponse = prepareSearch().setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numCreated)
                     .addSort("_id", SortOrder.ASC)
                     .get();

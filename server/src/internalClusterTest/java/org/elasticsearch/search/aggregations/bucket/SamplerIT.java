@@ -26,7 +26,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -91,15 +91,14 @@ public class SamplerIT extends ESIntegTestCase {
         // Tests that we can refer to nested elements under a sample in a path
         // statement
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(
                 terms("genres").field("genre")
                     .order(BucketOrder.aggregation("sample>max_price.value", asc))
                     .subAggregation(sampler("sample").shardSize(100).subAggregation(max("max_price").field("price")))
             )
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Terms genres = response.getAggregations().get("genres");
         List<? extends Bucket> genreBuckets = genres.getBuckets();
         // For this test to be useful we need >1 genre bucket to compare
@@ -122,14 +121,13 @@ public class SamplerIT extends ESIntegTestCase {
     public void testSimpleSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Sampler sample = response.getAggregations().get("sample");
         Terms authors = sample.getAggregations().get("authors");
         List<? extends Bucket> testBuckets = authors.getBuckets();
@@ -144,14 +142,13 @@ public class SamplerIT extends ESIntegTestCase {
     public void testUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("idx_unmapped").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Sampler sample = response.getAggregations().get("sample");
         assertThat(sample.getDocCount(), equalTo(0L));
         Terms authors = sample.getAggregations().get("authors");
@@ -161,15 +158,14 @@ public class SamplerIT extends ESIntegTestCase {
     public void testPartiallyUnmappedChildAggNoDiversity() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("idx_unmapped", "test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("idx_unmapped", "test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)
             .setExplain(true)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
         Sampler sample = response.getAggregations().get("sample");
         assertThat(sample.getDocCount(), greaterThan(0L));
         Terms authors = sample.getAggregations().get("authors");
@@ -179,13 +175,12 @@ public class SamplerIT extends ESIntegTestCase {
     public void testRidiculousShardSizeSampler() throws Exception {
         SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(Integer.MAX_VALUE);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setQuery(new TermQueryBuilder("genre", "fantasy"))
             .setFrom(0)
             .setSize(60)
             .addAggregation(sampleAgg)
             .get();
-        assertSearchResponse(response);
+        assertNoFailures(response);
     }
 }

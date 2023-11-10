@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -358,7 +359,26 @@ public class IndexResolver {
         client.fieldCaps(
             fieldRequest,
             listener.delegateFailureAndWrap(
-                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier))
+                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier, null))
+            )
+        );
+    }
+
+    public void resolveAsMergedMapping(
+        String indexWildcard,
+        Set<String> fieldNames,
+        boolean includeFrozen,
+        Map<String, Object> runtimeMappings,
+        ActionListener<IndexResolution> listener,
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier,
+        BiConsumer<EsField, InvalidMappedField> fieldUpdater
+
+    ) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, fieldNames, includeFrozen, runtimeMappings);
+        client.fieldCaps(
+            fieldRequest,
+            listener.delegateFailureAndWrap(
+                (l, response) -> l.onResponse(mergedMappings(typeRegistry, indexWildcard, response, specificValidityVerifier, fieldUpdater))
             )
         );
     }
@@ -369,13 +389,22 @@ public class IndexResolver {
         FieldCapabilitiesResponse fieldCapsResponse,
         BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier
     ) {
+        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse, specificValidityVerifier, null);
+    }
+
+    public static IndexResolution mergedMappings(
+        DataTypeRegistry typeRegistry,
+        String indexPattern,
+        FieldCapabilitiesResponse fieldCapsResponse,
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> specificValidityVerifier,
+        BiConsumer<EsField, InvalidMappedField> fieldUpdater
+    ) {
 
         if (fieldCapsResponse.getIndices().length == 0) {
             return IndexResolution.notFound(indexPattern);
         }
 
-        // merge all indices onto the same one
-        List<EsIndex> indices = buildIndices(typeRegistry, null, fieldCapsResponse, null, i -> indexPattern, (fieldName, types) -> {
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier = (fieldName, types) -> {
             InvalidMappedField f = specificValidityVerifier.apply(fieldName, types);
             if (f != null) {
                 return f;
@@ -431,7 +460,18 @@ public class IndexResolver {
 
             // everything checks
             return null;
-        });
+        };
+
+        // merge all indices onto the same one
+        List<EsIndex> indices = buildIndices(
+            typeRegistry,
+            null,
+            fieldCapsResponse,
+            null,
+            i -> indexPattern,
+            validityVerifier,
+            fieldUpdater
+        );
 
         if (indices.size() > 1) {
             throw new QlIllegalArgumentException(
@@ -454,7 +494,7 @@ public class IndexResolver {
         String indexPattern,
         FieldCapabilitiesResponse fieldCapsResponse
     ) {
-        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse, (fieldName, types) -> null);
+        return mergedMappings(typeRegistry, indexPattern, fieldCapsResponse, (fieldName, types) -> null, null);
     }
 
     private static EsField createField(
@@ -509,7 +549,7 @@ public class IndexResolver {
 
         EsField esField = field.apply(fieldName);
 
-        if (parent != null && parent instanceof UnsupportedEsField unsupportedParent) {
+        if (parent instanceof UnsupportedEsField unsupportedParent) {
             String inherited = unsupportedParent.getInherited();
             String type = unsupportedParent.getOriginalType();
 
@@ -611,8 +651,7 @@ public class IndexResolver {
     }
 
     private static GetAliasesRequest createGetAliasesRequest(FieldCapabilitiesResponse response, boolean includeFrozen) {
-        return new GetAliasesRequest().local(true)
-            .aliases("*")
+        return new GetAliasesRequest().aliases("*")
             .indices(response.getIndices())
             .indicesOptions(includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS);
     }
@@ -623,7 +662,7 @@ public class IndexResolver {
         FieldCapabilitiesResponse fieldCaps,
         Map<String, List<AliasMetadata>> aliases
     ) {
-        return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null);
+        return buildIndices(typeRegistry, javaRegex, fieldCaps, aliases, Function.identity(), (s, cap) -> null, null);
     }
 
     private static class Fields {
@@ -641,7 +680,8 @@ public class IndexResolver {
         FieldCapabilitiesResponse fieldCapsResponse,
         Map<String, List<AliasMetadata>> aliases,
         Function<String, String> indexNameProcessor,
-        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier
+        BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier,
+        BiConsumer<EsField, InvalidMappedField> fieldUpdater
     ) {
 
         if ((fieldCapsResponse.getIndices() == null || fieldCapsResponse.getIndices().length == 0)
@@ -709,8 +749,27 @@ public class IndexResolver {
                         String indexName = indexNameProcessor.apply(index);
                         Fields indexFields = indices.computeIfAbsent(indexName, k -> new Fields());
                         EsField field = indexFields.flattedMapping.get(fieldName);
+                        // create field hierarchy or update it in case of an invalid field
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
                             createField(typeRegistry, fieldName, indexFields, fieldCaps, invalidField, typeCap);
+
+                            // In evolving mappings, it is possible for a field to be promoted to an object in new indices
+                            // meaning there are subfields associated with this *invalid* field.
+                            // index_A: file -> keyword
+                            // index_B: file -> object, file.name = keyword
+                            //
+                            // In the scenario above file is problematic but file.name is not. This scenario is addressed
+                            // below through the dedicated callback - copy the existing properties or drop them all together.
+                            // Note this applies for *invalid* fields (that have conflicts), not *unsupported* (those that cannot be read)
+                            // See https://github.com/elastic/elasticsearch/pull/100875
+
+                            // Postpone the call until is really needed
+                            if (fieldUpdater != null && field != null) {
+                                EsField newField = indexFields.flattedMapping.get(fieldName);
+                                if (newField != field && newField instanceof InvalidMappedField newInvalidField) {
+                                    fieldUpdater.accept(field, newInvalidField);
+                                }
+                            }
                         }
                     }
                 }
@@ -772,7 +831,7 @@ public class IndexResolver {
                     s,
                     typeCap.getType(),
                     typeCap.getMetricType(),
-                    emptyMap(),
+                    new TreeMap<>(),
                     typeCap.isAggregatable(),
                     isAliasFieldType.get()
                 )
@@ -915,4 +974,23 @@ public class IndexResolver {
         // everything checks
         return emptyMap();
     }
+
+    /**
+     * Callback interface used when transitioning an already discovered EsField to an InvalidMapped one.
+     * By default, this interface is not used, meaning when a field is marked as invalid all its subfields
+     * are removed (are dropped).
+     * For cases where this is not desired, a different strategy can be employed such as keeping the properties:
+     * @see IndexResolver#PRESERVE_PROPERTIES
+     */
+    public interface ExistingFieldInvalidCallback extends BiConsumer<EsField, InvalidMappedField> {};
+
+    /**
+     * Preserve the properties (sub fields) of an existing field even when marking it as invalid.
+     */
+    public static ExistingFieldInvalidCallback PRESERVE_PROPERTIES = (oldField, newField) -> {
+        var oldProps = oldField.getProperties();
+        if (oldProps.size() > 0) {
+            newField.getProperties().putAll(oldProps);
+        }
+    };
 }

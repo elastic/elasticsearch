@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.MultiSearchAction;
@@ -50,9 +49,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99929")
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
+
+    @Override
+    // TODO all tests need to be updated to work with concurrent search
+    protected boolean enableConcurrentSearch() {
+        return false;
+    }
 
     public void testCancellationDuringQueryPhase() throws Exception {
 
@@ -60,9 +64,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(
+            scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
+        ).execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
@@ -77,9 +81,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
-            .execute();
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").addScriptField(
+            "test_field",
+            new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+        ).execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
@@ -105,8 +110,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             termsAggregationBuilder.field("field.keyword");
         }
 
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setQuery(matchAllQuery())
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setQuery(matchAllQuery())
             .addAggregation(
                 termsAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(
@@ -139,8 +143,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .setScroll(TimeValue.timeValueSeconds(10))
+        ActionFuture<SearchResponse> searchResponse = prepareSearch("test").setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
@@ -166,8 +169,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
 
         logger.info("Executing search");
         TimeValue keepAlive = TimeValue.timeValueSeconds(5);
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setScroll(keepAlive)
+        SearchResponse searchResponse = prepareSearch("test").setScroll(keepAlive)
             .setSize(2)
             .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
@@ -204,11 +206,10 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         indexTestData();
         ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
             .add(
-                client().prepareSearch("test")
-                    .addScriptField(
-                        "test_field",
-                        new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
-                    )
+                prepareSearch("test").addScriptField(
+                    "test_field",
+                    new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+                )
             )
             .execute();
         awaitForBlock(plugins);
@@ -227,6 +228,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     }
 
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
+        // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
+        // are limited to 1
+        internalCluster().ensureAtLeastNumDataNodes(2);
         int numberOfShards = between(2, 5);
         createIndex("test", numberOfShards, 0);
         indexTestData();
@@ -235,8 +239,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         Thread searchThread = new Thread(() -> {
             SearchPhaseExecutionException e = expectThrows(
                 SearchPhaseExecutionException.class,
-                () -> client().prepareSearch("test")
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                () -> prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false)
                     .setSize(1000)

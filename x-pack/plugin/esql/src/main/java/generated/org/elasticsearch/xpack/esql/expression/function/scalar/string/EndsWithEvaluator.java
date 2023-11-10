@@ -38,14 +38,8 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref strRef = str.eval(page)) {
-      if (strRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       BytesRefBlock strBlock = (BytesRefBlock) strRef.block();
       try (Block.Ref suffixRef = suffix.eval(page)) {
-        if (suffixRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock suffixBlock = (BytesRefBlock) suffixRef.block();
         BytesRefVector strVector = strBlock.asVector();
         if (strVector == null) {
@@ -61,7 +55,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   }
 
   public BooleanBlock eval(int positionCount, BytesRefBlock strBlock, BytesRefBlock suffixBlock) {
-    try(BooleanBlock.Builder result = BooleanBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -81,7 +75,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
   public BooleanVector eval(int positionCount, BytesRefVector strVector,
       BytesRefVector suffixVector) {
-    try(BooleanVector.Builder result = BooleanVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(BooleanVector.Builder result = driverContext.blockFactory().newBooleanVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       BytesRef suffixScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
@@ -99,5 +93,27 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   @Override
   public void close() {
     Releasables.closeExpectNoException(str, suffix);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory str;
+
+    private final EvalOperator.ExpressionEvaluator.Factory suffix;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory str,
+        EvalOperator.ExpressionEvaluator.Factory suffix) {
+      this.str = str;
+      this.suffix = suffix;
+    }
+
+    @Override
+    public EndsWithEvaluator get(DriverContext context) {
+      return new EndsWithEvaluator(str.get(context), suffix.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "EndsWithEvaluator[" + "str=" + str + ", suffix=" + suffix + "]";
+    }
   }
 }

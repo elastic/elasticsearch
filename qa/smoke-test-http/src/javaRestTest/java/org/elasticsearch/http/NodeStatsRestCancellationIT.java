@@ -9,11 +9,11 @@
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.client.Request;
 
 public class NodeStatsRestCancellationIT extends BlockedSearcherRestCancellationTestCase {
     public void testNodeStatsRestCancellation() throws Exception {
-        runTest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats"), NodesStatsAction.NAME);
+        runTest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats"), TransportNodesStatsAction.TYPE.name());
     }
 }

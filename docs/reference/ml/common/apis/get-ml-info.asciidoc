@@ -120,7 +120,9 @@ This is a possible response:
   },
   "limits" : {
     "effective_max_model_memory_limit": "28961mb",
-    "total_ml_memory": "86883mb"
+    "total_ml_memory": "86883mb",
+    "total_ml_processors": 16,
+    "max_single_ml_node_processors": 16
   }
 }
 ----
@@ -129,3 +131,5 @@ This is a possible response:
 // TESTRESPONSE[s/"build_hash": "99a07c016d5a73"/"build_hash": "$body.native_code.build_hash"/]
 // TESTRESPONSE[s/"effective_max_model_memory_limit": "28961mb"/"effective_max_model_memory_limit": "$body.limits.effective_max_model_memory_limit"/]
 // TESTRESPONSE[s/"total_ml_memory": "86883mb"/"total_ml_memory": "$body.limits.total_ml_memory"/]
+// TESTRESPONSE[s/"total_ml_processors": 16/"total_ml_processors": $body.limits.total_ml_processors/]
+// TESTRESPONSE[s/"max_single_ml_node_processors": 16/"max_single_ml_node_processors": $body.limits.max_single_ml_node_processors/]

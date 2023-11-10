@@ -163,7 +163,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
             } else {
                 TransformState transformState = (TransformState) existingTask.getState();
-                if (transformState.getTaskState() == TransformTaskState.FAILED) {
+                if (transformState != null && transformState.getTaskState() == TransformTaskState.FAILED) {
                     listener.onFailure(
                         new ElasticsearchStatusException(
                             TransformMessages.getMessage(CANNOT_START_FAILED_TRANSFORM, request.getId(), transformState.getReason()),

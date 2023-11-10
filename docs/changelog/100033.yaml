@@ -1,0 +1,9 @@
+pr: 100033
+summary: "[Behavioral Analytics] Analytics collections use Data Stream Lifecycle (DSL)\
+  \ instead of Index Lifecycle Management (ILM) for data retention management. Behavioral\
+  \ analytics has traditionally used ILM to manage data retention. Starting with 8.12.0,\
+  \ this will change. Analytics collections created prior to 8.12.0 will continue to use\
+  \ their existing ILM policies, but new analytics collections will be managed using DSL."
+area: Application
+type: feature
+issues: [ ]

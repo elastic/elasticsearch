@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -111,7 +112,7 @@ public class TransportBulkActionTests extends ESTestCase {
         DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
             .version(
                 VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
-                IndexVersion.MINIMUM_COMPATIBLE,
+                IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.randomCompatibleVersion(random())
             )
             .build();

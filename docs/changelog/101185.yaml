@@ -1,0 +1,5 @@
+pr: 101185
+summary: Repo analysis of uncontended register behaviour
+area: Snapshot/Restore
+type: enhancement
+issues: []

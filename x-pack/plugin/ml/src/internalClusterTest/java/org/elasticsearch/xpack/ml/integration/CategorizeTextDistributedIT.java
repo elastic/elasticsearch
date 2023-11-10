@@ -82,11 +82,9 @@ public class CategorizeTextDistributedIT extends BaseMlIntegTestCase {
             .collect(Collectors.toSet());
         assertThat(nodesWithShards, hasSize(internalCluster().size()));
 
-        SearchResponse searchResponse = client().prepareSearch(indexName)
-            .addAggregation(new CategorizeTextAggregationBuilder("categories", "message"))
-            .setSize(0)
-            .execute()
-            .actionGet();
+        SearchResponse searchResponse = prepareSearch(indexName).addAggregation(
+            new CategorizeTextAggregationBuilder("categories", "message")
+        ).setSize(0).execute().actionGet();
 
         InternalCategorizationAggregation aggregation = searchResponse.getAggregations().get("categories");
         assertThat(aggregation, notNullValue());

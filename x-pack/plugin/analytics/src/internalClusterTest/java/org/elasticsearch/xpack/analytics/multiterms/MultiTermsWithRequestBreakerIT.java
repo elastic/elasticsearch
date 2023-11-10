@@ -55,16 +55,14 @@ public class MultiTermsWithRequestBreakerIT extends ESIntegTestCase {
         );
 
         try {
-            client().prepareSearch("test")
-                .addAggregation(
-                    new MultiTermsAggregationBuilder("xxx").terms(
-                        List.of(
-                            new MultiValuesSourceFieldConfig.Builder().setFieldName("field0.keyword").build(),
-                            new MultiValuesSourceFieldConfig.Builder().setFieldName("field1.keyword").build()
-                        )
+            prepareSearch("test").addAggregation(
+                new MultiTermsAggregationBuilder("xxx").terms(
+                    List.of(
+                        new MultiValuesSourceFieldConfig.Builder().setFieldName("field0.keyword").build(),
+                        new MultiValuesSourceFieldConfig.Builder().setFieldName("field1.keyword").build()
                     )
                 )
-                .get();
+            ).get();
         } catch (ElasticsearchException e) {
             if (ExceptionsHelper.unwrap(e, CircuitBreakingException.class) == null) {
                 throw e;

@@ -40,14 +40,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:30").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("my-index")
-            .addAggregation(
-                AggregationBuilders.dateHistogram("rate")
-                    .field("@timestamp")
-                    .fixedInterval(DateHistogramInterval.HOUR)
-                    .order(BucketOrder.count(false))
-            )
-            .get();
+        SearchResponse response = prepareSearch("my-index").addAggregation(
+            AggregationBuilders.dateHistogram("rate")
+                .field("@timestamp")
+                .fixedInterval(DateHistogramInterval.HOUR)
+                .order(BucketOrder.count(false))
+        ).get();
 
         CompareCondition condition = new CompareCondition(
             "ctx.payload.aggregations.rate.buckets.0.doc_count",
@@ -66,14 +64,12 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         client().prepareIndex("my-index").setSource("@timestamp", "2005-01-01T00:40").get();
         refresh();
 
-        response = client().prepareSearch("my-index")
-            .addAggregation(
-                AggregationBuilders.dateHistogram("rate")
-                    .field("@timestamp")
-                    .fixedInterval(DateHistogramInterval.HOUR)
-                    .order(BucketOrder.count(false))
-            )
-            .get();
+        response = prepareSearch("my-index").addAggregation(
+            AggregationBuilders.dateHistogram("rate")
+                .field("@timestamp")
+                .fixedInterval(DateHistogramInterval.HOUR)
+                .order(BucketOrder.count(false))
+        ).get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);

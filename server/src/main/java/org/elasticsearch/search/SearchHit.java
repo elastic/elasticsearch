@@ -1033,7 +1033,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         Map<String, HighlightField> highlightFields = new HashMap<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             HighlightField highlightField = HighlightField.fromXContent(parser);
-            highlightFields.put(highlightField.getName(), highlightField);
+            highlightFields.put(highlightField.name(), highlightField);
         }
         return highlightFields;
     }

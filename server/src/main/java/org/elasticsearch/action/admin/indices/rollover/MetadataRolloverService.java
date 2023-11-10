@@ -34,7 +34,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -327,7 +327,7 @@ public class MetadataRolloverService {
         for (Index indexName : dataStream.getIndices()) {
             var index = builder.getSafe(indexName);
             final Settings originalSettings = index.getSettings();
-            if (index.getCreationVersion().before(IndexVersion.V_8_500_000)
+            if (index.getCreationVersion().before(IndexVersions.FIRST_DETACHED_INDEX_VERSION)
                 && index.getIndexMode() == IndexMode.TIME_SERIES
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {

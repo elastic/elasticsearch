@@ -118,6 +118,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return BlockStoredFieldsReader.id();
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException(

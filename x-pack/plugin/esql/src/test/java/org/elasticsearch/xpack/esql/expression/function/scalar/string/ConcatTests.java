@@ -13,22 +13,26 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class ConcatTests extends AbstractFunctionTestCase {
     public ConcatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -118,11 +122,47 @@ public class ConcatTests extends AbstractFunctionTestCase {
             assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
             return;
         }
+
+        int totalLength = testDataLength();
+        if (totalLength >= Concat.MAX_CONCAT_LENGTH || rarely()) {
+            boolean hasNulls = mix.stream().anyMatch(x -> x instanceof Literal l && l.value() == null)
+                || fieldValues.stream().anyMatch(Objects::isNull);
+            if (hasNulls == false) {
+                testOversized(totalLength, mix, fieldValues);
+                return;
+            }
+        }
+
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
             Block.Ref ref = eval.eval(row(fieldValues))
         ) {
             assertThat(toJavaObject(ref.block(), 0), testCase.getMatcher());
         }
+    }
+
+    private void testOversized(int totalLen, List<Expression> mix, List<Object> fieldValues) {
+        for (int len; totalLen < Concat.MAX_CONCAT_LENGTH; totalLen += len) {
+            len = randomIntBetween(1, (int) Concat.MAX_CONCAT_LENGTH);
+            mix.add(new Literal(Source.EMPTY, new BytesRef(randomAlphaOfLength(len)), DataTypes.KEYWORD));
+        }
+        Expression expression = build(testCase.getSource(), mix);
+        Exception e = expectThrows(EsqlClientException.class, () -> {
+            try (
+                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
+                Block.Ref ref = eval.eval(row(fieldValues));
+            ) {}
+        });
+        assertThat(e.getMessage(), is("concatenating more than [1048576] bytes is not supported"));
+    }
+
+    private int testDataLength() {
+        int totalLength = 0;
+        for (var data : testCase.getData()) {
+            if (data.data() instanceof BytesRef bytesRef) {
+                totalLength += bytesRef.length;
+            }
+        }
+        return totalLength;
     }
 }

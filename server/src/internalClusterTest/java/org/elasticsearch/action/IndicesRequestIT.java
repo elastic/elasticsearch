@@ -704,7 +704,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         for (PluginsService pluginsService : pluginsServices) {
             Set<Map.Entry<String, List<TransportRequest>>> entries = pluginsService.filterPlugins(
                 InterceptingTransportService.TestPlugin.class
-            ).stream().findFirst().get().instance.requests.entrySet();
+            ).findFirst().get().instance.requests.entrySet();
             assertThat(entries, emptyIterable());
 
         }
@@ -713,7 +713,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void clearInterceptedActions() {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).findFirst().get().instance
                 .clearInterceptedActions();
         }
     }
@@ -721,7 +721,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     private static void interceptTransportActions(String... actions) {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
-            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).stream().findFirst().get().instance
+            pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class).findFirst().get().instance
                 .interceptTransportActions(actions);
         }
     }
@@ -732,7 +732,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         Iterable<PluginsService> pluginsServices = internalCluster().getInstances(PluginsService.class);
         for (PluginsService pluginsService : pluginsServices) {
             List<TransportRequest> transportRequests = pluginsService.filterPlugins(InterceptingTransportService.TestPlugin.class)
-                .stream()
                 .findFirst()
                 .get().instance.consumeRequests(action);
             if (transportRequests != null) {

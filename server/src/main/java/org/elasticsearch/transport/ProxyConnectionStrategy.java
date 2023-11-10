@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -300,7 +301,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     DiscoveryNodeRole.roles(),
                     new VersionInformation(
                         Version.CURRENT.minimumCompatibilityVersion(),
-                        IndexVersion.MINIMUM_COMPATIBLE,
+                        IndexVersions.MINIMUM_COMPATIBLE,
                         IndexVersion.current()
                     )
                 );

@@ -130,8 +130,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         });
 
         // match 2 separate shard with no overlap in queries
-        SearchResponse response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        SearchResponse response = prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -150,8 +149,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         assertEquals(3, response.getSkippedShards());
 
         // match 2 shards with overlap in queries
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -170,8 +168,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         assertEquals(3, response.getSkippedShards());
 
         // match one shard with one query in range and one query out of range
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -190,8 +187,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         assertEquals(4, response.getSkippedShards());
 
         // match no shards, but still use one to generate a search response
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -210,8 +206,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         assertEquals(4, response.getSkippedShards());
 
         // match one shard with with no overlap in queries
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)
@@ -230,8 +225,7 @@ public class RRFRankCoordinatorCanMatchIT extends ESIntegTestCase {
         assertEquals(4, response.getSkippedShards());
 
         // match one shard with exact overlap in queries
-        response = client().prepareSearch("time_index")
-            .setSearchType(SearchType.QUERY_THEN_FETCH)
+        response = prepareSearch("time_index").setSearchType(SearchType.QUERY_THEN_FETCH)
             .setPreFilterShardSize(1)
             .setRankBuilder(new RRFRankBuilder(20, 1))
             .setTrackTotalHits(false)

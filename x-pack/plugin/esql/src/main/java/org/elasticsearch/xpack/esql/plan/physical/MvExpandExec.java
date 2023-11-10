@@ -6,38 +6,55 @@
  */
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.plan.logical.MvExpand.calculateOutput;
 
 public class MvExpandExec extends UnaryExec {
 
     private final NamedExpression target;
+    private final Attribute expanded;
+    private final List<Attribute> output;
 
-    public MvExpandExec(Source source, PhysicalPlan child, NamedExpression target) {
+    public MvExpandExec(Source source, PhysicalPlan child, NamedExpression target, Attribute expanded) {
         super(source, child);
         this.target = target;
+        this.expanded = expanded;
+        this.output = calculateOutput(child.output(), target, expanded);
     }
 
     @Override
     protected NodeInfo<MvExpandExec> info() {
-        return NodeInfo.create(this, MvExpandExec::new, child(), target);
+        return NodeInfo.create(this, MvExpandExec::new, child(), target, expanded);
     }
 
     @Override
     public MvExpandExec replaceChild(PhysicalPlan newChild) {
-        return new MvExpandExec(source(), newChild, target);
+        return new MvExpandExec(source(), newChild, target, expanded);
     }
 
     public NamedExpression target() {
         return target;
     }
 
+    public Attribute expanded() {
+        return expanded;
+    }
+
+    @Override
+    public List<Attribute> output() {
+        return output;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(target, child());
+        return Objects.hash(target, child(), expanded);
     }
 
     @Override
@@ -51,6 +68,6 @@ public class MvExpandExec extends UnaryExec {
 
         MvExpandExec other = (MvExpandExec) obj;
 
-        return Objects.equals(target, other.target) && Objects.equals(child(), other.child());
+        return Objects.equals(target, other.target) && Objects.equals(child(), other.child()) && Objects.equals(expanded, other.expanded);
     }
 }

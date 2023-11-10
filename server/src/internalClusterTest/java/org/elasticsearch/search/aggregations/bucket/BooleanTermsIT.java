@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -73,13 +73,11 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testSingleValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -107,13 +105,11 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testMultiValueField() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            new TermsAggregationBuilder("terms").field(MULTI_VALUED_FIELD_NAME).collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         LongTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
@@ -141,15 +137,13 @@ public class BooleanTermsIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
-                    .size(between(1, 5))
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx_unmapped").addAggregation(
+            new TermsAggregationBuilder("terms").field(SINGLE_VALUED_FIELD_NAME)
+                .size(between(1, 5))
+                .collectMode(randomFrom(SubAggCollectionMode.values()))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         UnmappedTerms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());

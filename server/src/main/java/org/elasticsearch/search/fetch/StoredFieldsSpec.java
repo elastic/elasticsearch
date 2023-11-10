@@ -27,12 +27,12 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
     /**
      * Use when no stored fields are required
      */
-    public static StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of());
+    public static final StoredFieldsSpec NO_REQUIREMENTS = new StoredFieldsSpec(false, false, Set.of());
 
     /**
      * Use when the source should be loaded but no other stored fields are required
      */
-    public static StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
+    public static final StoredFieldsSpec NEEDS_SOURCE = new StoredFieldsSpec(true, false, Set.of());
 
     /**
      * Combine these stored field requirements with those from another StoredFieldsSpec

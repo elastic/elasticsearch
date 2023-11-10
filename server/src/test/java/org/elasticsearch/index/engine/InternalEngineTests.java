@@ -99,6 +99,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
@@ -1039,7 +1040,6 @@ public class InternalEngineTests extends EngineTestCase {
         searchResult.close();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99916")
     public void testGetWithSearcherWrapper() throws Exception {
         engine.refresh("warm_up");
         engine.index(indexForDoc(createParsedDoc("1", null)));
@@ -6678,7 +6678,7 @@ public class InternalEngineTests extends EngineTestCase {
                     .put(defaultSettings.getSettings())
                     .put(
                         IndexMetadata.SETTING_VERSION_CREATED,
-                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0)
+                        IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0)
                     )
                     .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
             )
@@ -7441,7 +7441,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine = new InternalEngine(engine.config()) {
             @Override
             protected Map<String, String> getCommitExtraUserData() {
-                return Map.of("userkey", "userdata", ES_VERSION, IndexVersion.ZERO.toString());
+                return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
             }
         };
         engine.skipTranslogRecovery();
@@ -7503,14 +7503,14 @@ public class InternalEngineTests extends EngineTestCase {
                 .setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
             try (IndexWriter indexWriter = new IndexWriter(store.directory(), indexWriterConfig)) {
                 Map<String, String> commitUserDataWithOlderVersion = new HashMap<>(committedSegmentsInfo.userData);
-                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersion.V_7_0_0.toString());
+                commitUserDataWithOlderVersion.put(ES_VERSION, IndexVersions.V_7_0_0.toString());
                 indexWriter.setLiveCommitData(commitUserDataWithOlderVersion.entrySet());
                 indexWriter.commit();
             }
 
             Map<String, String> userDataBeforeTrimUnsafeCommits = store.readLastCommittedSegmentsInfo().getUserData();
             assertThat(userDataBeforeTrimUnsafeCommits, hasKey(ES_VERSION));
-            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersion.V_7_0_0.toString())));
+            assertThat(userDataBeforeTrimUnsafeCommits.get(ES_VERSION), is(equalTo(IndexVersions.V_7_0_0.toString())));
 
             store.trimUnsafeCommits(config.getTranslogConfig().getTranslogPath());
 

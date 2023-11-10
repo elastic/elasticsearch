@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,12 +22,6 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
 
     public ClearSecurityCacheRequest() {
         super((String[]) null);
-    }
-
-    public ClearSecurityCacheRequest(StreamInput in) throws IOException {
-        super(in);
-        cacheName = in.readString();
-        keys = in.readOptionalStringArray();
     }
 
     public ClearSecurityCacheRequest cacheName(String cacheName) {
@@ -49,9 +44,7 @@ public class ClearSecurityCacheRequest extends BaseNodesRequest<ClearSecurityCac
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(cacheName);
-        out.writeOptionalStringArray(keys);
+        TransportAction.localOnly();
     }
 
     public static class Node extends TransportRequest {

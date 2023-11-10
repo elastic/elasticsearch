@@ -1,0 +1,5 @@
+pr: 101607
+summary: Log stacktrace together with log message in order to help debugging
+area: Transform
+type: bug
+issues: []

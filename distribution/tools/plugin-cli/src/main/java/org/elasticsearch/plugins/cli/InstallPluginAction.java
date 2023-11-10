@@ -23,7 +23,6 @@ import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
@@ -84,6 +83,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
@@ -303,7 +304,7 @@ public class InstallPluginAction implements Closeable {
                 // else carry on to regular download
             }
 
-            final String url = getElasticUrl(getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
+            final String url = getElasticUrl(getStagingHash(), isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println(logPrefix + "Downloading " + pluginId + " from elastic");
             return downloadAndValidate(url, tmpDir, true);
         }
@@ -341,7 +342,7 @@ public class InstallPluginAction implements Closeable {
         if (Files.isDirectory(path) == false) {
             throw new UserException(ExitCodes.CONFIG, "Location in ES_PLUGIN_ARCHIVE_DIR is not a directory");
         }
-        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Version.CURRENT + (isSnapshot() ? "-SNAPSHOT" : "") + ".zip");
+        return PathUtils.get(pluginArchiveDir, pluginId + "-" + Build.current().qualifiedVersion() + ".zip");
     }
 
     // pkg private so tests can override
@@ -356,13 +357,8 @@ public class InstallPluginAction implements Closeable {
     /**
      * Returns the url for an official elasticsearch plugin.
      */
-    private String getElasticUrl(
-        final String stagingHash,
-        final Version version,
-        final boolean isSnapshot,
-        final String pluginId,
-        final String platform
-    ) throws IOException, UserException {
+    private String getElasticUrl(final String stagingHash, final boolean isSnapshot, final String pluginId, final String platform)
+        throws IOException, UserException {
         final String baseUrl;
         if (isSnapshot && stagingHash == null) {
             throw new UserException(
@@ -370,11 +366,21 @@ public class InstallPluginAction implements Closeable {
                 "attempted to install release build of official plugin on snapshot build of Elasticsearch"
             );
         }
+        // assumption: we will only be publishing plugins to snapshot or staging when they're versioned
+        String semanticVersion = getSemanticVersion(Build.current().version());
+        if (semanticVersion == null) {
+            throw new UserException(
+                ExitCodes.CONFIG,
+                "attempted to download a plugin for a non-semantically-versioned build of Elasticsearch: ["
+                    + Build.current().version()
+                    + "]"
+            );
+        }
         if (stagingHash != null) {
             if (isSnapshot) {
-                baseUrl = nonReleaseUrl("snapshots", version, stagingHash, pluginId);
+                baseUrl = nonReleaseUrl("snapshots", semanticVersion, stagingHash, pluginId);
             } else {
-                baseUrl = nonReleaseUrl("staging", version, stagingHash, pluginId);
+                baseUrl = nonReleaseUrl("staging", semanticVersion, stagingHash, pluginId);
             }
         } else {
             baseUrl = String.format(Locale.ROOT, "https://artifacts.elastic.co/downloads/elasticsearch-plugins/%s", pluginId);
@@ -393,7 +399,7 @@ public class InstallPluginAction implements Closeable {
         return String.format(Locale.ROOT, "%s/%s-%s.zip", baseUrl, pluginId, Build.current().qualifiedVersion());
     }
 
-    private static String nonReleaseUrl(final String hostname, final Version version, final String stagingHash, final String pluginId) {
+    private static String nonReleaseUrl(final String hostname, final String version, final String stagingHash, final String pluginId) {
         return String.format(
             Locale.ROOT,
             "https://%s.elastic.co/%s-%s/downloads/elasticsearch-plugins/%s",
@@ -1087,5 +1093,10 @@ public class InstallPluginAction implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
+    }
+
+    static String getSemanticVersion(String version) {
+        Matcher matcher = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*").matcher(version);
+        return matcher.matches() ? matcher.group(1) : null;
     }
 }

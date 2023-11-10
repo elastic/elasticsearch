@@ -306,7 +306,7 @@ public final class IndexSettings {
                 && fastRefresh == false
                 && value.compareTo(TimeValue.ZERO) > 0
                 && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
-                && indexVersion.after(IndexVersion.V_8_10_0)) {
+                && indexVersion.after(IndexVersions.V_8_10_0)) {
                 throw new IllegalArgumentException(
                     "index setting ["
                         + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
@@ -872,7 +872,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        assert softDeleteEnabled || version.before(IndexVersion.V_8_0_0) : "soft deletes must be enabled in version " + version;
+        assert softDeleteEnabled || version.before(IndexVersions.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);

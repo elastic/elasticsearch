@@ -32,8 +32,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 
 public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
@@ -155,8 +154,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 int docToQuery = between(0, numDocs - 1);
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch()
-                    .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
+                SearchResponse searchResponse = prepareSearch().setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults)
                     .get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
@@ -164,8 +162,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch()
-                    .setQuery(QueryBuilders.matchAllQuery())
+                searchResponse = prepareSearch().setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numCreated + numInitialDocs)
                     .addSort("_uid", SortOrder.ASC)
                     .get();
@@ -193,9 +190,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             indicesAdmin().prepareClose("test").execute().get();
             indicesAdmin().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")).get();
-            assertNoFailures(searchResponse);
-            assertHitCount(searchResponse, numInitialDocs);
+            assertHitCountAndNoFailures(prepareSearch().setQuery(QueryBuilders.matchQuery("test", "init")), numInitialDocs);
         }
     }
 }

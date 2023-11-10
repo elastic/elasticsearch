@@ -61,7 +61,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -75,6 +74,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             .put(TokenService.DELETE_INTERVAL.getKey(), TimeValue.timeValueMillis(200L))
             .put(TokenService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+            // used to diagnose Token authn failures, see: https://github.com/elastic/elasticsearch/issues/85697
+            .put("logger.org.elasticsearch.xpack.security.authc.TokenService", "TRACE")
             .build();
     }
 
@@ -593,7 +594,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
-        final List<RestStatus> authStatuses = Collections.synchronizedList(new ArrayList<>());
         OAuth2Token createTokenResponse = createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         assertNotNull(createTokenResponse.getRefreshToken());
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
@@ -625,8 +625,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getRefreshToken()
                         );
                     } else {
-                        authStatuses.add(getAuthenticationResponseCode(result.accessToken()));
                         tokens.add(result.accessToken() + result.getRefreshToken());
+                        // Assert that all requests from all threads could authenticate at the time they received the access token
+                        // see: https://github.com/elastic/elasticsearch/issues/54289
+                        try {
+                            getSecurityClient(result.accessToken()).authenticate();
+                        } catch (ResponseException esse) {
+                            fail(esse);
+                        }
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.accessToken(), result.getRefreshToken());
                     completedLatch.countDown();
@@ -650,12 +656,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Assert that we only ever got one token/refresh_token pair
         synchronized (tokens) {
             assertThat((int) tokens.stream().distinct().count(), equalTo(1));
-        }
-        // Assert that all requests from all threads could authenticate at the time they received the access token
-        // see: https://github.com/elastic/elasticsearch/issues/54289
-        synchronized (authStatuses) {
-            assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
-            assertThat(authStatuses, hasItem(RestStatus.OK));
         }
     }
 
@@ -901,14 +901,5 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     private TestSecurityClient getSecurityClient(String accessToken) {
         return getSecurityClient(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken).build());
-    }
-
-    private RestStatus getAuthenticationResponseCode(String accessToken) throws IOException {
-        try {
-            getSecurityClient(accessToken).authenticate();
-            return RestStatus.OK;
-        } catch (ResponseException esse) {
-            return RestStatus.fromCode(esse.getResponse().getStatusLine().getStatusCode());
-        }
     }
 }

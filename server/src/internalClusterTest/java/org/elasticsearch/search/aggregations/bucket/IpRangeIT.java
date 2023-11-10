@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -64,16 +64,14 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testSingleValuedField() {
-        SearchResponse rsp = client().prepareSearch("idx")
-            .addAggregation(
-                AggregationBuilders.ipRange("my_range")
-                    .field("ip")
-                    .addUnboundedTo("192.168.1.0")
-                    .addRange("192.168.1.0", "192.168.1.10")
-                    .addUnboundedFrom("192.168.1.10")
-            )
-            .get();
-        assertSearchResponse(rsp);
+        SearchResponse rsp = prepareSearch("idx").addAggregation(
+            AggregationBuilders.ipRange("my_range")
+                .field("ip")
+                .addUnboundedTo("192.168.1.0")
+                .addRange("192.168.1.0", "192.168.1.10")
+                .addUnboundedFrom("192.168.1.10")
+        ).get();
+        assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -97,16 +95,14 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testMultiValuedField() {
-        SearchResponse rsp = client().prepareSearch("idx")
-            .addAggregation(
-                AggregationBuilders.ipRange("my_range")
-                    .field("ips")
-                    .addUnboundedTo("192.168.1.0")
-                    .addRange("192.168.1.0", "192.168.1.10")
-                    .addUnboundedFrom("192.168.1.10")
-            )
-            .get();
-        assertSearchResponse(rsp);
+        SearchResponse rsp = prepareSearch("idx").addAggregation(
+            AggregationBuilders.ipRange("my_range")
+                .field("ips")
+                .addUnboundedTo("192.168.1.0")
+                .addRange("192.168.1.0", "192.168.1.10")
+                .addUnboundedFrom("192.168.1.10")
+        ).get();
+        assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -130,16 +126,14 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testIpMask() {
-        SearchResponse rsp = client().prepareSearch("idx")
-            .addAggregation(
-                AggregationBuilders.ipRange("my_range")
-                    .field("ips")
-                    .addMaskRange("::/0")
-                    .addMaskRange("0.0.0.0/0")
-                    .addMaskRange("2001:db8::/64")
-            )
-            .get();
-        assertSearchResponse(rsp);
+        SearchResponse rsp = prepareSearch("idx").addAggregation(
+            AggregationBuilders.ipRange("my_range")
+                .field("ips")
+                .addMaskRange("::/0")
+                .addMaskRange("0.0.0.0/0")
+                .addMaskRange("2001:db8::/64")
+        ).get();
+        assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -157,16 +151,14 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() {
-        SearchResponse rsp = client().prepareSearch("idx", "idx_unmapped")
-            .addAggregation(
-                AggregationBuilders.ipRange("my_range")
-                    .field("ip")
-                    .addUnboundedTo("192.168.1.0")
-                    .addRange("192.168.1.0", "192.168.1.10")
-                    .addUnboundedFrom("192.168.1.10")
-            )
-            .get();
-        assertSearchResponse(rsp);
+        SearchResponse rsp = prepareSearch("idx", "idx_unmapped").addAggregation(
+            AggregationBuilders.ipRange("my_range")
+                .field("ip")
+                .addUnboundedTo("192.168.1.0")
+                .addRange("192.168.1.0", "192.168.1.10")
+                .addUnboundedFrom("192.168.1.10")
+        ).get();
+        assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -190,16 +182,14 @@ public class IpRangeIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() {
-        SearchResponse rsp = client().prepareSearch("idx_unmapped")
-            .addAggregation(
-                AggregationBuilders.ipRange("my_range")
-                    .field("ip")
-                    .addUnboundedTo("192.168.1.0")
-                    .addRange("192.168.1.0", "192.168.1.10")
-                    .addUnboundedFrom("192.168.1.10")
-            )
-            .get();
-        assertSearchResponse(rsp);
+        SearchResponse rsp = prepareSearch("idx_unmapped").addAggregation(
+            AggregationBuilders.ipRange("my_range")
+                .field("ip")
+                .addUnboundedTo("192.168.1.0")
+                .addRange("192.168.1.0", "192.168.1.10")
+                .addUnboundedFrom("192.168.1.10")
+        ).get();
+        assertNoFailures(rsp);
         Range range = rsp.getAggregations().get("my_range");
         assertEquals(3, range.getBuckets().size());
 
@@ -225,12 +215,9 @@ public class IpRangeIT extends ESIntegTestCase {
     public void testRejectsScript() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("idx")
-                .addAggregation(
-                    AggregationBuilders.ipRange("my_range")
-                        .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap()))
-                )
-                .get()
+            () -> prepareSearch("idx").addAggregation(
+                AggregationBuilders.ipRange("my_range").script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap()))
+            ).get()
         );
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
@@ -238,20 +225,18 @@ public class IpRangeIT extends ESIntegTestCase {
     public void testRejectsValueScript() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().prepareSearch("idx")
-                .addAggregation(
-                    AggregationBuilders.ipRange("my_range")
-                        .field("ip")
-                        .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap()))
-                )
-                .get()
+            () -> prepareSearch("idx").addAggregation(
+                AggregationBuilders.ipRange("my_range")
+                    .field("ip")
+                    .script(new Script(ScriptType.INLINE, "mockscript", "dummy", Collections.emptyMap()))
+            ).get()
         );
         assertThat(e.getMessage(), containsString("[ip_range] does not support scripts"));
     }
 
     public void testNoRangesInQuery() {
         try {
-            client().prepareSearch("idx").addAggregation(AggregationBuilders.ipRange("my_range").field("ip")).get();
+            prepareSearch("idx").addAggregation(AggregationBuilders.ipRange("my_range").field("ip")).get();
             fail();
         } catch (SearchPhaseExecutionException spee) {
             Throwable rootCause = spee.getCause().getCause();

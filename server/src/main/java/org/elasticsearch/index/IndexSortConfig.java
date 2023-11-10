@@ -224,7 +224,7 @@ public final class IndexSortConfig {
                 throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
-                if (this.indexCreatedVersion.onOrAfter(IndexVersion.V_7_13_0)) {
+                if (this.indexCreatedVersion.onOrAfter(IndexVersions.V_7_13_0)) {
                     throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
                 } else {
                     DEPRECATION_LOGGER.warn(

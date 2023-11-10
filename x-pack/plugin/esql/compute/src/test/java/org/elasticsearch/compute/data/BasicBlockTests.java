@@ -31,6 +31,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -577,6 +578,13 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             Block block = Block.constantNullBlock(positionCount, blockFactory);
+            assertTrue(block.areAllValuesNull());
+            assertThat(block, instanceOf(BooleanBlock.class));
+            assertThat(block, instanceOf(IntBlock.class));
+            assertThat(block, instanceOf(LongBlock.class));
+            assertThat(block, instanceOf(DoubleBlock.class));
+            assertThat(block, instanceOf(BytesRefBlock.class));
+            assertNull(block.asVector());
             if (randomBoolean()) {
                 Block orig = block;
                 block = (new ConstantNullBlock.Builder(blockFactory)).copyFrom(block, 0, block.getPositionCount()).build();
@@ -746,16 +754,19 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                assertThat(block.filter(0).toString(), containsString("FilterIntVector[positions=1, values=[1]]"));
-                assertThat(block.filter(1).toString(), containsString("FilterIntVector[positions=1, values=[2]]"));
-                assertThat(block.filter(0, 1).toString(), containsString("FilterIntVector[positions=2, values=[1, 2]]"));
-                assertThat(block.filter().toString(), containsString("FilterIntVector[positions=0, values=[]]"));
+                assertThat(block.filter(0).toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
+                assertThat(block.filter(1).toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
+                assertThat(
+                    block.filter(0, 1).toString(),
+                    containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]")
+                );
+                assertThat(block.filter().toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                assertThat(vector.filter(0).toString(), containsString("FilterIntVector[positions=1, values=[1]]"));
-                assertThat(vector.filter(1).toString(), containsString("FilterIntVector[positions=1, values=[2]]"));
-                assertThat(vector.filter(0, 1).toString(), containsString("FilterIntVector[positions=2, values=[1, 2]]"));
-                assertThat(vector.filter().toString(), containsString("FilterIntVector[positions=0, values=[]]"));
+                assertThat(vector.filter(0).toString(), containsString("ConstantIntVector[positions=1, value=1]"));
+                assertThat(vector.filter(1).toString(), containsString("ConstantIntVector[positions=1, value=2]"));
+                assertThat(vector.filter(0, 1).toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
+                assertThat(vector.filter().toString(), containsString("IntArrayVector[positions=0, values=[]]"));
             }
         }
 

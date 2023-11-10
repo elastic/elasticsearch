@@ -48,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -178,11 +177,11 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testSimple() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(nested("nested", "nested").subAggregation(stats("nested_value_stats").field("nested.value")))
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            nested("nested", "nested").subAggregation(stats("nested_value_stats").field("nested.value"))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -214,9 +213,9 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testNonExistingNestedField() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .addAggregation(nested("nested", "value").subAggregation(stats("nested_value_stats").field("nested.value")))
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").addAggregation(
+            nested("nested", "value").subAggregation(stats("nested_value_stats").field("nested.value"))
+        ).get();
 
         Nested nested = searchResponse.getAggregations().get("nested");
         assertThat(nested, Matchers.notNullValue());
@@ -225,13 +224,11 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testNestedWithSubTermsAgg() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                nested("nested", "nested").subAggregation(terms("values").field("nested.value").size(100).collectMode(aggCollectionMode))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            nested("nested", "nested").subAggregation(terms("values").field("nested.value").size(100).collectMode(aggCollectionMode))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         long docCount = 0;
         long[] counts = new long[numParents + 6];
@@ -275,16 +272,14 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testNestedAsSubAggregation() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(
-                terms("top_values").field("value")
-                    .size(100)
-                    .collectMode(aggCollectionMode)
-                    .subAggregation(nested("nested", "nested").subAggregation(max("max_value").field("nested.value")))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx").addAggregation(
+            terms("top_values").field("value")
+                .size(100)
+                .collectMode(aggCollectionMode)
+                .subAggregation(nested("nested", "nested").subAggregation(max("max_value").field("nested.value")))
+        ).get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         LongTerms values = response.getAggregations().get("top_values");
         assertThat(values, notNullValue());
@@ -304,16 +299,14 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testNestNestedAggs() throws Exception {
-        SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
-            .addAggregation(
-                nested("level1", "nested1").subAggregation(
-                    terms("a").field("nested1.a.keyword")
-                        .collectMode(aggCollectionMode)
-                        .subAggregation(nested("level2", "nested1.nested2").subAggregation(sum("sum").field("nested1.nested2.b")))
-                )
+        SearchResponse response = prepareSearch("idx_nested_nested_aggs").addAggregation(
+            nested("level1", "nested1").subAggregation(
+                terms("a").field("nested1.a.keyword")
+                    .collectMode(aggCollectionMode)
+                    .subAggregation(nested("level2", "nested1.nested2").subAggregation(sum("sum").field("nested1.nested2.b")))
             )
-            .get();
-        assertSearchResponse(response);
+        ).get();
+        assertNoFailures(response);
 
         Nested level1 = response.getAggregations().get("level1");
         assertThat(level1, notNullValue());
@@ -340,8 +333,7 @@ public class NestedIT extends ESIntegTestCase {
     }
 
     public void testEmptyAggregation() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch("empty_bucket_idx").setQuery(matchAllQuery())
             .addAggregation(histogram("histo").field("value").interval(1L).minDocCount(0).subAggregation(nested("nested", "nested")))
             .get();
 
@@ -476,26 +468,22 @@ public class NestedIT extends ESIntegTestCase {
             }""", XContentType.JSON));
         indexRandom(true, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx2")
-            .addAggregation(
-                terms("startDate").field("dates.month.start")
-                    .subAggregation(
-                        terms("endDate").field("dates.month.end")
-                            .subAggregation(
-                                terms("period").field("dates.month.label")
-                                    .subAggregation(
-                                        nested("ctxt_idfier_nested", "comments").subAggregation(
-                                            filter("comment_filter", termQuery("comments.identifier", "29111")).subAggregation(
-                                                nested("nested_tags", "comments.tags").subAggregation(
-                                                    terms("tag").field("comments.tags.name")
-                                                )
-                                            )
+        SearchResponse response = prepareSearch("idx2").addAggregation(
+            terms("startDate").field("dates.month.start")
+                .subAggregation(
+                    terms("endDate").field("dates.month.end")
+                        .subAggregation(
+                            terms("period").field("dates.month.label")
+                                .subAggregation(
+                                    nested("ctxt_idfier_nested", "comments").subAggregation(
+                                        filter("comment_filter", termQuery("comments.identifier", "29111")).subAggregation(
+                                            nested("nested_tags", "comments.tags").subAggregation(terms("tag").field("comments.tags.name"))
                                         )
                                     )
-                            )
-                    )
-            )
-            .get();
+                                )
+                        )
+                )
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 2);
 
@@ -585,12 +573,10 @@ public class NestedIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("idx4")
-            .addAggregation(
-                terms("category").field("categories")
-                    .subAggregation(nested("property", "property").subAggregation(terms("property_id").field("property.id")))
-            )
-            .get();
+        SearchResponse response = prepareSearch("idx4").addAggregation(
+            terms("category").field("categories")
+                .subAggregation(nested("property", "property").subAggregation(terms("property_id").field("property.id")))
+        ).get();
         assertNoFailures(response);
         assertHitCount(response, 2);
 
@@ -761,33 +747,29 @@ public class NestedIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("classes")
-            .addAggregation(
-                nested("to_method", "methods").subAggregation(
-                    filter(
-                        "num_string_params",
-                        nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)
-                    )
+        SearchResponse response = prepareSearch("classes").addAggregation(
+            nested("to_method", "methods").subAggregation(
+                filter(
+                    "num_string_params",
+                    nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)
                 )
             )
-            .get();
+        ).get();
         Nested toMethods = response.getAggregations().get("to_method");
         Filter numStringParams = toMethods.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(3L));
 
-        response = client().prepareSearch("classes")
-            .addAggregation(
-                nested("to_method", "methods").subAggregation(
-                    terms("return_type").field("methods.return_type")
-                        .subAggregation(
-                            filter(
-                                "num_string_params",
-                                nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)
-                            )
+        response = prepareSearch("classes").addAggregation(
+            nested("to_method", "methods").subAggregation(
+                terms("return_type").field("methods.return_type")
+                    .subAggregation(
+                        filter(
+                            "num_string_params",
+                            nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)
                         )
-                )
+                    )
             )
-            .get();
+        ).get();
         toMethods = response.getAggregations().get("to_method");
         Terms terms = toMethods.getAggregations().get("return_type");
         Bucket bucket = terms.getBucketByKey("void");
@@ -813,14 +795,11 @@ public class NestedIT extends ESIntegTestCase {
         );
         ensureGreen("idxduplicatehitnames");
 
-        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("idxduplicatehitnames")
-            .setQuery(
-                boolQuery().should(
-                    nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1"))
-                )
-                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
-                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
-            );
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("idxduplicatehitnames").setQuery(
+            boolQuery().should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
+        );
 
         assertFailures(
             searchRequestBuilder,
@@ -836,12 +815,11 @@ public class NestedIT extends ESIntegTestCase {
         );
         ensureGreen("idxnullhitnames");
 
-        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("idxnullhitnames")
-            .setQuery(
-                boolQuery().should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-                    .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
-            );
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("idxnullhitnames").setQuery(
+            boolQuery().should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+        );
 
         assertFailures(
             searchRequestBuilder,

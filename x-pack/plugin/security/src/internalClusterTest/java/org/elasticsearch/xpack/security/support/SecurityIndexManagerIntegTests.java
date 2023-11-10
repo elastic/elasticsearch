@@ -123,7 +123,6 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                         .put("index.number_of_replicas", "8")
                         .build()
                 )
-                .get()
         );
         // create an new-style template
         ComposableIndexTemplate cit = new ComposableIndexTemplate(
@@ -146,7 +145,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
             client().execute(
                 PutComposableIndexTemplateAction.INSTANCE,
                 new PutComposableIndexTemplateAction.Request("composable-template-covering-the-main-security-index").indexTemplate(cit)
-            ).get()
+            )
         );
         // trigger index auto-creation
         final PutUserResponse putUserResponse = new PutUserRequestBuilder(client()).username("user")

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-is_nan]]
 === `IS_NAN`
 Returns a boolean that indicates whether its input is not a number.

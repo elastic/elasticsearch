@@ -8,11 +8,14 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 
+import java.io.Closeable;
 import java.util.Map;
+import java.util.Set;
 
-public interface InferenceService {
+public interface InferenceService extends Closeable {
 
     String name();
 
@@ -29,9 +32,11 @@ public interface InferenceService {
      * @param modelId Model Id
      * @param taskType The model task type
      * @param config Configuration options including the secrets
+     * @param platfromArchitectures The Set of platform architectures (OS name and hardware architecture)
+     *                             the cluster nodes and models are running on.
      * @return The parsed {@link Model}
      */
-    Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config);
+    Model parseRequestConfig(String modelId, TaskType taskType, Map<String, Object> config, Set<String> platfromArchitectures);
 
     /**
      * Parse model configuration from {@code config map} from persisted storage and return the parsed {@link Model}. This requires that
@@ -64,4 +69,18 @@ public interface InferenceService {
      * @param listener The listener
      */
     void start(Model model, ActionListener<Boolean> listener);
+
+    /**
+     * Return true if this model is hosted in the local Elasticsearch cluster
+     * @return True if in cluster
+     */
+    default boolean isInClusterService() {
+        return false;
+    }
+
+    /**
+     * Defines the version required across all clusters to use this service
+     * @return {@link TransportVersion} specifying the version
+     */
+    TransportVersion getMinimalSupportedVersion();
 }

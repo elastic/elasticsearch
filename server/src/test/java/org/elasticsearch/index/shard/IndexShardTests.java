@@ -610,18 +610,10 @@ public class IndexShardTests extends IndexShardTestCase {
          * gaps are filled.
          */
         final CountDownLatch latch = new CountDownLatch(1);
-        indexShard.acquirePrimaryOperationPermit(new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                releasable.close();
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        }, threadPool.generic());
+        indexShard.acquirePrimaryOperationPermit(ActionTestUtils.assertNoFailureListener(releasable -> {
+            releasable.close();
+            latch.countDown();
+        }), threadPool.generic());
 
         latch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) maxSeqNo));
@@ -3096,6 +3088,36 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replica);
     }
 
+    public void testWaitForEngineListener() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        primary.waitForEngineOrClosedShard(ActionListener.running(() -> called.set(true)));
+        assertThat("listener should not have been called yet", called.get(), equalTo(false));
+
+        recoverShardFromStore(primary);
+        assertThat("listener should have been called", called.get(), equalTo(true));
+
+        closeShards(primary);
+    }
+
+    public void testWaitForClosedListener() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+        primary.waitForEngineOrClosedShard(ActionListener.running(() -> called.set(true)));
+        assertThat("listener should not have been called yet", called.get(), equalTo(false));
+
+        closeShards(primary);
+        assertThat("listener should have been called", called.get(), equalTo(true));
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("source")
@@ -3903,17 +3925,7 @@ public class IndexShardTests extends IndexShardTestCase {
         if (randomBoolean()) {
             primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
         } else {
-            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void unused) {
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
+            primary.addRefreshListener(doc.getSeqNo(), randomBoolean(), ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
         }
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());

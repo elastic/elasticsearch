@@ -64,8 +64,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         long job1CloseTime = System.currentTimeMillis() / 1000;
 
         // Check that state has been persisted
-        SearchResponse stateDocsResponse1 = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setFetchSource(false)
+        SearchResponse stateDocsResponse1 = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false)
             .setTrackTotalHits(true)
             .setSize(10000)
             .get();
@@ -104,8 +103,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
 
         // Check that a new state record exists.
-        SearchResponse stateDocsResponse2 = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setFetchSource(false)
+        SearchResponse stateDocsResponse2 = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false)
             .setTrackTotalHits(true)
             .setSize(10000)
             .get();
@@ -143,8 +141,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
 
         // Check that state has been persisted
-        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setFetchSource(false)
+        SearchResponse stateDocsResponse = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false)
             .setTrackTotalHits(true)
             .setSize(10000)
             .get();
@@ -170,8 +167,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
         deleteJob(jobId);
 
-        stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setFetchSource(false)
+        stateDocsResponse = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false)
             .setTrackTotalHits(true)
             .setSize(10000)
             .get();
@@ -199,11 +195,11 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         closeJob(jobId);
 
         // Check that state has not been persisted
-        SearchResponse stateDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).get();
+        SearchResponse stateDocsResponse = prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).get();
         assertThat(Arrays.asList(stateDocsResponse.getHits().getHits()), empty());
 
         // Check that results have not been persisted
-        SearchResponse resultsDocsResponse = client().prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
+        SearchResponse resultsDocsResponse = prepareSearch(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
         assertThat(Arrays.asList(resultsDocsResponse.getHits().getHits()), empty());
 
         deleteJob(jobId);

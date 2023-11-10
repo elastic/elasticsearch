@@ -24,7 +24,7 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.missing;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -61,12 +61,11 @@ public class CombiIT extends ESIntegTestCase {
         ensureSearchable();
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(missing("missing_values").field("value"))
+        SearchResponse response = prepareSearch("idx").addAggregation(missing("missing_values").field("value"))
             .addAggregation(terms("values").field("value").collectMode(aggCollectionMode))
             .get();
 
-        assertSearchResponse(response);
+        assertNoFailures(response);
 
         Aggregations aggs = response.getAggregations();
 
@@ -109,11 +108,9 @@ public class CombiIT extends ESIntegTestCase {
         ensureSearchable("idx");
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        SearchResponse searchResponse = client().prepareSearch("idx")
-            .addAggregation(
-                histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
-            )
-            .get();
+        SearchResponse searchResponse = prepareSearch("idx").addAggregation(
+            histogram("values").field("value1").interval(1).subAggregation(terms("names").field("name").collectMode(aggCollectionMode))
+        ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(0L));
         Histogram values = searchResponse.getAggregations().get("values");

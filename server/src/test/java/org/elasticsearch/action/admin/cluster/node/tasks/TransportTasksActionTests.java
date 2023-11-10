@@ -14,10 +14,10 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -922,7 +922,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Get the parent task
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions(ListTasksAction.NAME + "*");
+        listTasksRequest.setActions(TransportListTasksAction.TYPE.name() + "*");
         ListTasksResponse response = ActionTestUtils.executeBlockingWithTask(
             testNodes[0].transportService.getTaskManager(),
             testNodes[0].transportService.getLocalNodeConnection(),

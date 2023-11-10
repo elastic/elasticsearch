@@ -63,7 +63,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -190,33 +189,32 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field1").get();
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("field1").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().size(), equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field1").getValue().toString(), equalTo("value1"));
 
         // field2 is not stored, check that it is not extracted from source.
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field2").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("field2").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().size(), equalTo(0));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field2"), nullValue());
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field3").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("field3").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().size(), equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field3").getValue().toString(), equalTo("value3"));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("*3").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("*3").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().size(), equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field3").getValue().toString(), equalTo("value3"));
 
-        searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addStoredField("*3")
             .addStoredField("field1")
             .addStoredField("field2")
@@ -227,20 +225,20 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field3").getValue().toString(), equalTo("value3"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field1").getValue().toString(), equalTo("value1"));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field*").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("field*").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field3").getValue().toString(), equalTo("value3"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field1").getValue().toString(), equalTo("value1"));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("f*3").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("f*3").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().size(), equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field3").getValue().toString(), equalTo("value3"));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("*").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("*").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap(), nullValue());
@@ -248,7 +246,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field1").getValue().toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("field3").getValue().toString(), equalTo("value3"));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("*").addStoredField("_source").get();
+        searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("*").addStoredField("_source").get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).getSourceAsMap(), notNullValue());
@@ -299,8 +297,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
         logger.info("running doc['num1'].value");
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .addSort("num1", SortOrder.ASC)
             .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
             .addScriptField(
@@ -337,8 +334,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("date1").getValues().get(0), equalTo(120000L));
 
         logger.info("running doc['num1'].value * factor");
-        response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        response = prepareSearch().setQuery(matchAllQuery())
             .addSort("num1", SortOrder.ASC)
             .addScriptField(
                 "sNum1",
@@ -388,8 +384,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("date", date).endObject())
         );
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .addSort("date", SortOrder.ASC)
             .addScriptField(
                 "date1",
@@ -429,8 +424,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilders);
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .addSort("num1", SortOrder.ASC)
             .setSize(numDocs)
             .addScriptField("id", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields._id.value", Collections.emptyMap()))
@@ -473,8 +467,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             .get();
         indicesAdmin().refresh(new RefreshRequest()).actionGet();
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .addScriptField("s_obj1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.obj1", Collections.emptyMap()))
             .addScriptField(
                 "s_obj1_test",
@@ -514,8 +507,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
     public void testScriptFieldsForNullReturn() throws Exception {
         client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy("true").get();
 
-        SearchResponse response = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse response = prepareSearch().setQuery(matchAllQuery())
             .addScriptField("test_script_1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "return null", Collections.emptyMap()))
             .get();
 
@@ -632,8 +624,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addStoredField("byte_field")
             .addStoredField("short_field")
             .addStoredField("integer_field")
@@ -686,7 +677,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .get();
 
-        SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField("field1").addStoredField("_routing").get();
+        SearchResponse searchResponse = prepareSearch("my-index").addStoredField("field1").addStoredField("_routing").get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
@@ -754,7 +745,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         String field = "field1.field2.field3.field4";
 
-        SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField(field).get();
+        SearchResponse searchResponse = prepareSearch("my-index").addStoredField(field).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
@@ -766,9 +757,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test").setId("1").setSource("test_field", "foobar"));
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test")
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field"))
-            .get();
+        SearchResponse searchResponse = prepareSearch("test").setSource(
+            new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field")
+        ).get();
         assertHitCount(searchResponse, 1);
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat(fields.get("test_field").getValue(), equalTo("foobar"));
@@ -853,8 +844,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        SearchRequestBuilder builder = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchRequestBuilder builder = prepareSearch().setQuery(matchAllQuery())
             .addDocValueField("text_field")
             .addDocValueField("keyword_field")
             .addDocValueField("byte_field")
@@ -911,7 +901,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValues(), equalTo(List.of("KmQ=")));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValues(), equalTo(List.of("::1")));
 
-        builder = client().prepareSearch().setQuery(matchAllQuery()).addDocValueField("*field");
+        builder = prepareSearch().setQuery(matchAllQuery()).addDocValueField("*field");
         searchResponse = builder.get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -953,8 +943,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValues(), equalTo(List.of("KmQ=")));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValues(), equalTo(List.of("::1")));
 
-        builder = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        builder = prepareSearch().setQuery(matchAllQuery())
             .addDocValueField("byte_field", "#.0")
             .addDocValueField("short_field", "#.0")
             .addDocValueField("integer_field", "#.0")
@@ -999,7 +988,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 "type=long",
                 "md",
                 "type=double"
-            ).get()
+            )
         );
         final int numDocs = randomIntBetween(3, 8);
         List<IndexRequestBuilder> reqs = new ArrayList<>();
@@ -1025,7 +1014,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         }
         indexRandom(true, reqs);
         ensureSearchable();
-        SearchRequestBuilder req = client().prepareSearch("index");
+        SearchRequestBuilder req = prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
             req.addScriptField(
                 field,
@@ -1033,7 +1022,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
             );
         }
         SearchResponse resp = req.get();
-        assertSearchResponse(resp);
+        assertNoFailures(resp);
         for (SearchHit hit : resp.getHits().getHits()) {
             final int id = Integer.parseInt(hit.getId());
             Map<String, DocumentField> fields = hit.getFields();
@@ -1082,8 +1071,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexDoc("test", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
-        SearchRequestBuilder builder = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchRequestBuilder builder = prepareSearch().setQuery(matchAllQuery())
             .addDocValueField("text_field_alias")
             .addDocValueField("date_field_alias")
             .addDocValueField("date_field");
@@ -1145,10 +1133,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexDoc("test", "1", "text_field", "foo", "date_field", formatter.format(date));
         refresh("test");
 
-        SearchRequestBuilder builder = client().prepareSearch()
-            .setQuery(matchAllQuery())
-            .addDocValueField("*alias")
-            .addDocValueField("date_field");
+        SearchRequestBuilder builder = prepareSearch().setQuery(matchAllQuery()).addDocValueField("*alias").addDocValueField("date_field");
         SearchResponse searchResponse = builder.get();
 
         assertNoFailures(searchResponse);
@@ -1200,8 +1185,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(matchAllQuery())
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery())
             .addStoredField("field1-alias")
             .addStoredField("field2-alias")
             .get();
@@ -1244,7 +1228,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         indexDoc("test", "1", "field1", "value1", "field2", "value2");
         refresh("test");
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addStoredField("field*").get();
+        SearchResponse searchResponse = prepareSearch().setQuery(matchAllQuery()).addStoredField("field*").get();
         assertHitCount(searchResponse, 1L);
 
         SearchHit hit = searchResponse.getHits().getAt(0);
@@ -1270,8 +1254,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
         );
 
-        SearchResponse response = client().prepareSearch("test").addStoredField("field1").get();
-        assertSearchResponse(response);
+        SearchResponse response = prepareSearch("test").addStoredField("field1").get();
+        assertNoFailures(response);
         assertHitCount(response, 1);
 
         Map<String, DocumentField> fields = response.getHits().getAt(0).getMetadataFields();

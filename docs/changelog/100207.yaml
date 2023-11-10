@@ -1,5 +1,0 @@
-pr: 100207
-summary: ILM the delete action waits for a TSDS index time/bounds to lapse
-area: ILM+SLM
-type: bug
-issues: []

@@ -179,7 +179,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             sharedSecret = jwt2SharedSecret;
         }
         {
-            // JWT is valid but it no (required) client authentication is passed in
+            // JWT is valid but no (required) client authentication is passed in
             GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(getSignedJWT(jwtClaims.build()), null);
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,

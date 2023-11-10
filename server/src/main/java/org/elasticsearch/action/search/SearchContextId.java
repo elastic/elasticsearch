@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 public final class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
-    private transient Set<ShardSearchContextId> contextIds;
+    private final transient Set<ShardSearchContextId> contextIds;
 
     SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;

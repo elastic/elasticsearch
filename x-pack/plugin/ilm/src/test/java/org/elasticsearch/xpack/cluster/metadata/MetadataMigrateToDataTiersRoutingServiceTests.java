@@ -1214,9 +1214,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrationDoesNotRemoveComposableTemplates() {
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(
-            Collections.singletonList("*")
-        ).template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null)).build();
+        ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null))
+            .build();
 
         String composableTemplateName = "catch-all-composable-template";
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

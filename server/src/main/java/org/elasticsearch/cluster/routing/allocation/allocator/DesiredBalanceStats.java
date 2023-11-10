@@ -33,6 +33,13 @@ public record DesiredBalanceStats(
 
     private static final TransportVersion COMPUTED_SHARD_MOVEMENTS_VERSION = TransportVersions.V_8_8_0;
 
+    public DesiredBalanceStats {
+        if (lastConvergedIndex < 0) {
+            assert false : lastConvergedIndex;
+            throw new IllegalStateException("lastConvergedIndex must be nonnegative, but got [" + lastConvergedIndex + ']');
+        }
+    }
+
     public static DesiredBalanceStats readFrom(StreamInput in) throws IOException {
         return new DesiredBalanceStats(
             in.readVLong(),

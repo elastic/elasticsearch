@@ -226,7 +226,7 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         return builder;
     }
 
-    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, Params params) throws IOException {
+    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, @SuppressWarnings("unused") Params params) throws IOException {
         return builder;
     }
 

@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.action.huggingface;
+package org.elasticsearch.xpack.inference.external.action.openai;
 
 import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
@@ -23,22 +23,24 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
-import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserSecretSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.external.http.Utils.createThreadPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -46,7 +48,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
-public class HuggingFaceElserActionTests extends ESTestCase {
+public class OpenAiEmbeddingsActionTests extends ESTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
@@ -73,40 +75,63 @@ public class HuggingFaceElserActionTests extends ESTestCase {
             sender.start();
 
             String responseJson = """
-                [
-                    {
-                        ".": 0.133155956864357
-                    }
-                ]
+                {
+                  "object": "list",
+                  "data": [
+                      {
+                          "object": "embedding",
+                          "index": 0,
+                          "embedding": [
+                              0.0123,
+                              -0.0123
+                          ]
+                      }
+                  ],
+                  "model": "text-embedding-ada-002-v2",
+                  "usage": {
+                      "prompt_tokens": 8,
+                      "total_tokens": 8
+                  }
+                }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var action = createAction(getUrl(webServer), sender);
+            var action = createAction(getUrl(webServer), "secret", "model", "user", sender);
 
             PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
             action.execute("abc", listener);
 
             InferenceResults result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(Map.of(DEFAULT_RESULTS_FIELD, Map.of(".", 0.13315596f))));
+            assertThat(
+                result.asMap(),
+                is(
+                    Map.of(
+                        OpenAiEmbeddingsResponseEntity.TEXT_EMBEDDING,
+                        List.of(Map.of(OpenAiEmbeddingsResponseEntity.Embedding.EMBEDDING, List.of(0.0123F, -0.0123F)))
+                    )
+                )
+            );
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaTypeWithoutParameters())
-            );
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(1));
-            assertThat(requestMap.get("inputs"), is("abc"));
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("input"), is("abc"));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("user"));
         }
     }
 
     public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
         try (var sender = mock(Sender.class)) {
-            var thrownException = expectThrows(IllegalArgumentException.class, () -> createAction("^^", sender));
-            assertThat(thrownException.getMessage(), is("unable to parse url [^^]"));
+            var thrownException = expectThrows(IllegalArgumentException.class, () -> createAction("^^", "secret", "model", "user", sender));
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: [service_settings] Invalid url [^^] received for field [url];")
+            );
         }
     }
 
@@ -114,7 +139,7 @@ public class HuggingFaceElserActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any());
 
-        var action = createAction(getUrl(webServer), sender);
+        var action = createAction(getUrl(webServer), "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
         action.execute("abc", listener);
@@ -128,25 +153,27 @@ public class HuggingFaceElserActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any());
 
-        var action = createAction(getUrl(webServer), sender);
+        var action = createAction(getUrl(webServer), "secret", "model", "user", sender);
 
         PlainActionFuture<InferenceResults> listener = new PlainActionFuture<>();
         action.execute("abc", listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is("Failed to send ELSER Hugging Face request"));
+        assertThat(thrownException.getMessage(), is("Failed to send OpenAI embeddings request"));
     }
 
-    private HuggingFaceElserAction createAction(String url, Sender sender) {
-        var model = new HuggingFaceElserModel(
+    private OpenAiEmbeddingsAction createAction(String url, String apiKey, String modelName, @Nullable String user, Sender sender) {
+        var model = new OpenAiEmbeddingsModel(
             "id",
-            TaskType.SPARSE_EMBEDDING,
+            TaskType.TEXT_EMBEDDING,
             "service",
-            new HuggingFaceElserServiceSettings(url),
-            new HuggingFaceElserSecretSettings(new SecureString("secret".toCharArray()))
+            getServiceSettingsMap(url),
+            getTaskSettingsMap(modelName, user),
+            getSecretSettingsMap(apiKey)
         );
 
-        return new HuggingFaceElserAction(sender, model, mock(ThrottlerManager.class));
+        return new OpenAiEmbeddingsAction(sender, model, mock(ThrottlerManager.class));
     }
+
 }

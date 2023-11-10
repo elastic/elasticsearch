@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -135,6 +136,7 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
         return parser.floatValue();
     }
 
+    // TODO should this be floats or doubles?
     public record Embedding(List<Float> values) implements Writeable, ToXContentObject {
         public static final String EMBEDDING = "embedding";
 
@@ -158,6 +160,10 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        public Map<String, Object> asMap() {
+            return Map.of(EMBEDDING, values);
         }
     }
 
@@ -185,7 +191,7 @@ public record OpenAiEmbeddingsResponseEntity(List<Embedding> embeddings) impleme
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(getResultsField(), embeddings);
+        map.put(getResultsField(), embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
 
         return map;
     }

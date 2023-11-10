@@ -33,7 +33,7 @@ public record OpenAiServiceSettings(@Nullable URI uri) implements ServiceSetting
 
     public static final String NAME = "openai_service_settings";
 
-    static final String URL = "url";
+    public static final String URL = "url";
 
     public static OpenAiServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

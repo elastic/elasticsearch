@@ -73,4 +73,8 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
     protected DefaultSecretSettings mutateInstance(DefaultSecretSettings instance) throws IOException {
         return createRandom();
     }
+
+    public static Map<String, Object> getSecretSettingsMap(String apiKey) {
+        return new HashMap<>(Map.of(DefaultSecretSettings.API_KEY, apiKey));
+    }
 }

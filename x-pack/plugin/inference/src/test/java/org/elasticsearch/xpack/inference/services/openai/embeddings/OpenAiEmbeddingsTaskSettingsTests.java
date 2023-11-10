@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -78,5 +79,15 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     @Override
     protected OpenAiEmbeddingsTaskSettings mutateInstance(OpenAiEmbeddingsTaskSettings instance) throws IOException {
         return createRandomWithUser();
+    }
+
+    public static Map<String, Object> getTaskSettingsMap(String model, @Nullable String user) {
+        var map = new HashMap<String, Object>(Map.of(OpenAiEmbeddingsTaskSettings.MODEL, model));
+
+        if (user != null) {
+            map.put(OpenAiEmbeddingsTaskSettings.USER, user);
+        }
+
+        return map;
     }
 }

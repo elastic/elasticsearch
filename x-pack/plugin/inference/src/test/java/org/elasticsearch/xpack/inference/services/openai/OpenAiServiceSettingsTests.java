@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.openai;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -76,5 +77,9 @@ public class OpenAiServiceSettingsTests extends AbstractWireSerializingTestCase<
     @Override
     protected OpenAiServiceSettings mutateInstance(OpenAiServiceSettings instance) throws IOException {
         return createRandomWithNonNullUrl();
+    }
+
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String url) {
+        return url == null ? new HashMap<>() : new HashMap<>(Map.of(OpenAiServiceSettings.URL, url));
     }
 }

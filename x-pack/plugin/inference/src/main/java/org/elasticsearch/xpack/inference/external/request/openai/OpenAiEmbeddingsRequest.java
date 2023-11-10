@@ -54,7 +54,8 @@ public class OpenAiEmbeddingsRequest implements Request {
         }
     }
 
-    private static URI buildDefaultUri() throws URISyntaxException {
+    // default for testing
+    static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(OpenAiConstants.HOST)
             .setPathSegments(OpenAiConstants.VERSION_1, OpenAiConstants.EMBEDDINGS_PATH)

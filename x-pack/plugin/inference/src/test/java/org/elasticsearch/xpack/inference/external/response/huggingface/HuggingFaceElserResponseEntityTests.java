@@ -117,7 +117,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         );
     }
 
-    public void testFails_ValueInt() throws IOException {
+    public void testFromResponse_CreatesResultsWithValueInt() throws IOException {
         String responseJson = """
             [
               {
@@ -138,7 +138,7 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
         assertFalse(parsedResults.isTruncated());
     }
 
-    public void testFails_ValueLong() throws IOException {
+    public void testFromResponse_CreatesResultsWithValueLong() throws IOException {
         String responseJson = """
             [
               {

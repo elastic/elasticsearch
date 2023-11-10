@@ -369,22 +369,26 @@ public class DownsampleClusterDisruptionIT extends ESIntegTestCase {
             .getIndex(new GetIndexRequest().indices(targetIndex))
             .actionGet();
         assertEquals(1, getIndexResponse.indices().length);
-        assertResponse(cluster.client()
+        assertResponse(
+            cluster.client()
                 .prepareSearch(sourceIndex)
                 .setQuery(new MatchAllQueryBuilder())
                 .setSize(Math.min(DOC_COUNT, indexedDocs))
                 .setTrackTotalHitsUpTo(Integer.MAX_VALUE),
             sourceIndexSearch -> {
                 assertEquals(indexedDocs, sourceIndexSearch.getHits().getHits().length);
-            });
-        assertResponse(cluster.client()
+            }
+        );
+        assertResponse(
+            cluster.client()
                 .prepareSearch(targetIndex)
                 .setQuery(new MatchAllQueryBuilder())
                 .setSize(Math.min(DOC_COUNT, indexedDocs))
                 .setTrackTotalHitsUpTo(Integer.MAX_VALUE),
             targetIndexSearch -> {
                 assertTrue(targetIndexSearch.getHits().getHits().length > 0);
-            });
+            }
+        );
     }
 
     private int bulkIndex(final String indexName, final DownsampleActionSingleNodeTests.SourceSupplier sourceSupplier, int docCount)

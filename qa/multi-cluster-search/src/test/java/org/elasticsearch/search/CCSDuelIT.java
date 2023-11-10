@@ -1094,12 +1094,19 @@ public class CCSDuelIT extends ESRestTestCase {
                 Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
                 if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
                     Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-                    compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing sync_search minimizeRoundTrip vs. fanOut");
-                    assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
+                    compareResponseMaps(
+                        minimizeRoundtripsResponseMap,
+                        fanOutResponseMap,
+                        "Comparing sync_search minimizeRoundTrip vs. fanOut"
+                    );
+                    assertThat(
+                        minimizeRoundtripsSearchResponse.getSkippedShards(),
+                        lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards())
+                    );
                 }
                 return minimizeRoundtripsResponseMap;
             } finally {
-                if(fanOutSearchResponse != null) fanOutSearchResponse.decRef();
+                if (fanOutSearchResponse != null) fanOutSearchResponse.decRef();
                 if (minimizeRoundtripsSearchResponse != null) minimizeRoundtripsSearchResponse.decRef();
             }
         }
@@ -1191,7 +1198,11 @@ public class CCSDuelIT extends ESRestTestCase {
             Map<String, Object> minimizeRoundtripsResponseMap = responseToMap(minimizeRoundtripsSearchResponse);
             if (clustersMRT.hasClusterObjects() && clustersMRTFalse.hasClusterObjects()) {
                 Map<String, Object> fanOutResponseMap = responseToMap(fanOutSearchResponse);
-                compareResponseMaps(minimizeRoundtripsResponseMap, fanOutResponseMap, "Comparing async_search minimizeRoundTrip vs. fanOut");
+                compareResponseMaps(
+                    minimizeRoundtripsResponseMap,
+                    fanOutResponseMap,
+                    "Comparing async_search minimizeRoundTrip vs. fanOut"
+                );
                 assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
             }
             return minimizeRoundtripsResponseMap;

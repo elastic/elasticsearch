@@ -107,7 +107,9 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
                 } else if (searchResponse != null) {
                     completionStatus = searchResponse.status();
                 } else {
-                    throw new IllegalStateException("Unable to retrieve async_search status. No SearchResponse or Exception could be found.");
+                    throw new IllegalStateException(
+                        "Unable to retrieve async_search status. No SearchResponse or Exception could be found."
+                    );
                 }
             }
             return new AsyncStatusResponse(
@@ -124,9 +126,8 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
                 completionStatus,
                 clusters
             );
-        }
-        finally {
-            if(searchResponse != null) {
+        } finally {
+            if (searchResponse != null) {
                 searchResponse.decRef();
             }
         }

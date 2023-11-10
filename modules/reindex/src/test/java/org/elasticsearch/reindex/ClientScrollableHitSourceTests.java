@@ -132,7 +132,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             }
 
             assertEquals(actualSearchRetries.get(), expectedSearchRetries);
-        }finally {
+        } finally {
             searchResponse.decRef();
         }
     }

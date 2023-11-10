@@ -208,7 +208,6 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 .execute()
                 .actionGet();
 
-
             // Modify a subset of the target documents concurrently
             final List<SearchHit> originalDocs = Arrays.asList(searchResponse.getHits().getHits());
             int conflictingOps = randomIntBetween(maxDocs, numDocs);
@@ -263,8 +262,8 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
             int successfulOps = Math.min(candidateOps - conflictingOps, maxDocs);
             assertThat(bulkByScrollResponse.getNoops(), is((long) (scriptEnabled ? maxDocs : 0)));
             resultConsumer.accept(bulkByScrollResponse, successfulOps);
-        }finally {
-            if(searchResponse != null) searchResponse.decRef();
+        } finally {
+            if (searchResponse != null) searchResponse.decRef();
         }
     }
 

@@ -105,15 +105,14 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
 
-        assertResponse(client().prepareSearch("raw").setTrackTotalHits(true),
-            response -> {
-                assertEquals(numDocs, response.getHits().getTotalHits().value);
-            });
+        assertResponse(client().prepareSearch("raw").setTrackTotalHits(true), response -> {
+            assertEquals(numDocs, response.getHits().getTotalHits().value);
+        });
 
-        assertResponse(client().prepareSearch("pre_agg"),
-            response -> {
-                assertEquals(numDocs / frq, response.getHits().getTotalHits().value);
-            });
+        assertResponse(
+            client().prepareSearch("pre_agg"),
+            response -> { assertEquals(numDocs / frq, response.getHits().getTotalHits().value); }
+        );
 
         PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
             .field("data")

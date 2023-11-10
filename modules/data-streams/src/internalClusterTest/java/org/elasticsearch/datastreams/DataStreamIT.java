@@ -52,7 +52,6 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -1915,20 +1914,10 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     static void verifyDocs(String dataStream, long expectedNumHits, List<String> expectedIndices) {
-        assertResponse(
-            prepareSearch(
-                dataStream
-            ).setSize(
-                (int) expectedNumHits
-            ),
-            resp -> {
-                assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
-                Arrays.stream(resp.getHits().getHits())
-                    .forEach(hit ->
-                        assertTrue(expectedIndices.contains(hit.getIndex()))
-                    );
-            }
-        );
+        assertResponse(prepareSearch(dataStream).setSize((int) expectedNumHits), resp -> {
+            assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+            Arrays.stream(resp.getHits().getHits()).forEach(hit -> assertTrue(expectedIndices.contains(hit.getIndex())));
+        });
     }
 
     static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
@@ -2086,14 +2075,7 @@ public class DataStreamIT extends ESIntegTestCase {
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("my-logs");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        assertResponse(
-            prepareSearch(
-                "my-logs"
-            ).setRouting("123"),
-            resp -> {
-                assertEquals(resp.getTotalShards(), 4);
-            }
-        );
+        assertResponse(prepareSearch("my-logs").setRouting("123"), resp -> { assertEquals(resp.getTotalShards(), 4); });
     }
 
     public void testWriteIndexWriteLoadAndAvgShardSizeIsStoredAfterRollover() throws Exception {

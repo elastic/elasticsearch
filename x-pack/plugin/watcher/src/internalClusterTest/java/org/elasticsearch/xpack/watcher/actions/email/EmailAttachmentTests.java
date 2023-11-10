@@ -208,7 +208,9 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 assertNotNull(searchResponse);
                 assertHitCount(searchResponse, 1);
             } finally {
-                searchResponse.decRef();
+                if (searchResponse != null) {
+                    searchResponse.decRef();
+                }
             }
 
         });

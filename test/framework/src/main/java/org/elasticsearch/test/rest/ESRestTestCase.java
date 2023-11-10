@@ -197,6 +197,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         CCR,
         SHUTDOWN,
         LEGACY_TEMPLATES,
+        SEARCHABLE_SNAPSHOTS
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
@@ -240,6 +241,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                     }
                     if (moduleName.equals("x-pack-shutdown")) {
                         availableFeatures.add(ProductFeature.SHUTDOWN);
+                    }
+                    if (moduleName.equals("searchable-snapshots")) {
+                        availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
                     }
                     if (moduleName.startsWith("serverless-")) {
                         serverless = true;
@@ -718,10 +722,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (has(ProductFeature.XPACK)
-            && nodeVersions.first().onOrAfter(Version.V_7_8_0)
-            && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
-            wipeSearchableSnapshotsIndices();
+        if (has(ProductFeature.SEARCHABLE_SNAPSHOTS)) {
+            assert nodeVersions.first().onOrAfter(Version.V_7_8_0);
+            if (preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+                wipeSearchableSnapshotsIndices();
+            }
         }
 
         wipeSnapshots();
@@ -962,14 +967,23 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (has(ProductFeature.SHUTDOWN) == false || minimumNodeVersion().before(Version.V_7_15_0)) {
-            // Node shutdown APIs are only present in xpack
+        if (has(ProductFeature.SHUTDOWN) == false) {
             return;
         }
+
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+
+        Object nodesResponse = statusResponse.get("nodes");
+        final List<String> nodeIds;
+        if (nodesResponse instanceof List<?>) { // `nodes` is parsed as a List<> only if it's populated (not empty)
+            assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) nodesResponse;
+            nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+        } else {
+            nodeIds = List.of();
+        }
+
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
             assertOK(adminClient().performRequest(deleteRequest));

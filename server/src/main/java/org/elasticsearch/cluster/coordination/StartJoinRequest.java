@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Represents the action of requesting a join vote (see {@link Join}) from a node.
  *
- * A node running for election as the new master in a new term will send requests
+ * A node running for election as the new master in a new term will broadcast a `{@link StartJoinRequest}`
  * to each node in the cluster to join the new cluster formed around itself as the
  * master node.
  */

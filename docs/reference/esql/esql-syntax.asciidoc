@@ -42,7 +42,7 @@ source-command | processing-command1 | processing-command2
 
 The identifiers can be used as they are and don't require quoting, unless
 containing special characters, in which case they must be quoted with
-backticks (```). What "special characters" means is command dependent.
+backticks (+{backtick}+). What "special characters" means is command dependent.
 
 For <<esql-from, FROM>>, <<esql-keep, KEEP>>, <<esql-drop, DROP>>,
 <<esql-rename, RENAME>>, <<esql-mv_expand, MV_EXPAND>> and

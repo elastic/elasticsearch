@@ -16,8 +16,8 @@ import java.io.IOException;
 
 /**
  * Triggered by a {@link StartJoinRequest}, instances of this class represent join votes,
- * and have a voting and candidate-master node. The voting node is the node that provides
- * the vote, and the candidate-master node is the node for which this vote is cast. A join
+ * and have a voting and master-candidate node. The voting node is the node that provides
+ * the vote, and the master-candidate node is the node for which this vote is cast. A join
  * vote is cast to reform the cluster around a particular master-eligible node, to elect
  * that node as the new master in a new term.
  *

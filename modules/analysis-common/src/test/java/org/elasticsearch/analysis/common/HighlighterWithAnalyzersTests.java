@@ -114,7 +114,13 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
                 .highlighter(new HighlightBuilder().field("name.autocomplete")),
-            response -> assertHighlight(response, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"))
+            response -> assertHighlight(
+                response,
+                0,
+                "name.autocomplete",
+                0,
+                equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland")
+            )
         );
 
     }

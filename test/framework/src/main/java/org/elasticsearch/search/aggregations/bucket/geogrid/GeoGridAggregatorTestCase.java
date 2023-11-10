@@ -143,7 +143,6 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         testWithSeveralDocs(LuceneTestCase::rarely, null, randomPrecision());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101695")
     public void testBoundedMultiValuedDocs() throws IOException {
         int precision = randomPrecision();
         testWithSeveralDocs(LuceneTestCase::rarely, randomBBox(precision), precision);

@@ -10,13 +10,13 @@ package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
     private static final TransportVersion DRY_RUN_VERSION = TransportVersions.V_8_4_0;
@@ -100,12 +101,9 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         return dryRun;
     }
 
-    public boolean isCompatibleWithVersion(Version version) {
-        if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
-            return true;
-        }
-
-        return nodes.stream().allMatch(desiredNode -> desiredNode.isCompatibleWithVersion(version));
+    public boolean clusterHasRequiredFeatures(Predicate<NodeFeature> clusterHasFeature) {
+        return clusterHasFeature.test(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED)
+            || nodes.stream().allMatch(n -> n.clusterHasRequiredFeatures(clusterHasFeature));
     }
 
     @Override

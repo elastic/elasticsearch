@@ -13,7 +13,6 @@ import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -35,7 +34,6 @@ import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
@@ -144,8 +142,8 @@ public class FrozenIndexIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("index").setSettings(
-                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                )
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            )
                 .setMapping(
                     jsonBuilder().startObject()
                         .startObject("_doc")
@@ -240,7 +238,8 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     assertNoFailures(searchResponse);
                     assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
                     assertHitCount(searchResponse, numDocs);
-                });
+                }
+            );
             internalCluster().restartNode(assignedNode);
             ensureGreen(indexName);
 
@@ -289,13 +288,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
         try {
             indicesAdmin().prepareDelete("index-1").get();
             // Return partial results if allow partial search result is allowed
-            assertResponse(prepareSearch().setPreference(null)
-                    .setAllowPartialSearchResults(true)
-                    .setPointInTime(new PointInTimeBuilder(pitId)),
+            assertResponse(
+                prepareSearch().setPreference(null).setAllowPartialSearchResults(true).setPointInTime(new PointInTimeBuilder(pitId)),
                 searchResponse -> {
                     assertFailures(searchResponse);
                     assertHitCount(searchResponse, index2);
-                });
+                }
+            );
             // Fails if allow partial search result is not allowed
             expectThrows(
                 ElasticsearchException.class,
@@ -322,11 +321,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
             ).keepAlive(TimeValue.timeValueMinutes(2));
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
-                    searchResponse -> {
-                        assertNoFailures(searchResponse);
-                        assertHitCount(searchResponse, numDocs);
-                    });
+                assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
+                    assertNoFailures(searchResponse);
+                    assertHitCount(searchResponse, numDocs);
+                });
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
             }
@@ -338,11 +336,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
             );
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
-                    searchResponse -> {
-                        assertNoFailures(searchResponse);
-                        assertHitCount(searchResponse, 0);
-                    });
+                assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
+                    assertNoFailures(searchResponse);
+                    assertHitCount(searchResponse, 0);
+                });
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
             }

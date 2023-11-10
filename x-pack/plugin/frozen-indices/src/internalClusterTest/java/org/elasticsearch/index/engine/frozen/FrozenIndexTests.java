@@ -64,12 +64,10 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -150,7 +148,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
                         .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
                         .setPointInTime(new PointInTimeBuilder(pitId))
                         .setSize(1)
-                        .setFrom(from).get();
+                        .setFrom(from)
+                        .get();
 
                     assertHitCount(searchResponse, 3);
                     assertEquals(1, searchResponse.getHits().getHits().length);

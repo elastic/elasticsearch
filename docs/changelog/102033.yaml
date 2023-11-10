@@ -1,0 +1,6 @@
+pr: 102033
+summary: Capture new action with a `NodeFeature` and fall back to `NodeStats` when
+  necessary
+area: ILM+SLM
+type: bug
+issues: []

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -46,6 +45,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -318,23 +318,25 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             assertThat(maxSize, equalTo(0L));
 
             refresh();
-            SearchResponse searchResponse = prepareSearch("output").get();
-            assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
-            long successfulWatchExecutions = searchResponse.getHits().getTotalHits().value;
+            assertResponse(prepareSearch("output"), searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
+                long successfulWatchExecutions = searchResponse.getHits().getTotalHits().value;
+            });
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
-            SearchResponse historySearchResponse = prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setSize(10000).get();
-            assertHitCount(historySearchResponse, expectedWatchHistoryCount);
-            long notExecutedCount = Arrays.stream(historySearchResponse.getHits().getHits())
-                .filter(hit -> hit.getSourceAsMap().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
-                .count();
-            logger.info(
-                "Watches not executed: [{}]: expected watch history count [{}] - [{}] successful watch exections",
-                notExecutedCount,
-                expectedWatchHistoryCount,
-                successfulWatchExecutions
-            );
-            assertThat(notExecutedCount, is(expectedWatchHistoryCount - successfulWatchExecutions));
+            assertResponse(prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setSize(10000), historySearchResponse -> {
+                assertHitCount(historySearchResponse, expectedWatchHistoryCount);
+                long notExecutedCount = Arrays.stream(historySearchResponse.getHits().getHits())
+                    .filter(hit -> hit.getSourceAsMap().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
+                    .count();
+                logger.info(
+                    "Watches not executed: [{}]: expected watch history count [{}] - [{}] successful watch exections",
+                    notExecutedCount,
+                    expectedWatchHistoryCount,
+                    successfulWatchExecutions
+                );
+                assertThat(notExecutedCount, is(expectedWatchHistoryCount - successfulWatchExecutions));
+            });
         }, 20, TimeUnit.SECONDS);
     }
 
@@ -402,11 +404,12 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             // but even then since the execution of the watch record is async it may take a little bit before
             // the actual documents are in the output index
             refresh();
-            SearchResponse searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM).setSize(numRecords).get();
-            assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
-            for (int i = 0; i < numRecords; i++) {
-                assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"), is(ExecutionState.EXECUTED.id()));
-            }
+            assertResponse(prepareSearch(HistoryStoreField.DATA_STREAM).setSize(numRecords), searchResponse -> {
+                assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo((long) numRecords));
+                for (int i = 0; i < numRecords; i++) {
+                    assertThat(searchResponse.getHits().getAt(i).getSourceAsMap().get("state"), is(ExecutionState.EXECUTED.id()));
+                }
+            });
         });
     }
 }

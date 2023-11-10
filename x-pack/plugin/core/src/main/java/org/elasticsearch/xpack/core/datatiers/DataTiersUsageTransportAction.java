@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -95,7 +96,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .collect(Collectors.toSet());
         Map<String, Set<String>> indicesByTierPreference = new HashMap<>();
         for (String indexName : indices) {
-            List<String> tierPreference = state.metadata().index(indexName).getTierPreference();
+            IndexMetadata indexMetadata = state.metadata().index(indexName);
+            // If the index was deleted in the meantime, skip
+            if (indexMetadata == null) {
+                continue;
+            }
+            List<String> tierPreference = indexMetadata.getTierPreference();
             if (tierPreference.isEmpty() == false) {
                 indicesByTierPreference.computeIfAbsent(tierPreference.get(0), ignored -> new HashSet<>()).add(indexName);
             }

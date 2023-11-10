@@ -157,18 +157,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             super((String[]) null);
         }
 
-        public NodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        /**
-         * Get stats from nodes based on the nodes ids specified. If none are passed, stats
-         * for all nodes will be returned.
-         */
-        public NodesRequest(String... nodesIds) {
-            super(nodesIds);
-        }
-
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
@@ -204,10 +192,6 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     }
 
     public static class NodesResponse extends BaseNodesResponse<NodeDataTiersUsage> {
-
-        public NodesResponse(StreamInput in) throws IOException {
-            super(in);
-        }
 
         public NodesResponse(ClusterName clusterName, List<NodeDataTiersUsage> nodes, List<FailedNodeException> failures) {
             super(clusterName, nodes, failures);

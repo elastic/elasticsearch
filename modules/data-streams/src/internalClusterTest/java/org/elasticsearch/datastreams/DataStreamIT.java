@@ -86,7 +86,6 @@ import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -122,6 +121,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -1599,21 +1599,22 @@ public class DataStreamIT extends ESIntegTestCase {
         indexDocs("metrics-foo", numDocs3); // 3rd segment
         int totalDocs = numDocs1 + numDocs2 + numDocs3;
 
-        SearchSourceBuilder source = new SearchSourceBuilder();
-        source.fetchField(new FieldAndFormat(DEFAULT_TIMESTAMP_FIELD, "epoch_millis"));
-        source.size(totalDocs);
-        SearchRequest searchRequest = new SearchRequest(new String[] { "metrics-foo" }, source);
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        assertEquals(totalDocs, hits.length);
+        assertResponse(
+            prepareSearch("metrics-foo").addFetchField(new FieldAndFormat(DEFAULT_TIMESTAMP_FIELD, "epoch_millis")).setSize(totalDocs),
+            resp -> {
+                assertEquals(totalDocs, resp.getHits().getTotalHits().value);
+                SearchHit[] hits = resp.getHits().getHits();
+                assertEquals(totalDocs, hits.length);
 
-        // Test that when we read data, segments come in the reverse order with a segment with the latest date first
-        long timestamp1 = Long.valueOf(hits[0].field(DEFAULT_TIMESTAMP_FIELD).getValue()); // 1st doc of 1st seg
-        long timestamp2 = Long.valueOf(hits[0 + numDocs3].field(DEFAULT_TIMESTAMP_FIELD).getValue()); // 1st doc of the 2nd seg
-        long timestamp3 = Long.valueOf(hits[0 + numDocs3 + numDocs2].field(DEFAULT_TIMESTAMP_FIELD).getValue());  // 1st doc of the 3rd seg
-        assertTrue(timestamp1 > timestamp2);
-        assertTrue(timestamp2 > timestamp3);
+                // Test that when we read data, segments come in the reverse order with a segment with the latest date first
+                long timestamp1 = Long.valueOf(hits[0].field(DEFAULT_TIMESTAMP_FIELD).getValue()); // 1st doc of 1st seg
+                long timestamp2 = Long.valueOf(hits[0 + numDocs3].field(DEFAULT_TIMESTAMP_FIELD).getValue()); // 1st doc of the 2nd seg
+                long timestamp3 = Long.valueOf(hits[0 + numDocs3 + numDocs2].field(DEFAULT_TIMESTAMP_FIELD).getValue());  // 1st doc of the
+                // 3rd seg
+                assertTrue(timestamp1 > timestamp2);
+                assertTrue(timestamp2 > timestamp3);
+            }
+        );
     }
 
     public void testCreateDataStreamWithSameNameAsIndexAlias() throws Exception {
@@ -1914,12 +1915,20 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     static void verifyDocs(String dataStream, long expectedNumHits, List<String> expectedIndices) {
-        SearchRequest searchRequest = new SearchRequest(dataStream);
-        searchRequest.source().size((int) expectedNumHits);
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
-
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> { assertTrue(expectedIndices.contains(hit.getIndex())); });
+        assertResponse(
+            prepareSearch(
+                dataStream
+            ).setSize(
+                (int) expectedNumHits
+            ),
+            resp -> {
+                assertThat(resp.getHits().getTotalHits().value, equalTo(expectedNumHits));
+                Arrays.stream(resp.getHits().getHits())
+                    .forEach(hit ->
+                        assertTrue(expectedIndices.contains(hit.getIndex()))
+                    );
+            }
+        );
     }
 
     static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
@@ -2076,9 +2085,15 @@ public class DataStreamIT extends ESIntegTestCase {
         ).actionGet();
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("my-logs");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
-        SearchRequest searchRequest = new SearchRequest("my-logs").routing("123");
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        assertEquals(searchResponse.getTotalShards(), 4);
+
+        assertResponse(
+            prepareSearch(
+                "my-logs"
+            ).setRouting("123"),
+            resp -> {
+                assertEquals(resp.getTotalShards(), 4);
+            }
+        );
     }
 
     public void testWriteIndexWriteLoadAndAvgShardSizeIsStoredAfterRollover() throws Exception {

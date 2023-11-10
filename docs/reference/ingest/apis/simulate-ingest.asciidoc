@@ -42,7 +42,7 @@ PUT /_ingest/pipeline/my-final-pipeline
 PUT /index
 {
   "settings": {
-    "my-index"": {
+    "my-index": {
       "default_pipeline": "my-pipeline",
       "final_pipeline": "my-final-pipeline"
     }
@@ -58,14 +58,14 @@ POST /_ingest/_simulate
 {
   "docs": [
     {
-      "_index": "my-index"",
+      "_index": "my-index",
       "_id": "id",
       "_source": {
         "foo": "bar"
       }
     },
     {
-      "_index": "my-index"",
+      "_index": "my-index",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -203,14 +203,14 @@ POST /_ingest/_simulate
 {
   "docs": [
     {
-      "_index": "my-index"",
+      "_index": "my-index",
       "_id": "123",
       "_source": {
         "foo": "bar"
       }
     },
     {
-      "_index": "my-index"",
+      "_index": "my-index",
       "_id": "456",
       "_source": {
         "foo": "rab"
@@ -229,7 +229,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "123",
-            "_index": "my-index"",
+            "_index": "my-index",
             "_version": -3,
             "_source": {
                "field1": "value1",
@@ -245,7 +245,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "456",
-            "_index": "my-index"",
+            "_index": "my-index",
             "_version": -3,
             "_source": {
                "field1": "value1",
@@ -276,14 +276,14 @@ POST /_ingest/_simulate
 {
   "docs": [
     {
-      "_index": "my-index"",
+      "_index": "my-index",
       "_id": "123",
       "_source": {
         "foo": "bar"
       }
     },
     {
-      "_index": "my-index"",
+      "_index": "my-index",
       "_id": "456",
       "_source": {
         "foo": "rab"
@@ -313,7 +313,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "123",
-            "_index": "my-index"",
+            "_index": "my-index",
             "_version": -3,
             "_source": {
                "field2": "value2",
@@ -328,7 +328,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "456",
-            "_index": "my-index"",
+            "_index": "my-index",
             "_version": -3,
             "_source": {
                "field2": "value2",

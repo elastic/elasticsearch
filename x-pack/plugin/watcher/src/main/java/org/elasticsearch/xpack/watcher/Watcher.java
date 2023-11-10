@@ -272,6 +272,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private static final int WATCHES_INDEX_MAPPINGS_VERSION = 1;
     private static final int TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION = 1;
+    /**
+     * No longer used for determining the age of mappings, but system index descriptor
+     * code requires <em>something</em> be set. We use a value that can be parsed by
+     * old nodes in mixed-version clusters, just in case any old code exists that
+     * tries to parse <code>version</code> from index metadata, and that will indicate
+     * to these old nodes that the mappings are newer than they are.
+     */
+    private static final String LEGACY_VERSION_FIELD_VALUE = Version.V_8_12_0.toString();
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;
@@ -863,7 +871,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
+                    builder.field("version", LEGACY_VERSION_FIELD_VALUE);
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
@@ -955,7 +963,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
+                    builder.field("version", LEGACY_VERSION_FIELD_VALUE);
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }

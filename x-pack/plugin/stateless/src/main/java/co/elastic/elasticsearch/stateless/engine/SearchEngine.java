@@ -62,7 +62,6 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeSet;
@@ -133,19 +132,13 @@ public class SearchEngine extends Engine {
                     if (segmentInfosCopy == previousSegmentInfos) {
                         return null;
                     }
-                    List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
-                    assert indexCommits.stream().filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration()).count() == 1;
-                    Optional<IndexCommit> first = indexCommits.stream()
-                        .filter(c -> c.getGeneration() == segmentInfosCopy.getGeneration())
-                        .findFirst();
-                    assert first.isPresent();
-                    var firstCommit = first.get();
+                    final IndexCommit indexCommit = Lucene.getIndexCommit(segmentInfosCopy, directory);
                     ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
                         referenceToRefresh,
-                        firstCommit
+                        indexCommit
                     );
                     if (next != null) {
-                        addNextReader(next, segmentInfosCopy, firstCommit);
+                        addNextReader(next, segmentInfosCopy, indexCommit);
                     }
                     previousSegmentInfos = segmentInfosCopy;
                     return next;

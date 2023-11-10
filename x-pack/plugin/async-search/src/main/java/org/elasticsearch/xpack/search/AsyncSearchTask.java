@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -32,6 +34,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
@@ -53,6 +56,7 @@ import static java.util.Collections.singletonList;
  * Task that tracks the progress of a currently running {@link SearchRequest}.
  */
 final class AsyncSearchTask extends SearchTask implements AsyncTask {
+    private static final Logger logger = LogManager.getLogger(AsyncSearchTask.class);
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
@@ -494,8 +498,19 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
+
+            boolean failImmediately = (exc instanceof RemoteTransportException rte && rte.isFatalForCCS());
             searchResponse.get()
-                .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
+                .updateWithFailure(
+                    new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc),
+                    failImmediately
+                );
+
+            if (failImmediately && isCancelled() == false) {
+                cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
+                logger.warn("JJJ: BINGO!! =========== ++++++++++++++ CANCELLED CANCELLED +++++");
+            }
+
             executeInitListeners();
             executeCompletionListeners();
         }

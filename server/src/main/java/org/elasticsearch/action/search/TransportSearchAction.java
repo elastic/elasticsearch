@@ -94,6 +94,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -352,7 +353,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         localIndices,
                         remoteClusterIndices,
                         true,
-                        alias -> remoteClusterService.isSkipUnavailable(alias)
+                        remoteClusterService::isSkipUnavailable
                     );
                     if (localIndices == null) {
                         // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
@@ -386,7 +387,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         localIndices,
                         remoteClusterIndices,
                         false,
-                        alias -> remoteClusterService.isSkipUnavailable(alias)
+                        remoteClusterService::isSkipUnavailable
                     );
                     // TODO: pass parentTaskId
                     collectSearchShards(
@@ -1423,6 +1424,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final AtomicReference<Exception> exceptions;
         protected final SearchResponse.Clusters clusters;
         private final ActionListener<FinalResponse> originalListener;
+        private final AtomicBoolean originalListenerOnFailureCalled = new AtomicBoolean(false);
 
         /**
          * Used by both minimize_roundtrips true and false
@@ -1446,7 +1448,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public final void onResponse(Response response) {
             innerOnResponse(response);
-            maybeFinish();
+            maybeFinish(false);
         }
 
         abstract void innerOnResponse(Response response);
@@ -1456,6 +1458,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ShardSearchFailure f = new ShardSearchFailure(e);
             logCCSError(f, clusterAlias, skipUnavailable);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
+            boolean failImmediately = false;
             if (skipUnavailable) {
                 if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
@@ -1466,13 +1469,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                boolean failImmediately = false;
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    // TODO support minimize_roundtrips=false
+                    // TODO support fail-fast for minimize_roundtrips=false
                     failImmediately = clusters.isCcsMinimizeRoundtrips();
                     exception = wrapRemoteClusterFailure(clusterAlias, failImmediately, e);
                     if (failImmediately) {
                         if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
+                            // MP TODO: do we still need this check now that we only call originalListener.onFailure once
                             // don't use the force fail path if the search task is being cancelled - let it cancel naturally
                             failImmediately = false;
                         }
@@ -1485,12 +1488,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     });
                 }
             }
-            maybeFinish();
+            maybeFinish(failImmediately);
         }
 
-        private void maybeFinish() {
-            if (countDown.countDown()) {
+        private void maybeFinish(boolean failImmediately) {
+            if (countDown.countDown() || failImmediately) {
                 Exception exception = exceptions.get();
+                assert failImmediately == false || exception != null : "If 'failImmediately' is true, exception must not be null";
                 if (exception == null) {
                     FinalResponse response;
                     try {
@@ -1501,7 +1505,14 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     }
                     originalListener.onResponse(response);
                 } else {
-                    originalListener.onFailure(exceptions.get());
+                    // only call onFailure on the originalListener once
+                    // as that listener expects it to occur only when the search has finished
+                    // when we fail fast to do cancellations, we'll have late arriving errors
+                    // (usually TaskCancelledExceptions) that should just be ignored
+                    boolean alreadyCalled = originalListenerOnFailureCalled.getAndSet(true);
+                    if (alreadyCalled == false) {
+                        originalListener.onFailure(exceptions.get());
+                    }
                 }
             }
         }

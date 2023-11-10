@@ -6,7 +6,9 @@
 ++++
 
 Executes ingest pipelines against a set of provided documents, optionally
-with substitute pipeline definitions.
+with substitute pipeline definitions. This API is meant to be used for
+troubleshooting or pipeline development, as it does not actually index any
+data into {es}.
 
 ////
 [source,console]
@@ -40,7 +42,7 @@ PUT /_ingest/pipeline/my-final-pipeline
 PUT /index
 {
   "settings": {
-    "index": {
+    "my-index"": {
       "default_pipeline": "my-pipeline",
       "final_pipeline": "my-final-pipeline"
     }
@@ -56,14 +58,14 @@ POST /_ingest/_simulate
 {
   "docs": [
     {
-      "_index": "index",
+      "_index": "my-index"",
       "_id": "id",
       "_source": {
         "foo": "bar"
       }
     },
     {
-      "_index": "index",
+      "_index": "my-index"",
       "_id": "id",
       "_source": {
         "foo": "rab"
@@ -111,22 +113,23 @@ to use this API.
 The simulate ingest API simulates ingesting data into an index. It
 executes the default and final pipeline for that index against a set
 of documents provided in the body of the request. If a pipeline
-contains a reroute processor, it follows that reroute processor to the
-new index, executing that index's pipelines as well the same way that
-a non-simulated ingest would. No data is indexed into ${es}. Instead,
-the transformed document is returned, along with the list of pipelines
-that have been executed and the name of the index where the document
-would have been indexed if this were not a simulation. This differs from
-the <<simulate-pipeline-api,simulate pipeline API>> in that you sepcify
-a single pipeline for that API, and it only runs that one pipeline. The
+contains a <<reroute-processor,reroute processor>>, it follows that
+reroute processor to the new index, executing that index's pipelines
+as well the same way that a non-simulated ingest would. No data is
+indexed into {es}. Instead, the transformed document is returned,
+along with the list of pipelines that have been executed and the name
+of the index where the document would have been indexed if this were
+not a simulation. This differs from the
+<<simulate-pipeline-api,simulate pipeline API>> in that you specify a
+single pipeline for that API, and it only runs that one pipeline. The
 simulate pipeline API is more useful for developing a single pipeline,
 while the simulate ingest API is more useful for troubleshooting the
-interaction of the various pipelines that get applied when ingeseting
+interaction of the various pipelines that get applied when ingesting
 into an index.
 
 
 By default, the pipeline definitions that are currently in the system
-are used. But you can supply substitute pipeline definitions in the
+are used. However, you can supply substitute pipeline definitions in the
 body of the request. These will be used in place of the pipeline
 definitions that are already in the system. This can be used to replace
 existing pipeline definitions or to create new ones. The pipeline
@@ -200,14 +203,14 @@ POST /_ingest/_simulate
 {
   "docs": [
     {
-      "_index": "index",
+      "_index": "my-index"",
       "_id": "123",
       "_source": {
         "foo": "bar"
       }
     },
     {
-      "_index": "index",
+      "_index": "my-index"",
       "_id": "456",
       "_source": {
         "foo": "rab"
@@ -226,7 +229,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "123",
-            "_index": "index",
+            "_index": "my-index"",
             "_version": -3,
             "_source": {
                "field1": "value1",
@@ -242,7 +245,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "456",
-            "_index": "index",
+            "_index": "my-index"",
             "_version": -3,
             "_source": {
                "field1": "value1",
@@ -273,14 +276,14 @@ POST /_ingest/_simulate
 {
   "docs": [
     {
-      "_index": "index",
+      "_index": "my-index"",
       "_id": "123",
       "_source": {
         "foo": "bar"
       }
     },
     {
-      "_index": "index",
+      "_index": "my-index"",
       "_id": "456",
       "_source": {
         "foo": "rab"
@@ -310,7 +313,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "123",
-            "_index": "index",
+            "_index": "my-index"",
             "_version": -3,
             "_source": {
                "field2": "value2",
@@ -325,7 +328,7 @@ The API returns the following response:
       {
          "doc": {
             "_id": "456",
-            "_index": "index",
+            "_index": "my-index"",
             "_version": -3,
             "_source": {
                "field2": "value2",

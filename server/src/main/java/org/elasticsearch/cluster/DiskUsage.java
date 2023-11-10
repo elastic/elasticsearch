@@ -33,6 +33,10 @@ public record DiskUsage(String nodeId, String nodeName, String path, long totalB
 
     private static final Logger logger = LogManager.getLogger(DiskUsage.class);
 
+    public DiskUsage(String nodeId, String path, long totalBytes, long freeBytes) {
+        this(nodeId, nodeId, path, totalBytes, freeBytes);
+    }
+
     public DiskUsage(StreamInput in) throws IOException {
         this(in.readString(), in.readString(), in.readString(), in.readVLong(), in.readVLong());
     }

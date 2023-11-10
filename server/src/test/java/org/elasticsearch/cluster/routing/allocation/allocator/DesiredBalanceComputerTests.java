@@ -15,12 +15,11 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -39,13 +38,13 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -60,8 +59,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -78,7 +79,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DesiredBalanceComputerTests extends ESTestCase {
+public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
     static final String TEST_INDEX = "test-index";
 
@@ -388,33 +389,29 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     public void testSimulatesAchievingDesiredBalanceBeforeDelegating() {
 
         var allocateCalled = new AtomicBoolean();
-        var desiredBalanceComputer = new DesiredBalanceComputer(
-            createBuiltInClusterSettings(),
-            mock(ThreadPool.class),
-            new ShardsAllocator() {
-                @Override
-                public void allocate(RoutingAllocation allocation) {
-                    assertTrue(allocateCalled.compareAndSet(false, true));
-                    // whatever the allocation in the current cluster state, the desired balance service should start by moving all the
-                    // known shards to their desired locations before delegating to the inner allocator
-                    for (var routingNode : allocation.routingNodes()) {
-                        assertThat(
-                            allocation.routingNodes().toString(),
-                            routingNode.numberOfOwningShards(),
-                            equalTo(routingNode.nodeId().equals("node-2") ? 0 : 2)
-                        );
-                        for (var shardRouting : routingNode) {
-                            assertTrue(shardRouting.toString(), shardRouting.started());
-                        }
+        var desiredBalanceComputer = createDesiredBalanceComputer(new ShardsAllocator() {
+            @Override
+            public void allocate(RoutingAllocation allocation) {
+                assertTrue(allocateCalled.compareAndSet(false, true));
+                // whatever the allocation in the current cluster state, the desired balance service should start by moving all the
+                // known shards to their desired locations before delegating to the inner allocator
+                for (var routingNode : allocation.routingNodes()) {
+                    assertThat(
+                        allocation.routingNodes().toString(),
+                        routingNode.numberOfOwningShards(),
+                        equalTo(routingNode.nodeId().equals("node-2") ? 0 : 2)
+                    );
+                    for (var shardRouting : routingNode) {
+                        assertTrue(shardRouting.toString(), shardRouting.started());
                     }
                 }
-
-                @Override
-                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-                    throw new AssertionError("only used for allocation explain");
-                }
             }
-        );
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        });
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().index(TEST_INDEX).getIndex();
 
@@ -584,7 +581,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         for (int node = 0; node < nodes; node++) {
             var nodeId = "node-" + node;
             nodeIds.add(nodeId);
-            discoveryNodesBuilder.add(createDiscoveryNode(nodeId, DiscoveryNodeRole.roles()));
+            discoveryNodesBuilder.add(newNode(nodeId, DiscoveryNodeRole.roles()));
             usedDiskSpace.put(nodeId, 0L);
         }
 
@@ -628,7 +625,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 var thisShardSize = smallShardSizeDeviation(shardSize);
 
                 var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
-                shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, true), thisShardSize);
+                shardSizes.put(shardIdentifierFromRouting(shardId, true), thisShardSize);
                 totalShardsSize += thisShardSize;
                 if (primaryNodeId != null) {
                     dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
@@ -647,7 +644,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 );
                 for (int replica = 0; replica < replicas; replica++) {
                     var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
-                    shardSizes.put(ClusterInfo.shardIdentifierFromRouting(shardId, false), thisShardSize);
+                    shardSizes.put(shardIdentifierFromRouting(shardId, false), thisShardSize);
                     totalShardsSize += thisShardSize;
                     if (replicaNodeId != null) {
                         dataPath.put(new NodeAndShard(replicaNodeId, shardId), "/data");
@@ -691,12 +688,13 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var settings = Settings.EMPTY;
 
-        var input = new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of());
-        var desiredBalance = new DesiredBalanceComputer(
-            createBuiltInClusterSettings(),
-            mock(ThreadPool.class),
-            new BalancedShardsAllocator(settings)
-        ).compute(DesiredBalance.INITIAL, input, queue(), ignored -> iteration.incrementAndGet() < 1000);
+        var input = new DesiredBalanceInput(randomInt(), createAllocationWithDeciders(clusterState, clusterInfo, settings), List.of());
+        var desiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
+            DesiredBalance.INITIAL,
+            input,
+            queue(),
+            ignored -> iteration.incrementAndGet() < 1000
+        );
 
         var desiredDiskUsage = Maps.<String, Long>newMapWithExpectedSize(nodes);
         for (var assignment : desiredBalance.assignments().entrySet()) {
@@ -737,9 +735,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     public void testComputeConsideringShardSizes() {
 
         var discoveryNodesBuilder = DiscoveryNodes.builder()
-            .add(createDiscoveryNode("node-0", DiscoveryNodeRole.roles()))
-            .add(createDiscoveryNode("node-1", DiscoveryNodeRole.roles()))
-            .add(createDiscoveryNode("node-2", DiscoveryNodeRole.roles()));
+            .add(newNode("node-0", "node-0", DiscoveryNodeRole.roles()))
+            .add(newNode("node-1", "node-1", DiscoveryNodeRole.roles()))
+            .add(newNode("node-2", "node-2", DiscoveryNodeRole.roles()));
 
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
@@ -784,7 +782,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._name", "node-2"))
+                    .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._id", "node-2"))
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
@@ -803,13 +801,13 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var node0RemainingBytes = (index0ReplicaShard.started() || index0ReplicaShard.relocating())
             && Objects.equals(index0ReplicaShard.currentNodeId(), "node-0") ? 100 : 600;
-        var node0Usage = new DiskUsage("node-0", "node-0", "/data", 1000, node0RemainingBytes);
-        var node1Usage = new DiskUsage("node-1", "node-1", "/data", 1000, 100);
-        var node2Usage = new DiskUsage("node-2", "node-2", "/data", 1000, 1000);
 
-        var clusterInfo = new ClusterInfo(
-            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage, node2Usage.getNodeId(), node2Usage),
-            Map.of(node0Usage.nodeId(), node0Usage, node1Usage.nodeId(), node1Usage, node2Usage.getNodeId(), node2Usage),
+        var clusterInfo = createClusterInfo(
+            List.of(
+                new DiskUsage("node-0", "node-0", "/data", 1000, node0RemainingBytes),
+                new DiskUsage("node-1", "node-1", "/data", 1000, 100),
+                new DiskUsage("node-2", "node-2", "/data", 1000, 1000)
+            ),
             Map.ofEntries(
                 // node-0 & node-1
                 indexSize(clusterState, "index-0", 500, true),
@@ -825,10 +823,7 @@ public class DesiredBalanceComputerTests extends ESTestCase {
                 indexSize(clusterState, "index-7", 50, true),
                 indexSize(clusterState, "index-8", 50, true),
                 indexSize(clusterState, "index-9", 50, true)
-            ),
-            Map.of(),
-            Map.of(),
-            Map.of()
+            )
         );
 
         var settings = Settings.builder()
@@ -842,21 +837,15 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
         var initial = new DesiredBalance(
             1,
-            Map.of(
-                findShardId(clusterState, "index-0"),
-                new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0),
-                findShardId(clusterState, "index-1"),
-                new ShardAssignment(Set.of("node-0"), 1, 0, 0)
+            Map.ofEntries(
+                Map.entry(findShardId(clusterState, "index-0"), new ShardAssignment(Set.of("node-0", "node-1"), 2, 0, 0)),
+                Map.entry(findShardId(clusterState, "index-1"), new ShardAssignment(Set.of("node-0"), 1, 0, 0))
             )
         );
 
-        var desiredBalance = new DesiredBalanceComputer(
-            createBuiltInClusterSettings(),
-            mock(ThreadPool.class),
-            new BalancedShardsAllocator(settings)
-        ).compute(
+        var desiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator(settings)).compute(
             initial,
-            new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState, clusterInfo, settings), List.of()),
+            new DesiredBalanceInput(randomInt(), createAllocationWithDeciders(clusterState, clusterInfo, settings), List.of()),
             queue(),
             input -> true
         );
@@ -870,6 +859,14 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         }
 
         assertThat(resultDiskUsage, allOf(aMapWithSize(2), hasEntry("node-0", 950L), hasEntry("node-1", 850L)));
+    }
+
+    private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {
+        return Map.entry(shardIdentifierFromRouting(findShardId(clusterState, name), primary), size);
+    }
+
+    private static ShardId findShardId(ClusterState clusterState, String name) {
+        return clusterState.getRoutingTable().index(name).shard(0).shardId();
     }
 
     public void testShouldLogComputationIteration() {
@@ -952,18 +949,347 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         }, DesiredBalanceComputer.class, expectation);
     }
 
-    private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {
-        return Map.entry(ClusterInfo.shardIdentifierFromRouting(findShardId(clusterState, name), primary), size);
+    public void testComputeWhenTwoNewIndicesCreated() {
+        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).put(indexMetadata3, false).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata1.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 0), "node-1", true, STARTED))
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 1), "node-2", true, STARTED))
+                    )
+                    .addAsNew(indexMetadata2)
+                    .addAsNew(indexMetadata3)
+            )
+            .build();
+
+        var initialDesiredBalance = new DesiredBalance(
+            1,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
+
+        var clusterInfo = createClusterInfo(
+            List.of(
+                // node-1 has only enough space to start initializing [index-2]
+                new DiskUsage("node-1", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
+                // node-2 has enough space to start both shards of [index-3]
+                new DiskUsage("node-2", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes())
+            ),
+            Map.ofEntries(
+                shardSize(indexMetadata1.getIndex(), 0, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata1.getIndex(), 1, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata2.getIndex(), 0, ByteSizeValue.ofGb(1).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 0, ByteSizeValue.ofMb(512).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 1, ByteSizeValue.ofMb(512).getBytes())
+            )
+        );
+
+        var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
+            initialDesiredBalance,
+            new DesiredBalanceInput(2, createAllocationWithDeciders(clusterState, clusterInfo, Settings.EMPTY), List.of()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            nextDesiredBalance,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
     }
 
-    private static ShardId findShardId(ClusterState clusterState, String name) {
-        return clusterState.getRoutingTable().index(name).shard(0).shardId();
+    public void testComputeWhenNewIndexIsCreatedWhileOneShardIsUnassigned() {
+        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).put(indexMetadata3, false).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata1.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 0), "node-1", true, STARTED))
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 1), "node-2", true, STARTED))
+                    )
+                    .addAsNew(indexMetadata2)
+                    .addAsNew(indexMetadata3)
+            )
+            .build();
+
+        var initialDesiredBalance = new DesiredBalance(
+            1,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+            )
+        );
+
+        var clusterInfo = createClusterInfo(
+            List.of(
+                // node-1 has only enough space to start initializing [index-2]
+                new DiskUsage("node-1", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
+                // node-2 has enough space to start both shards of [index-3]
+                new DiskUsage("node-2", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes())
+            ),
+            Map.ofEntries(
+                shardSize(indexMetadata1.getIndex(), 0, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata1.getIndex(), 1, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata2.getIndex(), 0, ByteSizeValue.ofGb(1).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 0, ByteSizeValue.ofMb(512).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 1, ByteSizeValue.ofMb(512).getBytes())
+            )
+        );
+
+        var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
+            initialDesiredBalance,
+            new DesiredBalanceInput(2, createAllocationWithDeciders(clusterState, clusterInfo, Settings.EMPTY), List.of()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            nextDesiredBalance,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
+    }
+
+    public void testComputeWhenNewIndexIsCreatedWhileOneShardIsInitializingOnDesiredLocation() {
+        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).put(indexMetadata3, false).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata1.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 0), "node-1", true, STARTED))
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 1), "node-2", true, STARTED))
+                    )
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata2.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata2.getIndex(), 0), "node-1", true, INITIALIZING))
+                    )
+                    .addAsNew(indexMetadata3)
+            )
+            .build();
+
+        var initialDesiredBalance = new DesiredBalance(
+            1,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+            )
+        );
+
+        var clusterInfo = createClusterInfo(
+            List.of(
+                // node-1 has only enough space to start initializing [index-2]
+                new DiskUsage("node-1", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
+                // node-2 has enough space to start both shards of [index-3]
+                new DiskUsage("node-2", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes())
+            ),
+            Map.ofEntries(
+                shardSize(indexMetadata1.getIndex(), 0, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata1.getIndex(), 1, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata2.getIndex(), 0, ByteSizeValue.ofGb(1).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 0, ByteSizeValue.ofMb(512).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 1, ByteSizeValue.ofMb(512).getBytes())
+            )
+        );
+
+        var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
+            initialDesiredBalance,
+            new DesiredBalanceInput(2, createAllocationWithDeciders(clusterState, clusterInfo, Settings.EMPTY), List.of()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            nextDesiredBalance,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
+    }
+
+    public void testComputeWhenNewIndexIsCreatedWhileOneShardIsInitializingOnUnDesiredLocation() {
+        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).put(indexMetadata3, false).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata1.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 0), "node-1", true, STARTED))
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 1), "node-2", true, STARTED))
+                    )
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata2.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata2.getIndex(), 0), "node-2", true, INITIALIZING))
+                    )
+                    .addAsNew(indexMetadata3)
+            )
+            .build();
+
+        var initialDesiredBalance = new DesiredBalance(
+            1,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+            )
+        );
+
+        var clusterInfo = createClusterInfo(
+            List.of(
+                // node-1 has only enough space to start initializing [index-2]
+                new DiskUsage("node-1", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
+                // node-2 has enough space to start both shards of [index-3]
+                new DiskUsage("node-2", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes())
+            ),
+            Map.ofEntries(
+                shardSize(indexMetadata1.getIndex(), 0, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata1.getIndex(), 1, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata2.getIndex(), 0, ByteSizeValue.ofGb(1).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 0, ByteSizeValue.ofMb(512).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 1, ByteSizeValue.ofMb(512).getBytes())
+            )
+        );
+
+        var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
+            initialDesiredBalance,
+            new DesiredBalanceInput(2, createAllocationWithDeciders(clusterState, clusterInfo, Settings.EMPTY), List.of()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            nextDesiredBalance,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
+    }
+
+    public void testComputeWhenNewIndexIsCreatedWhileOneShardIsStartedOnUnDesiredLocation() {
+        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")))
+            .metadata(Metadata.builder().put(indexMetadata1, false).put(indexMetadata2, false).put(indexMetadata3, false).build())
+            .routingTable(
+                RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata1.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 0), "node-1", true, STARTED))
+                            .addShard(newShardRouting(new ShardId(indexMetadata1.getIndex(), 1), "node-2", true, STARTED))
+                    )
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata2.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata2.getIndex(), 0), "node-2", true, STARTED))
+                    )
+                    .addAsNew(indexMetadata3)
+            )
+            .build();
+
+        var initialDesiredBalance = new DesiredBalance(
+            1,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 2), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+            )
+        );
+
+        var clusterInfo = createClusterInfo(
+            List.of(
+                // node-1 has only enough space to start initializing [index-2]
+                new DiskUsage("node-1", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes()),
+                // node-2 has enough space to start both shards of [index-3]
+                new DiskUsage("node-2", "/data", ByteSizeValue.ofGb(10).getBytes(), ByteSizeValue.ofGb(2).getBytes())
+            ),
+            Map.ofEntries(
+                shardSize(indexMetadata1.getIndex(), 0, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata1.getIndex(), 1, ByteSizeValue.ofGb(8).getBytes()),
+                shardSize(indexMetadata2.getIndex(), 0, ByteSizeValue.ofGb(1).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 0, ByteSizeValue.ofMb(512).getBytes()),
+                shardSize(indexMetadata3.getIndex(), 1, ByteSizeValue.ofMb(512).getBytes())
+            )
+        );
+
+        var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
+            initialDesiredBalance,
+            new DesiredBalanceInput(2, createAllocationWithDeciders(clusterState, clusterInfo, Settings.EMPTY), List.of()),
+            queue(),
+            input -> true
+        );
+
+        assertDesiredAssignments(
+            nextDesiredBalance,
+            Map.ofEntries(
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata1.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata2.getIndex(), 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(new ShardId(indexMetadata3.getIndex(), 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+            )
+        );
+    }
+
+    private static Map.Entry<String, Long> shardSize(Index index, int shardId, long size) {
+        return Map.entry(shardIdentifierFromRouting(new ShardId(index, shardId), true), size);
+    }
+
+    private static ClusterInfo createClusterInfo(List<DiskUsage> diskUsages, Map<String, Long> shardSizes) {
+        var diskUsage = diskUsages.stream().collect(toMap(DiskUsage::getNodeId, Function.identity()));
+        return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), Map.of());
     }
 
     static ClusterState createInitialClusterState(int dataNodesCount) {
-        var discoveryNodes = DiscoveryNodes.builder().add(createDiscoveryNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+        var discoveryNodes = DiscoveryNodes.builder().add(newNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         for (int i = 0; i < dataNodesCount; i++) {
-            discoveryNodes.add(createDiscoveryNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+            discoveryNodes.add(newNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         }
 
         var indexMetadata = IndexMetadata.builder(TEST_INDEX).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
@@ -1019,15 +1345,11 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         }
     }
 
-    private static DiscoveryNode createDiscoveryNode(String id, Set<DiscoveryNodeRole> roles) {
-        return DiscoveryNodeUtils.builder(id).name(id).externalId(UUIDs.randomBase64UUID(random())).roles(roles).build();
-    }
-
     /**
      * @return a {@link DesiredBalanceComputer} which allocates unassigned primaries to node-0 and unassigned replicas to node-1
      */
     private static DesiredBalanceComputer createDesiredBalanceComputer() {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), new ShardsAllocator() {
+        return createDesiredBalanceComputer(new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
@@ -1054,6 +1376,10 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         });
     }
 
+    private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
+    }
+
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {
         assertThat(desiredBalance.assignments(), equalTo(expected));
     }
@@ -1066,19 +1392,9 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         return new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
     }
 
-    private static RoutingAllocation routingAllocationWithDecidersOf(
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        Settings settings
-    ) {
+    private static RoutingAllocation createAllocationWithDeciders(ClusterState clusterState, ClusterInfo clusterInfo, Settings settings) {
         return new RoutingAllocation(
-            new AllocationDeciders(
-                ClusterModule.createAllocationDeciders(
-                    settings,
-                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    List.of()
-                )
-            ),
+            new AllocationDeciders(ClusterModule.createAllocationDeciders(settings, createBuiltInClusterSettings(settings), List.of())),
             clusterState,
             clusterInfo,
             SnapshotShardSizeInfo.EMPTY,

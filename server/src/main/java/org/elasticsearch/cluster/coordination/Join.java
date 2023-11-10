@@ -73,6 +73,13 @@ public class Join implements Writeable {
         return masterCandidateNode;
     }
 
+    /**
+     * Temporary compatibility with serverless code repository.
+     */
+    public DiscoveryNode getSourceNode() {
+        return masterCandidateNode;
+    }
+
     public boolean masterCandidateMatches(DiscoveryNode matchingNode) {
         return masterCandidateNode.getId().equals(matchingNode.getId());
     }

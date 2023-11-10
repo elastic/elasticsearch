@@ -20,6 +20,12 @@ import java.io.IOException;
 
 public record TrainedModelPrefixStrings(String ingestPrefix, String searchPrefix) implements ToXContentObject, Writeable {
 
+    public enum PrefixType {
+        INGEST,
+        SEARCH,
+        NONE
+    }
+
     public static final ParseField INGEST_PREFIX = new ParseField("ingest");
     public static final ParseField SEARCH_PREFIX = new ParseField("search");
     public static final String NAME = "trained_model_config_prefix_strings";

@@ -77,8 +77,14 @@ FROM index
 [[esql-literals]]
 ==== Literals
 
-{esql} currently supports numeric and string literals. The string literals
-need to be quoted in double quotes (`"`).
+{esql} currently supports numeric and string literals.
+
+[discrete]
+[[esql-string-literals]]
+===== String literals
+
+A string literal is a sequence of unicode characters delimited by double
+quotes (`"`).
 
 [source,esql]
 ----
@@ -98,6 +104,103 @@ ROW name = """Indiana "Indy" Jones"""
 The special characters CR, LF and TAB can be provided with the usual escaping:
 `\r`, `\n`, `\t`, respectively.
 
+[discrete]
+[[esql-numeric-literals]]
+===== Numerical literals
+
+The numeric literals are accepted in decimal and in the scientific notation
+with the exponent marker (`e` or `E`), starting either with a digit, decimal
+point `.` or the negative sign `-`:
+
+[source, sql]
+----
+1969    -- integer notation
+3.14    -- decimal notation
+.1234   -- decimal notation starting with decimal point
+4E5     -- scientific notation (with exponent marker)
+1.2e-3  -- scientific notation with decimal point
+-.1e2   -- scientific notation starting with the negative sign
+----
+
+The integer numeric literals are implicitly converted to the `integer`, `long`
+or the `double` type, whichever can first accommodate the literal's value.
+
+The floating point literals are implicitly converted the `double` type.
+
+To obtain constant values of different types, use one of the numeric
+<<esql-type-conversion-functions, conversion functions>>.
+
+
+[discrete]
+[[esql-operators]]
+==== Operators
+
+{esql} supports arithmetic, logical and qualifying operators. These can have
+an associativity and precedence than can be overriden by grouping expressions
+within parenthesis.
+
+The following table indicates the supported operators enumerated in order of
+decreasing precedence:
+
+[cols="^2m,^,3"]
+
+|===
+
+s|Operator
+s|Associativity
+s|Description
+
+|`.`
+|left
+|field qualifier separator
+
+|`+`, `-`
+|right
+|arithmetic unary plus and negation
+
+|`+`, `-`, `*`, `/`, `%`
+|left
+|arithmetic addition, subtraction, multiplication, division, modulo
+
+|`IN`
+|
+|value list containment
+
+|`IS`
+|
+|`NULL` value identity
+
+|`LIKE`, `RLIKE`
+|
+|string value matching
+
+|`<`, `>`, `\<=`, `>=`, `==`, `!=`
+|
+|comparison
+
+|`NOT`
+|right
+|logical negation
+
+|`AND`
+|left
+|logical conjunction
+
+|`OR`
+|left
+|logical disjunction
+
+|===
+
+The `IN`, `IS`, `LIKE` and `RLIKE` operators also support the more natural
+negation forms `NOT IN`, `IS NOT`, `NOT LIKE` and `NOT RLIKE`, respectively.
+
+[source,esql]
+----
+// Both is_not_null and not_is_null Booleans below take the value TRUE.
+ROW val = 0
+| EVAL is_not_null = val IS NOT NULL, not_is_null = NOT val IS NULL
+----
 
 [discrete]
 [[esql-comments]]

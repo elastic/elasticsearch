@@ -38,6 +38,7 @@ import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -316,11 +317,11 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             WatcherStatsResponse response = new WatcherStatsRequestBuilder(client()).setIncludeCurrentWatches(true).get();
             long maxSize = response.getNodes().stream().map(WatcherStatsResponse.Node::getSnapshots).mapToLong(List::size).sum();
             assertThat(maxSize, equalTo(0L));
-
+            AtomicLong successfulWatchExecutions = new AtomicLong();
             refresh();
             assertResponse(prepareSearch("output"), searchResponse -> {
                 assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(numberOfWatches)));
-                long successfulWatchExecutions = searchResponse.getHits().getTotalHits().value;
+                successfulWatchExecutions.set(searchResponse.getHits().getTotalHits().value);
             });
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
@@ -335,7 +336,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                     expectedWatchHistoryCount,
                     successfulWatchExecutions
                 );
-                assertThat(notExecutedCount, is(expectedWatchHistoryCount - successfulWatchExecutions));
+                assertThat(notExecutedCount, is(expectedWatchHistoryCount - successfulWatchExecutions.get()));
             });
         }, 20, TimeUnit.SECONDS);
     }

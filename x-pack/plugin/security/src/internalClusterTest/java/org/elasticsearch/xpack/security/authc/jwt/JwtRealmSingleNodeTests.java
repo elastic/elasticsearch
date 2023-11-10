@@ -203,11 +203,13 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         }
         {
             // client authentication is valid but the JWT is not
-            SignedJWT wrongSignedJWT = getSignedJWT(
-                jwtClaims.build(),
-                ("wrong key that's longer" + " than 256 bits").getBytes(StandardCharsets.UTF_8)
-            );
-            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(wrongSignedJWT, sharedSecret);
+            final SignedJWT wrongJWT;
+            if (randomBoolean()) {
+                wrongJWT = getSignedJWT(jwtClaims.build(), ("wrong key that's longer than 256 bits").getBytes(StandardCharsets.UTF_8));
+            } else {
+                wrongJWT = getSignedJWT(jwtClaims.audience("wrong audience claim value").build());
+            }
+            GrantApiKeyRequest grantApiKeyRequest = getGrantApiKeyForJWT(wrongJWT, sharedSecret);
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()

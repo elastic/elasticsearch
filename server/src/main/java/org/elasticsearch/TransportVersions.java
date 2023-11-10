@@ -161,7 +161,8 @@ public class TransportVersions {
     public static final TransportVersion UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED = def(8_530_00_0);
     public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
     public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
-    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_533_00_0);
+    public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
+    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_534_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -203,15 +204,17 @@ public class TransportVersions {
      * If your git checkout has the expected minor-version-numbered branches and the expected release-version tags then you can find the
      * transport versions known by a particular release ...
      *
-     *     git show v8.9.1:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show v8.11.0:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... or by a particular branch ...
      *
-     *     git show 8.10:server/src/main/java/org/elasticsearch/TransportVersions.java | grep def
+     *     git show 8.11:server/src/main/java/org/elasticsearch/TransportVersions.java | grep '= def'
      *
      * ... and you can see which versions were added in between two versions too ...
      *
-     *     git diff 8.10..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *     git diff v8.11.0..main -- server/src/main/java/org/elasticsearch/TransportVersions.java
+     *
+     * In branches 8.7-8.10 see server/src/main/java/org/elasticsearch/TransportVersion.java for the equivalent definitions.
      */
 
     /**

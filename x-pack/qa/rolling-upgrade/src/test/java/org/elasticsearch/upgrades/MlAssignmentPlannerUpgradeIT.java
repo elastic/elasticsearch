@@ -30,6 +30,10 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
+    private static final boolean IS_SINGLE_PROCESSOR_TEST = Boolean.parseBoolean(
+        System.getProperty("tests.configure_test_clusters_with_one_processor", "false")
+    );
+
     private Logger logger = LogManager.getLogger(MlAssignmentPlannerUpgradeIT.class);
 
     // See PyTorchModelIT for how this model was created
@@ -61,8 +65,10 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", isOriginalClusterVersionAtLeast(Version.V_8_0_0));
+        assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
         logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);
 
@@ -130,12 +136,14 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
+        // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
+        long memoryOverheadMb = Version.fromString(UPGRADE_FROM_VERSION).onOrAfter(Version.V_8_2_1) ? 240 : 270;
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
+        Long expectedMemoryUsage = ByteSizeValue.ofMb(memoryOverheadMb).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
             Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),

@@ -76,11 +76,6 @@ public class NodeClient extends AbstractClient {
     }
 
     @Override
-    public void close() {
-        // nothing really to do
-    }
-
-    @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action,
         Request request,

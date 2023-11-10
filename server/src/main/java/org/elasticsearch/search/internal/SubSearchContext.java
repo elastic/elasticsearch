@@ -108,11 +108,6 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return fetchSourceContext != null;
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return fetchSourceContext;
     }

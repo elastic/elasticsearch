@@ -30,16 +30,6 @@ public abstract class ParsedRareTerms extends ParsedMultiBucketAggregation<Parse
     }
 
     @Override
-    public RareTerms.Bucket getBucketByKey(String term) {
-        for (RareTerms.Bucket bucket : getBuckets()) {
-            if (bucket.getKeyAsString().equals(term)) {
-                return bucket;
-            }
-        }
-        return null;
-    }
-
-    @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (RareTerms.Bucket bucket : getBuckets()) {

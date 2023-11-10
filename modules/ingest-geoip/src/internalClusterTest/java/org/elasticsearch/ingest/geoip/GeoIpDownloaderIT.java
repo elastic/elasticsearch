@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
@@ -251,10 +252,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     GeoIpTaskState.Metadata metadata = state.get(id);
                     int size = metadata.lastChunk() - metadata.firstChunk() + 1;
                     assertResponse(
-                        prepareSearch(GeoIpDownloader.DATABASES_INDEX)
-                            .setSize(size)
-                            .setQuery(new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
-                                .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true)))
+                        prepareSearch(GeoIpDownloader.DATABASES_INDEX).setSize(size)
+                            .setQuery(
+                                new BoolQueryBuilder().filter(new MatchQueryBuilder("name", id))
+                                    .filter(new RangeQueryBuilder("chunk").from(metadata.firstChunk()).to(metadata.lastChunk(), true))
+                            )
                             .addSort("chunk", SortOrder.ASC),
                         res -> {
                             try {

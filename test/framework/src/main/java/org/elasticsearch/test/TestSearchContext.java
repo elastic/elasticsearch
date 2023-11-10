@@ -218,11 +218,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        return false;
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         return null;
     }

@@ -50,20 +50,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
             return getKeyAsString();
         }
 
-        // this method is needed for scripted numeric aggs
-        @Override
-        public Number getKeyAsNumber() {
-            /*
-             * If the term is a long greater than 2^52 then parsing as a double would lose accuracy. Therefore, we first parse as a long and
-             * if this fails then we attempt to parse the term as a double.
-             */
-            try {
-                return Long.parseLong(termBytes.utf8ToString());
-            } catch (final NumberFormatException ignored) {
-                return Double.parseDouble(termBytes.utf8ToString());
-            }
-        }
-
         @Override
         public String getKeyAsString() {
             return format.format(termBytes).toString();

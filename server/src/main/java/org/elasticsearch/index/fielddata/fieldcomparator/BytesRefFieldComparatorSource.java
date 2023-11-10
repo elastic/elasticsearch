@@ -112,7 +112,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     final BitSet rootDocs = nested.rootDocs(context);
                     final DocIdSetIterator innerDocs = nested.innerDocs(context);
                     final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+                    selectedValues = sortMode.select(values, missingBytes, rootDocs, innerDocs, maxChildren);
                 }
                 return selectedValues;
             }

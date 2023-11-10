@@ -431,7 +431,7 @@ Hello Universe
 docsCase
 // tag::case[]
 FROM employees
-| EVAL type = case(
+| EVAL type = CASE(
     languages <= 1, "monolingual",
     languages <= 2, "bilingual",
      "polyglot")

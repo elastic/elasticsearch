@@ -372,6 +372,18 @@ public class ElasticsearchAssertions {
         }
     }
 
+    public static void assertCheckedResponse(
+        ActionFuture<SearchResponse> responseFuture,
+        CheckedConsumer<SearchResponse, IOException> consumer
+    ) throws IOException, ExecutionException, InterruptedException {
+        var res = responseFuture.get();
+        try {
+            consumer.accept(res);
+        } finally {
+            res.decRef();
+        }
+    }
+
     public static void assertNoFailures(SearchResponse searchResponse) {
         assertThat(
             "Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),

@@ -114,9 +114,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR))
                 .highlighter(new HighlightBuilder().field("name.autocomplete")),
-            response -> {
-                assertHighlight(response, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
-            }
+            response -> assertHighlight(response, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"))
         );
 
     }
@@ -162,9 +160,7 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(matchPhraseQuery("body", "Test: http://www.facebook.com "))
                 .highlighter(new HighlightBuilder().field("body").highlighterType("fvh")),
-            response -> {
-                assertHighlight(response, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
-            }
+            response -> assertHighlight(response, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"))
         );
 
         assertResponse(
@@ -179,19 +175,17 @@ public class HighlighterWithAnalyzersTests extends ESIntegTestCase {
                         + "is a test for highlighting feature"
                 )
             ).highlighter(new HighlightBuilder().field("body").highlighterType("fvh")),
-            response -> {
-                assertHighlight(
-                    response,
-                    0,
-                    "body",
-                    0,
-                    equalTo(
-                        "<em>Test</em>: "
-                            + "<em>http://www.facebook.com</em> <em>http://elasticsearch.org</em> "
-                            + "<em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"
-                    )
-                );
-            }
+            response -> assertHighlight(
+                response,
+                0,
+                "body",
+                0,
+                equalTo(
+                    "<em>Test</em>: "
+                        + "<em>http://www.facebook.com</em> <em>http://elasticsearch.org</em> "
+                        + "<em>http://xing.com</em> <em>http://cnn.com</em> http://quora.com"
+                )
+            )
         );
     }
 

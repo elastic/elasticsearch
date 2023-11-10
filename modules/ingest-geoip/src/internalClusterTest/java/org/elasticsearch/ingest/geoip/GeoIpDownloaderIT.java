@@ -283,7 +283,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                                 Files.copy(stream, tempFile, StandardCopyOption.REPLACE_EXISTING);
                                 parseDatabase(tempFile);
                             } catch (Exception e) {
-                                fail();
+                                fail(e);
                             }
                         }
                     );

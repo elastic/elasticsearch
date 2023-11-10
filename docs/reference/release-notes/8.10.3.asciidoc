@@ -7,6 +7,15 @@
 
 include::8.10.0.asciidoc[tag=repositorydata-format-change]
 
+// tag::no-preventive-gc-issue[]
+* High Memory Pressure due to a GC JVM setting change
++
+This version of Elasticsearch upgrades the bundled JDK to Java 21. In Java 21
+https://bugs.openjdk.org/browse/JDK-8297639[Preventive GC has been removed].
+This may lead to increased memory pressure and an increased number of CircuitBreakerExceptions when retrieving large
+documents under some particular load. (issue: {es-issue}99592[#99592])
+// end::no-preventive-gc-issue[]
+
 Also see <<breaking-changes-8.10,Breaking changes in 8.10>>.
 
 [[bug-8.10.3]]

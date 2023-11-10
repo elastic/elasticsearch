@@ -17,6 +17,10 @@ import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretS
 
 public class OpenAiEmbeddingsModelTests extends ESTestCase {
 
+    public void testOverrideWith() {
+        fail("todo");
+    }
+
     public static OpenAiEmbeddingsModel createModel(String url, String apiKey, String modelName, @Nullable String user) {
         return new OpenAiEmbeddingsModel(
             "id",

@@ -567,7 +567,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     /**
      * Attempts to abdicate master position to a new master-eligible node in the cluster.
-     * Broadcasts `{@link StartJoinRequest}` for `{@param newMaster}` to each member of the cluster.
+     * Broadcasts {@link StartJoinRequest} for {@param newMaster} to each member of the cluster.
      */
     private void abdicateTo(DiscoveryNode newMaster) {
         assert Thread.holdsLock(mutex);

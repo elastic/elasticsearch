@@ -64,8 +64,8 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
  * Handler for cluster join commands. A master-eligible node running for election will
- * send a `{@link StartJoinRequest}` to each voting node in the cluster. A node that becomes
- * aware of a new term and master will send a `{@link Join}` request to the new master, to
+ * send a {@link StartJoinRequest} to each voting node in the cluster. A node that becomes
+ * aware of a new term and master will send a {@link Join} request to the new master, to
  * re-form the cluster around the new master node.
  */
 public class JoinHelper {

@@ -50,7 +50,7 @@ public class HttpRequestSenderFactory {
         this.settings = Objects.requireNonNull(settings);
     }
 
-    public HttpRequestSender createSender(String serviceName) {
+    public Sender createSender(String serviceName) {
         return new HttpRequestSender(serviceName, threadPool, httpClientManager, clusterService, settings);
     }
 

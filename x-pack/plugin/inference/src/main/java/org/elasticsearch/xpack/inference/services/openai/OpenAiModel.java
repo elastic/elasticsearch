@@ -13,11 +13,13 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 
+import java.util.Map;
+
 public abstract class OpenAiModel extends Model {
 
     public OpenAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
         super(configurations, secrets);
     }
 
-    public abstract ExecutableAction accept(OpenAiActionVisitor creator);
+    public abstract ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings);
 }

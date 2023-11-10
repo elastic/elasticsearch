@@ -105,7 +105,7 @@ public class OpenAiService implements InferenceService {
             serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
-            format("Failed to parse stored model [%s], please delete and add the service again", modelId)
+            format("Failed to parse stored model [%s] for [%s] service, please delete and add the service again", modelId, NAME)
         );
 
         throwIfNotEmptyMap(config, NAME);
@@ -125,8 +125,9 @@ public class OpenAiService implements InferenceService {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     format(
-                        "The internal model was invalid, please delete the service [%s] and add it again.",
-                        model.getConfigurations().getService()
+                        "The internal model was invalid, please delete the service [%s] with id [%s] and add it again.",
+                        model.getConfigurations().getService(),
+                        model.getConfigurations().getModelId()
                     ),
                     RestStatus.INTERNAL_SERVER_ERROR
                 )
@@ -135,9 +136,9 @@ public class OpenAiService implements InferenceService {
         }
 
         OpenAiModel openAiModel = (OpenAiModel) model;
-        var actionCreator = new OpenAiActionCreator(sender.get(), throttlerManager.get(), taskSettings);
+        var actionCreator = new OpenAiActionCreator(sender.get(), throttlerManager.get());
 
-        var action = openAiModel.accept(actionCreator);
+        var action = openAiModel.accept(actionCreator, taskSettings);
         action.execute(input, listener);
     }
 

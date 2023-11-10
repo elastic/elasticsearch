@@ -68,8 +68,8 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     }
 
     @Override
-    public ExecutableAction accept(OpenAiActionVisitor creator) {
-        return creator.create(this);
+    public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
     }
 
     public OpenAiEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {

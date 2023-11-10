@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderF
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.junit.After;
 import org.junit.Before;
 
@@ -38,9 +36,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.external.http.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettingsTests.getServiceSettingsMap;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
-import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -163,15 +159,8 @@ public class OpenAiEmbeddingsActionTests extends ESTestCase {
         assertThat(thrownException.getMessage(), is("Failed to send OpenAI embeddings request"));
     }
 
-    private OpenAiEmbeddingsAction createAction(String url, String apiKey, String modelName, @Nullable String user, Sender sender) {
-        var model = new OpenAiEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            getServiceSettingsMap(url),
-            getTaskSettingsMap(modelName, user),
-            getSecretSettingsMap(apiKey)
-        );
+    private static OpenAiEmbeddingsAction createAction(String url, String apiKey, String modelName, @Nullable String user, Sender sender) {
+        var model = createModel(url, apiKey, modelName, user);
 
         return new OpenAiEmbeddingsAction(sender, model, mock(ThrottlerManager.class));
     }

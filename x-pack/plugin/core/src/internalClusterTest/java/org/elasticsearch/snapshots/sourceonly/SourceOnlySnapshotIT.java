@@ -58,7 +58,6 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
@@ -252,47 +251,43 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertHits(String index, int numDocsExpected, boolean sourceHadDeletions) {
-        assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
-            BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
-                SearchHits hits = res.getHits();
-                long i = 0;
-                for (SearchHit hit : hits) {
-                    String id = hit.getId();
-                    Map<String, Object> sourceAsMap = hit.getSourceAsMap();
-                    assertTrue(sourceAsMap.containsKey("field1"));
-                    if (allowHoles) {
-                        long seqId = ((Number) hit.getSortValues()[0]).longValue();
-                        assertThat(i, Matchers.lessThanOrEqualTo(seqId));
-                        i = seqId + 1;
-                    } else {
-                        assertEquals(i++, hit.getSortValues()[0]);
-                    }
-                    assertEquals("bar " + id, sourceAsMap.get("field1"));
-                    assertEquals("r" + id, hit.field("_routing").getValue());
+        SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected).get();
+        BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
+            SearchHits hits = res.getHits();
+            long i = 0;
+            for (SearchHit hit : hits) {
+                String id = hit.getId();
+                Map<String, Object> sourceAsMap = hit.getSourceAsMap();
+                assertTrue(sourceAsMap.containsKey("field1"));
+                if (allowHoles) {
+                    long seqId = ((Number) hit.getSortValues()[0]).longValue();
+                    assertThat(i, Matchers.lessThanOrEqualTo(seqId));
+                    i = seqId + 1;
+                } else {
+                    assertEquals(i++, hit.getSortValues()[0]);
                 }
-            };
-            assertConsumer.accept(searchResponse, sourceHadDeletions);
-            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
-            SearchResponse scrollResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-                .setScroll("1m")
-                .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
-                .setSize(randomIntBetween(1, 10))
-                .get();
-            try {
-                do {
-                    // now do a scroll with a slice
-                    assertConsumer.accept(scrollResponse, true);
-                    final String scrollId = scrollResponse.getScrollId();
-                    scrollResponse.decRef();
-                    scrollResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
-                } while (scrollResponse.getHits().getHits().length > 0);
-            } finally {
-                if (scrollResponse.getScrollId() != null) {
-                    client().prepareClearScroll().addScrollId(scrollResponse.getScrollId()).get();
-                }
-                scrollResponse.decRef();
+                assertEquals("bar " + id, sourceAsMap.get("field1"));
+                assertEquals("r" + id, hit.field("_routing").getValue());
             }
-        });
+        };
+        assertConsumer.accept(searchResponse, sourceHadDeletions);
+        assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
+        searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+            .setScroll("1m")
+            .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
+            .setSize(randomIntBetween(1, 10))
+            .get();
+        try {
+            do {
+                // now do a scroll with a slice
+                assertConsumer.accept(searchResponse, true);
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+            } while (searchResponse.getHits().getHits().length > 0);
+        } finally {
+            if (searchResponse.getScrollId() != null) {
+                client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
+            }
+        }
     }
 
     private IndexRequestBuilder[] snapshotAndRestore(final String sourceIdx, final boolean requireRouting, final boolean useNested)

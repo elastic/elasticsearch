@@ -22,15 +22,27 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
-    private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
-    public Set<ElasticsearchCluster> getRunningClusters() {
-        return runningClusters;
-    }
+    private final Map<ElasticsearchCluster, Integer> claimCount = new HashMap<>();
+
+    private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
 
     public void claimCluster(ElasticsearchCluster cluster) {
         cluster.freeze();
         claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) + 1);
+        claimCount.put(cluster, claimCount.getOrDefault(cluster, 0) + 1);
+    }
+
+    public boolean isReusedCluster(ElasticsearchCluster cluster) {
+        return claimCount.get(cluster) > 1;
+    }
+
+    public void maybeStartCluster(ElasticsearchCluster cluster) {
+        if (runningClusters.contains(cluster)) {
+            return;
+        }
+        runningClusters.add(cluster);
+        cluster.start();
     }
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {

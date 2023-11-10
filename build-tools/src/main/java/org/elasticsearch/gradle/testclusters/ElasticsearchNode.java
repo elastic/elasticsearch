@@ -163,7 +163,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private int currentDistro = 0;
     private TestDistribution testDistribution;
     private volatile Process esProcess;
-    private Function<String, String> nameCustomization = Function.identity();
+    private Function<String, String> nameCustomization = s -> s;
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
     private String transportPort = "0";

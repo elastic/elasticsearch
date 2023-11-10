@@ -48,7 +48,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -232,10 +232,9 @@ public class FrozenIndexIT extends ESIntegTestCase {
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
-            assertResponse(
+            assertNoFailuresAndResponse(
                 prepareSearch().setIndices(indexName).setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
                 searchResponse -> {
-                    assertNoFailures(searchResponse);
                     assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
                     assertHitCount(searchResponse, numDocs);
                 }
@@ -243,7 +242,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             internalCluster().restartNode(assignedNode);
             ensureGreen(indexName);
 
-            assertResponse(
+            assertNoFailuresAndResponse(
                 prepareSearch().setIndices(indexName)
                     .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -252,7 +251,6 @@ public class FrozenIndexIT extends ESIntegTestCase {
                     .setAllowPartialSearchResults(true)
                     .setPointInTime(new PointInTimeBuilder(pitId)),
                 searchResponse -> {
-                    assertNoFailures(searchResponse);
                     assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
                     assertHitCount(searchResponse, numDocs);
                 }
@@ -321,10 +319,12 @@ public class FrozenIndexIT extends ESIntegTestCase {
             ).keepAlive(TimeValue.timeValueMinutes(2));
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
-                    assertNoFailures(searchResponse);
-                    assertHitCount(searchResponse, numDocs);
-                });
+                assertNoFailuresAndResponse(
+                    prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, numDocs);
+                    }
+                );
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
             }
@@ -336,10 +336,12 @@ public class FrozenIndexIT extends ESIntegTestCase {
             );
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                assertResponse(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), searchResponse -> {
-                    assertNoFailures(searchResponse);
-                    assertHitCount(searchResponse, 0);
-                });
+                assertNoFailuresAndResponse(
+                    prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, 0);
+                    }
+                );
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
             }

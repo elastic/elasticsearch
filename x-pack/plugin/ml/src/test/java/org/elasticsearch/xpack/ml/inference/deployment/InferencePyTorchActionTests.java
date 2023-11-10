@@ -92,7 +92,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
-            randomBoolean(),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
             listener
@@ -114,7 +114,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
-            randomBoolean(),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
             listener
@@ -137,7 +137,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
-            randomBoolean(),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             null,
             listener
@@ -169,7 +169,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
-                randomBoolean(),
+                TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
                 listener
@@ -188,7 +188,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
-                randomBoolean(),
+                TrainedModelPrefixStrings.PrefixType.NONE,
                 tp,
                 null,
                 listener
@@ -232,7 +232,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
             processContext,
             new PassThroughConfig(null, null, null),
             NlpInferenceInput.fromText("foo"),
-            randomBoolean(),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             tp,
             cancellableTask,
             listener
@@ -283,7 +283,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
-                true,
+                TrainedModelPrefixStrings.PrefixType.SEARCH,
                 tp,
                 null,
                 listener
@@ -310,7 +310,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
-                false,
+                TrainedModelPrefixStrings.PrefixType.INGEST,
                 tp,
                 null,
                 listener
@@ -322,6 +322,29 @@ public class InferencePyTorchActionTests extends ESTestCase {
             verify(nlpProcessor).validateInputs(inputsCapture.capture());
 
             assertThat(inputsCapture.getValue(), contains("ingest_prefix: foo"));
+        }
+        {
+            Mockito.clearInvocations(nlpProcessor);
+            // test no prefix
+            InferencePyTorchAction action = new InferencePyTorchAction(
+                "test-model",
+                1,
+                TimeValue.MAX_VALUE,
+                processContext,
+                new PassThroughConfig(null, null, null),
+                NlpInferenceInput.fromText("foo"),
+                TrainedModelPrefixStrings.PrefixType.NONE,
+                tp,
+                null,
+                listener
+            );
+            action.init();
+            action.doRun();
+
+            ArgumentCaptor<List<String>> inputsCapture = ArgumentCaptor.forClass(List.class);
+            verify(nlpProcessor).validateInputs(inputsCapture.capture());
+
+            assertThat(inputsCapture.getValue(), contains("foo"));
         }
         {
             // test search only prefix
@@ -337,7 +360,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
-                isForSearch,
+                isForSearch ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST,
                 tp,
                 null,
                 listener
@@ -368,7 +391,7 @@ public class InferencePyTorchActionTests extends ESTestCase {
                 processContext,
                 new PassThroughConfig(null, null, null),
                 NlpInferenceInput.fromText("foo"),
-                isForSearch,
+                isForSearch ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST,
                 tp,
                 null,
                 listener

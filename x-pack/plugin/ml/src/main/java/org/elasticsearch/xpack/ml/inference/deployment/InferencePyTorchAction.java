@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -39,7 +40,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
     private final NlpInferenceInput input;
     @Nullable
     private final CancellableTask parentActionTask;
-    private final boolean forSearch;
+    private final TrainedModelPrefixStrings.PrefixType prefixType;
 
     InferencePyTorchAction(
         String deploymentId,
@@ -48,7 +49,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         DeploymentManager.ProcessContext processContext,
         InferenceConfig config,
         NlpInferenceInput input,
-        boolean forSearch,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         ThreadPool threadPool,
         @Nullable CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
@@ -56,7 +57,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         super(deploymentId, requestId, timeout, processContext, threadPool, listener);
         this.config = config;
         this.input = input;
-        this.forSearch = forSearch;
+        this.prefixType = prefixType;
         this.parentActionTask = parentActionTask;
     }
 
@@ -87,12 +88,25 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         final String requestIdStr = String.valueOf(getRequestId());
         try {
             String inputText = input.extractInput(getProcessContext().getModelInput().get());
-            var prefixStrings = getProcessContext().getPrefixStrings().get();
-            if (prefixStrings != null) {
-                if (forSearch && Strings.isNullOrEmpty(prefixStrings.searchPrefix()) == false) {
-                    inputText = prefixStrings.searchPrefix() + inputText;
-                } else if (forSearch == false && Strings.isNullOrEmpty(prefixStrings.ingestPrefix()) == false) {
-                    inputText = prefixStrings.ingestPrefix() + inputText;
+            if (prefixType != TrainedModelPrefixStrings.PrefixType.NONE) {
+                var prefixStrings = getProcessContext().getPrefixStrings().get();
+                if (prefixStrings != null) {
+                    switch (prefixType) {
+                        case SEARCH: {
+                            if (Strings.isNullOrEmpty(prefixStrings.searchPrefix()) == false) {
+                                inputText = prefixStrings.searchPrefix() + inputText;
+                            }
+                        }
+                            break;
+                        case INGEST: {
+                            if (Strings.isNullOrEmpty(prefixStrings.ingestPrefix()) == false) {
+                                inputText = prefixStrings.ingestPrefix() + inputText;
+                            }
+                        }
+                            break;
+                        default:
+                            throw new IllegalStateException("[" + getDeploymentId() + "] Unhandled input prefix type [" + prefixType + "]");
+                    }
                 }
             }
 

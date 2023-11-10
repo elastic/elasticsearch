@@ -321,6 +321,7 @@ public class DeploymentManager {
         NlpInferenceInput input,
         boolean skipQueue,
         TimeValue timeout,
+        TrainedModelPrefixStrings.PrefixType prefixType,
         CancellableTask parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
@@ -338,7 +339,7 @@ public class DeploymentManager {
             processContext,
             config,
             input,
-            skipQueue,
+            prefixType,
             threadPool,
             parentActionTask,
             listener

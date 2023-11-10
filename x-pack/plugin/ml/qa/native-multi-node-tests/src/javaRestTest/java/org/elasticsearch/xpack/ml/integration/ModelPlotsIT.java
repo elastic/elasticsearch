@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -25,10 +24,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -159,11 +159,13 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private Set<String> modelPlotTerms(String jobId, String fieldName) {
-        SearchResponse searchResponse = prepareSearch(".ml-anomalies-" + jobId).setQuery(
-            QueryBuilders.termQuery("result_type", "model_plot")
-        ).addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName)).get();
-
-        Terms aggregation = searchResponse.getAggregations().get("model_plot_terms");
-        return aggregation.getBuckets().stream().map(agg -> agg.getKeyAsString()).collect(Collectors.toSet());
+        Set<String> set = new HashSet<>();
+        assertResponse(
+            prepareSearch(".ml-anomalies-" + jobId).setQuery(QueryBuilders.termQuery("result_type", "model_plot"))
+                .addAggregation(AggregationBuilders.terms("model_plot_terms").field(fieldName)),
+            searchResponse -> ((Terms) searchResponse.getAggregations().get("model_plot_terms")).getBuckets()
+                .forEach(bucket -> set.add(bucket.getKeyAsString()))
+        );
+        return set;
     }
 }

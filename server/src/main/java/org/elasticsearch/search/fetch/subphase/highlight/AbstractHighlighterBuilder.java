@@ -452,13 +452,6 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     /**
-     * @return the value set by {@link #boundaryScannerLocale(String)}
-     */
-    public Locale boundaryScannerLocale() {
-        return this.boundaryScannerLocale;
-    }
-
-    /**
      * Allows to set custom options for custom highlighters.
      */
     @SuppressWarnings("unchecked")

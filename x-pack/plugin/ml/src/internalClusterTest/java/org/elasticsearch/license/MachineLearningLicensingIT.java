@@ -669,8 +669,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
-                false
-            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
+                false,
+                TimeValue.timeValueSeconds(5)
+            ),
             inferModelSuccess
         );
         InferModelAction.Response response = inferModelSuccess.actionGet();
@@ -690,8 +691,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                     modelId,
                     Collections.singletonList(Collections.emptyMap()),
                     RegressionConfigUpdate.EMPTY_PARAMS,
-                    false
-                ).setInferenceTimeout(TimeValue.timeValueSeconds(5))
+                    false,
+                    TimeValue.timeValueSeconds(5)
+                )
             ).actionGet();
         });
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
@@ -706,8 +708,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
-                true
-            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
+                true,
+                TimeValue.timeValueSeconds(5)
+            ),
             inferModelSuccess
         );
         response = inferModelSuccess.actionGet();
@@ -726,8 +729,9 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
                 modelId,
                 Collections.singletonList(Collections.emptyMap()),
                 RegressionConfigUpdate.EMPTY_PARAMS,
-                false
-            ).setInferenceTimeout(TimeValue.timeValueSeconds(5)),
+                false,
+                TimeValue.timeValueSeconds(5)
+            ),
             listener
         );
         assertThat(listener.actionGet().getInferenceResults(), is(not(empty())));

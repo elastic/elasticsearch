@@ -2,7 +2,7 @@
 [[esql-starts_with]]
 === `STARTS_WITH`
 [.text-center]
-image::esql/functions/signature/ends_with.svg[Embedded,opts=inline]
+image::esql/functions/signature/starts_with.svg[Embedded,opts=inline]
 
 Returns a boolean that indicates whether a keyword string starts with another
 string:

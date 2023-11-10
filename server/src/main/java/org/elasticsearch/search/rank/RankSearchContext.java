@@ -321,11 +321,6 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFetchSourceContext() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public FetchSourceContext fetchSourceContext() {
         throw new UnsupportedOperationException();
     }

@@ -132,7 +132,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     createLeaderIndex(leaderClient(), leaderIndex1);
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
-
                         String followerIndex = "copy-" + leaderIndex1;
                         assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(1));
                         assertTotalHitCount(followerIndex, 64, followerClient());
@@ -229,13 +228,13 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
             assertThat(
                 e.getMessage(),
-                allOf(
-                    anyOf(
-                        containsString("the snapshot was created with Elasticsearch version ["),
-                        containsString("the snapshot was created with index version [")
+                anyOf(
+                    allOf(
+                        containsString("the snapshot was created with index version ["),
+                        containsString("] which is higher than the version used by this node [")
                     ),
-                    anyOf(
-                        containsString("] which is higher than the version used by this node ["),
+                    allOf(
+                        containsString("the snapshot was created with Elasticsearch version ["),
                         containsString("] which is higher than the version of this node [")
                     )
                 )

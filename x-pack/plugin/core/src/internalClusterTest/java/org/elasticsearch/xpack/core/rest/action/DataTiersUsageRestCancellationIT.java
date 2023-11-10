@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.apache.http.client.methods.HttpGet;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -34,7 +35,6 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
-import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -76,7 +76,7 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
         final SubscribableListener<Void> nodeStatsRequestsReleaseListener = new SubscribableListener<>();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             ((MockTransportService) transportService).addRequestHandlingBehavior(
-                NodesDataTiersUsageTransportAction.TYPE.name() + "[n]",
+                TransportNodesStatsAction.TYPE.name() + "[n]",
                 (handler, request, channel, task) -> {
                     tasksBlockedLatch.countDown();
                     nodeStatsRequestsReleaseListener.addListener(
@@ -94,13 +94,14 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
         safeAwait(tasksBlockedLatch); // must wait for the node-level tasks to start to avoid cancelling being handled earlier
         cancellable.cancel();
 
-        assertAllCancellableTasksAreCancelled(NodesDataTiersUsageTransportAction.TYPE.name());
+        // NB this test works by blocking node-level stats requests; when #100230 is addressed this will need to target a different action.
+        assertAllCancellableTasksAreCancelled(TransportNodesStatsAction.TYPE.name());
         assertAllCancellableTasksAreCancelled(XPackUsageAction.NAME);
 
         nodeStatsRequestsReleaseListener.onResponse(null);
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertAllTasksHaveFinished(NodesDataTiersUsageTransportAction.TYPE.name());
+        assertAllTasksHaveFinished(TransportNodesStatsAction.TYPE.name());
         assertAllTasksHaveFinished(XPackUsageAction.NAME);
     }
 

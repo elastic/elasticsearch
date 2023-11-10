@@ -25,9 +25,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -45,16 +43,10 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     public static final String NAME = "inference";
     private static final ParseField MODEL = new ParseField("model_id");
-    private static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     private static final ParseField INTERNAL_INFERENCE_CONFIG = new ParseField("_internal_inference_config");
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, false, Builder::new);
     static {
         PARSER.declareString(Builder::setModelId, MODEL);
-        PARSER.declareNamedObject(
-            Builder::setInferenceConfigUpdate,
-            (p, c, name) -> p.namedObject(InferenceConfigUpdate.class, name, false),
-            INFERENCE_CONFIG
-        );
         PARSER.declareNamedObject(
             Builder::setInferenceConfig,
             (p, c, name) -> p.namedObject(StrictlyParsedInferenceConfig.class, name, false),
@@ -67,7 +59,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     }
 
     private final String modelId;
-    private final LearnToRankConfigUpdate inferenceConfigUpdate;
     private final LearnToRankConfig inferenceConfig;
     private final LocalModel inferenceDefinition;
     private final Supplier<LocalModel> inferenceDefinitionSupplier;
@@ -75,13 +66,8 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     private final Supplier<LearnToRankConfig> inferenceConfigSupplier;
     private boolean rescoreOccurred;
 
-    public InferenceRescorerBuilder(
-        String modelId,
-        LearnToRankConfigUpdate inferenceConfigUpdate,
-        Supplier<ModelLoadingService> modelLoadingServiceSupplier
-    ) {
+    public InferenceRescorerBuilder(String modelId, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.inferenceConfigUpdate = inferenceConfigUpdate;
         this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
         this.inferenceDefinition = null;
         this.inferenceDefinitionSupplier = null;
@@ -91,7 +77,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     InferenceRescorerBuilder(String modelId, LearnToRankConfig inferenceConfig, Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.inferenceConfigUpdate = null;
         this.inferenceDefinition = null;
         this.inferenceDefinitionSupplier = null;
         this.inferenceConfigSupplier = null;
@@ -101,12 +86,10 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     private InferenceRescorerBuilder(
         String modelId,
-        LearnToRankConfigUpdate update,
         Supplier<ModelLoadingService> modelLoadingServiceSupplier,
         Supplier<LearnToRankConfig> inferenceConfigSupplier
     ) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.inferenceConfigUpdate = update;
         this.inferenceDefinition = null;
         this.inferenceDefinitionSupplier = null;
         this.inferenceConfigSupplier = inferenceConfigSupplier;
@@ -121,7 +104,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         Supplier<LocalModel> inferenceDefinitionSupplier
     ) {
         this.modelId = modelId;
-        this.inferenceConfigUpdate = null;
         this.inferenceDefinition = null;
         this.inferenceDefinitionSupplier = inferenceDefinitionSupplier;
         this.modelLoadingServiceSupplier = modelLoadingServiceSupplier;
@@ -131,7 +113,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     InferenceRescorerBuilder(String modelId, LearnToRankConfig inferenceConfig, LocalModel inferenceDefinition) {
         this.modelId = modelId;
-        this.inferenceConfigUpdate = null;
         this.inferenceDefinition = inferenceDefinition;
         this.inferenceDefinitionSupplier = null;
         this.modelLoadingServiceSupplier = null;
@@ -142,7 +123,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     public InferenceRescorerBuilder(StreamInput input, Supplier<ModelLoadingService> modelLoadingServiceSupplier) throws IOException {
         super(input);
         this.modelId = input.readString();
-        this.inferenceConfigUpdate = (LearnToRankConfigUpdate) input.readOptionalNamedWriteable(InferenceConfigUpdate.class);
         this.inferenceDefinitionSupplier = null;
         this.inferenceConfigSupplier = null;
         this.inferenceDefinition = null;
@@ -210,9 +190,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 ActionListener.wrap(trainedModels -> {
                     TrainedModelConfig config = trainedModels.getResources().results().get(0);
                     if (config.getInferenceConfig() instanceof LearnToRankConfig retrievedInferenceConfig) {
-                        retrievedInferenceConfig = inferenceConfigUpdate == null
-                            ? retrievedInferenceConfig
-                            : inferenceConfigUpdate.apply(retrievedInferenceConfig);
+                        // TODO: apply params instead of an override.
                         for (LearnToRankFeatureExtractorBuilder builder : retrievedInferenceConfig.getFeatureExtractorBuilders()) {
                             builder.validate();
                         }
@@ -232,12 +210,7 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
                 }, l::onFailure)
             )
         );
-        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(
-            modelId,
-            inferenceConfigUpdate,
-            modelLoadingServiceSupplier,
-            configSetOnce::get
-        );
+        InferenceRescorerBuilder builder = new InferenceRescorerBuilder(modelId, modelLoadingServiceSupplier, configSetOnce::get);
         if (windowSize() != null) {
             builder.windowSize(windowSize);
         }
@@ -336,7 +309,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         }
         assert inferenceDefinition == null || rescoreOccurred : "Unnecessarily populated local model object";
         out.writeString(modelId);
-        out.writeOptionalNamedWriteable(inferenceConfigUpdate);
         out.writeOptionalNamedWriteable(inferenceConfig);
     }
 
@@ -344,9 +316,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.field(MODEL.getPreferredName(), modelId);
-        if (inferenceConfigUpdate != null) {
-            NamedXContentObjectHelper.writeNamedObject(builder, params, INFERENCE_CONFIG.getPreferredName(), inferenceConfigUpdate);
-        }
         if (inferenceConfig != null) {
             NamedXContentObjectHelper.writeNamedObject(builder, params, INTERNAL_INFERENCE_CONFIG.getPreferredName(), inferenceConfig);
         }
@@ -367,7 +336,6 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         InferenceRescorerBuilder that = (InferenceRescorerBuilder) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(inferenceDefinition, that.inferenceDefinition)
-            && Objects.equals(inferenceConfigUpdate, that.inferenceConfigUpdate)
             && Objects.equals(inferenceConfig, that.inferenceConfig)
             && Objects.equals(inferenceDefinitionSupplier, that.inferenceDefinitionSupplier)
             && Objects.equals(modelLoadingServiceSupplier, that.modelLoadingServiceSupplier);
@@ -378,16 +346,11 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
         return Objects.hash(
             super.hashCode(),
             modelId,
-            inferenceConfigUpdate,
             inferenceConfig,
             inferenceDefinition,
             inferenceDefinitionSupplier,
             modelLoadingServiceSupplier
         );
-    }
-
-    LearnToRankConfigUpdate getInferenceConfigUpdate() {
-        return inferenceConfigUpdate;
     }
 
     // Used in tests
@@ -402,25 +365,10 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
 
     static class Builder {
         private String modelId;
-        private LearnToRankConfigUpdate inferenceConfigUpdate;
         private LearnToRankConfig inferenceConfig;
 
         public void setModelId(String modelId) {
             this.modelId = modelId;
-        }
-
-        public void setInferenceConfigUpdate(InferenceConfigUpdate inferenceConfigUpdate) {
-            if (inferenceConfigUpdate instanceof LearnToRankConfigUpdate learnToRankConfigUpdate) {
-                this.inferenceConfigUpdate = learnToRankConfigUpdate;
-                return;
-            }
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "[%s] only allows a [%s] object to be configured",
-                    INFERENCE_CONFIG.getPreferredName(),
-                    LearnToRankConfigUpdate.NAME.getPreferredName()
-                )
-            );
         }
 
         void setInferenceConfig(InferenceConfig inferenceConfig) {
@@ -431,19 +379,14 @@ public class InferenceRescorerBuilder extends RescorerBuilder<InferenceRescorerB
             throw new IllegalArgumentException(
                 Strings.format(
                     "[%s] only allows a [%s] object to be configured",
-                    INFERENCE_CONFIG.getPreferredName(),
-                    LearnToRankConfigUpdate.NAME.getPreferredName()
+                    INTERNAL_INFERENCE_CONFIG.getPreferredName(),
+                    LearnToRankConfig.NAME.getPreferredName()
                 )
             );
         }
 
         InferenceRescorerBuilder build(Supplier<ModelLoadingService> modelLoadingServiceSupplier) {
-            assert inferenceConfig == null || inferenceConfigUpdate == null;
-            if (inferenceConfig != null) {
-                return new InferenceRescorerBuilder(modelId, inferenceConfig, modelLoadingServiceSupplier);
-            } else {
-                return new InferenceRescorerBuilder(modelId, inferenceConfigUpdate, modelLoadingServiceSupplier);
-            }
+            return new InferenceRescorerBuilder(modelId, inferenceConfig, modelLoadingServiceSupplier);
         }
     }
 }

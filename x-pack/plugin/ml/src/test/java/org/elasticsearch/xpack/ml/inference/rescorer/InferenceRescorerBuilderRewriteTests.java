@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -39,13 +38,9 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -111,11 +106,7 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
 
     public void testRewriteOnCoordinator() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        LearnToRankConfigUpdate ltru = new LearnToRankConfigUpdate(
-            2,
-            List.of(new QueryExtractorBuilder("all", QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery())))
-        );
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(GOOD_MODEL, ltru, () -> testModelLoader);
+        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(GOOD_MODEL, () -> testModelLoader);
         inferenceRescorerBuilder.windowSize(4);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
@@ -137,17 +128,12 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
                 )
             )
         );
-        assertThat(rewritten.getInferenceConfigUpdate(), is(nullValue()));
         assertThat(rewritten.windowSize(), equalTo(4));
     }
 
     public void testRewriteOnCoordinatorWithBadModel() throws IOException {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
-            BAD_MODEL,
-            randomBoolean() ? null : LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
-            () -> testModelLoader
-        );
+        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(BAD_MODEL, () -> testModelLoader);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),
@@ -162,11 +148,7 @@ public class InferenceRescorerBuilderRewriteTests extends AbstractBuilderTestCas
 
     public void testRewriteOnCoordinatorWithMissingModel() {
         TestModelLoader testModelLoader = new TestModelLoader();
-        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder(
-            "missing_model",
-            randomBoolean() ? null : LearnToRankConfigUpdateTests.randomLearnToRankConfigUpdate(),
-            () -> testModelLoader
-        );
+        InferenceRescorerBuilder inferenceRescorerBuilder = new InferenceRescorerBuilder("missing_model", () -> testModelLoader);
         CoordinatorRewriteContext context = createCoordinatorRewriteContext(
             new DateFieldMapper.DateFieldType("@timestamp"),
             randomIntBetween(0, 1_100_000),

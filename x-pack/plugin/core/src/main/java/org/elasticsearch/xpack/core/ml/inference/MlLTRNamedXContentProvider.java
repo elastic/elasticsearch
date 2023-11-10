@@ -10,9 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LearnToRankConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.LearnToRankFeatureExtractorBuilder;
@@ -46,14 +44,6 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
                 LearnToRankConfig::fromXContentStrict
             )
         );
-        // Inference Config Update
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                InferenceConfigUpdate.class,
-                LearnToRankConfigUpdate.NAME,
-                LearnToRankConfigUpdate::fromXContentStrict
-            )
-        );
         // LTR extractors
         namedXContent.add(
             new NamedXContentRegistry.Entry(
@@ -70,14 +60,6 @@ public class MlLTRNamedXContentProvider implements NamedXContentProvider {
         // Inference config
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, LearnToRankConfig.NAME.getPreferredName(), LearnToRankConfig::new)
-        );
-        // Inference config update
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceConfigUpdate.class,
-                LearnToRankConfigUpdate.NAME.getPreferredName(),
-                LearnToRankConfigUpdate::new
-            )
         );
         // LTR Extractors
         namedWriteables.add(

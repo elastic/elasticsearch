@@ -18,14 +18,23 @@
             "GET",
             "POST"
           ]
+        },
+        {
+          "path":"/_ingest/{index}/_simulate",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"Default index for docs which don't provide one"
+            }
+          }
         }
       ]
     },
     "params":{
-      "index":{
-        "type":"string",
-        "description":"The default index to ingest all documents into if no index is given for a particular document"
-      },
       "pipeline":{
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with if no pipeline is given for a particular document"

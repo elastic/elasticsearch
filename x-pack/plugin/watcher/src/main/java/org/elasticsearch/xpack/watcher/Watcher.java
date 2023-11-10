@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -279,7 +278,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
      * tries to parse <code>version</code> from index metadata, and that will indicate
      * to these old nodes that the mappings are newer than they are.
      */
-    private static final String LEGACY_VERSION_FIELD_VALUE = Version.V_8_12_0.toString();
+    private static final String LEGACY_VERSION_FIELD_VALUE = "8.12.0";
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;

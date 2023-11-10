@@ -35,6 +35,10 @@ gradlePlugin {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
     }
+    buildFinished {
+      id = 'elasticsearch.build-finished'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildFinishedPlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
@@ -266,6 +270,8 @@ dependencies {
   api buildLibs.apache.rat
   api buildLibs.jna
   api buildLibs.shadow.plugin
+  api buildLibs.gradle.enterprise
+
   // for our ide tweaking
   api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
@@ -280,6 +286,7 @@ dependencies {
   api buildLibs.asm.tree
   api buildLibs.httpclient
   api buildLibs.httpcore
+
   compileOnly buildLibs.checkstyle
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle

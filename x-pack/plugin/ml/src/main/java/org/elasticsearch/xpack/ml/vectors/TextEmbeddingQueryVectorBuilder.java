@@ -95,7 +95,9 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
         InferModelAction.Request inferRequest = InferModelAction.Request.forTextInput(
             modelId,
             TextEmbeddingConfigUpdate.EMPTY_INSTANCE,
-            List.of(modelText)
+            List.of(modelText),
+            false,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
         );
         inferRequest.setHighPriority(true);
 

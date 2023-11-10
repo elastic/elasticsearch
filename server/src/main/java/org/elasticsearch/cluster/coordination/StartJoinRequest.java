@@ -15,11 +15,12 @@ import org.elasticsearch.transport.TransportRequest;
 import java.io.IOException;
 
 /**
- * Represents the action of requesting a join vote (see {@link Join}) from a node.
+ * Represents the action of requesting a join vote (see `{@link Join}`) from a node.
  *
- * A node running for election as the new master in a new term will broadcast a `{@link StartJoinRequest}`
- * to each node in the cluster to join the new cluster formed around itself as the
- * master node.
+ * A `{@link StartJoinRequest}` is broadcast to each node in the cluster, requesting
+ * that each node join the new cluster formed around the master candidate node in a
+ * new term. The sender is either the new master candidate or the current master
+ * abdicating to another eligible node in the cluster.
  */
 public class StartJoinRequest extends TransportRequest {
 

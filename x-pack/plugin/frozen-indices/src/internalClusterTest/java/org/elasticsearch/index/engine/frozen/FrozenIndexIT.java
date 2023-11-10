@@ -321,9 +321,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             try {
                 assertNoFailuresAndResponse(
                     prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
-                    searchResponse -> {
-                        assertHitCount(searchResponse, numDocs);
-                    }
+                    searchResponse -> assertHitCount(searchResponse, numDocs)
                 );
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
@@ -338,9 +336,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             try {
                 assertNoFailuresAndResponse(
                     prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
-                    searchResponse -> {
-                        assertHitCount(searchResponse, 0);
-                    }
+                    searchResponse -> assertHitCount(searchResponse, 0)
                 );
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();

@@ -120,66 +120,48 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertTrue(indexService.getIndexSettings().isSearchThrottled());
 
         // now scroll
-        SearchResponse scrollResponse = null;
-        try {
-            scrollResponse = client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                .setScroll(TimeValue.timeValueMinutes(1))
-                .setSize(1)
-                .get();
-            do {
-                String scrollId;
-                try {
-                    assertHitCount(scrollResponse, 3);
-                    assertEquals(1, scrollResponse.getHits().getHits().length);
-                    SearchService searchService = getInstanceFromNode(SearchService.class);
-                    assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
-                    for (int i = 0; i < 2; i++) {
-                        shard = indexService.getShard(i);
-                        engine = IndexShardTestCase.getEngine(shard);
-                        // scrolls keep the reader open
-                        assertTrue(((FrozenEngine) engine).isReaderOpen());
-                    }
-                    scrollId = scrollResponse.getScrollId();
-                } finally {
-                    if (scrollResponse != null) scrollResponse.decRef();
-                }
-                scrollResponse = client().prepareSearchScroll(scrollId).setScroll(TimeValue.timeValueMinutes(1)).get();
-            } while (scrollResponse.getHits().getHits().length > 0);
-            client().prepareClearScroll().addScrollId(scrollResponse.getScrollId()).get();
-            String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
-            try {
-                for (int from = 0; from < 3; from++) {
-                    SearchResponse localResponse = null;
-                    try {
-                        localResponse = client().prepareSearch()
-                            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
-                            .setPointInTime(new PointInTimeBuilder(pitId))
-                            .setSize(1)
-                            .setFrom(from)
-                            .get();
+        SearchResponse searchResponse = client().prepareSearch()
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .setSize(1)
+            .get();
+        do {
+            assertHitCount(searchResponse, 3);
+            assertEquals(1, searchResponse.getHits().getHits().length);
+            SearchService searchService = getInstanceFromNode(SearchService.class);
+            assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+            for (int i = 0; i < 2; i++) {
+                shard = indexService.getShard(i);
+                engine = IndexShardTestCase.getEngine(shard);
+                // scrolls keep the reader open
+                assertTrue(((FrozenEngine) engine).isReaderOpen());
+            }
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
+        } while (searchResponse.getHits().getHits().length > 0);
+        client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
-                        assertHitCount(localResponse, 3);
-                        assertEquals(1, localResponse.getHits().getHits().length);
-                        SearchService searchService = getInstanceFromNode(SearchService.class);
-                        assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
-                        for (int i = 0; i < 2; i++) {
-                            shard = indexService.getShard(i);
-                            engine = IndexShardTestCase.getEngine(shard);
-                            assertFalse(((FrozenEngine) engine).isReaderOpen());
-                        }
-                    } finally {
-                        if (localResponse != null) localResponse.decRef();
-                    }
+        String pitId = openReaders(TimeValue.timeValueMinutes(1), indexName);
+        try {
+            for (int from = 0; from < 3; from++) {
+                searchResponse = client().prepareSearch()
+                    .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+                    .setPointInTime(new PointInTimeBuilder(pitId))
+                    .setSize(1)
+                    .setFrom(from)
+                    .get();
+                assertHitCount(searchResponse, 3);
+                assertEquals(1, searchResponse.getHits().getHits().length);
+                SearchService searchService = getInstanceFromNode(SearchService.class);
+                assertThat(searchService.getActiveContexts(), Matchers.greaterThanOrEqualTo(1));
+                for (int i = 0; i < 2; i++) {
+                    shard = indexService.getShard(i);
+                    engine = IndexShardTestCase.getEngine(shard);
+                    assertFalse(((FrozenEngine) engine).isReaderOpen());
                 }
-                assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
-            } finally {
-                client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).get();
             }
+            assertWarnings(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", indexName));
         } finally {
-            if (scrollResponse != null) {
-                scrollResponse.decRef();
-            }
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).get();
         }
     }
 

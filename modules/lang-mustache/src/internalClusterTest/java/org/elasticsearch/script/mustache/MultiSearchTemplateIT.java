@@ -21,6 +21,7 @@ import org.elasticsearch.search.DummyQueryParserPlugin;
 import org.elasticsearch.search.FailBeforeCurrentVersionQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
@@ -175,10 +176,9 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(response4.getFailure().getMessage(), equalTo("no such index [unknown]"));
 
         MultiSearchTemplateResponse.Item response5 = response.getResponses()[4];
-        assertThat(response5.isFailure(), is(false));
-        SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
-        assertThat(searchTemplateResponse5.hasResponse(), is(false));
-        assertThat(searchTemplateResponse5.getSource().utf8ToString(), equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
+        assertThat(response5.isFailure(), is(true));
+        assertNull(response5.getResponse());
+        assertThat(response5.getFailure(), instanceOf(XContentParseException.class));
     }
 
     /**

@@ -780,7 +780,7 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
 
             appender.assertAllExpectationsMatched();
         } finally {

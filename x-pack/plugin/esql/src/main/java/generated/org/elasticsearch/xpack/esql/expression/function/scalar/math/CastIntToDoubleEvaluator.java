@@ -43,7 +43,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleBlock eval(int positionCount, IntBlock vBlock) {
-    try(DoubleBlock.Builder result = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (vBlock.isNull(p) || vBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -56,7 +56,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   }
 
   public DoubleVector eval(int positionCount, IntVector vVector) {
-    try(DoubleVector.Builder result = DoubleVector.newVectorBuilder(positionCount, driverContext.blockFactory())) {
+    try(DoubleVector.Builder result = driverContext.blockFactory().newDoubleVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         result.appendDouble(Cast.castIntToDouble(vVector.getInt(p)));
       }

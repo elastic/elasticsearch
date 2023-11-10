@@ -257,7 +257,7 @@ public final class ExceptionsHelper {
                 final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
                 logger.error("fatal error {}: {}\n{}", error.getClass().getCanonicalName(), error.getMessage(), formatted);
             } finally {
-                new Thread(() -> { throw error; }).start();
+                new Thread(() -> { throw error; }, "elasticsearch-error-rethrower").start();
             }
         });
     }

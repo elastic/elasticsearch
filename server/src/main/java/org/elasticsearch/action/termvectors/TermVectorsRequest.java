@@ -50,7 +50,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
+public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TermVectorsRequest.class);
 
     private static final ParseField INDEX = new ParseField("_index");
@@ -79,7 +79,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     private long version = Versions.MATCH_ANY;
 
-    protected String preference;
+    private String preference;
 
     private static final AtomicInteger randomInt = new AtomicInteger(0);
 
@@ -204,7 +204,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.filterSettings = other.filterSettings();
     }
 
-    @SuppressWarnings("this-escape")
     public TermVectorsRequest(MultiGetRequest.Item item) {
         super(item.index());
         this.id = item.id();

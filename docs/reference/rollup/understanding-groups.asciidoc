@@ -2,10 +2,7 @@
 [[rollup-understanding-groups]]
 === Understanding groups
 
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
 To preserve flexibility, Rollup Jobs are defined based on how future queries may need to use the data. Traditionally, systems force
 the admin to make decisions about what metrics to rollup and on what interval. E.g. The average of `cpu_time` on an hourly basis. This

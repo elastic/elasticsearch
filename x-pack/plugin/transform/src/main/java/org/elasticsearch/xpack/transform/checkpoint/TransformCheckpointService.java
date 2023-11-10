@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -86,6 +87,7 @@ public class TransformCheckpointService {
      */
     public void getCheckpointingInfo(
         final ParentTaskAssigningClient client,
+        final TimeValue timeout,
         final String transformId,
         final long lastCheckpointNumber,
         final TransformIndexerPosition nextCheckpointPosition,
@@ -99,6 +101,7 @@ public class TransformCheckpointService {
                 lastCheckpointNumber,
                 nextCheckpointPosition,
                 nextCheckpointProgress,
+                timeout,
                 listener
             );
         }, transformError -> {

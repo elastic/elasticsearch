@@ -161,6 +161,7 @@ public final class BlockUtils {
     public static Block deepCopyOf(Block block, BlockFactory blockFactory) {
         try (Block.Builder builder = block.elementType().newBlockBuilder(block.getPositionCount(), blockFactory)) {
             builder.copyFrom(block, 0, block.getPositionCount());
+            builder.mvOrdering(block.mvOrdering());
             return builder.build();
         }
     }

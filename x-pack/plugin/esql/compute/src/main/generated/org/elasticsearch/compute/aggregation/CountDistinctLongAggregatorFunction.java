@@ -63,11 +63,7 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    LongBlock block = (LongBlock) uncastBlock;
+    LongBlock block = page.getBlock(channels.get(0));
     LongVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);

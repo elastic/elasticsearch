@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -51,7 +50,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
             return;
         }
 
-        if (event.localNodeMaster() && event.state().nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
+        if (event.localNodeMaster()) {
             // only want one doing this at a time, assume it succeeds and reset if not.
             if (upgraded.compareAndSet(false, true)) {
                 final Executor executor = threadPool.generic();

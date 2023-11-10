@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
@@ -143,6 +144,11 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         return clusterState.compatibilityVersions();
     }
 
+    @SuppressForbidden(reason = "exposing ClusterState#clusterFeatures requires reading them")
+    private static Map<String, Set<String>> getClusterFeatures(ClusterState clusterState) {
+        return clusterState.clusterFeatures().nodeFeatures();
+    }
+
     private ClusterStateResponse buildResponse(final ClusterStateRequest request, final ClusterState currentState) {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
@@ -152,6 +158,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
             builder.nodeIdsToCompatibilityVersions(getCompatibilityVersions(currentState));
+            builder.nodeFeatures(getClusterFeatures(currentState));
         }
         if (request.routingTable()) {
             if (request.indices().length > 0) {

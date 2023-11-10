@@ -24,24 +24,37 @@ public class GetFromTranslogResponseSerializationTests extends AbstractWireSeria
 
     @Override
     protected TransportGetFromTranslogAction.Response createTestInstance() {
-        return new TransportGetFromTranslogAction.Response(randomGetResult(), randomSegmentGeneration());
+        return new TransportGetFromTranslogAction.Response(randomGetResult(), randomPrimaryTerm(), randomSegmentGeneration());
     }
 
     @Override
     protected TransportGetFromTranslogAction.Response mutateInstance(TransportGetFromTranslogAction.Response instance) throws IOException {
-        return randomBoolean()
-            ? new TransportGetFromTranslogAction.Response(
-                instance.getResult(),
-                randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
-            )
-            : new TransportGetFromTranslogAction.Response(
+        return switch (randomInt(2)) {
+            case 0 -> new TransportGetFromTranslogAction.Response(
                 randomValueOtherThan(instance.getResult(), this::randomGetResult),
+                instance.primaryTerm(),
                 instance.segmentGeneration()
             );
+            case 1 -> new TransportGetFromTranslogAction.Response(
+                instance.getResult(),
+                randomValueOtherThan(instance.primaryTerm(), this::randomPrimaryTerm),
+                instance.segmentGeneration()
+            );
+            case 2 -> new TransportGetFromTranslogAction.Response(
+                instance.getResult(),
+                instance.primaryTerm(),
+                randomValueOtherThan(instance.segmentGeneration(), this::randomSegmentGeneration)
+            );
+            default -> randomValueOtherThan(instance, this::createTestInstance);
+        };
     }
 
     private long randomSegmentGeneration() {
         return randomBoolean() ? -1L : randomNonNegativeLong();
+    }
+
+    private long randomPrimaryTerm() {
+        return randomNonNegativeLong();
     }
 
     private GetResult randomGetResult() {

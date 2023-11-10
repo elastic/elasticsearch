@@ -692,7 +692,7 @@ public class DefaultRestChannelTests extends ESTestCase {
                     }
                     return new TestHttpResponse(status, bso.bytes());
                 } catch (IOException e) {
-                    throw new AssertionError("unexpected", e);
+                    return fail(e);
                 }
             }
         };

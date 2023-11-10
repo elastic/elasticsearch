@@ -28,7 +28,7 @@ import java.util.function.Consumer;
  * is still running and AsyncTaskIndexService if task results already stored there.
  */
 public class DeleteAsyncResultsService {
-    private final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
+    private static final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
     private final TaskManager taskManager;
     private final AsyncTaskIndexService<? extends AsyncResponse<?>> store;
 

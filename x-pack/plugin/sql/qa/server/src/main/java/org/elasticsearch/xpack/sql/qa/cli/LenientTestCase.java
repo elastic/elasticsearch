@@ -27,10 +27,8 @@ public abstract class LenientTestCase extends CliIntegrationTestCase {
         index("test", body -> body.field("name", "foo").field("tags", new String[] { "bar", "bar" }));
         assertThat(
             command("SELECT * FROM test"),
-            containsString("Server encountered an error [Arrays (returned by [tags]) are not supported]")
+            containsString("[?1l>[?1000l[?2004l[31;1mBad request [[3;33;22mArrays (returned by [tags]) are not supported[23;31;1m][0m")
         );
-        while ("][23;31;1m][0m".equals(readLine()) == false)
-            ; // clean console to avoid failures on shutdown
     }
 
     public void testExplicitNoLenient() throws IOException {
@@ -38,9 +36,7 @@ public abstract class LenientTestCase extends CliIntegrationTestCase {
         assertEquals("[?1l>[?1000l[?2004llenient set to [90mfalse[0m", command("lenient = false"));
         assertThat(
             command("SELECT * FROM test"),
-            containsString("Server encountered an error [Arrays (returned by [tags]) are not supported]")
+            containsString("[?1l>[?1000l[?2004l[31;1mBad request [[3;33;22mArrays (returned by [tags]) are not supported[23;31;1m][0m")
         );
-        while ("][23;31;1m][0m".equals(readLine()) == false)
-            ; // clean console to avoid failures on shutdown
     }
 }

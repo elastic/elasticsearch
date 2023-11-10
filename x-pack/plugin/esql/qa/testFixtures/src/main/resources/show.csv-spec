@@ -9,20 +9,20 @@ showFunctions
 show functions;
 
        name:keyword      |                        synopsis:keyword          |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |returnType:keyword   |    description:keyword  | optionalArgs:boolean | variadic:boolean                
-abs                      |"? abs(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
-acos                     |"? acos(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
-asin                     |"? asin(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
-atan                     |"? atan(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
-atan2                    |"? atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       |[y, x]                   |["integer|long|double|unsigned_long", "integer|long|double|unsigned_long"]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
-auto_bucket              |? auto_bucket(arg1:?, arg2:?, arg3:?, arg4:?)           |[arg1, arg2, arg3, arg4] |[?, ?, ?, ?]      |["", "", "", ""]                                    |?                    | ""                      | [false, false, false, false]   | false
+abs                      |"integer|long|double|unsigned_long abs(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |"integer|long|double|unsigned_long"                    | ""                      | false                | false
+acos                     |"double acos(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+asin                     |"double asin(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double               | ""                      | false                | false
+atan                     |"double atan(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+atan2                    |"double atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       |[y, x]                   |["integer|long|double|unsigned_long", "integer|long|double|unsigned_long"]            |["", ""]                                            |double                    | ""                      | [false, false]       | false
+auto_bucket              |"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"           |[field, buckets, from, to] |["integer|long|double|date", "integer", "integer|long|double|date", "integer|long|double|date"]      |["", "", "", ""]                                    | "double|date"                    | ""                      | [false, false, false, false]   | false
 avg                      |? avg(arg1:?)                                           |arg1                     |?                 |   ""                                               |?                    | ""                      | false                | false
 case                     |? case(arg1:?, arg2...:?)                               |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
 ceil                     |"? ceil(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
 cidr_match               |? cidr_match(arg1:?, arg2...:?)                         |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
 coalesce                 |? coalesce(arg1:?, arg2...:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
 concat                   |? concat(arg1:?, arg2...:?)                             |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | true
-cos                      |"? cos(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
-cosh                     |"? cosh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
+cos                      |"double cos(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
+cosh                     |"double cosh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |double                    | ""                      | false                | false
 count                    |? count(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 count_distinct           |? count_distinct(arg1:?, arg2:?)                        |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 date_extract             |? date_extract(arg1:?, arg2:?)                          |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
@@ -62,14 +62,14 @@ right                    |"? right(string:keyword, length:integer)"     |[string
 round                    |? round(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 rtrim                    |? rtrim(arg1:?)                                         |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 sin                      |"double sin(n:integer|long|double|unsigned_long)" |n                        |"integer|long|double|unsigned_long"           |An angle, in radians                                |double               |Returns the trigonometric sine of an angle  | false      | false
-sinh                     |"? sinh(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"           | ""                                                 |?                    | ""                      | false                | false
+sinh                     |"double sinh(n:integer|long|double|unsigned_long)"|n                        |"integer|long|double|unsigned_long"           | ""                                                 |double                    | ""                      | false                | false
 split                    |? split(arg1:?, arg2:?)                                 |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 sqrt                     |"? sqrt(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"                 | ""                                                 |?                    | ""                      | false                | false
 starts_with              |? starts_with(arg1:?, arg2:?)                           |[arg1, arg2]             |[?, ?]            |["", ""]                                            |?                    | ""                      | [false, false]       | false
 substring                |? substring(arg1:?, arg2:?, arg3:?)                     |[arg1, arg2, arg3]       |[?, ?, ?]         |["", "", ""]                                        |?                    | ""                      | [false, false, false]| false
 sum                      |? sum(arg1:?)                                           |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
-tan                      |"? tan(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"           | ""                                                 |?                    | ""                      | false                | false
-tanh                     |"? tanh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"           | ""                                                 |?                    | ""                      | false                | false
+tan                      |"double tan(n:integer|long|double|unsigned_long)"      |n                        |"integer|long|double|unsigned_long"           | ""                      |double               | ""                      | false                | false
+tanh                     |"double tanh(n:integer|long|double|unsigned_long)"     |n                        |"integer|long|double|unsigned_long"           | ""                      |double               | ""                      | false                | false
 tau                      |? tau()                                                 | null                    | null             | null                                               |?                    | ""                      | null                 | false
 to_bool                  |? to_bool(arg1:?)                                       |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
 to_boolean               |? to_boolean(arg1:?)                                    |arg1                     |?                 | ""                                                 |?                    | ""                      | false                | false
@@ -98,20 +98,20 @@ showFunctionsSynopsis
 show functions | keep synopsis;
 
 synopsis:keyword          
-"? abs(n:integer|long|double|unsigned_long)"      
-"? acos(n:integer|long|double|unsigned_long)"     
-"? asin(n:integer|long|double|unsigned_long)"     
-"? atan(n:integer|long|double|unsigned_long)"     
-"? atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       
-? auto_bucket(arg1:?, arg2:?, arg3:?, arg4:?)           
+"integer|long|double|unsigned_long abs(n:integer|long|double|unsigned_long)"      
+"double acos(n:integer|long|double|unsigned_long)"     
+"double asin(n:integer|long|double|unsigned_long)"     
+"double atan(n:integer|long|double|unsigned_long)"     
+"double atan2(y:integer|long|double|unsigned_long, x:integer|long|double|unsigned_long)"                                       
+"double|date auto_bucket(field:integer|long|double|date, buckets:integer, from:integer|long|double|date, to:integer|long|double|date)"
 ? avg(arg1:?)                                           
 ? case(arg1:?, arg2...:?)                               
 "? ceil(n:integer|long|double|unsigned_long)"     
 ? cidr_match(arg1:?, arg2...:?)                         
 ? coalesce(arg1:?, arg2...:?)                           
 ? concat(arg1:?, arg2...:?)                             
-"? cos(n:integer|long|double|unsigned_long)"      
-"? cosh(n:integer|long|double|unsigned_long)"     
+"double cos(n:integer|long|double|unsigned_long)"      
+"double cosh(n:integer|long|double|unsigned_long)"     
 ? count(arg1:?)                                         
 ? count_distinct(arg1:?, arg2:?)                        
 ? date_extract(arg1:?, arg2:?)                          
@@ -151,14 +151,14 @@ synopsis:keyword
 ? round(arg1:?, arg2:?)                                 
 ? rtrim(arg1:?)                                         
 "double sin(n:integer|long|double|unsigned_long)" 
-"? sinh(n:integer|long|double|unsigned_long)"
+"double sinh(n:integer|long|double|unsigned_long)"
 ? split(arg1:?, arg2:?)                                 
 "? sqrt(n:integer|long|double|unsigned_long)"     
 ? starts_with(arg1:?, arg2:?)                           
 ? substring(arg1:?, arg2:?, arg3:?)                     
 ? sum(arg1:?)                                           
-"? tan(n:integer|long|double|unsigned_long)"      
-"? tanh(n:integer|long|double|unsigned_long)"     
+"double tan(n:integer|long|double|unsigned_long)"      
+"double tanh(n:integer|long|double|unsigned_long)"     
 ? tau()                                                 
 ? to_bool(arg1:?)                                       
 ? to_boolean(arg1:?)                                    
@@ -184,10 +184,16 @@ synopsis:keyword
 
 
 showFunctionsFiltered
-show functions | where starts_with(name, "is_");
+// tag::showFunctionsFiltered[]
+SHOW functions 
+| WHERE STARTS_WITH(name, "is_")
+// end::showFunctionsFiltered[]
+;
 
+// tag::showFunctionsFiltered-result[]
        name:keyword      |                        synopsis:keyword                |       argNames:keyword  | argTypes:keyword |             argDescriptions:keyword                |  returnType:keyword   |  description:keyword  |   optionalArgs:boolean |  variadic:boolean
 is_finite                |? is_finite(arg1:?)                                     |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
 is_infinite              |? is_infinite(arg1:?)                                   |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
 is_nan                   |? is_nan(arg1:?)                                        |arg1                     |?                 |  ""                                                  |?              | ""                      | false                | false
+// end::showFunctionsFiltered-result[]
 ;

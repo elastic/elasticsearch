@@ -29,8 +29,7 @@ import java.util.Map;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.mockito.Mockito.mock;
 
-public class RestUpdateActionTests extends RestActionTestCase {
-    @SuppressWarnings("this-escape")
+public final class RestUpdateActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private RestUpdateAction action;

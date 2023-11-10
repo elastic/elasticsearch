@@ -56,12 +56,6 @@ public class CancellationIT extends ProfilingTestCase {
         return plugins;
     }
 
-    @Override
-    protected boolean useOnlyAllEvents() {
-        // we assume that all indices have been created to simplify the testing logic.
-        return false;
-    }
-
     public void testAutomaticCancellation() throws Exception {
         Request restRequest = new Request("POST", "/_profiling/stacktraces");
         restRequest.setEntity(new StringEntity("""
@@ -158,7 +152,7 @@ public class CancellationIT extends ProfilingTestCase {
     private static List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
         for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
-            plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
+            pluginsService.filterPlugins(ScriptedBlockPlugin.class).forEach(plugins::add);
         }
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.reset();

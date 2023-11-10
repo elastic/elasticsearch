@@ -146,7 +146,8 @@ public class MockBlockFactory extends BlockFactory {
         return b;
     }
 
-    BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+    @Override
+    public BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
         var b = super.newBooleanVectorFixedBuilder(size);
         track(b, trackDetail());
         return b;
@@ -244,7 +245,8 @@ public class MockBlockFactory extends BlockFactory {
         return b;
     }
 
-    LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+    @Override
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
         var b = super.newLongVectorFixedBuilder(size);
         track(b, trackDetail());
         return b;
@@ -285,7 +287,8 @@ public class MockBlockFactory extends BlockFactory {
         return b;
     }
 
-    DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+    @Override
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
         var b = super.newDoubleVectorFixedBuilder(size);
         track(b, trackDetail());
         return b;

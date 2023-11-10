@@ -685,3 +685,6 @@ a different index configuration, like the number of primary shards.
 ===== Allow expensive queries
 Percolate queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
 is set to false.
+
+===== Using custom similarities
+Percolate queries will not respect any configured <<index-modules-similarity, custom similarity>>. They always use the default Lucene similarity.

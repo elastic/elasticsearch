@@ -270,7 +270,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (referenceTerms != null && referenceTerms.getClass().equals(terms.getClass()) == false && terms.canLeadReduction()) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
-                throw AggregationErrors.reduceTypeMissmatch(referenceTerms.getName(), Optional.empty());
+                throw AggregationErrors.reduceTypeMismatch(referenceTerms.getName(), Optional.empty());
             }
             otherDocCount[0] += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError = getDocCountError(terms);

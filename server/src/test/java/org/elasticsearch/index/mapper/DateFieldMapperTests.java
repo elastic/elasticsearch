@@ -34,6 +34,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
@@ -577,7 +578,12 @@ public class DateFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     Tuple<Object, String> v = generateValue();
-                    return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+                    return new SyntheticSourceExample(
+                        v.v1(),
+                        v.v2(),
+                        resolution.convert(Instant.from(formatter.parse(v.v2()))),
+                        this::mapping
+                    );
                 }
                 List<Tuple<Object, String>> values = randomList(1, maxValues, this::generateValue);
                 List<Object> in = values.stream().map(Tuple::v1).toList();
@@ -588,7 +594,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                     .map(Tuple::v2)
                     .toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
-                return new SyntheticSourceExample(in, out, this::mapping);
+
+                List<Long> outBlockList = outList.stream().map(v -> resolution.convert(Instant.from(formatter.parse(v)))).toList();
+                Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
+                return new SyntheticSourceExample(in, out, outBlock, this::mapping);
             }
 
             private Tuple<Object, String> generateValue() {
@@ -694,6 +703,11 @@ public class DateFieldMapperTests extends MapperTestCase {
                 };
             }
         };
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> ((Number) v).longValue();
     }
 
     public void testLegacyField() throws Exception {

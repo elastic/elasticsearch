@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
@@ -347,7 +348,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
         }
 
@@ -414,7 +415,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
             return null;
         }
 

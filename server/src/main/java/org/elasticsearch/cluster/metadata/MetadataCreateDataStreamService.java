@@ -46,6 +46,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
+
 public class MetadataCreateDataStreamService {
 
     private static final Logger logger = LogManager.getLogger(MetadataCreateDataStreamService.class);
@@ -53,6 +55,7 @@ public class MetadataCreateDataStreamService {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final MetadataCreateIndexService metadataCreateIndexService;
+    private final boolean isDslOnlyMode;
 
     public MetadataCreateDataStreamService(
         ThreadPool threadPool,
@@ -62,6 +65,7 @@ public class MetadataCreateDataStreamService {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.metadataCreateIndexService = metadataCreateIndexService;
+        this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
     }
 
     public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
@@ -87,7 +91,13 @@ public class MetadataCreateDataStreamService {
             new AckedClusterStateUpdateTask(Priority.HIGH, request, delegate.clusterStateUpdate()) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request, delegate.reroute());
+                    ClusterState clusterState = createDataStream(
+                        metadataCreateIndexService,
+                        currentState,
+                        isDslOnlyMode,
+                        request,
+                        delegate.reroute()
+                    );
                     firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
                     return clusterState;
                 }
@@ -105,7 +115,7 @@ public class MetadataCreateDataStreamService {
         ClusterState current,
         ActionListener<Void> listener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, current, request, listener);
+        return createDataStream(metadataCreateIndexService, current, isDslOnlyMode, request, listener);
     }
 
     public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
@@ -162,10 +172,11 @@ public class MetadataCreateDataStreamService {
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
         ClusterState currentState,
+        boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
         ActionListener<Void> listener
     ) throws Exception {
-        return createDataStream(metadataCreateIndexService, currentState, request, List.of(), null, listener);
+        return createDataStream(metadataCreateIndexService, currentState, isDslOnlyMode, request, List.of(), null, listener);
     }
 
     /**
@@ -181,6 +192,7 @@ public class MetadataCreateDataStreamService {
     static ClusterState createDataStream(
         MetadataCreateIndexService metadataCreateIndexService,
         ClusterState currentState,
+        boolean isDslOnlyMode,
         CreateDataStreamClusterStateUpdateRequest request,
         List<IndexMetadata> backingIndices,
         IndexMetadata writeIndex,
@@ -277,7 +289,7 @@ public class MetadataCreateDataStreamService {
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
-            lifecycle == null ? DataStreamLifecycle.DEFAULT : lifecycle
+            lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

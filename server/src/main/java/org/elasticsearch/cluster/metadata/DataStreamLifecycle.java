@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -48,6 +49,19 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     // Versions over the wire
     public static final TransportVersion ADDED_ENABLED_FLAG_VERSION = TransportVersions.V_8_500_057;
+
+    public static final String DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME = "data_streams.lifecycle_only.mode";
+
+    /**
+     * Check if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set to {@code true}, indicating that
+     * we're running in a cluster configuration that is only expecting to use data streams lifecycles.
+     *
+     * @param settings the node settings
+     * @return true if {@link #DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME} is present and set
+     */
+    public static boolean isDataStreamsLifecycleOnlyMode(final Settings settings) {
+        return settings.getAsBoolean(DATA_STREAMS_LIFECYCLE_ONLY_SETTING_NAME, false);
+    }
 
     public static final Setting<RolloverConfiguration> CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING = new Setting<>(
         "cluster.lifecycle.default.rollover",

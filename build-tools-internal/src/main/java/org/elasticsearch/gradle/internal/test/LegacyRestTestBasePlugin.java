@@ -105,7 +105,6 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                     );
                 }
             }
-            configureCacheability(restIntegTestTask);
         });
 
         project.getTasks()
@@ -127,16 +126,17 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                     t.getClusters().forEach(c -> c.plugin(bundle));
                 }
             });
+            configureCacheability(t);
         });
     }
 
-    private void configureCacheability(RestIntegTestTask restIntegTestTask) {
+    private void configureCacheability(StandaloneRestIntegTestTask testTask) {
         TaskContainer tasks = project.getTasks();
         Spec<Task> taskSpec = t -> tasks.withType(StandaloneRestIntegTestTask.class)
             .stream()
-            .filter(task -> task != restIntegTestTask)
-            .anyMatch(task -> Collections.disjoint(task.getClusters(), restIntegTestTask.getClusters()) == false);
-        restIntegTestTask.getOutputs()
+            .filter(task -> task != testTask)
+            .anyMatch(task -> Collections.disjoint(task.getClusters(), testTask.getClusters()) == false);
+        testTask.getOutputs()
             .doNotCacheIf(
                 "Caching disabled for this task since it uses a cluster shared by other tasks",
                 /*
@@ -147,7 +147,7 @@ public class LegacyRestTestBasePlugin implements Plugin<Project> {
                  */
                 taskSpec
             );
-        restIntegTestTask.getOutputs().upToDateWhen(new NotSpec(taskSpec));
+        testTask.getOutputs().upToDateWhen(new NotSpec(taskSpec));
     }
 
     private String systemProperty(String propName) {

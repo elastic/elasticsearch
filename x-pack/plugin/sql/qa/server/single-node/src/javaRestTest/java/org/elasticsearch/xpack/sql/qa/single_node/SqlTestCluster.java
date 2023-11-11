@@ -14,7 +14,7 @@ public class SqlTestCluster {
     public static ElasticsearchCluster getCluster() {
         return ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .setting("cluster.name", "javaRestTest")
+            .name("javaRestTest")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.watcher.enabled", "false")
             .setting("xpack.security.enabled", "false")

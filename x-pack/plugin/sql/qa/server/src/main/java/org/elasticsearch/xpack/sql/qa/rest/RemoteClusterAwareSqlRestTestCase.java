@@ -58,7 +58,7 @@ public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
         }
     }
 
-    protected static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
+    public static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         doConfigureClient(builder, settings);
 

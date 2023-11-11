@@ -1,0 +1,133 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.sql.qa.multi_cluster_with_security;
+
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
+
+import java.io.IOException;
+
+import static org.elasticsearch.test.rest.ESRestTestCase.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase.clientBuilder;
+
+public class SqlTestClusterWithRemote implements TestRule {
+    private static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
+    private static final String USER_NAME = "test_user";
+    private static final String PASSWORD = "x-pack-test-password";
+
+    private static ElasticsearchCluster getCluster(String remoteAddress) {
+        return ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .name("javaRestTest")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.watcher.enabled", "false")
+            .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".seeds", remoteAddress)
+            .setting("cluster.remote.connections_per_cluster", "1")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.autoconfiguration.enabled", "false")
+            .user(USER_NAME, PASSWORD)
+            .plugin(":x-pack:qa:freeze-plugin")
+            .build();
+    }
+
+    private static ElasticsearchCluster getRemoteCluster() {
+        return ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .name("remote-cluster")
+            .setting("node.roles", "[data,ingest,master]")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.watcher.enabled", "false")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.autoconfiguration.enabled", "false")
+            .user(USER_NAME, PASSWORD)
+            .plugin(":x-pack:qa:freeze-plugin")
+            .build();
+    }
+
+    /**
+     * Auth settings for both the cluster and the remote.
+     */
+    private static Settings clientAuthSettings() {
+        final String value = basicAuthHeaderValue(USER_NAME, new SecureString(PASSWORD.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", value).build();
+    }
+
+    private ElasticsearchCluster cluster;
+    private final ElasticsearchCluster remote = getRemoteCluster();
+    private RestClient remoteClient;
+
+    public static String remoteClusterName() {
+        return REMOTE_CLUSTER_NAME;
+    }
+
+    public Statement apply(Statement base, Description description) {
+        return remote.apply(startRemoteClient(startCluster(base)), null);
+    }
+
+    public ElasticsearchCluster cluster() {
+        return cluster;
+    }
+
+    public Settings clusterAuthSettings() {
+        return clientAuthSettings();
+    }
+
+    public RestClient remoteClient() {
+        return remoteClient;
+    }
+
+    private Statement startCluster(Statement base) {
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                // Remote address will look like [::1]:12345 - elasticsearch.yml does not like the square brackets.
+                String remoteAddress = remote.getTransportEndpoint(0).replaceAll("\\[|\\]", "");
+                cluster = getCluster(remoteAddress);
+                cluster.apply(base, null).evaluate();
+            }
+        };
+    }
+
+    private Statement startRemoteClient(Statement base) {
+        return new Statement() {
+            @Override
+            public void evaluate() throws Throwable {
+                try {
+                    remoteClient = initRemoteClient();
+                    base.evaluate();
+                } finally {
+                    IOUtils.close(remoteClient);
+                }
+            }
+        };
+    }
+
+    private RestClient initRemoteClient() throws IOException {
+        String crossClusterHost = remote.getHttpAddress(0);
+        int portSeparator = crossClusterHost.lastIndexOf(':');
+        if (portSeparator < 0) {
+            throw new IllegalArgumentException("Illegal cluster url [" + crossClusterHost + "]");
+        }
+        String host = crossClusterHost.substring(0, portSeparator);
+        int port = Integer.parseInt(crossClusterHost.substring(portSeparator + 1));
+        HttpHost[] remoteHttpHosts = new HttpHost[] { new HttpHost(host, port) };
+
+        return clientBuilder(clientAuthSettings(), remoteHttpHosts);
+    }
+}

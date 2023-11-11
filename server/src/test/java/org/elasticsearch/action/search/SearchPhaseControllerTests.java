@@ -275,12 +275,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase.suggest(),
                 profile
             );
-            InternalSearchResponse mergedResponse = SearchPhaseController.merge(
-                false,
-                reducedQueryPhase,
-                fetchResults.asList(),
-                fetchResults::get
-            );
+            InternalSearchResponse mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
             if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 assertNull(mergedResponse.hits.getTotalHits());
             } else {
@@ -381,12 +376,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase.suggest(),
                 false
             );
-            InternalSearchResponse mergedResponse = SearchPhaseController.merge(
-                false,
-                reducedQueryPhase,
-                fetchResults.asList(),
-                fetchResults::get
-            );
+            InternalSearchResponse mergedResponse = SearchPhaseController.merge(false, reducedQueryPhase, fetchResults);
             if (trackTotalHits == SearchContext.TRACK_TOTAL_HITS_DISABLED) {
                 assertNull(mergedResponse.hits.getTotalHits());
             } else {

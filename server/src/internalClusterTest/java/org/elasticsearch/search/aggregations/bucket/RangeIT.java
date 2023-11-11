@@ -201,7 +201,6 @@ public class RangeIT extends ESIntegTestCase {
                 range("range").field(SINGLE_VALUED_FIELD_NAME).addUnboundedTo(3).addRange(3, 6).addUnboundedFrom(6)
             ),
             response -> {
-                ;
                 Range range = response.getAggregations().get("range");
                 assertThat(range, notNullValue());
                 assertThat(range.getName(), equalTo("range"));

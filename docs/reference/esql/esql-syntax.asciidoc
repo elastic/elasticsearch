@@ -132,7 +132,7 @@ To obtain constant values of different types, use one of the numeric
 
 
 [discrete]
-[[esql-operators]]
+[[esql-lang-operators]]
 ==== Operators
 
 {esql} supports arithmetic, logical and qualifying operators. These can have

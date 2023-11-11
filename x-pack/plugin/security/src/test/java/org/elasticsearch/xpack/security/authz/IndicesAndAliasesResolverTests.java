@@ -466,6 +466,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
     }
 
+    public void testWildcardOverlapWithAliasExcludeWildcard() {
+        final User user = new User("data-stream-tester3", "data_stream_test3");
+        SearchRequest request = new SearchRequest("logs*", "-logs-00002*");
+        List<String> indices = resolveIndices(request, buildAuthorizedIndices(user, SearchAction.NAME)).getLocal();
+        String[] expectedIndices = new String[] { "logs-00001", "logs-00003" };
+        assertThat(indices, hasSize(expectedIndices.length));
+        assertThat(request.indices().length, equalTo(expectedIndices.length));
+        assertThat(indices, hasItems(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+    }
+
     public void testWildcardOverlapWithAliasExcludeAlias() {
         final User user = new User("data-stream-tester3", "data_stream_test3");
         SearchRequest request = new SearchRequest("logs*", "-logs-alias");

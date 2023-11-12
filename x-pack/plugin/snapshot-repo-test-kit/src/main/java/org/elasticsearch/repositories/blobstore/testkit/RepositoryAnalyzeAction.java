@@ -865,7 +865,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         private int blobCount = 100;
         private int concurrency = 10;
-        private int registerOperationCount = 100;
+        private int registerOperationCount = 10;
         private int readNodeCount = 10;
         private int earlyReadNodeCount = 2;
         private long seed = 0L;

@@ -42,7 +42,6 @@ public class AggregationsIntegrationIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("index").setSize(size).setScroll(TimeValue.timeValueMinutes(1)).addAggregation(terms("f").field("f")),
             response -> {
-                assertNoFailures(response);
                 Aggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 Terms terms = aggregations.get("f");

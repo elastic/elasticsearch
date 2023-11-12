@@ -257,3 +257,13 @@ following naming rules:
 permitted in container names.
 * All letters in a container name must be lowercase.
 * Container names must be from 3 through 63 characters long.
+
+[[repository-azure-linearizable-registers]]
+[discrete]
+==== Linearizable register implementation
+
+The linearizable register implementation for Azure repositories is based around
+Azure's support for strongly consistent leases that can prevent concurrent
+access to a blob. To perform a compare-and-exchange operation on a register,
+{es} first obtains a lease on the blob, then uploads the updated blob under the
+same lease, which ensures that the blob has not changed in the meantime.

@@ -141,8 +141,9 @@ between versions. The request parameters and response format depend on details
 of the implementation so may also be different in newer versions.
 
 The analysis comprises a number of blob-level tasks, as set by the `blob_count`
-parameter. The blob-level tasks are distributed over the data and
-master-eligible nodes in the cluster for execution.
+parameter, and a number of compare-and-exchange operations on linearizable
+registers. These tasks are distributed over the data and master-eligible nodes
+in the cluster for execution.
 
 For most blob-level tasks, the executing node first writes a blob to the
 repository, and then instructs some of the other nodes in the cluster to
@@ -174,6 +175,19 @@ For some blob-level tasks, the executing node will abort the write before it is
 complete. In this case it still instructs some of the other nodes in the
 cluster to attempt to read the blob, but all of these reads must fail to find
 the blob.
+
+Linearizable registers are special blobs which {es} manipulates using a
+compare-and-exchange operation which must have very strong consistency even
+when accessed concurrently by multiple nodes. The detailed implementation of
+the compare-and-exchange operation on linearizable registers varies by
+repository type. Repository analysis verifies that that uncontended
+compare-and-exchange operations on a linearizable register blob always succeed,
+and that contended operations either succeed or report the contention but do
+not return incorrect results. If a contended write fails due to contention then
+{es} will keep retrying until it eventually succeeds. Most of the
+compare-and-exchange operations performed by repository analysis atomically
+increment a counter, represented as an 8-byte blob, but some operations also
+verify the behaviour on small blobs with sizes other than 8 bytes.
 
 [[repo-analysis-api-path-params]]
 ==== {api-path-parms-title}

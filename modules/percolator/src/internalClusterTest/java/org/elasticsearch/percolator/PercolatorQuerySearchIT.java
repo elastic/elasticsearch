@@ -1300,7 +1300,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q",
@@ -1308,12 +1308,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     XContentType.JSON
                 )
             ),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q",
@@ -1321,12 +1319,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     XContentType.JSON
                 )
             ).addSort("_doc", SortOrder.ASC),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 constantScoreQuery(
                     new PercolateQueryBuilder(
@@ -1336,9 +1332,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     )
                 )
             ),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
     }
 
@@ -1373,7 +1367,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
             .execute()
             .actionGet();
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_simple",
@@ -1381,12 +1375,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     XContentType.JSON
                 )
             ),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_string",
@@ -1394,12 +1386,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     XContentType.JSON
                 )
             ),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_match",
@@ -1407,12 +1397,10 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     XContentType.JSON
                 )
             ),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
 
-        assertResponse(
+        assertHitCount(
             prepareSearch("test").setQuery(
                 new PercolateQueryBuilder(
                     "q_combo",
@@ -1420,9 +1408,7 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                     XContentType.JSON
                 )
             ),
-            response -> {
-                assertEquals(1, response.getHits().getTotalHits().value);
-            }
+            1
         );
     }
 

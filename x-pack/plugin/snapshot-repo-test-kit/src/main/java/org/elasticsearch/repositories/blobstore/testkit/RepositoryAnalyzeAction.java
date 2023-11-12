@@ -488,7 +488,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         )
                     )
                 ) {
-                    final int registerOperations = Math.max(nodes.size(), request.getConcurrency());
+                    final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
                     for (int i = 0; i < registerOperations; i++) {
                         final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
                             request.getRepositoryName(),
@@ -730,8 +730,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     return;
                 }
 
-                // complete at least request.getConcurrency() steps, but we may as well keep running for longer too
-                if (currentValue > request.getConcurrency() && otherAnalysisComplete.get()) {
+                // complete at least request.getRegisterOperationCount() steps, but we may as well keep running for longer too
+                if (currentValue >= request.getRegisterOperationCount() && otherAnalysisComplete.get()) {
                     return;
                 }
 
@@ -865,6 +865,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         private int blobCount = 100;
         private int concurrency = 10;
+        private int registerOperationCount = 100;
         private int readNodeCount = 10;
         private int earlyReadNodeCount = 2;
         private long seed = 0L;
@@ -887,6 +888,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
+                registerOperationCount = in.readVInt();
+            } else {
+                registerOperationCount = concurrency;
+            }
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
@@ -914,6 +920,15 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED)) {
+                out.writeVInt(registerOperationCount);
+            } else if (registerOperationCount != concurrency) {
+                throw new IllegalStateException(
+                    "cannot send request with registerOperationCount != concurrency on transport version ["
+                        + out.getTransportVersion()
+                        + "]"
+                );
+            }
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);
@@ -953,6 +968,13 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             this.concurrency = concurrency;
         }
 
+        public void registerOperationCount(int registerOperationCount) {
+            if (registerOperationCount <= 0) {
+                throw new IllegalArgumentException("registerOperationCount must be >0, but was [" + registerOperationCount + "]");
+            }
+            this.registerOperationCount = registerOperationCount;
+        }
+
         public void seed(long seed) {
             this.seed = seed;
         }
@@ -985,6 +1007,10 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         public int getConcurrency() {
             return concurrency;
+        }
+
+        public int getRegisterOperationCount() {
+            return registerOperationCount;
         }
 
         public String getRepositoryName() {

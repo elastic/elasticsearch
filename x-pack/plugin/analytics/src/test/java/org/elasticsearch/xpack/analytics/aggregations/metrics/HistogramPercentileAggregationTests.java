@@ -35,7 +35,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
 
@@ -105,14 +105,9 @@ public class HistogramPercentileAggregationTests extends ESSingleNodeTestCase {
         }
         client().admin().indices().refresh(new RefreshRequest("raw", "pre_agg")).get();
 
-        assertResponse(client().prepareSearch("raw").setTrackTotalHits(true), response -> {
-            assertEquals(numDocs, response.getHits().getTotalHits().value);
-        });
+        assertHitCount(client().prepareSearch("raw").setTrackTotalHits(true), numDocs);
 
-        assertResponse(
-            client().prepareSearch("pre_agg"),
-            response -> { assertEquals(numDocs / frq, response.getHits().getTotalHits().value); }
-        );
+        assertHitCount(client().prepareSearch("pre_agg"), numDocs / frq);
 
         PercentilesAggregationBuilder builder = AggregationBuilders.percentiles("agg")
             .field("data")

@@ -57,9 +57,24 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> outerListener) {
-        final ActionListener<Void> listener = ActionListener.assertOnce(outerListener.map(ignored -> ActionResponse.Empty.INSTANCE));
-        final Repository repository = repositoriesService.repository(request.getRepositoryName());
+    protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
+        logger.trace("handling [{}]", request);
+        updateRegister(
+            request,
+            request.getExpectedValue() + 1,
+            repositoriesService.repository(request.getRepositoryName()),
+            ActionListener.assertOnce(listener.map(ignored -> ActionResponse.Empty.INSTANCE))
+        );
+    }
+
+    static void verifyFinalValue(Request request, Repository repository, ActionListener<Void> listener) {
+        // ensure that the repo accepts an empty register
+        logger.trace("handling final value [{}]", request);
+        updateRegister(request, 0L, repository, ActionListener.assertOnce(listener));
+    }
+
+    private static void updateRegister(Request request, long newValue, Repository repository, ActionListener<Void> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
         }
@@ -70,14 +85,11 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
         final BlobPath path = blobStoreRepository.basePath().add(request.getContainerPath());
         final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(path);
 
-        logger.trace("handling [{}]", request);
-
-        assert task instanceof CancellableTask;
         blobContainer.compareAndExchangeRegister(
             OperationPurpose.REPOSITORY_ANALYSIS,
             request.getRegisterName(),
             bytesFromLong(request.getExpectedValue()),
-            bytesFromLong(request.getExpectedValue() + 1),
+            bytesFromLong(newValue),
             new ActionListener<>() {
                 @Override
                 public void onResponse(OptionalBytesReference optionalBytesReference) {

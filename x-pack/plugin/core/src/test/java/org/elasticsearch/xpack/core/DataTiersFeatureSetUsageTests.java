@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.datatiers;
+package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.Writeable;

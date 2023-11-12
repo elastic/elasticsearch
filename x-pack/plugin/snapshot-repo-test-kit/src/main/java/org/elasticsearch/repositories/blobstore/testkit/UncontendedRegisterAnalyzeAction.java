@@ -21,6 +21,8 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -61,7 +63,7 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
         logger.trace("handling [{}]", request);
         updateRegister(
             request,
-            request.getExpectedValue() + 1,
+            bytesFromLong(request.getExpectedValue() + 1),
             repositoriesService.repository(request.getRepositoryName()),
             ActionListener.assertOnce(listener.map(ignored -> ActionResponse.Empty.INSTANCE))
         );
@@ -70,10 +72,10 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
     static void verifyFinalValue(Request request, Repository repository, ActionListener<Void> listener) {
         // ensure that the repo accepts an empty register
         logger.trace("handling final value [{}]", request);
-        updateRegister(request, 0L, repository, ActionListener.assertOnce(listener));
+        updateRegister(request, BytesArray.EMPTY, repository, ActionListener.assertOnce(listener));
     }
 
-    private static void updateRegister(Request request, long newValue, Repository repository, ActionListener<Void> listener) {
+    private static void updateRegister(Request request, BytesReference newValue, Repository repository, ActionListener<Void> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
@@ -89,7 +91,7 @@ class UncontendedRegisterAnalyzeAction extends HandledTransportAction<Uncontende
             OperationPurpose.REPOSITORY_ANALYSIS,
             request.getRegisterName(),
             bytesFromLong(request.getExpectedValue()),
-            bytesFromLong(newValue),
+            newValue,
             new ActionListener<>() {
                 @Override
                 public void onResponse(OptionalBytesReference optionalBytesReference) {

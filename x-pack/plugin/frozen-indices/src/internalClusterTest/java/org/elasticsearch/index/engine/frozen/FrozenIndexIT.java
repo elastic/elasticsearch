@@ -48,6 +48,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCountAndNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -334,10 +335,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
             );
             final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
             try {
-                assertNoFailuresAndResponse(
-                    prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)),
-                    searchResponse -> assertHitCount(searchResponse, 0)
-                );
+                assertHitCountAndNoFailures(prepareSearch().setPreference(null).setPointInTime(new PointInTimeBuilder(pitId)), 0);
             } finally {
                 client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
             }

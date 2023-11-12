@@ -86,6 +86,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -615,15 +616,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     assertThat(sourceDocMap.get("field5"), is(equalTo("value5")));
                 }
             );
-            assertResponse(
+            assertHitCount(
                 client().search(
                     new SearchRequest(sourceIndex).source(
                         SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("_routing", collidingDocId + idx))
                     )
                 ),
-                routingSearchResponse -> {
-                    assertEquals(1L, routingSearchResponse.getHits().getTotalHits().value);
-                }
+                1L
             );
         }
 
@@ -694,15 +693,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         // Validate removal of routing values
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final int targetIdx = idx;
-            assertResponse(
+            assertHitCount(
                 client().search(
                     new SearchRequest(".enrich-test1").source(
                         SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("_routing", collidingDocId + targetIdx))
                     )
                 ),
-                routingSearchResponse -> {
-                    assertEquals(0L, routingSearchResponse.getHits().getTotalHits().value);
-                }
+                0
             );
         }
 
@@ -2011,13 +2008,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
             """);
         // Validate document structure
-        assertResponse(
+        assertHitCount(
             client().search(
                 new SearchRequest(".enrich-test1").source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()))
             ),
-            allEnrichDocs -> {
-                assertThat(allEnrichDocs.getHits().getTotalHits().value, equalTo(2L));
-            }
+            2L
         );
         for (String keyValue : List.of("value1", "value1.1")) {
             assertResponse(
@@ -2148,7 +2143,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("Field 'field1' has type [object] which doesn't appear to be a range type"));
     }
 
-    public void testEnrichFieldsConflictMappingTypes() throws ExecutionException, InterruptedException {
+    public void testEnrichFieldsConflictMappingTypes() throws Exception {
         createIndex("source-1", Settings.EMPTY, "_doc", "user", "type=keyword", "name", "type=text", "zipcode", "type=long");
         client().prepareIndex("source-1")
             .setSource("user", "u1", "name", "n", "zipcode", 90000)

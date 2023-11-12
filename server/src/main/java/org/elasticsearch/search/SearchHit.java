@@ -656,9 +656,15 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return source != null && source.tryIncRef();
     }
 
+    private volatile Exception releasedBy;
+
     @Override
     public boolean decRef() {
-        return source != null && source.decRef();
+        if (source != null && source.decRef()) {
+            releasedBy = new RuntimeException();
+            return true;
+        }
+        return false;
     }
 
     @Override

@@ -68,10 +68,12 @@ final class FetchSearchPhase extends SearchPhase {
         }
         this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
         this.queryResults = resultConsumer.getAtomicArray();
+        resultConsumer.incRef();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         context.addReleasable(fetchResults::decRef);
+        context.addReleasable(resultConsumer::decRef);
         this.logger = context.getLogger();
         this.resultConsumer = resultConsumer;
         this.progressListener = context.getTask().getProgressListener();

@@ -246,7 +246,7 @@ public final class SearchHits extends AbstractRefCounted implements Writeable, C
                 }
             }
         }
-        return new SearchHits(hits.toArray(new SearchHit[0]), totalHits, maxScore);
+        return new SearchHits(hits.toArray(SearchHits.EMPTY), totalHits, maxScore);
     }
 
     @Override

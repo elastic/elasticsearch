@@ -83,6 +83,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
     public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
         this.hits = hits;
+        hits.incRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }

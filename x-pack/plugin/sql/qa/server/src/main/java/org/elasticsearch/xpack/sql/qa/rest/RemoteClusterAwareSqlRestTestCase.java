@@ -24,12 +24,13 @@ import java.io.IOException;
 import static org.elasticsearch.common.Strings.hasText;
 
 public abstract class RemoteClusterAwareSqlRestTestCase extends ESRestTestCase {
+    
     private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accommodate for max measured throughput decline
 
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
-    // gradle defines for legacy test framework
+    // gradle defines when using legacy-java-rest-test
     public static final String AUTH_USER = System.getProperty("tests.rest.cluster.multi.user");
     public static final String AUTH_PASS = System.getProperty("tests.rest.cluster.multi.password");
 

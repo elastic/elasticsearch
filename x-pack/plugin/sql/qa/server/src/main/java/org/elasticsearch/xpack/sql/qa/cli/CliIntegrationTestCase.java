@@ -26,8 +26,6 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      */
     public String elasticsearchAddress() {
         // CLI only supports a single node at a time so we just give it one.
-        // String cluster = System.getProperty("tests.rest.cluster");
-        // return cluster.split(",")[0];
         return getTestRestCluster().split(",")[0];
     }
 

@@ -79,6 +79,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
 
     @Override
     public FetchSearchResult fetchResult() {
+        assert hasReferences();
         return fetchResult;
     }
 

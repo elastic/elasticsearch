@@ -274,10 +274,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         ) {
             @Override
             public void append(LogEvent event) {
-                String message = event.getMessage().getFormattedMessage();
                 if (Level.WARN.equals(event.getLevel())) {
                     synchronized (loggedLeaks) {
-                        loggedLeaks.add(message);
+                        loggedLeaks.add(event.getMessage().getFormattedMessage());
                     }
                 }
             }

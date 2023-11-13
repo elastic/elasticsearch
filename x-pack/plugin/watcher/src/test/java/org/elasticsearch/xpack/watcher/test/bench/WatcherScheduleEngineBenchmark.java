@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.test.bench;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -52,6 +51,7 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -220,28 +220,31 @@ public class WatcherScheduleEngineBenchmark {
                     "doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value",
                     emptyMap()
                 );
-                SearchResponse searchResponse = client.prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
-                    .addAggregation(terms("state").field("state"))
-                    .addAggregation(histogram("delay").script(script).interval(10))
-                    .addAggregation(percentiles("percentile_delay").script(script).percentiles(1.0, 20.0, 50.0, 80.0, 99.0))
-                    .get();
-                Terms terms = searchResponse.getAggregations().get("state");
-                stats.setStateStats(terms);
-                Histogram histogram = searchResponse.getAggregations().get("delay");
-                stats.setDelayStats(histogram);
-                System.out.println("===> State");
-                for (Terms.Bucket bucket : terms.getBuckets()) {
-                    System.out.println("\t" + bucket.getKey() + "=" + bucket.getDocCount());
-                }
-                System.out.println("===> Delay");
-                for (Histogram.Bucket bucket : histogram.getBuckets()) {
-                    System.out.println("\t" + bucket.getKey() + "=" + bucket.getDocCount());
-                }
-                Percentiles percentiles = searchResponse.getAggregations().get("percentile_delay");
-                stats.setDelayPercentiles(percentiles);
-                stats.setAvgJvmUsed(jvmUsedHeapSpace);
-                new WatcherServiceRequestBuilder(client).stop().get();
+                assertResponse(
+                    client.prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+                        .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
+                        .addAggregation(terms("state").field("state"))
+                        .addAggregation(histogram("delay").script(script).interval(10))
+                        .addAggregation(percentiles("percentile_delay").script(script).percentiles(1.0, 20.0, 50.0, 80.0, 99.0)),
+                    searchResponse -> {
+                        Terms terms = searchResponse.getAggregations().get("state");
+                        stats.setStateStats(terms);
+                        Histogram histogram = searchResponse.getAggregations().get("delay");
+                        stats.setDelayStats(histogram);
+                        System.out.println("===> State");
+                        for (Terms.Bucket bucket : terms.getBuckets()) {
+                            System.out.println("\t" + bucket.getKey() + "=" + bucket.getDocCount());
+                        }
+                        System.out.println("===> Delay");
+                        for (Histogram.Bucket bucket : histogram.getBuckets()) {
+                            System.out.println("\t" + bucket.getKey() + "=" + bucket.getDocCount());
+                        }
+                        Percentiles percentiles = searchResponse.getAggregations().get("percentile_delay");
+                        stats.setDelayPercentiles(percentiles);
+                        stats.setAvgJvmUsed(jvmUsedHeapSpace);
+                        new WatcherServiceRequestBuilder(client).stop().get();
+                    }
+                );
             }
         }
 

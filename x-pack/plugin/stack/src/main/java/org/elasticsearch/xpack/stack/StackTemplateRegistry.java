@@ -55,8 +55,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
 
-    private static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
-
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams@mappings";
 
@@ -134,14 +132,14 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
-        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/180-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
-        new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/365-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES)
+        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json"),
+        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json"),
+        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json"),
+        new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json"),
+        new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json"),
+        new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json"),
+        new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/180-days@lifecycle.json"),
+        new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/365-days@lifecycle.json")
     );
 
     @Override
@@ -163,64 +161,55 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/data-streams@mappings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs@mappings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 ECS_DYNAMIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/ecs@mappings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/logs@settings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@mappings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@settings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@tsdb-settings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@mappings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             ),
             new IndexTemplateConfig(
                 SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@settings.json",
                 REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
+                TEMPLATE_VERSION_VARIABLE
             )
         )) {
             try {
@@ -241,33 +230,14 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(
-            LOGS_INDEX_TEMPLATE_NAME,
-            "/logs@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new IndexTemplateConfig(
-            METRICS_INDEX_TEMPLATE_NAME,
-            "/metrics@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new IndexTemplateConfig(
-            SYNTHETICS_INDEX_TEMPLATE_NAME,
-            "/synthetics@template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
+        new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs@template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics@template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics@template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(
             KIBANA_REPORTING_INDEX_TEMPLATE_NAME,
             "/kibana-reporting@template.json",
             REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            ADDITIONAL_TEMPLATE_VARIABLES
+            TEMPLATE_VERSION_VARIABLE
         )
     );
 
@@ -281,22 +251,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     }
 
     private static final List<IngestPipelineConfig> INGEST_PIPELINE_CONFIGS = List.of(
-        new JsonIngestPipelineConfig(
-            "logs@json-pipeline",
-            "/logs@json-pipeline.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            List.of(),
-            ADDITIONAL_TEMPLATE_VARIABLES
-        ),
-        new JsonIngestPipelineConfig(
-            "logs@default-pipeline",
-            "/logs@default-pipeline.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE,
-            List.of(),
-            ADDITIONAL_TEMPLATE_VARIABLES
-        )
+        new JsonIngestPipelineConfig("logs@json-pipeline", "/logs@json-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new JsonIngestPipelineConfig("logs@default-pipeline", "/logs@default-pipeline.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
     );
 
     @Override

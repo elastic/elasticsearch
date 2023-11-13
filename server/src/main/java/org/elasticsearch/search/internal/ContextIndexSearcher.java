@@ -265,7 +265,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         List<LeafReaderContext> sortedLeaves = new ArrayList<>(leaves);
         // Sort by maxDoc, descending:
         final Comparator<LeafReaderContext> leafComparator = Comparator.comparingInt(l -> l.reader().maxDoc());
-        Collections.sort(sortedLeaves, leafComparator.reversed());
+        sortedLeaves.sort(leafComparator.reversed());
         // we add the groups on a priority queue, so we can add orphan leafs to the smallest group
         final Comparator<List<LeafReaderContext>> groupComparator = Comparator.comparingInt(
             l -> l.stream().mapToInt(lr -> lr.reader().maxDoc()).sum()

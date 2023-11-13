@@ -179,7 +179,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
          * Sorts the <b>indices</b> of <code>values</code> by their underlying value
          * This will produce a merge map whose application will sort <code>values</code>
          */
-        private class ClusterSorter extends InPlaceMergeSorter {
+        private static class ClusterSorter extends InPlaceMergeSorter {
 
             final DoubleArray values;
             final long[] indexes;

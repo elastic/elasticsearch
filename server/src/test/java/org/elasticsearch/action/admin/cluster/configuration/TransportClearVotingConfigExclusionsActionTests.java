@@ -199,7 +199,7 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
-        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
+        return responseHandler(onResponse, ESTestCase::fail);
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {

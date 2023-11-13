@@ -1,0 +1,5 @@
+pr: 101700
+summary: Fix `lastUnsafeSegmentGenerationForGets` for realtime get
+area: Engine
+type: bug
+issues: []

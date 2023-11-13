@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,13 +22,15 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValueSources;
+import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -51,6 +54,16 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
@@ -70,6 +83,7 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanReader.readerFromPlanReader;
@@ -122,31 +136,82 @@ public class EnrichLookupService {
         String matchField,
         List<NamedExpression> extractFields,
         Page inputPage,
-        ActionListener<Page> listener
+        ActionListener<Page> outListener
     ) {
-        ClusterState clusterState = clusterService.state();
-        GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
-        if (shardIterators.size() != 1) {
-            listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        ActionListener<Page> listener = ContextPreservingActionListener.wrapPreservingContext(outListener, threadContext);
+        hasEnrichPrivilege(ActionListener.wrap(ignored -> {
+            ClusterState clusterState = clusterService.state();
+            GroupShardsIterator<ShardIterator> shardIterators = clusterService.operationRouting()
+                .searchShards(clusterState, new String[] { index }, Map.of(), "_local");
+            if (shardIterators.size() != 1) {
+                listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", index));
+                return;
+            }
+            ShardIterator shardIt = shardIterators.get(0);
+            ShardRouting shardRouting = shardIt.nextOrNull();
+            if (shardRouting == null) {
+                listener.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
+                return;
+            }
+            DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
+            LookupRequest lookupRequest = new LookupRequest(sessionId, shardIt.shardId(), matchType, matchField, inputPage, extractFields);
+            // TODO: handle retry and avoid forking for the local lookup
+            try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+                transportService.sendChildRequest(
+                    targetNode,
+                    LOOKUP_ACTION_NAME,
+                    lookupRequest,
+                    parentTask,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
+                );
+            }
+        }, listener::onFailure));
+    }
+
+    private void hasEnrichPrivilege(ActionListener<Void> outListener) {
+        final Settings settings = clusterService.getSettings();
+        if (settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            outListener.onResponse(null);
             return;
         }
-        ShardIterator shardIt = shardIterators.get(0);
-        ShardRouting shardRouting = shardIt.nextOrNull();
-        if (shardRouting == null) {
-            listener.onFailure(new UnavailableShardsException(shardIt.shardId(), "enrich index is not available"));
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final User user = securityContext.getUser();
+        if (user == null) {
+            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
             return;
         }
-        DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-        LookupRequest lookupRequest = new LookupRequest(sessionId, shardIt.shardId(), matchType, matchField, inputPage, extractFields);
-        // TODO: handle retry and avoid forking for the local lookup
-        transportService.sendChildRequest(
-            targetNode,
-            LOOKUP_ACTION_NAME,
-            lookupRequest,
-            parentTask,
+        HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(user.principal());
+        request.clusterPrivileges(ClusterPrivilegeResolver.MONITOR_ENRICH.name());
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
+            if (resp.isCompleteMatch()) {
+                l.onResponse(null);
+                return;
+            }
+            String detailed = resp.getClusterPrivileges()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() == false)
+                .map(e -> "privilege [" + e.getKey() + "] is missing")
+                .collect(Collectors.joining(", "));
+            String message = "user ["
+                + user.principal()
+                + "] doesn't have "
+                + "sufficient privileges to perform enrich lookup: "
+                + detailed;
+            l.onFailure(Exceptions.authorizationError(message));
+        });
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            HasPrivilegesAction.NAME,
+            request,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(r -> r.page), LookupResponse::new, executor)
+            new ActionListenerResponseHandler<>(listener, HasPrivilegesResponse::new, executor)
         );
     }
 
@@ -185,13 +250,14 @@ public class EnrichLookupService {
                 NamedExpression extractField = extractFields.get(i);
                 final ElementType elementType = LocalExecutionPlanner.toElementType(extractField.dataType());
                 mergingTypes[i] = elementType;
-                var sources = ValueSources.sources(
+                var sources = BlockReaderFactories.factories(
                     List.of(searchContext),
                     extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
-                    EsqlDataTypes.isUnsupported(extractField.dataType()),
-                    elementType
+                    EsqlDataTypes.isUnsupported(extractField.dataType())
                 );
-                intermediateOperators.add(new ValuesSourceReaderOperator(sources, 0, extractField.name()));
+                intermediateOperators.add(
+                    new ValuesSourceReaderOperator(BlockFactory.getNonBreakingInstance(), sources, 0, extractField.name())
+                );
             }
             // drop docs block
             intermediateOperators.add(droppingBlockOperator(extractFields.size() + 2, 0));
@@ -217,7 +283,9 @@ public class EnrichLookupService {
                 String reason = Objects.requireNonNullElse(task.getReasonCancelled(), "task was cancelled");
                 driver.cancel(reason);
             });
-            Driver.start(executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
+
+            var threadContext = transportService.getThreadPool().getThreadContext();
+            Driver.start(threadContext, executor, driver, Driver.DEFAULT_MAX_ITERATIONS, listener.map(ignored -> {
                 Page out = result.get();
                 if (out == null) {
                     out = createNullResponse(inputPage.getPositionCount(), extractFields);

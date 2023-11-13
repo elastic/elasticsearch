@@ -70,7 +70,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());
-            this.versions.add(nodeResponse.nodeInfo().getVersion().toString());
+            this.versions.add(nodeResponse.nodeInfo().getVersion());
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
             TransportAddress publishAddress = nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();

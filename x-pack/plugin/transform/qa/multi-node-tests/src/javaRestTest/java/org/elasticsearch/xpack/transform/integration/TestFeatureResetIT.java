@@ -58,6 +58,7 @@ public class TestFeatureResetIT extends TransformRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100596")
     public void testTransformFeatureReset() throws Exception {
         String indexName = "basic-crud-reviews";
         String transformId = "batch-transform-feature-reset";
@@ -114,7 +115,8 @@ public class TestFeatureResetIT extends TransformRestTestCase {
         );
 
         // assert transform indices are gone
-        assertThat(ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*"))), is(anEmptyMap()));
+        Map<String, Object> transformIndices = ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*")));
+        assertThat("Indices were: " + transformIndices, transformIndices, is(anEmptyMap()));
     }
 
 }

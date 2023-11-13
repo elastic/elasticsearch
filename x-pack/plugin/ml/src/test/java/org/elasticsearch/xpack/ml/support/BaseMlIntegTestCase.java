@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.support;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -120,12 +120,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
     // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
-    private static final Set<String> UNRELATED_TASKS = Set.of(ListTasksAction.NAME, HealthNode.TASK_NAME);
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
+    private static final Set<String> UNRELATED_TASKS = Set.of(TransportListTasksAction.TYPE.name(), HealthNode.TASK_NAME);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -456,7 +451,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         ListTasksRequest request = new ListTasksRequest().setDetailed(true);
 
         assertBusy(() -> {
-            ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
+            ListTasksResponse response = client.execute(TransportListTasksAction.TYPE, request).get();
             List<String> activeTasks = response.getTasks()
                 .stream()
                 .filter(t -> UNRELATED_TASKS.stream().noneMatch(name -> t.action().startsWith(name)))

@@ -43,9 +43,6 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref datetimeRef = datetime.eval(page)) {
-      if (datetimeRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock datetimeBlock = (LongBlock) datetimeRef.block();
       LongVector datetimeVector = datetimeBlock.asVector();
       if (datetimeVector == null) {
@@ -56,7 +53,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongBlock datetimeBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (datetimeBlock.isNull(p) || datetimeBlock.getValueCount(p) != 1) {
           result.appendNull();
@@ -74,7 +71,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   }
 
   public LongBlock eval(int positionCount, LongVector datetimeVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendLong(Sub.processDatetimes(datetimeVector.getLong(p), temporalAmount));
@@ -95,5 +92,30 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   @Override
   public void close() {
     Releasables.closeExpectNoException(datetime);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory datetime;
+
+    private final TemporalAmount temporalAmount;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
+        TemporalAmount temporalAmount) {
+      this.source = source;
+      this.datetime = datetime;
+      this.temporalAmount = temporalAmount;
+    }
+
+    @Override
+    public SubDatetimesEvaluator get(DriverContext context) {
+      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, context);
+    }
+
+    @Override
+    public String toString() {
+      return "SubDatetimesEvaluator[" + "datetime=" + datetime + ", temporalAmount=" + temporalAmount + "]";
+    }
   }
 }

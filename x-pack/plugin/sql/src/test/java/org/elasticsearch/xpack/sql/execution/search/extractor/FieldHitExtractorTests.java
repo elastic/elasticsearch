@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
@@ -146,7 +146,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         SearchHit hit = new SearchHit(1, null);
         hit.setDocumentField(fieldName, field);
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
+        Exception ex = expectThrows(InvalidArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
 
@@ -165,7 +165,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         DocumentField field = new DocumentField("a", asList(value, value));
         SearchHit hit = new SearchHit(1, null);
         hit.setDocumentField("a", field);
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
+        Exception ex = expectThrows(InvalidArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
 
@@ -207,7 +207,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         SearchHit hit = new SearchHit(1, null);
         hit.setDocumentField(fieldName, field);
 
-        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> fe.extract(hit));
+        Exception ex = expectThrows(InvalidArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, LENIENT);

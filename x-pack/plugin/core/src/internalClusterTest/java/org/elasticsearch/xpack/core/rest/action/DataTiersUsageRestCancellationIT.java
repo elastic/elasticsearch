@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -76,7 +76,7 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
         final SubscribableListener<Void> nodeStatsRequestsReleaseListener = new SubscribableListener<>();
         for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
             ((MockTransportService) transportService).addRequestHandlingBehavior(
-                NodesStatsAction.NAME + "[n]",
+                TransportNodesStatsAction.TYPE.name() + "[n]",
                 (handler, request, channel, task) -> {
                     tasksBlockedLatch.countDown();
                     nodeStatsRequestsReleaseListener.addListener(
@@ -95,13 +95,13 @@ public class DataTiersUsageRestCancellationIT extends ESIntegTestCase {
         cancellable.cancel();
 
         // NB this test works by blocking node-level stats requests; when #100230 is addressed this will need to target a different action.
-        assertAllCancellableTasksAreCancelled(NodesStatsAction.NAME);
+        assertAllCancellableTasksAreCancelled(TransportNodesStatsAction.TYPE.name());
         assertAllCancellableTasksAreCancelled(XPackUsageAction.NAME);
 
         nodeStatsRequestsReleaseListener.onResponse(null);
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertAllTasksHaveFinished(NodesStatsAction.NAME);
+        assertAllTasksHaveFinished(TransportNodesStatsAction.TYPE.name());
         assertAllTasksHaveFinished(XPackUsageAction.NAME);
     }
 

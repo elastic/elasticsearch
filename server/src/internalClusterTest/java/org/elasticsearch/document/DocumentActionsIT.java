@@ -20,7 +20,6 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
@@ -35,6 +34,7 @@ import java.io.IOException;
 import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -154,22 +154,23 @@ public class DocumentActionsIT extends ESIntegTestCase {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            SearchResponse countResponse = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).execute().actionGet();
-            assertNoFailures(countResponse);
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
+            assertNoFailuresAndResponse(prepareSearch("test").setSize(0).setQuery(matchAllQuery()), countResponse -> {
+                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
+                assertThat(countResponse.getFailedShards(), equalTo(0));
+            });
 
             // count with no query is a match all one
-            countResponse = client().prepareSearch("test").setSize(0).execute().actionGet();
-            assertThat(
-                "Failures " + countResponse.getShardFailures(),
-                countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
-                equalTo(0)
-            );
-            assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
-            assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
-            assertThat(countResponse.getFailedShards(), equalTo(0));
+            assertNoFailuresAndResponse(prepareSearch("test").setSize(0), countResponse -> {
+                assertThat(
+                    "Failures " + countResponse.getShardFailures(),
+                    countResponse.getShardFailures() == null ? 0 : countResponse.getShardFailures().length,
+                    equalTo(0)
+                );
+                assertThat(countResponse.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
+                assertThat(countResponse.getFailedShards(), equalTo(0));
+            });
         }
     }
 

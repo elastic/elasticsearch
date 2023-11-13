@@ -104,7 +104,7 @@ public class EqualsHashCodeTestUtils {
             T copy = copyFunction.copy(original);
             try {
                 assertTrue(objectName + " copy is not equal to self", copy.equals(copy));
-                assertTrue(objectName + " is not equal to its copy", original.equals(copy));
+                assertThat(objectName + " is not equal to its copy", original, equalTo(copy));
                 assertTrue("equals is not symmetric", copy.equals(original));
                 assertThat(objectName + " hashcode is different from copies hashcode", copy.hashCode(), equalTo(original.hashCode()));
 

@@ -125,11 +125,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.ZERO;
     }
@@ -225,27 +220,6 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      */
     public DateRangeAggregationBuilder addRange(double from, double to) {
         return addRange(null, from, to);
-    }
-
-    /**
-     * Add a new range with no lower bound.
-     *
-     * @param key
-     *            the key to use for this range in the response
-     * @param to
-     *            the upper bound on the dates, exclusive
-     */
-    public DateRangeAggregationBuilder addUnboundedTo(String key, double to) {
-        addRange(new RangeAggregator.Range(key, null, to));
-        return this;
-    }
-
-    /**
-     * Same as {@link #addUnboundedTo(String, double)} but the key will be
-     * computed automatically.
-     */
-    public DateRangeAggregationBuilder addUnboundedTo(double to) {
-        return addUnboundedTo(null, to);
     }
 
     /**

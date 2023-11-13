@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.template;
 
+import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -19,16 +20,23 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
     public static final int REGISTRY_VERSION = 3;
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.custom_plugin.template.version";
 
-    private boolean policyUpgradeRequired = false;
+    private final AtomicBoolean policyUpgradeRequired = new AtomicBoolean(false);
+    private final AtomicBoolean applyRollover = new AtomicBoolean(false);
+
+    private final AtomicReference<Collection<RolloverResponse>> rolloverResponses = new AtomicReference<>();
+    private final AtomicReference<Exception> rolloverFailure = new AtomicReference<>();
 
     TestRegistryWithCustomPlugin(
         Settings nodeSettings,
@@ -75,14 +83,14 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
     @Override
     protected List<IngestPipelineConfig> getIngestPipelines() {
         return List.of(
-            new IngestPipelineConfig(
+            new JsonIngestPipelineConfig(
                 "custom-plugin-default_pipeline",
                 "/org/elasticsearch/xpack/core/template/custom-plugin-default_pipeline.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 Collections.singletonList("custom-plugin-final_pipeline")
             ),
-            new IngestPipelineConfig(
+            new JsonIngestPipelineConfig(
                 "custom-plugin-final_pipeline",
                 "/org/elasticsearch/xpack/core/template/custom-plugin-final_pipeline.json",
                 REGISTRY_VERSION,
@@ -102,11 +110,38 @@ class TestRegistryWithCustomPlugin extends IndexTemplateRegistry {
 
     @Override
     protected boolean isUpgradeRequired(LifecyclePolicy currentPolicy, LifecyclePolicy newPolicy) {
-        return policyUpgradeRequired;
+        return policyUpgradeRequired.get();
     }
 
     public void setPolicyUpgradeRequired(boolean policyUpgradeRequired) {
-        this.policyUpgradeRequired = policyUpgradeRequired;
+        this.policyUpgradeRequired.set(policyUpgradeRequired);
+    }
+
+    @Override
+    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+        return applyRollover.get();
+    }
+
+    public void setApplyRollover(boolean shouldApplyRollover) {
+        applyRollover.set(shouldApplyRollover);
+    }
+
+    @Override
+    void onRolloversBulkResponse(Collection<RolloverResponse> rolloverResponses) {
+        this.rolloverResponses.set(rolloverResponses);
+    }
+
+    public AtomicReference<Collection<RolloverResponse>> getRolloverResponses() {
+        return rolloverResponses;
+    }
+
+    @Override
+    void onRolloverFailure(Exception e) {
+        rolloverFailure.set(e);
+    }
+
+    public AtomicReference<Exception> getRolloverFailure() {
+        return rolloverFailure;
     }
 
     @Override

@@ -31,6 +31,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -577,6 +578,13 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(breaker.getUsed(), is(0L));
             int positionCount = randomIntBetween(1, 16 * 1024);
             Block block = Block.constantNullBlock(positionCount, blockFactory);
+            assertTrue(block.areAllValuesNull());
+            assertThat(block, instanceOf(BooleanBlock.class));
+            assertThat(block, instanceOf(IntBlock.class));
+            assertThat(block, instanceOf(LongBlock.class));
+            assertThat(block, instanceOf(DoubleBlock.class));
+            assertThat(block, instanceOf(BytesRefBlock.class));
+            assertNull(block.asVector());
             if (randomBoolean()) {
                 Block orig = block;
                 block = (new ConstantNullBlock.Builder(blockFactory)).copyFrom(block, 0, block.getPositionCount()).build();

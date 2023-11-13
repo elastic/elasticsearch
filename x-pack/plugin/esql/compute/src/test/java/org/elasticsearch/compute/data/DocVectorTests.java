@@ -150,6 +150,17 @@ public class DocVectorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("can't build page out of released blocks"));
     }
 
+    public void testRamBytesUsedWithout() {
+        DocVector docs = new DocVector(
+            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            IntBlock.newConstantBlockWith(0, 1).asVector(),
+            false
+        );
+        assertThat(docs.singleSegmentNonDecreasing(), is(false));
+        docs.ramBytesUsed(); // ensure non-singleSegmentNonDecreasing handles nulls in ramByteUsed
+    }
+
     IntVector intRange(int startInclusive, int endExclusive) {
         return IntVector.range(startInclusive, endExclusive, BlockFactory.getNonBreakingInstance());
     }

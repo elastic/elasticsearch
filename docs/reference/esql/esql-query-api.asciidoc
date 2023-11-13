@@ -1,0 +1,97 @@
+[[esql-query-api]]
+== {esql} query API
+++++
+<titleabbrev>{esql} query API</titleabbrev>
+++++
+
+Returns search results for an <<esql,ES|QL ({es} query language)>> query.
+
+[source,console]
+----
+POST /_query
+{
+  "query": """
+    FROM library
+    | EVAL year = DATE_TRUNC(1 YEARS, release_date)
+    | STATS MAX(page_count) BY year
+    | SORT year
+    | LIMIT 5
+  """
+}
+----
+// TEST[setup:library]
+
+[discrete]
+[[esql-query-api-request]]
+=== {api-request-title}
+
+`POST _query`
+
+[discrete]
+[[esql-query-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the data stream, index,
+or alias you search.
+
+[discrete]
+[[esql-query-api-query-params]]
+=== {api-query-parms-title}
+
+`delimiter`::
+(Optional, string) Separator for CSV results. Defaults to `,`. The API only
+supports this parameter for CSV responses.
+
+`format`::
+(Optional, string) Format for the response. For valid values, refer to
+<<esql-rest-format>>.
++
+You can also specify a format using the `Accept` HTTP header. If you specify
+both this parameter and the `Accept` HTTP header, this parameter takes
+precedence.
+
+[discrete]
+[role="child_attributes"]
+[[esql-query-api-request-body]]
+=== {api-request-body-title}
+
+`columnar`::
+(Optional, Boolean) If `true`, returns results in a columnar format. Defaults to
+`false`. The API only supports this parameter for CBOR, JSON, SMILE, and YAML
+responses. See <<esql-rest-columnar>>.
+
+`params`::
+(Optional, array) Values for parameters in the `query`. For syntax, refer to
+<<esql-rest-params>>.
+
+`query`::
+(Required, object) {esql} query to run. For syntax, refer to <<esql-syntax>>.
+
+[[esql-search-api-time-zone]]
+`time_zone`::
+(Optional, string) ISO-8601 time zone ID for the search. Several {esql}
+date/time functions use this time zone. Defaults to `Z` (UTC).
+
+[discrete]
+[role="child_attributes"]
+[[esql-query-api-response-body]]
+=== {api-response-body-title}
+
+`columns`::
+(array of objects)
+Column headings for the search results. Each object is a column.
++
+.Properties of `columns` objects
+[%collapsible%open]
+====
+`name`::
+(string) Name of the column.
+
+`type`::
+(string) Data type for the column.
+====
+
+`rows`::
+(array of arrays)
+Values for the search results.

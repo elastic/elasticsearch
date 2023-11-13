@@ -9,6 +9,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -692,20 +693,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     }
 
     private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {
-        return new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
-                try (Releasable ignored = releasable) {
-                    onResponse.run();
-                } catch (final Exception e) {
-                    onFailure(e);
-                }
+        return ActionTestUtils.assertNoFailureListener(releasable -> {
+            try (Releasable ignored = releasable) {
+                onResponse.run();
             }
-
-            @Override
-            public void onFailure(final Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        });
     }
 }

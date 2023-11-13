@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings_regex
   - do:
       indices.create:
         index:  cities
@@ -65,6 +67,8 @@ setup:
 ---
 "Basic":
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | enrich cities_policy on city_id | keep name, city, country | sort name'
@@ -84,6 +88,8 @@ setup:
 
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | keep name, city_id | enrich cities_policy on city_id with country | sort name'
@@ -103,6 +109,8 @@ setup:
 
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | keep name, city_id | enrich cities_policy on city_id with country_name = country | sort name'

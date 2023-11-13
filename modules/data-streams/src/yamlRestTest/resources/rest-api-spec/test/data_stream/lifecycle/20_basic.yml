@@ -51,6 +51,9 @@ setup:
 
 ---
 "Get data stream with default lifecycle":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/pull/100187
 
   - do:
       indices.get_data_lifecycle:

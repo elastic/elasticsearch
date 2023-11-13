@@ -1238,6 +1238,7 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100957")
     public void testCancelViaTasksAPI() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -1364,7 +1365,6 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
         assertThat(json, matchesRegex(".*task (was)?\s*cancelled.*"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99519")
     public void testCancelViaAsyncSearchDelete() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         String localIndex = (String) testClusterInfo.get("local.index");

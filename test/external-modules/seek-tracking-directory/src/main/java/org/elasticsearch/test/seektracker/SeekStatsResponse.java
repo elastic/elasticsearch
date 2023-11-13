@@ -9,6 +9,7 @@
 package org.elasticsearch.test.seektracker;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
@@ -30,18 +31,14 @@ public class SeekStatsResponse extends BaseNodesResponse<NodeSeekStats> implemen
         super(clusterName, seekStats, failures);
     }
 
-    public SeekStatsResponse(StreamInput in) throws IOException {
-        super(in);
+    @Override
+    protected List<NodeSeekStats> readNodesFrom(StreamInput in) {
+        return TransportAction.localOnly();
     }
 
     @Override
-    protected List<NodeSeekStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeSeekStats::new);
-    }
-
-    @Override
-    protected void writeNodesTo(StreamOutput out, List<NodeSeekStats> nodes) throws IOException {
-        out.writeCollection(nodes);
+    protected void writeNodesTo(StreamOutput out, List<NodeSeekStats> nodes) {
+        TransportAction.localOnly();
     }
 
     @Override

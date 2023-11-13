@@ -40,11 +40,11 @@ public class MvSum extends AbstractMultivalueFunction {
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
         return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> dvrCtx -> new MvSumDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvSumIntEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
+            case DOUBLE -> new MvSumDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvSumIntEvaluator.Factory(source(), fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? dvrCtx -> new MvSumUnsignedLongEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx)
-                : dvrCtx -> new MvSumLongEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
+                ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
+                : new MvSumLongEvaluator.Factory(source(), fieldEval);
             case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());

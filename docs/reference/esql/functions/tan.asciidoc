@@ -1,3 +1,4 @@
+[discrete]
 [[esql-tan]]
 === `TAN`
 [.text-center]

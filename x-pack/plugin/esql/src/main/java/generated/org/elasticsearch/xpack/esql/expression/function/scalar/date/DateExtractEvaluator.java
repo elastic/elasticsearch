@@ -48,14 +48,8 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public Block.Ref eval(Page page) {
     try (Block.Ref valueRef = value.eval(page)) {
-      if (valueRef.block().areAllValuesNull()) {
-        return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-      }
       LongBlock valueBlock = (LongBlock) valueRef.block();
       try (Block.Ref chronoFieldRef = chronoField.eval(page)) {
-        if (chronoFieldRef.block().areAllValuesNull()) {
-          return Block.Ref.floating(Block.constantNullBlock(page.getPositionCount(), driverContext.blockFactory()));
-        }
         BytesRefBlock chronoFieldBlock = (BytesRefBlock) chronoFieldRef.block();
         LongVector valueVector = valueBlock.asVector();
         if (valueVector == null) {
@@ -71,7 +65,7 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   }
 
   public LongBlock eval(int positionCount, LongBlock valueBlock, BytesRefBlock chronoFieldBlock) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         if (valueBlock.isNull(p) || valueBlock.getValueCount(p) != 1) {
@@ -95,7 +89,7 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
 
   public LongBlock eval(int positionCount, LongVector valueVector,
       BytesRefVector chronoFieldVector) {
-    try(LongBlock.Builder result = LongBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef chronoFieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         try {
@@ -117,5 +111,33 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   @Override
   public void close() {
     Releasables.closeExpectNoException(value, chronoField);
+  }
+
+  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory value;
+
+    private final EvalOperator.ExpressionEvaluator.Factory chronoField;
+
+    private final ZoneId zone;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory value,
+        EvalOperator.ExpressionEvaluator.Factory chronoField, ZoneId zone) {
+      this.source = source;
+      this.value = value;
+      this.chronoField = chronoField;
+      this.zone = zone;
+    }
+
+    @Override
+    public DateExtractEvaluator get(DriverContext context) {
+      return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context);
+    }
+
+    @Override
+    public String toString() {
+      return "DateExtractEvaluator[" + "value=" + value + ", chronoField=" + chronoField + ", zone=" + zone + "]";
+    }
   }
 }

@@ -9,22 +9,21 @@ package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
-import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
-import org.apache.http.nio.reactor.ConnectingIOReactor;
-import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,45 +40,25 @@ public class HttpClient implements Closeable {
     }
 
     private final CloseableHttpAsyncClient client;
-    private final IdleConnectionEvictor connectionEvictor;
     private final AtomicReference<Status> status = new AtomicReference<>(Status.CREATED);
     private final ThreadPool threadPool;
     private final HttpSettings settings;
+    private final ThrottlerManager throttlerManager;
 
-    public static HttpClient create(HttpSettings settings, ThreadPool threadPool) {
-        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager();
-        IdleConnectionEvictor connectionEvictor = new IdleConnectionEvictor(
-            threadPool,
-            connectionManager,
-            settings.getEvictionInterval(),
-            settings.getEvictionMaxIdle()
-        );
+    public static HttpClient create(
+        HttpSettings settings,
+        ThreadPool threadPool,
+        PoolingNHttpClientConnectionManager connectionManager,
+        ThrottlerManager throttlerManager
+    ) {
+        CloseableHttpAsyncClient client = createAsyncClient(Objects.requireNonNull(connectionManager));
 
-        int maxConnections = settings.getMaxConnections();
-        CloseableHttpAsyncClient client = createAsyncClient(connectionManager, maxConnections);
-
-        return new HttpClient(settings, client, connectionEvictor, threadPool);
+        return new HttpClient(settings, client, threadPool, throttlerManager);
     }
 
-    private static PoolingNHttpClientConnectionManager createConnectionManager() {
-        ConnectingIOReactor ioReactor;
-        try {
-            ioReactor = new DefaultConnectingIOReactor();
-        } catch (IOReactorException e) {
-            var message = "Failed to initialize the inference http client";
-            logger.error(message, e);
-            throw new ElasticsearchException(message, e);
-        }
-
-        return new PoolingNHttpClientConnectionManager(ioReactor);
-    }
-
-    private static CloseableHttpAsyncClient createAsyncClient(PoolingNHttpClientConnectionManager connectionManager, int maxConnections) {
+    private static CloseableHttpAsyncClient createAsyncClient(PoolingNHttpClientConnectionManager connectionManager) {
         HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
-
         clientBuilder.setConnectionManager(connectionManager);
-        clientBuilder.setMaxConnPerRoute(maxConnections);
-        clientBuilder.setMaxConnTotal(maxConnections);
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
@@ -88,25 +67,24 @@ public class HttpClient implements Closeable {
     }
 
     // Default for testing
-    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, IdleConnectionEvictor evictor, ThreadPool threadPool) {
-        this.settings = settings;
-        this.threadPool = threadPool;
-        this.client = asyncClient;
-        this.connectionEvictor = evictor;
+    HttpClient(HttpSettings settings, CloseableHttpAsyncClient asyncClient, ThreadPool threadPool, ThrottlerManager throttlerManager) {
+        this.settings = Objects.requireNonNull(settings);
+        this.threadPool = Objects.requireNonNull(threadPool);
+        this.client = Objects.requireNonNull(asyncClient);
+        this.throttlerManager = Objects.requireNonNull(throttlerManager);
     }
 
     public void start() {
         if (status.compareAndSet(Status.CREATED, Status.STARTED)) {
             client.start();
-            connectionEvictor.start();
         }
     }
 
-    public void send(HttpUriRequest request, ActionListener<HttpResult> listener) throws IOException {
+    public void send(HttpUriRequest request, HttpClientContext context, ActionListener<HttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
-        assert status.get() == Status.STARTED;
+        assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
-        SocketAccess.doPrivileged(() -> client.execute(request, new FutureCallback<>() {
+        SocketAccess.doPrivileged(() -> client.execute(request, context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
                 respondUsingUtilityThread(response, request, listener);
@@ -114,7 +92,7 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                logger.error(format("Request [%s] failed", request.getRequestLine()), ex);
+                throttlerManager.getThrottler().warn(logger, format("Request [%s] failed", request.getRequestLine()), ex);
                 failUsingUtilityThread(ex, listener);
             }
 
@@ -130,7 +108,7 @@ public class HttpClient implements Closeable {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
-                logger.error(format("Failed to create http result for [%s]", request.getRequestLine()), e);
+                throttlerManager.getThrottler().warn(logger, format("Failed to create http result for [%s]", request.getRequestLine()), e);
                 listener.onFailure(e);
             }
         });
@@ -144,6 +122,5 @@ public class HttpClient implements Closeable {
     public void close() throws IOException {
         status.set(Status.STOPPED);
         client.close();
-        connectionEvictor.stop();
     }
 }

@@ -1,3 +1,4 @@
+[discrete]
 [[esql-atan]]
 === `ATAN`
 [.text-center]

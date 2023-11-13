@@ -45,7 +45,7 @@ public class BlockAccountingTests extends ESTestCase {
         Vector emptyPlusOne = new BooleanArrayVector(new boolean[] { randomBoolean() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + 1)));
 
-        boolean[] randomData = new boolean[randomIntBetween(1, 1024)];
+        boolean[] randomData = new boolean[randomIntBetween(2, 1024)];
         Vector emptyPlusSome = new BooleanArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + randomData.length)));
 
@@ -61,7 +61,7 @@ public class BlockAccountingTests extends ESTestCase {
         Vector emptyPlusOne = new IntArrayVector(new int[] { randomInt() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Integer.BYTES)));
 
-        int[] randomData = new int[randomIntBetween(1, 1024)];
+        int[] randomData = new int[randomIntBetween(2, 1024)];
         Vector emptyPlusSome = new IntArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + (long) Integer.BYTES * randomData.length)));
 
@@ -77,7 +77,7 @@ public class BlockAccountingTests extends ESTestCase {
         Vector emptyPlusOne = new LongArrayVector(new long[] { randomLong() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + Long.BYTES));
 
-        long[] randomData = new long[randomIntBetween(1, 1024)];
+        long[] randomData = new long[randomIntBetween(2, 1024)];
         Vector emptyPlusSome = new LongArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Long.BYTES * randomData.length));
 
@@ -93,7 +93,7 @@ public class BlockAccountingTests extends ESTestCase {
         Vector emptyPlusOne = new DoubleArrayVector(new double[] { randomDouble() }, 1);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + Double.BYTES));
 
-        double[] randomData = new double[randomIntBetween(1, 1024)];
+        double[] randomData = new double[randomIntBetween(2, 1024)];
         Vector emptyPlusSome = new DoubleArrayVector(randomData, randomData.length);
         assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + (long) Double.BYTES * randomData.length));
 
@@ -130,13 +130,11 @@ public class BlockAccountingTests extends ESTestCase {
         Block emptyPlusOne = new BooleanArrayBlock(new boolean[] { randomBoolean() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + 1) + alignObjectSize(Integer.BYTES)));
 
-        boolean[] randomData = new boolean[randomIntBetween(1, 1024)];
-        int[] valueIndices = IntStream.range(0, randomData.length).toArray();
+        boolean[] randomData = new boolean[randomIntBetween(2, 1024)];
+        int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
         Block emptyPlusSome = new BooleanArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        assertThat(
-            emptyPlusSome.ramBytesUsed(),
-            is(alignObjectSize(empty.ramBytesUsed() + randomData.length) + alignObjectSize(valueIndices.length * Integer.BYTES))
-        );
+        long expected = empty.ramBytesUsed() + ramBytesForBooleanArray(randomData) + ramBytesForIntArray(valueIndices);
+        assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
@@ -156,10 +154,11 @@ public class BlockAccountingTests extends ESTestCase {
         Block emptyPlusOne = new IntArrayBlock(new int[] { randomInt() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(empty.ramBytesUsed() + alignObjectSize(Integer.BYTES) + alignObjectSize(Integer.BYTES)));
 
-        int[] randomData = new int[randomIntBetween(1, 1024)];
-        int[] valueIndices = IntStream.range(0, randomData.length).toArray();
+        int[] randomData = new int[randomIntBetween(2, 1024)];
+        int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
         Block emptyPlusSome = new IntArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        assertThat(emptyPlusSome.ramBytesUsed(), is(empty.ramBytesUsed() + alignObjectSize((long) Integer.BYTES * randomData.length) * 2));
+        long expected = empty.ramBytesUsed() + ramBytesForIntArray(randomData) + ramBytesForIntArray(valueIndices);
+        assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
@@ -179,17 +178,11 @@ public class BlockAccountingTests extends ESTestCase {
         Block emptyPlusOne = new LongArrayBlock(new long[] { randomInt() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Long.BYTES) + alignObjectSize(Integer.BYTES)));
 
-        long[] randomData = new long[randomIntBetween(1, 1024)];
-        int[] valueIndices = IntStream.range(0, randomData.length).toArray();
+        long[] randomData = new long[randomIntBetween(2, 1024)];
+        int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
         Block emptyPlusSome = new LongArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        assertThat(
-            emptyPlusSome.ramBytesUsed(),
-            is(
-                alignObjectSize(empty.ramBytesUsed() + (long) Long.BYTES * randomData.length) + alignObjectSize(
-                    (long) valueIndices.length * Integer.BYTES
-                )
-            )
-        );
+        long expected = empty.ramBytesUsed() + ramBytesForLongArray(randomData) + ramBytesForIntArray(valueIndices);
+        assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
@@ -209,17 +202,11 @@ public class BlockAccountingTests extends ESTestCase {
         Block emptyPlusOne = new DoubleArrayBlock(new double[] { randomInt() }, 1, new int[] { 0 }, null, Block.MvOrdering.UNORDERED);
         assertThat(emptyPlusOne.ramBytesUsed(), is(alignObjectSize(empty.ramBytesUsed() + Double.BYTES) + alignObjectSize(Integer.BYTES)));
 
-        double[] randomData = new double[randomIntBetween(1, 1024)];
-        int[] valueIndices = IntStream.range(0, randomData.length).toArray();
+        double[] randomData = new double[randomIntBetween(2, 1024)];
+        int[] valueIndices = IntStream.range(0, randomData.length + 1).toArray();
         Block emptyPlusSome = new DoubleArrayBlock(randomData, randomData.length, valueIndices, null, Block.MvOrdering.UNORDERED);
-        assertThat(
-            emptyPlusSome.ramBytesUsed(),
-            is(
-                alignObjectSize(empty.ramBytesUsed() + (long) Double.BYTES * randomData.length) + alignObjectSize(
-                    valueIndices.length * Integer.BYTES
-                )
-            )
-        );
+        long expected = empty.ramBytesUsed() + ramBytesForDoubleArray(randomData) + ramBytesForIntArray(valueIndices);
+        assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
 
         Block filterBlock = emptyPlusSome.filter(1);
         assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
@@ -251,11 +238,29 @@ public class BlockAccountingTests extends ESTestCase {
                     } else {
                         queue.add(entry.getValue());
                     }
+                } else if (o instanceof AbstractArrayBlock && entry.getValue() instanceof Block.MvOrdering) {
+                    // skip; MvOrdering is an enum, so instances are shared
                 } else {
                     queue.add(entry.getValue());
                 }
             }
             return shallowSize;
         }
-    };
+    }
+
+    static long ramBytesForBooleanArray(boolean[] arr) {
+        return alignObjectSize((long) Byte.BYTES * arr.length);
+    }
+
+    static long ramBytesForIntArray(int[] arr) {
+        return alignObjectSize((long) Integer.BYTES * arr.length);
+    }
+
+    static long ramBytesForLongArray(long[] arr) {
+        return alignObjectSize((long) Long.BYTES * arr.length);
+    }
+
+    static long ramBytesForDoubleArray(double[] arr) {
+        return alignObjectSize((long) Long.BYTES * arr.length);
+    }
 }

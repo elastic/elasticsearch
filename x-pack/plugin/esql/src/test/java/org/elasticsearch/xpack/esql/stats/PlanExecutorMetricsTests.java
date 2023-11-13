@@ -27,11 +27,13 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -116,5 +118,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(barField.getName(), singletonMap(barField.getName(), barField));
         return fields;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
     }
 }

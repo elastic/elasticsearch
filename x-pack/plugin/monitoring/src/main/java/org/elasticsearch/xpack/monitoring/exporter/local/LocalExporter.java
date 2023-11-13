@@ -75,7 +75,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
+public final class LocalExporter extends Exporter implements ClusterStateListener, CleanerService.Listener, LicenseStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalExporter.class);
 
@@ -108,7 +108,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private long stateInitializedTime;
 
-    @SuppressWarnings("this-escape")
     public LocalExporter(
         Exporter.Config config,
         Client client,
@@ -596,6 +595,11 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     @Override
     public void onCleanUpIndices(TimeValue retention) {
+        if (stateInitialized.get() == false) {
+            // ^ this is once the cluster state is recovered. Don't try to interact with the cluster service until that happens
+            logger.debug("exporter not yet initialized");
+            return;
+        }
         ClusterState clusterState = clusterService.state();
         if (clusterService.localNode() == null
             || clusterState == null

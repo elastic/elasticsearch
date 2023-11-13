@@ -29,7 +29,7 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
       numberOfNodes = 2
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
-      if (v.equals('8.10.0') || v.equals('8.10.1') || v.equals('8.10.2')) {
+      if (v.equals('8.10.0') || v.equals('8.10.1') || v.equals('8.10.2')  || v.equals('8.10.3')) {
         // 8.10.x versions contain a bogus assertion that trips when reading repositories touched by newer versions
         // see https://github.com/elastic/elasticsearch/issues/98454 for details
         jvmArgs '-da'

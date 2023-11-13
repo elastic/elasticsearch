@@ -41,13 +41,12 @@ final class ExchangeBuffer {
     }
 
     void addPage(Page page) {
+        queue.add(page);
+        if (queueSize.incrementAndGet() == 1) {
+            notifyNotEmpty();
+        }
         if (noMoreInputs) {
-            page.releaseBlocks();
-        } else {
-            queue.add(page);
-            if (queueSize.incrementAndGet() == 1) {
-                notifyNotEmpty();
-            }
+            discardPages();
         }
     }
 
@@ -115,13 +114,17 @@ final class ExchangeBuffer {
         }
     }
 
+    private void discardPages() {
+        Page p;
+        while ((p = pollPage()) != null) {
+            p.releaseBlocks();
+        }
+    }
+
     void finish(boolean drainingPages) {
         noMoreInputs = true;
         if (drainingPages) {
-            Page p;
-            while ((p = pollPage()) != null) {
-                p.releaseBlocks();
-            }
+            discardPages();
         }
         notifyNotEmpty();
         if (drainingPages || queueSize.get() == 0) {

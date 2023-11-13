@@ -38,7 +38,7 @@ public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleBlock.Builder builder = DoubleBlock.newBlockBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
         CompensatedSum work = new CompensatedSum();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -68,7 +68,7 @@ public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     try (ref) {
       DoubleBlock v = (DoubleBlock) ref.block();
       int positionCount = v.getPositionCount();
-      try (DoubleVector.FixedBuilder builder = DoubleVector.newVectorFixedBuilder(positionCount, driverContext.blockFactory())) {
+      try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
         CompensatedSum work = new CompensatedSum();
         for (int p = 0; p < positionCount; p++) {
           int valueCount = v.getValueCount(p);
@@ -83,6 +83,24 @@ public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.Abstr
         }
         return Block.Ref.floating(builder.build().asBlock());
       }
+    }
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final EvalOperator.ExpressionEvaluator.Factory field;
+
+    public Factory(EvalOperator.ExpressionEvaluator.Factory field) {
+      this.field = field;
+    }
+
+    @Override
+    public MvSumDoubleEvaluator get(DriverContext context) {
+      return new MvSumDoubleEvaluator(field.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "MvSum[field=" + field + "]";
     }
   }
 }

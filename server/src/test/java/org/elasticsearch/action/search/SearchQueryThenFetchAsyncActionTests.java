@@ -15,8 +15,11 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -27,6 +30,8 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -42,6 +47,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -192,7 +198,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {
@@ -235,28 +241,41 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertThat(((FieldDoc) phase.sortedTopDocs().scoreDocs()[0]).fields[0], equalTo(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
     public void testMinimumVersionSameAsNewVersion() throws Exception {
-        Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomVersionBetween(
-            random(),
-            Version.CURRENT.minimumCompatibilityVersion(),
-            VersionUtils.getPreviousVersion(newVersion)
+        var newVersion = VersionInformation.CURRENT;
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), VersionUtils.getPreviousVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
-        testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion);
+        testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion.nodeVersion());
     }
 
     public void testMinimumVersionBetweenNewAndOldVersion() throws Exception {
-        Version oldVersion = VersionUtils.getFirstVersion();
-        Version newVersion = VersionUtils.maxCompatibleVersion(oldVersion);
-        Version minVersion = VersionUtils.randomVersionBetween(
-            random(),
-            allVersions().get(allVersions().indexOf(oldVersion) + 1),
-            newVersion
+        var oldVersion = new VersionInformation(
+            VersionUtils.getFirstVersion(),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
+
+        var newVersion = new VersionInformation(
+            VersionUtils.maxCompatibleVersion(VersionUtils.getFirstVersion()),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current()
+        );
+
+        var minVersion = VersionUtils.randomVersionBetween(
+            random(),
+            allVersions().get(allVersions().indexOf(oldVersion.nodeVersion()) + 1),
+            newVersion.nodeVersion()
+        );
+
         testMixedVersionsShardsSearch(newVersion, oldVersion, minVersion);
     }
 
-    private void testMixedVersionsShardsSearch(Version oldVersion, Version newVersion, Version minVersion) throws Exception {
+    private void testMixedVersionsShardsSearch(VersionInformation oldVersion, VersionInformation newVersion, Version minVersion)
+        throws Exception {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),
@@ -324,7 +343,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             resultConsumer,
             searchRequest,
-            new ActionListener<SearchResponse>() {
+            new ActionListener<>() {
                 @Override
                 public void onFailure(Exception e) {
                     responses.add(e);
@@ -336,7 +355,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             },
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         );
@@ -352,6 +371,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
     public void testMinimumVersionSameAsOldVersion() throws Exception {
         Version newVersion = Version.CURRENT;
         Version oldVersion = VersionUtils.randomVersionBetween(
@@ -474,7 +494,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {
@@ -498,6 +518,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101932")
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
         Version newVersion = Version.CURRENT;
         Version oldVersion = VersionUtils.randomVersionBetween(
@@ -622,7 +643,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             null,
             shardsIter,
             timeProvider,
-            null,
+            new ClusterState.Builder(new ClusterName("test")).build(),
             task,
             SearchResponse.Clusters.EMPTY
         ) {

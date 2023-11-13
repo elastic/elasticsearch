@@ -19,7 +19,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import java.util.Arrays;
 $endif$
 import java.util.BitSet;
-import java.util.stream.IntStream;
 
 /**
  * Block implementation that stores an array of $type$.
@@ -69,9 +68,9 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-    $if(BytesRef)$
+$if(BytesRef)$
         final BytesRef scratch = new BytesRef();
-    $endif$
+$endif$
         try (var builder = blockFactory.new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {
@@ -104,18 +103,33 @@ $endif$
         if (firstValueIndexes == null) {
             return this;
         }
-        int end = firstValueIndexes[getPositionCount()];
-        if (nullsMask == null) {
-            return new $Type$ArrayVector(values, end).asBlock();
+        // TODO use reference counting to share the values
+$if(BytesRef)$
+        final BytesRef scratch = new BytesRef();
+$endif$
+        try (var builder = blockFactory.new$Type$BlockBuilder(firstValueIndexes[getPositionCount()])) {
+            for (int pos = 0; pos < getPositionCount(); pos++) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first = getFirstValueIndex(pos);
+                int end = first + getValueCount(pos);
+                for (int i = first; i < end; i++) {
+$if(BytesRef)$
+                    builder.append$Type$(get$Type$(i, scratch));
+$else$
+                    builder.append$Type$(get$Type$(i));
+$endif$
+                }
+            }
+            return builder.mvOrdering(MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING).build();
         }
-        int[] firstValues = IntStream.range(0, end + 1).toArray();
-        return new $Type$ArrayBlock(values, end, firstValues, shiftNullsToExpandedPositions(), MvOrdering.UNORDERED, blockFactory);
     }
 
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int[] firstValueIndexes, BitSet nullsMask) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values) + BlockRamUsageEstimator.sizeOf(firstValueIndexes)
-            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask) + RamUsageEstimator.shallowSizeOfInstance(MvOrdering.class);
-        // TODO mvordering is shared
+            + BlockRamUsageEstimator.sizeOfBitSet(nullsMask);
     }
 
     @Override

@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -141,6 +142,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
+    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -153,14 +155,15 @@ public class CsvTests extends ESTestCase {
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
-    private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream().filter(x -> x.toString().contains("-ignoreCsvTests") == false).toList();
+        List<URL> urls = classpathResources("/*.csv-spec").stream()
+            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
+            .toList();
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
         return SpecReader.readScriptSpec(urls, specParser());
     }
@@ -231,13 +234,16 @@ public class CsvTests extends ESTestCase {
     private void doTest() throws Exception {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         var actualResults = executePlan(bigArrays);
-        var expected = loadCsvSpecValues(testCase.expectedResults);
+        try {
+            var expected = loadCsvSpecValues(testCase.expectedResults);
 
-        var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, testCase.ignoreOrder, log);
-        assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
-        Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
-        assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            var log = logResults() ? LOGGER : null;
+            assertResults(expected, actualResults, testCase.ignoreOrder, log);
+            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+        } finally {
+            Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
+            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        }
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
@@ -286,7 +292,7 @@ public class CsvTests extends ESTestCase {
         var enrichPolicies = loadEnrichPolicies();
         var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
         var analyzed = analyzer.analyze(parsed);
-        var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
+        var logicalOptimized = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)).optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
         var optimizedPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan));
         opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
@@ -381,7 +387,13 @@ public class CsvTests extends ESTestCase {
             DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
+                    Driver.start(
+                        threadPool.getThreadContext(),
+                        threadPool.executor(ESQL_THREAD_POOL_NAME),
+                        driver,
+                        between(1, 1000),
+                        driverListener
+                    );
                 }
             };
             PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
@@ -422,7 +434,11 @@ public class CsvTests extends ESTestCase {
     private void assertWarnings(List<String> warnings) {
         List<String> normalized = new ArrayList<>(warnings.size());
         for (String w : warnings) {
-            normalized.add(HeaderWarning.extractWarningValueFromWarningHeader(w, false));
+            String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
+            if (normW.startsWith("No limit defined, adding default limit of [") == false) {
+                // too many tests do not have a LIMIT, we'll test this warning separately
+                normalized.add(normW);
+            }
         }
         assertMap(normalized, matchesList(testCase.expectedWarnings));
     }

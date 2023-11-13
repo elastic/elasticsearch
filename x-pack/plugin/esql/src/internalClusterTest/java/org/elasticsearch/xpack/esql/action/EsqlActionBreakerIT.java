@@ -7,32 +7,46 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100147")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class EsqlActionBreakerIT extends EsqlActionIT {
+
+    public static class InternalTransportSettingPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(IGNORE_DESERIALIZATION_ERRORS_SETTING);
+        }
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(InternalExchangePlugin.class);
+        plugins.add(InternalTransportSettingPlugin.class);
         return plugins;
     }
 
@@ -55,40 +69,41 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.getDefault(Settings.EMPTY)
             )
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
+            // allow reading pages from network can trip the circuit breaker
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
             .build();
     }
 
     private void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
-                )
-                .get();
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings()
+                    .setPersistentSettings(
+                        Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
+                    )
+            );
         } else {
-            clusterAdmin().prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
-                )
-                .get();
+            assertAcked(
+                clusterAdmin().prepareUpdateSettings()
+                    .setPersistentSettings(
+                        Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
+                    )
+            );
         }
     }
 
     @Override
-    protected EsqlQueryResponse run(String esqlCommands) {
+    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 2048)));
         try {
-            setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(128, 2048)));
-            try {
-                return super.run(esqlCommands);
-            } catch (Exception e) {
-                logger.info("request failed", e);
-                ensureBlocksReleased();
-            }
-            setRequestCircuitBreakerLimit(ByteSizeValue.ofMb(64));
-            return super.run(esqlCommands);
+            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            logger.info("request failed", e);
+            ensureBlocksReleased();
         } finally {
             setRequestCircuitBreakerLimit(null);
         }
+        return super.run(request);
     }
 
     /**
@@ -96,23 +111,32 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
      * unreasonably small breaker and tripping it.
      */
     public void testBreaker() {
-        setRequestCircuitBreakerLimit(ByteSizeValue.ofKb(1));
+        client().admin()
+            .indices()
+            .prepareCreate("test_breaker")
+            .setMapping("foo", "type=keyword", "bar", "type=keyword")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put("index.routing.rebalance.enable", "none"))
+            .get();
+        int numDocs = between(1000, 5000);
+        for (int i = 0; i < numDocs; i++) {
+            DocWriteResponse response = client().prepareIndex("test_breaker")
+                .setId(Integer.toString(i))
+                .setSource("foo", "foo-" + i, "bar", "bar-" + (i * 2))
+                .get();
+            assertThat(Strings.toString(response), response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+        }
+        client().admin().indices().prepareRefresh("test_breaker").get();
+        ensureYellow("test_breaker");
+        setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 512)));
         try {
-            for (int i = 0; i < 5000; i++) {
-                DocWriteResponse response = client().prepareIndex("test")
-                    .setId(Integer.toString(i))
-                    .setSource("foo", i, "bar", i * 2)
-                    .get();
-                if (response.getResult() != DocWriteResponse.Result.CREATED) {
-                    fail("failure: " + response);
+            final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> {
+                var request = new EsqlQueryRequest();
+                request.query("from test_breaker | stats count_distinct(foo) by bar");
+                request.pragmas(randomPragmas());
+                try (var ignored = client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES)) {
+
                 }
-            }
-            client().admin().indices().prepareRefresh("test").get();
-            ensureYellow("test");
-            ElasticsearchException e = expectThrows(
-                ElasticsearchException.class,
-                () -> super.run("from test | stats avg(foo) by bar", QueryPragmas.EMPTY).close()
-            );
+            });
             logger.info("expected error", e);
             if (e instanceof CircuitBreakingException) {
                 // The failure occurred before starting the drivers

@@ -22,7 +22,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -197,6 +197,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         CCR,
         SHUTDOWN,
         LEGACY_TEMPLATES,
+        SEARCHABLE_SNAPSHOTS
     }
 
     private static EnumSet<ProductFeature> availableFeatures;
@@ -209,19 +210,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             assert clusterHosts == null;
             assert availableFeatures == null;
             assert nodeVersions == null;
-            String cluster = getTestRestCluster();
-            String[] stringUrls = cluster.split(",");
-            List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-            for (String stringUrl : stringUrls) {
-                int portSeparator = stringUrl.lastIndexOf(':');
-                if (portSeparator < 0) {
-                    throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-                }
-                String host = stringUrl.substring(0, portSeparator);
-                int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-                hosts.add(buildHttpHost(host, port));
-            }
-            clusterHosts = unmodifiableList(hosts);
+            clusterHosts = parseClusterHosts(getTestRestCluster());
             logger.info("initializing REST clients against {}", clusterHosts);
             client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
             adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
@@ -253,6 +242,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (moduleName.equals("x-pack-shutdown")) {
                         availableFeatures.add(ProductFeature.SHUTDOWN);
                     }
+                    if (moduleName.equals("searchable-snapshots")) {
+                        availableFeatures.add(ProductFeature.SEARCHABLE_SNAPSHOTS);
+                    }
                     if (moduleName.startsWith("serverless-")) {
                         serverless = true;
                     }
@@ -279,6 +271,21 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static boolean has(ProductFeature feature) {
         return availableFeatures.contains(feature);
+    }
+
+    protected List<HttpHost> parseClusterHosts(String hostsString) {
+        String[] stringUrls = hostsString.split(",");
+        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+        for (String stringUrl : stringUrls) {
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+            }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+            hosts.add(buildHttpHost(host, port));
+        }
+        return unmodifiableList(hosts);
     }
 
     protected String getTestRestCluster() {
@@ -494,7 +501,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         final StringBuilder tasksListString = new StringBuilder();
                         while ((line = responseReader.readLine()) != null) {
                             final String taskName = line.split("\\s+")[0];
-                            if (taskName.startsWith(ListTasksAction.NAME)
+                            if (taskName.startsWith(TransportListTasksAction.TYPE.name())
                                 || taskName.startsWith(HealthNode.TASK_NAME)
                                 || taskFilter.test(taskName)) {
                                 continue;
@@ -642,14 +649,23 @@ public abstract class ESRestTestCase extends ESTestCase {
             "watch-history-ilm-policy-16",
             "ml-size-based-ilm-policy",
             "logs",
+            "logs@lifecycle",
             "metrics",
+            "metrics@lifecycle",
             "profiling",
+            "profiling@lifecycle",
             "synthetics",
+            "synthetics@lifecycle",
             "7-days-default",
+            "7-days@lifecycle",
             "30-days-default",
+            "30-days@lifecycle",
             "90-days-default",
+            "90-days@lifecycle",
             "180-days-default",
+            "180-days@lifecycle",
             "365-days-default",
+            "365-days@lifecycle",
             ".fleet-files-ilm-policy",
             ".fleet-file-data-ilm-policy",
             ".fleet-actions-results-ilm-policy",
@@ -706,10 +722,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (has(ProductFeature.XPACK)
-            && nodeVersions.first().onOrAfter(Version.V_7_8_0)
-            && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
-            wipeSearchableSnapshotsIndices();
+        if (has(ProductFeature.SEARCHABLE_SNAPSHOTS)) {
+            assert nodeVersions.first().onOrAfter(Version.V_7_8_0);
+            if (preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+                wipeSearchableSnapshotsIndices();
+            }
         }
 
         wipeSnapshots();
@@ -950,14 +967,23 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        if (has(ProductFeature.SHUTDOWN) == false || minimumNodeVersion().before(Version.V_7_15_0)) {
-            // Node shutdown APIs are only present in xpack
+        if (has(ProductFeature.SHUTDOWN) == false) {
             return;
         }
+
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
-        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+
+        Object nodesResponse = statusResponse.get("nodes");
+        final List<String> nodeIds;
+        if (nodesResponse instanceof List<?>) { // `nodes` is parsed as a List<> only if it's populated (not empty)
+            assert minimumNodeVersion().onOrAfter(Version.V_7_15_0);
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) nodesResponse;
+            nodeIds = nodesArray.stream().map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id")).toList();
+        } else {
+            nodeIds = List.of();
+        }
+
         for (String nodeId : nodeIds) {
             Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
             assertOK(adminClient().performRequest(deleteRequest));
@@ -971,8 +997,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices(boolean preserveSecurityIndices) throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            // remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*"));
+            // remove all indices except ilm and slm history which can pop up after deleting all data streams but shouldn't interfere
+            final List<String> indexPatterns = new ArrayList<>(List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*"));
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
             }
@@ -1258,8 +1284,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void logIfThereAreRunningTasks() throws IOException {
         Set<String> runningTasks = runningTasks(adminClient().performRequest(new Request("GET", "/_tasks")));
         // Ignore the task list API - it doesn't count against us
-        runningTasks.remove(ListTasksAction.NAME);
-        runningTasks.remove(ListTasksAction.NAME + "[n]");
+        runningTasks.remove(TransportListTasksAction.TYPE.name());
+        runningTasks.remove(TransportListTasksAction.TYPE.name() + "[n]");
         if (runningTasks.isEmpty()) {
             return;
         }
@@ -1869,6 +1895,17 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (name.startsWith("elastic-connectors")) {
             return true;
         }
+        if (name.contains("@")) {
+            // We have a naming convention that internal component templates contain `@`. See also index-templates.asciidoc.
+            return true;
+        }
+        if (name.startsWith("apm@")
+            || name.startsWith("apm-")
+            || name.startsWith("traces-apm")
+            || name.startsWith("metrics-apm")
+            || name.startsWith("logs-apm")) {
+            return true;
+        }
         switch (name) {
             case ".watches":
             case "security_audit_log":
@@ -1891,7 +1928,6 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "logstash-index-template":
             case "security-index-template":
             case "data-streams-mappings":
-            case "ecs@dynamic_templates":
             case "search-acl-filter":
             case ".kibana-reporting":
                 return true;

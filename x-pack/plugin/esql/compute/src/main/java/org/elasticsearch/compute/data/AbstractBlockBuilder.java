@@ -140,8 +140,9 @@ abstract class AbstractBlockBuilder implements Block.Builder {
             return;
         }
         int newSize = calculateNewArraySize(valuesLength);
-        adjustBreaker((long) (newSize - valuesLength) * elementSize());
+        adjustBreaker(newSize * elementSize());
         growValuesArray(newSize);
+        adjustBreaker(-valuesLength * elementSize());
     }
 
     @Override

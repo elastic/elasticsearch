@@ -10,18 +10,18 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.TelemetryProvider;
-import org.elasticsearch.telemetry.apm.internal.metrics.APMMeter;
+import org.elasticsearch.telemetry.apm.APMMeterRegistry;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
 public class APMTelemetryProvider implements TelemetryProvider {
     private final Settings settings;
     private final APMTracer apmTracer;
-    private final APMMeter apmMeter;
+    private final APMMeterService apmMeterService;
 
     public APMTelemetryProvider(Settings settings) {
         this.settings = settings;
         apmTracer = new APMTracer(settings);
-        apmMeter = new APMMeter(settings);
+        apmMeterService = new APMMeterService(settings);
     }
 
     @Override
@@ -30,7 +30,7 @@ public class APMTelemetryProvider implements TelemetryProvider {
     }
 
     @Override
-    public APMMeter getMeter() {
-        return apmMeter;
+    public APMMeterRegistry getMeterRegistry() {
+        return apmMeterService.getMeterRegistry();
     }
 }

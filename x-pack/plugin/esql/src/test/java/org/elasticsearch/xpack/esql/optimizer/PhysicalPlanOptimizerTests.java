@@ -89,6 +89,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.FINAL;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
@@ -103,7 +104,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql.optimizer:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     private static final String PARAM_FORMATTING = "%1$s";
@@ -157,7 +158,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             .sum();
         EsIndex test = new EsIndex("test", mapping);
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer();
+        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper(functionRegistry);
@@ -1860,6 +1861,37 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(source.limit().fold(), equalTo(10));
     }
 
+    /**
+     * Expects
+     * LimitExec[500[INTEGER]]
+     * \_AggregateExec[[languages{f}#9],[MIN(salary{f}#11) AS m, languages{f}#9],FINAL,8]
+     *   \_ExchangeExec[[languages{f}#9, min{r}#16, seen{r}#17],true]
+     *     \_LocalSourceExec[[languages{f}#9, min{r}#16, seen{r}#17],EMPTY]
+     */
+    public void testAggToLocalRelationOnDataNode() {
+        var plan = physicalPlan("""
+            from test
+            | where first_name is not null
+            | stats m = min(salary) by languages
+            """);
+
+        var stats = new EsqlTestUtils.TestSearchStats() {
+            public boolean exists(String field) {
+                return "salary".equals(field);
+            }
+        };
+        var optimized = optimizedPlan(plan, stats);
+
+        var limit = as(optimized, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.estimatedRowSize(), equalTo(Long.BYTES));
+
+        var exchange = asRemoteExchange(aggregate.child());
+        var localSourceExec = as(exchange.child(), LocalSourceExec.class);
+        assertThat(Expressions.names(localSourceExec.output()), contains("languages", "min", "seen"));
+    }
+
     private static EsQueryExec source(PhysicalPlan plan) {
         if (plan instanceof ExchangeExec exchange) {
             plan = exchange.child();
@@ -1884,8 +1916,25 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 
+        // handle local reduction alignment
+        l = localRelationshipAlignment(l);
         // System.out.println("* Localized DataNode Plan\n" + l);
         return l;
+    }
+
+    static PhysicalPlan localRelationshipAlignment(PhysicalPlan l) {
+        // handle local reduction alignment
+        return l.transformUp(ExchangeExec.class, exg -> {
+            PhysicalPlan pl = exg;
+            if (exg.isInBetweenAggs() && exg.child() instanceof LocalSourceExec lse) {
+                var output = exg.output();
+                if (lse.output().equals(output) == false) {
+                    pl = exg.replaceChild(new LocalSourceExec(lse.source(), output, lse.supplier()));
+                }
+            }
+            return pl;
+        });
+
     }
 
     private PhysicalPlan physicalPlan(String query) {
@@ -1915,4 +1964,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         return sv.next();
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        return withDefaultLimitWarning(super.filteredWarnings());
+    }
 }

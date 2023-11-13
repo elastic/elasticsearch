@@ -1566,7 +1566,7 @@ public class ClassificationHousePricingIT extends MlNativeDataFrameAnalyticsInte
         waitUntilAnalyticsIsStopped(jobId);
 
         client().admin().indices().refresh(new RefreshRequest(destIndex));
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
+        SearchResponse sourceData = prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
 
         // obtain addition information for investigation of #90599
         String modelId = getModelId(jobId);

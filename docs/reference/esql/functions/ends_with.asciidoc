@@ -1,3 +1,4 @@
+[discrete]
 [[esql-ends_with]]
 === `ENDS_WITH`
 [.text-center]

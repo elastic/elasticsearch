@@ -34,6 +34,7 @@ dependencies {
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":client:rest-high-level")
+  internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
 /*
@@ -195,6 +196,23 @@ tasks.register("regen") {
     // remove tabs in antlr generated files
     ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
       fileset(dir: outputPath, includes: 'EsqlBase*.java')
+    }
+    // suppress this-escape warnings on EsqlBaseLexer
+    ant.replaceregexp(
+      match: 'public EsqlBaseLexer',
+      replace: '@SuppressWarnings("this-escape")${line.separator}  public EsqlBaseLexer',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBaseLexer.java')
+    }
+    // suppress this-escape warnings on all internal EsqlBaseParser class constructores
+    ant.replaceregexp(
+      match: '([ ]+)public ([A-Z][a-z]+[a-z,A-Z]+\\()',
+      flags: 'g',
+      replace: '\\1@SuppressWarnings("this-escape")${line.separator}\\1public \\2',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBaseParser.java')
     }
     // fix line endings
     ant.fixcrlf(srcdir: outputPath, eol: 'lf') {

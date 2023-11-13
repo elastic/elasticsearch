@@ -23,13 +23,13 @@ public class SourceFetchingIT extends ESIntegTestCase {
         indexDoc("test", "1", "field", "value");
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").get();
+        SearchResponse response = prepareSearch("test").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
-        response = client().prepareSearch("test").addStoredField("bla").get();
+        response = prepareSearch("test").addStoredField("bla").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
-        response = client().prepareSearch("test").addStoredField("_source").get();
+        response = prepareSearch("test").addStoredField("_source").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
     }
@@ -41,22 +41,22 @@ public class SourceFetchingIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field1", "value", "field2", "value2").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").setFetchSource(false).get();
+        SearchResponse response = prepareSearch("test").setFetchSource(false).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
-        response = client().prepareSearch("test").setFetchSource(true).get();
+        response = prepareSearch("test").setFetchSource(true).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
-        response = client().prepareSearch("test").setFetchSource("field1", null).get();
+        response = prepareSearch("test").setFetchSource("field1", null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value"));
 
-        response = client().prepareSearch("test").setFetchSource("hello", null).get();
+        response = prepareSearch("test").setFetchSource("hello", null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(0));
 
-        response = client().prepareSearch("test").setFetchSource(new String[] { "*" }, new String[] { "field2" }).get();
+        response = prepareSearch("test").setFetchSource(new String[] { "*" }, new String[] { "field2" }).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value"));
@@ -74,12 +74,12 @@ public class SourceFetchingIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("test").setFetchSource(new String[] { "*.notexisting", "field" }, null).get();
+        SearchResponse response = prepareSearch("test").setFetchSource(new String[] { "*.notexisting", "field" }, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));
 
-        response = client().prepareSearch("test").setFetchSource(new String[] { "field.notexisting.*", "field" }, null).get();
+        response = prepareSearch("test").setFetchSource(new String[] { "field.notexisting.*", "field" }, null).get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));

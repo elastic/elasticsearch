@@ -24,16 +24,6 @@ public class ParsedDerivative extends ParsedSimpleValue {
     private static final ParseField NORMALIZED_AS_STRING = new ParseField("normalized_value_as_string");
     private static final ParseField NORMALIZED = new ParseField("normalized_value");
 
-    /**
-     * Returns the normalized value. If no normalised factor has been specified
-     * this method will return {@link #value()}
-     *
-     * @return the normalized value
-     */
-    public double normalizedValue() {
-        return this.normalizedValue;
-    }
-
     @Override
     public String getType() {
         return "derivative";

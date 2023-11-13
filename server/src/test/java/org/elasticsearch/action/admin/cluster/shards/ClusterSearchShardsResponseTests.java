@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action.admin.cluster.shards;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -21,13 +21,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,9 +38,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
+
 public class ClusterSearchShardsResponseTests extends ESTestCase {
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100482")
     public void testSerialization() throws Exception {
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
         Set<DiscoveryNode> nodes = new HashSet<>();
@@ -51,12 +53,10 @@ public class ClusterSearchShardsResponseTests extends ESTestCase {
             String nodeId = randomAlphaOfLength(10);
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, nodeId, randomBoolean(), ShardRoutingState.STARTED);
             clusterSearchShardsGroups[i] = new ClusterSearchShardsGroup(shardId, new ShardRouting[] { shardRouting });
-            DiscoveryNode node = DiscoveryNodeUtils.create(
-                shardRouting.currentNodeId(),
-                new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)),
-                VersionUtils.randomVersion(random())
-            );
-            nodes.add(node);
+            DiscoveryNodeUtils.Builder node = DiscoveryNodeUtils.builder(shardRouting.currentNodeId())
+                .address(new TransportAddress(TransportAddress.META_ADDRESS, randomInt(0xFFFF)))
+                .version(randomCompatibleVersion(random(), Version.CURRENT), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current());
+            nodes.add(node.build());
             AliasFilter aliasFilter;
             if (randomBoolean()) {
                 aliasFilter = AliasFilter.of(RandomQueryBuilder.createQuery(random()), "alias-" + index);

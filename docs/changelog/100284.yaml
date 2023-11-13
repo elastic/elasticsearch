@@ -1,5 +1,0 @@
-pr: 100284
-summary: Defend against negative datafeed start times
-area: Machine Learning
-type: bug
-issues: []

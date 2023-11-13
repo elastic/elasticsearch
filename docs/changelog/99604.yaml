@@ -1,5 +1,0 @@
-pr: 99604
-summary: Show a concrete error when the enrich index does not exist rather than a NullPointerException
-area: Ingest Node
-type: enhancement
-issues: []

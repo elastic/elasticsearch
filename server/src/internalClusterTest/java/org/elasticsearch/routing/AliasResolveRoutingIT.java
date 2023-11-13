@@ -43,11 +43,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         );
         refresh("test-*");
         assertHitCount(
-            client().prepareSearch()
-                .setIndices("alias-*")
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(queryStringQuery("quick"))
-                .get(),
+            prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(queryStringQuery("quick")),
             3L
         );
     }

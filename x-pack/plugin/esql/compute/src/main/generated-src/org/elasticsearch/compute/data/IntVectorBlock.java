@@ -71,7 +71,15 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
+    public boolean isReleased() {
+        return super.isReleased() || vector.isReleased();
+    }
+
+    @Override
     public void close() {
+        if (vector.isReleased()) {
+            throw new IllegalStateException("can't release already released block [" + this + "]");
+        }
         super.close();
         if (hasReferences() == false) {
             Releasables.closeExpectNoException(vector);

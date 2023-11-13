@@ -47,7 +47,7 @@ public class EsqlQueryGenerator {
             case 4 -> grok(previousOutput);
             case 5 -> keep(previousOutput);
             case 6 -> limit();
-            // case 7 -> mvExpand(previousOutput);
+            case 7 -> mvExpand(previousOutput);
             case 8 -> rename(previousOutput);
             case 9 -> sort(previousOutput);
             case 10 -> stats(previousOutput);

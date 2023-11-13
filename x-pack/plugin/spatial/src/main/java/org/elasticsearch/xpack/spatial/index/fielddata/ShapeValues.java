@@ -209,6 +209,19 @@ public abstract class ShapeValues<T extends ShapeValues.ShapeValue> {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBytesReference(new BytesArray(reader.getBytesRef()));
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof ShapeValue other) {
+                return reader.getBytesRef().equals(other.reader.getBytesRef());
+            }
+            return false;
+        }
+
+        @Override
+        public int hashCode() {
+            return reader.getBytesRef().hashCode();
+        }
     }
 
     public static class BoundingBox {

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.LongFieldScript;
-import org.elasticsearch.script.StringFieldScript;
 
 import java.io.IOException;
 
@@ -30,7 +29,8 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
             return factory.doubles(expectedCount);
         }
 
-        @Override public AllReader reader(LeafReaderContext context) throws IOException {
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
             return new LongScriptBlockDocValuesReader(factory.newInstance(context));
         }
     }
@@ -47,7 +47,8 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
         return docId;
     }
 
-    @Override public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+    @Override
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         // Note that we don't pre-sort our output so we can't use longsFromDocValues
         try (BlockLoader.LongBuilder builder = factory.longs(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
@@ -57,7 +58,8 @@ public class LongScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+    @Override
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
         read(docId, (BlockLoader.LongBuilder) builder);
     }

@@ -163,14 +163,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     storedFieldsSpec.requiresSource()
                 );
             }
-            Block.Builder[] builders = new Block.Builder[rowStrideReaders.size()];
             for (int p = 0; p < docs.getPositionCount(); p++) {
                 int doc = docs.getInt(p);
                 if (storedFields != null) {
                     storedFields.advanceTo(doc);
                 }
                 for (int r = 0; r < rowStrideReaders.size(); r++) {
-                    rowStrideReaders.get(r).reader.read(doc, storedFields, builders[r]);
+                    RowStrideReaderWork work = rowStrideReaders.get(r);
+                    work.reader.read(doc, storedFields, work.builder);
                 }
             }
             for (int r = 0; r < rowStrideReaders.size(); r++) {
@@ -187,7 +187,6 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         IntVector segments = docVector.segments();
         IntVector docs = docVector.docs();
         Block.Builder[] builders = new Block.Builder[blocks.length];
-        BlockLoader.RowStrideReader[] readers = new BlockLoader.RowStrideReader[blocks.length];
         try {
             for (int b = 0; b < fields.size(); b++) {
                 FieldWork field = fields.get(b);

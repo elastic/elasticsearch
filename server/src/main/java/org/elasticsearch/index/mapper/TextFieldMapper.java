@@ -678,7 +678,7 @@ public final class TextFieldMapper extends FieldMapper {
             super(name, indexed, stored, false, tsi, meta);
             fielddata = false;
             this.isSyntheticSource = isSyntheticSource;
-            this.syntheticSourceDelegate = syntheticSourceDelegate;
+            this.syntheticSourceDelegate = syntheticSourceDelegate;  // TODO rename to "exactDelegate" or something
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
             this.indexPhrases = indexPhrases;
         }

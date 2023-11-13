@@ -16,11 +16,10 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
-import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Docs;
 import org.elasticsearch.index.mapper.BlockLoader.DoubleBuilder;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.BlockLoader.LongBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * A reader that supports reading doc-values from a Lucene segment in Block fashion.

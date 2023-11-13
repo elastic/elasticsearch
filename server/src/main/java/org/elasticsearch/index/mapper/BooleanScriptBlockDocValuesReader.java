@@ -29,7 +29,8 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
             return factory.doubles(expectedCount);
         }
 
-        @Override public AllReader reader(LeafReaderContext context) throws IOException {
+        @Override
+        public AllReader reader(LeafReaderContext context) throws IOException {
             return new BooleanScriptBlockDocValuesReader(factory.newInstance(context));
         }
     }
@@ -46,7 +47,8 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         return docId;
     }
 
-    @Override public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+    @Override
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
         // Note that we don't emit falses before trues so we conform to the doc values contract and can use booleansFromDocValues
         try (BlockLoader.BooleanBuilder builder = factory.booleans(docs.count())) {
             for (int i = 0; i < docs.count(); i++) {
@@ -56,7 +58,8 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+    @Override
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
         this.docId = docId;
         read(docId, (BlockLoader.BooleanBuilder) builder);
     }

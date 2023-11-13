@@ -8,8 +8,11 @@
 
 package org.elasticsearch.benchmark.compute.operator;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -19,6 +22,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -30,14 +34,20 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.BlockReaderFactories;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -56,7 +66,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.PrimitiveIterator;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
@@ -93,18 +105,112 @@ public class ValuesSourceReaderBenchmark {
         }
     }
 
-    private static BlockLoader blockLoader(String name) {
+    private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
-            case "long" -> numericBlockLoader(name, NumberFieldMapper.NumberType.LONG);
-            case "int" -> numericBlockLoader(name, NumberFieldMapper.NumberType.INTEGER);
-            case "double" -> numericBlockLoader(name, NumberFieldMapper.NumberType.DOUBLE);
-            case "keyword" -> new KeywordFieldMapper.KeywordFieldType(name).blockLoader(null);
-            default -> throw new IllegalArgumentException("can't read [" + name + "]");
+            case "3_stored_keywords" -> List.of(
+                new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader("stored_keyword_1"))),
+                new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader("stored_keyword_2"))),
+                new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader("stored_keyword_3")))
+            );
+            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name))));
         };
     }
 
-    private static BlockLoader numericBlockLoader(String name, NumberFieldMapper.NumberType numberType) {
-        return new NumberFieldMapper.NumberFieldType(name, numberType).blockLoader(null);
+    enum Where {
+        DOC_VALUES,
+        SOURCE,
+        STORED;
+    }
+
+    private static BlockLoader blockLoader(String name) {
+        Where where = Where.DOC_VALUES;
+        if (name.startsWith("stored_")) {
+            name = name.substring("stored_".length());
+            where = Where.STORED;
+        } else if (name.startsWith("source_")) {
+            name = name.substring("source_".length());
+            where = Where.SOURCE;
+        }
+        switch (name) {
+            case "long":
+                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.LONG);
+            case "int":
+                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.INTEGER);
+            case "double":
+                return numericBlockLoader(name, where, NumberFieldMapper.NumberType.DOUBLE);
+            case "keyword":
+                name = "keyword_1";
+        }
+        if (name.startsWith("keyword")) {
+            boolean syntheticSource = false;
+            FieldType ft = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+            switch (where) {
+                case DOC_VALUES:
+                    break;
+                case SOURCE:
+                    ft.setDocValuesType(DocValuesType.NONE);
+                    break;
+                case STORED:
+                    ft.setStored(true);
+                    syntheticSource = true;
+                    break;
+            }
+            ft.freeze();
+            return new KeywordFieldMapper.KeywordFieldType(
+                name,
+                ft,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER,
+                new KeywordFieldMapper.Builder(name, IndexVersion.current()),
+                syntheticSource
+            ).blockLoader(new MappedFieldType.BlockLoaderContext() {
+                @Override
+                public String indexName() {
+                    return "benchmark";
+                }
+
+                @Override
+                public SearchLookup lookup() {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Set<String> sourcePaths(String name) {
+                    return Set.of(name);
+                }
+            });
+        }
+        throw new IllegalArgumentException("can't read [" + name + "]");
+    }
+
+    private static BlockLoader numericBlockLoader(String name, Where where, NumberFieldMapper.NumberType numberType) {
+        boolean stored = false;
+        boolean docValues = true;
+        switch (where) {
+            case DOC_VALUES:
+                break;
+            case SOURCE:
+                stored = true;
+                docValues = false;
+                break;
+            case STORED:
+                throw new UnsupportedOperationException();
+        }
+        return new NumberFieldMapper.NumberFieldType(
+            name,
+            numberType,
+            true,
+            stored,
+            docValues,
+            true,
+            null,
+            Map.of(),
+            null,
+            false,
+            null,
+            null
+        ).blockLoader(null);
     }
 
     /**
@@ -122,7 +228,7 @@ public class ValuesSourceReaderBenchmark {
     @Param({ "in_order", "shuffled", "shuffled_singles" })
     public String layout;
 
-    @Param({ "long", "int", "double", "keyword" })
+    @Param({ "long", "int", "double", "keyword", "3_stored_keywords" })
     public String name;
 
     private Directory directory;
@@ -134,7 +240,7 @@ public class ValuesSourceReaderBenchmark {
     public void benchmark() {
         ValuesSourceReaderOperator op = new ValuesSourceReaderOperator(
             BlockFactory.getNonBreakingInstance(),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, List.of(blockLoader(name)))),
+            fields(name),
             List.of(reader),
             0
         );
@@ -170,6 +276,21 @@ public class ValuesSourceReaderBenchmark {
                         sum += Integer.parseInt(r.utf8ToString());
                     }
                 }
+                case "3_stored_keywords" -> {
+                    BytesRef scratch = new BytesRef();
+                    for (BytesRefVector values : new BytesRefVector[] {
+                        op.getOutput().<BytesRefBlock>getBlock(1).asVector(),
+                        op.getOutput().<BytesRefBlock>getBlock(2).asVector(),
+                        op.getOutput().<BytesRefBlock>getBlock(3).asVector() }) {
+
+                        for (int p = 0; p < values.getPositionCount(); p++) {
+                            BytesRef r = values.getBytesRef(p, scratch);
+                            r.offset++;
+                            r.length--;
+                            sum += Integer.parseInt(r.utf8ToString());
+                        }
+                    }
+                }
             }
         }
         long expected;
@@ -177,6 +298,11 @@ public class ValuesSourceReaderBenchmark {
             expected = 0;
             for (int i = 0; i < INDEX_SIZE; i++) {
                 expected += i % 1000;
+            }
+        } else if (name.equals("3_stored_keywords")) {
+            expected = 0;
+            for (int i = 0; i < INDEX_SIZE; i++) {
+                expected += 3 * (i % 1000);
             }
         } else {
             expected = INDEX_SIZE;
@@ -195,15 +321,23 @@ public class ValuesSourceReaderBenchmark {
 
     private void setupIndex() throws IOException {
         directory = new ByteBuffersDirectory();
+        FieldType keywordFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        keywordFieldType.setStored(true);
+        keywordFieldType.freeze();
         try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))) {
             for (int i = 0; i < INDEX_SIZE; i++) {
                 String c = Character.toString('a' - ((i % 1000) % 26) + 26);
                 iw.addDocument(
                     List.of(
                         new NumericDocValuesField("long", i),
+                        new StoredField("long", i),
                         new NumericDocValuesField("int", i),
+                        new StoredField("int", i),
                         new NumericDocValuesField("double", NumericUtils.doubleToSortableLong(i)),
-                        new KeywordFieldMapper.KeywordField("keyword", new BytesRef(c + i % 1000), KeywordFieldMapper.Defaults.FIELD_TYPE)
+                        new StoredField("double", (double) i),
+                        new KeywordFieldMapper.KeywordField("keyword_1", new BytesRef(c + i % 1000), keywordFieldType),
+                        new KeywordFieldMapper.KeywordField("keyword_2", new BytesRef(c + i % 1000), keywordFieldType),
+                        new KeywordFieldMapper.KeywordField("keyword_3", new BytesRef(c + i % 1000), keywordFieldType)
                     )
                 );
                 if (i % COMMIT_INTERVAL == 0) {

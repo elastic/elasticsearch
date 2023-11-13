@@ -370,7 +370,7 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         {   // Do one more direct SUCCESS scenario by checking token() and authenticate() directly before moving on to FAILURE scenarios.
             final ThreadContext requestThreadContext = createThreadContext(jwt, clientSecret);
             final JwtAuthenticationToken token = (JwtAuthenticationToken) jwtIssuerAndRealm.realm().token(requestThreadContext);
-            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = PlainActionFuture.newFuture();
+            final PlainActionFuture<AuthenticationResult<User>> plainActionFuture = new PlainActionFuture<>();
             jwtIssuerAndRealm.realm().authenticate(token, plainActionFuture);
             assertThat(plainActionFuture.get(), notNullValue());
             assertThat(plainActionFuture.get().isAuthenticated(), is(true));

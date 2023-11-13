@@ -68,6 +68,7 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 
@@ -158,6 +159,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction
         );
+        assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
         allocationServiceRef.set(allocationService);
 
@@ -200,8 +202,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     }
                 }
             }
+            assertValidStats(desiredBalanceShardsAllocator.getStats());
         } finally {
             clusterService.close();
+        }
+    }
+
+    private void assertValidStats(DesiredBalanceStats stats) {
+        assertThat(stats.lastConvergedIndex(), greaterThanOrEqualTo(0L));
+        try {
+            assertEquals(stats, copyWriteable(stats, writableRegistry(), DesiredBalanceStats::readFrom));
+        } catch (Exception e) {
+            fail(e);
         }
     }
 

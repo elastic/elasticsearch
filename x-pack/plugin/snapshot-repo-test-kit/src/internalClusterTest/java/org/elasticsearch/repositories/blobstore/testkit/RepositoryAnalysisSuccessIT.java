@@ -505,6 +505,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
             final BytesReference witness;
             synchronized (registerMutex) {
+                // synchronized to avoid concurrent updates from interfering with the assertions which follow this update, but NB we aren't
+                // testing the atomicity of this particular compareAndExchange() operation (itself implemented with a lock), we're testing
+                // the sequence of how these operations are executed, so the mutex here is fine.
+
                 witness = registers.computeIfAbsent(key, ignored -> new BytesRegister()).compareAndExchange(expected, updated);
 
                 if (isContendedRegisterKey(key)) {

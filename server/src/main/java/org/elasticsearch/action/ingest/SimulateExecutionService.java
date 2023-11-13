@@ -46,7 +46,8 @@ class SimulateExecutionService {
                 pipeline.getDescription(),
                 pipeline.getVersion(),
                 pipeline.getMetadata(),
-                verbosePipelineProcessor
+                verbosePipelineProcessor,
+                pipeline.getDeprecated()
             );
             ingestDocument.executePipeline(verbosePipeline, (result, e) -> {
                 handler.accept(new SimulateDocumentVerboseResult(processorResultList), e);

@@ -36,7 +36,7 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 
-public class RestResponse {
+public final class RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
 
@@ -111,7 +111,6 @@ public class RestResponse {
         this(channel, ExceptionsHelper.status(e), e);
     }
 
-    @SuppressWarnings("this-escape")
     public RestResponse(RestChannel channel, RestStatus status, Exception e) throws IOException {
         this.status = status;
         ToXContent.Params params = channel.request();

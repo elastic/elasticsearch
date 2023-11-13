@@ -32,13 +32,12 @@ import static org.mockito.Mockito.when;
 /**
  * Tests {@link WatcherExistsHttpResource}.
  */
-public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
+public final class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResourceTestCase {
 
     private final ClusterService clusterService = mock(ClusterService.class);
     private final MultiHttpResource mockWatches = mock(MultiHttpResource.class);
 
     private final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, mockWatches);
-    @SuppressWarnings("this-escape")
     private final Map<String, String> expectedParameters = getParameters(resource.getDefaultParameters(), GET_EXISTS, XPACK_DOES_NOT_EXIST);
 
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {

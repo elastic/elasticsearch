@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -271,6 +271,14 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private static final int WATCHES_INDEX_MAPPINGS_VERSION = 1;
     private static final int TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION = 1;
+    /**
+     * No longer used for determining the age of mappings, but system index descriptor
+     * code requires <em>something</em> be set. We use a value that can be parsed by
+     * old nodes in mixed-version clusters, just in case any old code exists that
+     * tries to parse <code>version</code> from index metadata, and that will indicate
+     * to these old nodes that the mappings are newer than they are.
+     */
+    private static final String LEGACY_VERSION_FIELD_VALUE = "8.12.0";
     private WatcherIndexingListener listener;
     private HttpClient httpClient;
     private BulkProcessor2 bulkProcessor;
@@ -423,7 +431,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     Map<String, String> historyFailures = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
-                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .filter(r -> r.getIndex().startsWith(DataStream.BACKING_INDEX_PREFIX + HistoryStoreField.DATA_STREAM))
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (triggeredFailures.isEmpty() == false) {
                         String failure = String.join(", ", triggeredFailures.values());
@@ -444,7 +452,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
                     Map<String, String> overwrittenIds = Arrays.stream(response.getItems())
                         .filter(BulkItemResponse::isFailed)
-                        .filter(r -> r.getIndex().startsWith(HistoryStoreField.INDEX_PREFIX))
+                        .filter(r -> r.getIndex().startsWith(DataStream.BACKING_INDEX_PREFIX + HistoryStoreField.DATA_STREAM))
                         .filter(r -> r.getVersion() > 1)
                         .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
                     if (overwrittenIds.isEmpty() == false) {
@@ -862,7 +870,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
+                    builder.field("version", LEGACY_VERSION_FIELD_VALUE);
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }
@@ -954,7 +962,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
-                    builder.field("version", Version.CURRENT);
+                    builder.field("version", LEGACY_VERSION_FIELD_VALUE);
                     builder.field(SystemIndexDescriptor.VERSION_META_KEY, TRIGGERED_WATCHES_INDEX_MAPPINGS_VERSION);
                     builder.endObject();
                 }

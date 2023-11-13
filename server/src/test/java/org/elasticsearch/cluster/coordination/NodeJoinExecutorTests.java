@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -71,9 +72,7 @@ import static org.mockito.Mockito.when;
 
 public class NodeJoinExecutorTests extends ESTestCase {
 
-    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionListener.running(() -> {
-        throw new AssertionError("should not complete publication");
-    });
+    private static final ActionListener<Void> NOT_COMPLETED_LISTENER = ActionTestUtils.assertNoFailureListener(t -> {});
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
@@ -481,7 +480,10 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         CompatibilityVersionsUtils.staticCurrent(),
                         Set.of(),
                         TEST_REASON,
-                        NOT_COMPLETED_LISTENER,
+                        ActionListener.wrap(
+                            r -> fail("Task should have failed"),
+                            e -> assertThat(e.getMessage(), containsString("found existing node"))
+                        ),
                         executorTerm
                     )
                 )

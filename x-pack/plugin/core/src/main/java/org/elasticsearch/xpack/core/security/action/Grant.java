@@ -40,6 +40,10 @@ public class Grant implements Writeable {
 
     public record ClientAuthentication(String scheme, SecureString value) implements Writeable {
 
+        public ClientAuthentication(SecureString value) {
+            this(JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME, value);
+        }
+
         ClientAuthentication(StreamInput in) throws IOException {
             this(in.readString(), in.readSecureString());
         }

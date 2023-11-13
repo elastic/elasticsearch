@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -419,6 +420,10 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testGrantAPIKeyFromTokens() throws IOException {
+        final String jwtToken;
+        try (var in = getDataInputStream("/org/elasticsearch/xpack/security/authc/apikey/serialized-signed-RS256-jwt.txt")) {
+            jwtToken = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        }
         getSecurityClient().putRole(new RoleDescriptor("user1_role", new String[] { "manage_token" }, null, null));
         String role_mapping_rules = """
             {
@@ -444,20 +449,12 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             "user1_role_mapping",
             XContentHelper.convertToMap(XContentType.JSON.xContent(), role_mapping_rules, true)
         );
-        getSecurityClient().putUser(new User("user1", "user1_role"), new SecureString("user1-strong-password".toCharArray()));
-        // grant API Key for regular ES access tokens
+        // grant API Key for regular ES access tokens (itself created from JWT credentials)
         {
-            final TestSecurityClient.OAuth2Token oAuth2Token;
-            if (randomBoolean()) {
-                oAuth2Token = getSecurityClient().createToken(
-                    new UsernamePasswordToken("user1", new SecureString("user1-strong-password".toCharArray()))
-                );
-            } else {
-                oAuth2Token = getSecurityClient(
-                    RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("user1",
-                            new SecureString("user1-strong-password".toCharArray()))).build()
-                ).createTokenWithClientCredentialsGrant();
-            }
+            // get ES access token from JWT
+            final TestSecurityClient.OAuth2Token oAuth2Token = getSecurityClient(
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + jwtToken).build()
+            ).createTokenWithClientCredentialsGrant();
             String apiKeyName = randomAlphaOfLength(8);
             GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
             grantApiKeyRequest.getGrant().setType("access_token");
@@ -465,34 +462,60 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
             grantApiKeyRequest.getApiKeyRequest().setName(apiKeyName);
             CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
+            // use the API Key to check it's legit
             assertThat(createApiKeyResponse.getName(), is(apiKeyName));
             assertThat(createApiKeyResponse.getId(), notNullValue());
             assertThat(createApiKeyResponse.getKey(), notNullValue());
             final String apiKeyId = createApiKeyResponse.getId();
             final String base64ApiKeyKeyValue = Base64.getEncoder()
-                    .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
-            // Works for both the API key itself or the token created by it
+                .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
             AuthenticateResponse authenticateResponse = client().filterWithHeader(
                 Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)
             ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet();
-            authenticateResponse.toString();
-
+            assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is("user1"));
+            assertThat(authenticateResponse.authentication().getAuthenticationType(), is(Authentication.AuthenticationType.API_KEY));
+            // BUT client_authentication is not supported with the ES access token
+            {
+                GrantApiKeyRequest wrongGrantApiKeyRequest = new GrantApiKeyRequest();
+                wrongGrantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL, NONE));
+                wrongGrantApiKeyRequest.getApiKeyRequest().setName(randomAlphaOfLength(8));
+                wrongGrantApiKeyRequest.getGrant().setType("access_token");
+                wrongGrantApiKeyRequest.getGrant().setAccessToken(new SecureString(oAuth2Token.accessToken().toCharArray()));
+                wrongGrantApiKeyRequest.getGrant()
+                    .setClientAuthentication(new Grant.ClientAuthentication(new SecureString("whatever".toCharArray())));
+                ElasticsearchSecurityException e = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> client().execute(GrantApiKeyAction.INSTANCE, wrongGrantApiKeyRequest).actionGet()
+                );
+                assertThat(e.getMessage(), containsString("[client_authentication] not supported with the supplied access_token type"));
             }
+        }
         // grant API Key for JWT token
         {
             String apiKeyName = randomAlphaOfLength(8);
             GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
             grantApiKeyRequest.getGrant().setType("access_token");
-            try (var in = getDataInputStream("/org/elasticsearch/xpack/security/authc/apikey/serialized-signed-RS256-jwt.txt")) {
-                grantApiKeyRequest.getGrant()
-                        .setAccessToken(new SecureString(new String(in.readAllBytes(), StandardCharsets.UTF_8).toCharArray()));
-            }
+            grantApiKeyRequest.getGrant().setAccessToken(new SecureString(jwtToken.toCharArray()));
             grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
             grantApiKeyRequest.getApiKeyRequest().setName(apiKeyName);
+            // client authentication is ignored for JWTs that don't require it
+            if (randomBoolean()) {
+                grantApiKeyRequest.getGrant()
+                    .setClientAuthentication(new Grant.ClientAuthentication(new SecureString("whatever".toCharArray())));
+            }
             CreateApiKeyResponse createApiKeyResponse = client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet();
+            // use the API Key to check it's legit
             assertThat(createApiKeyResponse.getName(), is(apiKeyName));
             assertThat(createApiKeyResponse.getId(), notNullValue());
             assertThat(createApiKeyResponse.getKey(), notNullValue());
+            final String apiKeyId = createApiKeyResponse.getId();
+            final String base64ApiKeyKeyValue = Base64.getEncoder()
+                .encodeToString((apiKeyId + ":" + createApiKeyResponse.getKey()).getBytes(StandardCharsets.UTF_8));
+            AuthenticateResponse authenticateResponse = client().filterWithHeader(
+                Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue)
+            ).execute(AuthenticateAction.INSTANCE, AuthenticateRequest.INSTANCE).actionGet();
+            assertThat(authenticateResponse.authentication().getEffectiveSubject().getUser().principal(), is("user1"));
+            assertThat(authenticateResponse.authentication().getAuthenticationType(), is(Authentication.AuthenticationType.API_KEY));
         }
     }
 

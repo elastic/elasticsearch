@@ -42,7 +42,7 @@ public class Connector implements Writeable, ToXContentObject {
     private final String apiKeyId;
 
     // private final ConnectorConfiguration configuration;
-    //
+
     // private final ConnectorCustomScheduling customScheduling;
     //
 
@@ -88,7 +88,8 @@ public class Connector implements Writeable, ToXContentObject {
     //
     // private final ConnectorIngestPipelineParams pipeline;
     //
-    // private final ConnectorSchedulingConfiguration scheduling;
+    @Nullable
+    private final ConnectorScheduling scheduling;
     //
     @Nullable
     private final String serviceType;
@@ -129,6 +130,7 @@ public class Connector implements Writeable, ToXContentObject {
         boolean isNative,
         String language,
         String name,
+        ConnectorScheduling scheduling,
         String serviceType,
         ConnectorStatus status
     ) {
@@ -140,6 +142,7 @@ public class Connector implements Writeable, ToXContentObject {
         this.isNative = isNative;
         this.language = language;
         this.name = name;
+        this.scheduling = scheduling;
         this.serviceType = serviceType;
         this.status = status;
     }
@@ -153,6 +156,7 @@ public class Connector implements Writeable, ToXContentObject {
         this.isNative = in.readBoolean();
         this.language = in.readOptionalString();
         this.name = in.readOptionalString();
+        this.scheduling = new ConnectorScheduling(in);
         this.serviceType = in.readOptionalString();
         this.status = ConnectorStatus.connectorStatus(in.readOptionalString());
     }
@@ -173,8 +177,9 @@ public class Connector implements Writeable, ToXContentObject {
                 isNative, // isNative
                 (String) args[5], // language
                 (String) args[6], // name
-                (String) args[7], // serviceType
-                (ConnectorStatus) args[8] // status
+                (ConnectorScheduling) args[7], // scheduling
+                (String) args[8], // serviceType
+                (ConnectorStatus) args[9] // status
             );
         }
     );
@@ -187,6 +192,7 @@ public class Connector implements Writeable, ToXContentObject {
     public static final ParseField IS_NATIVE_FIELD = new ParseField("isNative");
     public static final ParseField LANGUAGE_FIELD = new ParseField("language");
     public static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField SCHEDULING_FIELD = new ParseField("scheduling");
     public static final ParseField SERVICE_TYPE_FIELD = new ParseField("serviceType");
     public static final ParseField STATUS_FIELD = new ParseField("status");
 
@@ -198,6 +204,12 @@ public class Connector implements Writeable, ToXContentObject {
         PARSER.declareBoolean(optionalConstructorArg(), IS_NATIVE_FIELD);
         PARSER.declareString(optionalConstructorArg(), LANGUAGE_FIELD);
         PARSER.declareString(optionalConstructorArg(), NAME_FIELD);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ConnectorScheduling.fromXContent(p),
+            SCHEDULING_FIELD,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareString(optionalConstructorArg(), SERVICE_TYPE_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
@@ -243,6 +255,11 @@ public class Connector implements Writeable, ToXContentObject {
             if (name != null) {
                 builder.field(NAME_FIELD.getPreferredName(), name);
             }
+            if (scheduling != null) {
+                builder.startObject(SCHEDULING_FIELD.getPreferredName());
+                scheduling.toXContent(builder, params);
+                builder.endObject();
+            }
             if (serviceType != null) {
                 builder.field(SERVICE_TYPE_FIELD.getPreferredName(), serviceType);
             }
@@ -264,6 +281,7 @@ public class Connector implements Writeable, ToXContentObject {
         out.writeBoolean(isNative);
         out.writeOptionalString(language);
         out.writeOptionalString(name);
+        // scheduling?
         out.writeOptionalString(serviceType);
         out.writeOptionalString(status.name());
     }

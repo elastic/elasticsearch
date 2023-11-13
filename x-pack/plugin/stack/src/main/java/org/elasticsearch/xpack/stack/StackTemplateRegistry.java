@@ -39,7 +39,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
     // Current version of the registry requires all nodes to be at least 8.9.0.
-    public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates");
+    public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.

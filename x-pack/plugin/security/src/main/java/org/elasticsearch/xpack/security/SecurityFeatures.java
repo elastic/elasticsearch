@@ -17,6 +17,6 @@ import java.util.Map;
 public class SecurityFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE, Version.V_8_3_0);
+        return Map.of(SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE, SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN);
     }
 }

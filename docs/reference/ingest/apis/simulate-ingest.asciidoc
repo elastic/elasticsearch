@@ -39,10 +39,10 @@ PUT /_ingest/pipeline/my-final-pipeline
     ]
 }
 
-PUT /index
+PUT /my-index
 {
   "settings": {
-    "my-index": {
+    "index": {
       "default_pipeline": "my-pipeline",
       "final_pipeline": "my-final-pipeline"
     }
@@ -347,7 +347,7 @@ The API returns the following response:
 ////
 [source,console]
 ----
-DELETE /index
+DELETE /my-index
 
 DELETE /_ingest/pipeline/*
 ----

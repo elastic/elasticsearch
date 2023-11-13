@@ -51,7 +51,12 @@ public class ExpectedShardSizeEstimator {
         } else if (shard.unassigned() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
             return snapshotShardSizeInfo.getShardSize(shard, defaultValue);
         } else {
-            return clusterInfo.getShardSize(shard, defaultValue);
+            var shardSize = clusterInfo.getShardSize(shard.shardId(), shard.primary());
+            if (shardSize == null && shard.primary() == false) {
+                // derive replica size from corresponding primary
+                shardSize = clusterInfo.getShardSize(shard.shardId(), true);
+            }
+            return shardSize == null ? defaultValue : shardSize;
         }
     }
 

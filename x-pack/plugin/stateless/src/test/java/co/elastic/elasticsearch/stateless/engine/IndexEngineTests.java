@@ -53,7 +53,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         TranslogReplicator replicator = mock(TranslogReplicator.class);
         try (var engine = newIndexEngine(indexConfig(), replicator)) {
             Translog.Location location = new Translog.Location(0, 0, 0);
-            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
             doAnswer((Answer<Void>) invocation -> {
                 future.onResponse(null);
                 return null;
@@ -137,11 +137,11 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             // Still need refresh
             assertTrue(engine.refreshNeeded());
             if (randomBoolean()) {
-                PlainActionFuture<Engine.RefreshResult> future = PlainActionFuture.newFuture();
+                PlainActionFuture<Engine.RefreshResult> future = new PlainActionFuture<>();
                 engine.externalRefresh("test", future);
                 future.actionGet();
             } else {
-                PlainActionFuture<Engine.RefreshResult> future = PlainActionFuture.newFuture();
+                PlainActionFuture<Engine.RefreshResult> future = new PlainActionFuture<>();
                 engine.maybeRefresh("test", future);
                 future.actionGet();
             }

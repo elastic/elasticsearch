@@ -83,7 +83,7 @@ class BlobStoreSyncDirectory extends FilterDirectory {
             return;
         }
 
-        PlainActionFuture<Void> allDownloadsFinished = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> allDownloadsFinished = new PlainActionFuture<>();
         try (var listener = new RefCountingListener(allDownloadsFinished)) {
             for (String fileToUpload : filesToUpload) {
                 taskRunner.enqueueTask(listener.acquire().map(r -> {
@@ -115,7 +115,7 @@ class BlobStoreSyncDirectory extends FilterDirectory {
 
         in.rename(source, dest);
 
-        final PlainActionFuture<SegmentInfos> uploadSegmentsFileFuture = PlainActionFuture.newFuture();
+        final PlainActionFuture<SegmentInfos> uploadSegmentsFileFuture = new PlainActionFuture<>();
         taskRunner.enqueueTask(uploadSegmentsFileFuture.map(r -> {
             try (r) {
                 final var blobContainer = blobContainerSupplier.get();

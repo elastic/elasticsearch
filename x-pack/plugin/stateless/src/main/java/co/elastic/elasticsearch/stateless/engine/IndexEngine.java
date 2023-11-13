@@ -274,7 +274,7 @@ public class IndexEngine extends InternalEngine {
         assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.WRITE + "]") == false
             : "Expected current thread [" + Thread.currentThread() + "] to not be on a write thread. Reason: [syncTranslog]";
         super.syncTranslog();
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         translogReplicator.syncAll(shardId, future);
         try {
             future.actionGet();

@@ -162,7 +162,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED = def(8_531_00_0);
     public static final TransportVersion DEPRECATED_COMPONENT_TEMPLATES_ADDED = def(8_532_00_0);
     public static final TransportVersion UPDATE_NON_DYNAMIC_SETTINGS_ADDED = def(8_533_00_0);
-    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_534_00_0);
+    public static final TransportVersion REPO_ANALYSIS_REGISTER_OP_COUNT_ADDED = def(8_534_00_0);
+    public static final TransportVersion ML_INFERENCE_OPENAI_ADDED = def(8_535_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

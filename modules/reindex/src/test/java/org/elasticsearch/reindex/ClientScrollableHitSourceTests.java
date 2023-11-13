@@ -111,26 +111,30 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         }
         client.validateRequest(SearchAction.INSTANCE, (SearchRequest r) -> assertTrue(r.allowPartialSearchResults() == Boolean.FALSE));
         SearchResponse searchResponse = createSearchResponse();
-        client.respond(SearchAction.INSTANCE, searchResponse);
+        try {
+            client.respond(SearchAction.INSTANCE, searchResponse);
 
-        for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-            ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
-            assertNotNull(asyncResponse);
-            assertEquals(responses.size(), 0);
-            assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
-            asyncResponse.done(TimeValue.ZERO);
+            for (int i = 0; i < randomIntBetween(1, 10); ++i) {
+                ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+                assertNotNull(asyncResponse);
+                assertEquals(responses.size(), 0);
+                assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
+                asyncResponse.done(TimeValue.ZERO);
 
-            for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
-                client.fail(SearchScrollAction.INSTANCE, new EsRejectedExecutionException());
-                client.awaitOperation();
-                ++expectedSearchRetries;
+                for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
+                    client.fail(SearchScrollAction.INSTANCE, new EsRejectedExecutionException());
+                    client.awaitOperation();
+                    ++expectedSearchRetries;
+                }
+
+                searchResponse = createSearchResponse();
+                client.respond(SearchScrollAction.INSTANCE, searchResponse);
             }
 
-            searchResponse = createSearchResponse();
-            client.respond(SearchScrollAction.INSTANCE, searchResponse);
+            assertEquals(actualSearchRetries.get(), expectedSearchRetries);
+        } finally {
+            searchResponse.decRef();
         }
-
-        assertEquals(actualSearchRetries.get(), expectedSearchRetries);
     }
 
     public void testScrollKeepAlive() {

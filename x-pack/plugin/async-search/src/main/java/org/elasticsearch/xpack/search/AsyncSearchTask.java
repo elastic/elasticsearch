@@ -74,8 +74,6 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
 
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
-    // set to true if the search is being exited early (e.g., due to fatal error)
-    private final AtomicBoolean earlyExitInvoked = new AtomicBoolean(false);
 
     private final AtomicReference<MutableSearchResponse> searchResponse = new AtomicReference<>();
 
@@ -493,36 +491,24 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         @Override
         public void onResponse(SearchResponse response) {
             searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
-            logger.warn("JJJ XXX: AsyncSearchTask onResponse - earlyExitInvoked already:? " + earlyExitInvoked.get());
             executeCompletionListeners();
         }
 
         @Override
         public void onFailure(Exception exc) {
-            logger.warn("JJJ: AsyncSearchTask onFailure called with : " + exc.getClass()); /// MP FIXME - remove
             // if the failure occurred before calling onListShards
             searchResponse.compareAndSet(null, new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext()));
 
             boolean failImmediately = (exc instanceof RemoteTransportException rte && rte.isFatalForCCS());
-            if (failImmediately) {
-                boolean alreadyInvoked = earlyExitInvoked.getAndSet(true);
-                logger.warn("JJJ XXX: AsyncSearchTask onFailure - earlyExitInvoked already:? " + alreadyInvoked);
-                if (alreadyInvoked) {
-                    logger.warn("JJJ XXX: AsyncSearchTask onFailure - RETURNING EARLY");
-                    // ignore late arriving errors (usually from remote clusters in a CCS) if we are exiting early
-                    return;
-                }
-                if (isCancelled() == false) {
-                    cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
-                    logger.warn("JJJ: BINGOx!! =========== ++++++++++++++ CANCELLED CANCELLED +++++");
-                }
-            }
             searchResponse.get()
                 .updateWithFailure(
                     new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc),
                     failImmediately
                 );
-
+            if (failImmediately && isCancelled() == false) {
+                cancelTask(() -> {}, "fatal error has occurred in a cross-cluster search - cancelling the search");
+                logger.warn("JJJy: BINGO!! =========== ++++++++++++++ CANCELLED CANCELLED +++++");  /// MP FIXME - remove
+            }
             executeInitListeners();
             executeCompletionListeners();
         }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
@@ -62,7 +60,6 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class SearchResponse extends ActionResponse implements ChunkedToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(SearchResponse.class);
     private static final ParseField SCROLL_ID = new ParseField("_scroll_id");
     private static final ParseField POINT_IN_TIME_ID = new ParseField("pit_id");
     private static final ParseField TOOK = new ParseField("took");
@@ -692,22 +689,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * Changes the status of any Cluster objects with RUNNING status to CANCELLED.
          */
         public void notifySearchCancelled() {
-            assert clusterInfo != null : "ClusterInfo map should never be null";
-
             for (Cluster cluster : clusterInfo.values()) {
                 if (cluster.getStatus() == Cluster.Status.RUNNING) {
-                    logger.warn("JJJ YYY DEBUG 1");
                     swapCluster(cluster.getClusterAlias(), (k, v) -> {
                         if (v.getStatus() == Cluster.Status.RUNNING) {
-                            logger.warn("JJJ YYY DEBUG 2");
                             return new Cluster.Builder(v).setStatus(Cluster.Status.CANCELLED).build();
                         } else {
-                            logger.warn("JJJ YYY DEBUG 3");
                             return v;
                         }
                     });
                 }
-                logger.warn("JJJ YYY Clusters.notifySearchCancelled: cluster status AFTER: " + cluster.getStatus()); // FIXME - remove
             }
         }
 

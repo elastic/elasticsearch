@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -38,7 +36,6 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
-    private static final Logger logger = LogManager.getLogger(MutableSearchResponse.class);
     private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
@@ -66,6 +63,8 @@ class MutableSearchResponse {
     private Map<String, List<String>> responseHeaders;
 
     private boolean frozen;
+    // set to true if the search is being exited early (e.g., due to fatal error)
+    private boolean earlyExitInvoked;
 
     /**
      * Creates a new mutable search response.
@@ -97,6 +96,9 @@ class MutableSearchResponse {
         Supplier<InternalAggregations> reducedAggs,
         int reducePhase
     ) {
+        if (earlyExitInvoked) {
+            return;
+        }
         failIfFrozen();
         if (reducePhase < this.reducePhase) {
             // should never happen since partial response are updated under a lock
@@ -115,6 +117,9 @@ class MutableSearchResponse {
      * search is complete.
      */
     synchronized void updateFinalResponse(SearchResponse response, boolean ccsMinimizeRoundtrips) {
+        if (earlyExitInvoked) {
+            return;
+        }
         failIfFrozen();
 
         assert shardsInResponseMatchExpected(response, ccsMinimizeRoundtrips)
@@ -136,8 +141,14 @@ class MutableSearchResponse {
     /**
      * Updates the response with a fatal failure. This method preserves the partial response
      * received from previous updates
+     * @param exc Exception causing failure
+     * @param failImmediately whether the search is being cancelled to "fail-fast" before
+     *                        all other clusters report it (used in cross-cluster searches)
      */
     synchronized void updateWithFailure(ElasticsearchException exc, boolean failImmediately) {
+        if (earlyExitInvoked) {
+            return;
+        }
         failIfFrozen();
         // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
@@ -146,8 +157,8 @@ class MutableSearchResponse {
         this.isPartial = true;
         this.failure = exc;
         this.frozen = true;
-        if (failImmediately && clusters != null) {  // TODO: can we remove the clusters != null check?
-            logger.warn("JJJ MutableSearchResponse updateWithFailure: notifySearchCancelled");
+        if (failImmediately) {
+            earlyExitInvoked = true;
             clusters.notifySearchCancelled();
         }
     }
@@ -157,6 +168,9 @@ class MutableSearchResponse {
      */
     void addQueryFailure(int shardIndex, ShardSearchFailure shardSearchFailure) {
         synchronized (this) {
+            if (earlyExitInvoked) {
+                return;
+            }
             failIfFrozen();
         }
         queryFailures.set(shardIndex, shardSearchFailure);

@@ -52,7 +52,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
             randomAlphaOfLength(5),
             new SecureString(new char[] { 'a', 'b', 'c' })
         );
-        expectThrows(AssertionError.class, () -> kerberosRealm.authenticate(usernamePasswordToken, PlainActionFuture.newFuture()));
+        expectThrows(AssertionError.class, () -> kerberosRealm.authenticate(usernamePasswordToken, new PlainActionFuture<AuthenticationResult<User>>()));
     }
 
     public void testAuthenticateDifferentFailureScenarios() throws LoginException, GSSException {
@@ -85,7 +85,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
         if (nullKerberosAuthnToken) {
             expectThrows(
                 AssertionError.class,
-                () -> kerberosRealm.authenticate(kerberosAuthenticationToken, PlainActionFuture.newFuture())
+                () -> kerberosRealm.authenticate(kerberosAuthenticationToken, new PlainActionFuture<AuthenticationResult<User>>())
             );
         } else {
             final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();

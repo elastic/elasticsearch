@@ -1404,7 +1404,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         final long time = System.nanoTime();
         // TODO: Transition this method to async to support async flush
-        PlainActionFuture<Engine.FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
         getEngine().flush(force, waitIfOngoing, future);
         Engine.FlushResult flushResult = future.actionGet();
         flushMetric.inc(System.nanoTime() - time);
@@ -3928,7 +3928,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // a refresh can be a costly operation, so we should fork to a refresh thread to be safe:
                 threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
                     if (location == pendingRefreshLocation.get()) {
-                        getEngine().maybeRefresh("ensure-shard-search-active", PlainActionFuture.newFuture());
+                        getEngine().maybeRefresh("ensure-shard-search-active", new PlainActionFuture<Engine.RefreshResult>());
                     }
                 });
             }

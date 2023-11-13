@@ -30,6 +30,10 @@ import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> {
 
+    /**
+     * @deprecated just create a new {@link PlainActionFuture} directly.
+     */
+    @Deprecated(forRemoval = true)
     public static <T> PlainActionFuture<T> newFuture() {
         return new PlainActionFuture<>();
     }
@@ -442,13 +446,13 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
     }
 
     public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e) throws E {
-        PlainActionFuture<T> fut = newFuture();
+        PlainActionFuture<T> fut = new PlainActionFuture<>();
         e.accept(fut);
         return fut.actionGet();
     }
 
     public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, long timeout, TimeUnit unit) throws E {
-        PlainActionFuture<T> fut = newFuture();
+        PlainActionFuture<T> fut = new PlainActionFuture<>();
         e.accept(fut);
         return fut.actionGet(timeout, unit);
     }

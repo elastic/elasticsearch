@@ -1220,7 +1220,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private RepositoryData getRepositoryData(Repository repository) {
-        final PlainActionFuture<RepositoryData> res = PlainActionFuture.newFuture();
+        final PlainActionFuture<RepositoryData> res = new PlainActionFuture<>();
         repository.getRepositoryData(deterministicTaskQueue::scheduleNow, res);
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(res.isDone());

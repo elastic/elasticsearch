@@ -85,7 +85,7 @@ public class CancellationIT extends ProfilingTestCase {
         Map<String, String> nodeIdToName = readNodesInfo();
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
 
-        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(restRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);

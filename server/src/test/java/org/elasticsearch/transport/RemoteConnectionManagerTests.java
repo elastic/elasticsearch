@@ -61,15 +61,15 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
     public void testGetConnection() {
         DiscoveryNode node1 = DiscoveryNodeUtils.create("node-1", address);
-        PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future1 = new PlainActionFuture<>();
         remoteConnectionManager.connectToRemoteClusterNode(node1, validator, future1);
         assertTrue(future1.isDone());
 
         // Add duplicate connect attempt to ensure that we do not get duplicate connections in the round robin
-        remoteConnectionManager.connectToRemoteClusterNode(node1, validator, PlainActionFuture.newFuture());
+        remoteConnectionManager.connectToRemoteClusterNode(node1, validator, new PlainActionFuture<Void>());
 
         DiscoveryNode node2 = DiscoveryNodeUtils.create("node-2", address, Version.CURRENT.minimumCompatibilityVersion());
-        PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future2 = new PlainActionFuture<>();
         remoteConnectionManager.connectToRemoteClusterNode(node2, validator, future2);
         assertTrue(future2.isDone());
 
@@ -99,7 +99,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
 
     public void testResolveRemoteClusterAlias() throws ExecutionException, InterruptedException {
         DiscoveryNode remoteNode1 = DiscoveryNodeUtils.create("remote-node-1", address);
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         remoteConnectionManager.connectToRemoteClusterNode(remoteNode1, validator, future);
         assertTrue(future.isDone());
 
@@ -114,7 +114,7 @@ public class RemoteConnectionManagerTests extends ESTestCase {
         assertThat(proxyConnection, instanceOf(RemoteConnectionManager.ProxyConnection.class));
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(proxyConnection).get(), equalTo("remote-cluster"));
 
-        PlainActionFuture<Transport.Connection> future2 = PlainActionFuture.newFuture();
+        PlainActionFuture<Transport.Connection> future2 = new PlainActionFuture<>();
         remoteConnectionManager.openConnection(remoteNode1, null, future2);
         assertThat(RemoteConnectionManager.resolveRemoteClusterAlias(future2.get()).get(), equalTo("remote-cluster"));
     }

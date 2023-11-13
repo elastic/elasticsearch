@@ -7687,7 +7687,7 @@ public class InternalEngineTests extends EngineTestCase {
             InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE)
         ) {
             Engine.IndexResult result1 = engine.index(indexForDoc(createParsedDoc("a", null)));
-            PlainActionFuture<Long> future1 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future1 = new PlainActionFuture<>();
             engine.addFlushListener(result1.getTranslogLocation(), future1);
             assertFalse(future1.isDone());
             engine.flush();
@@ -7695,7 +7695,7 @@ public class InternalEngineTests extends EngineTestCase {
 
             Engine.IndexResult result2 = engine.index(indexForDoc(createParsedDoc("a", null)));
             engine.flush();
-            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
             engine.addFlushListener(result2.getTranslogLocation(), future2);
             assertTrue(future2.isDone());
             assertThat(future2.actionGet(), equalTo(engine.getLastCommittedSegmentInfos().getGeneration()));

@@ -77,6 +77,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -2237,7 +2238,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                         historicalFeaturesMap.put(new NodeFeature(entry.getKey()), Version.fromString(entry.getValue()));
                     }
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    throw new UncheckedIOException(e);
                 }
             }
 

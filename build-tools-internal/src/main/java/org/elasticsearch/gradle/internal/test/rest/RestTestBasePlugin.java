@@ -77,6 +77,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String EXTRACTED_PLUGINS_CONFIGURATION = "extractedPlugins";
     private static final Attribute<String> CONFIGURATION_ATTRIBUTE = Attribute.of("test-cluster-artifacts", String.class);
     private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
+    private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
     private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
 
     private final ProviderFactory providerFactory;
@@ -125,6 +126,21 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 copyDependencies(project, dependencies, pluginsConfiguration);
             });
         });
+
+        Configuration defaultDistroFeatureMetadataConfig = project.getConfigurations()
+            .create(DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION, c -> {
+                c.setCanBeConsumed(false);
+                c.setCanBeResolved(true);
+                c.attributes(
+                    a -> a.attribute(
+                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
+                        HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE
+                    )
+                );
+                c.defaultDependencies(
+                    d -> d.add(project.getDependencies().project(Map.of("path", ":distribution", "configuration", "featuresMetadata")))
+                );
+            });
 
         // For plugin and module projects, register the current project plugin bundle as a dependency
         project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
@@ -188,8 +204,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     );
 
                     // If we are using the default distribution we need to register all module feature metadata
-                    featureMetadataConfig.getDependencies()
-                        .add(project.getDependencies().project(Map.of("path", ":distribution", "configuration", "featuresMetadata")));
+                    task.getInputs().files(defaultDistroFeatureMetadataConfig).withPathSensitivity(PathSensitivity.NONE);
+                    nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
+
                     return null;
                 }
             });

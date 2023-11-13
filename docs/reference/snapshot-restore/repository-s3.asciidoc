@@ -424,6 +424,27 @@ bucket, in this example, named "foo".
 The bucket needs to exist to register a repository for snapshots. If you did not
 create the bucket then the repository registration will fail.
 
+[[iam-kubernetes-service-accounts]]
+[discrete]
+===== Using IAM roles for Kubernetes service accounts for authentication
+
+If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[Kubernetes service accounts]
+for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
+(which should be automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository
+can have the read access for the service account (a repository can't read any files outside its config directory).
+For example:
+
+[source,bash]
+----
+mkdir -p "${ES_PATH_CONF}/repository-s3"
+ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
+----
+
+IMPORTANT: The symlink must be created on all data and master eligible nodes and be readable
+by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
+
+If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
+
 ==== Cleaning up multi-part uploads
 
 {es} uses S3's multi-part upload process to upload larger blobs to the
@@ -452,7 +473,6 @@ a bucket lifecycle policy] to automatically abort incomplete uploads once they
 reach a certain age.
 
 [[repository-s3-aws-vpc]]
-[discrete]
 ==== AWS VPC bandwidth settings
 
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
@@ -467,27 +487,6 @@ bandwidth of your VPC's NAT instance.
 
 Instances residing in a public subnet in an AWS VPC will connect to S3 via the
 VPC's internet gateway and not be bandwidth limited by the VPC's NAT instance.
-
-[[iam-kubernetes-service-accounts]]
-[discrete]
-==== Using IAM roles for Kubernetes service accounts for authentication
-
-If you want to use https://aws.amazon.com/blogs/opensource/introducing-fine-grained-iam-roles-service-accounts/[Kubernetes service accounts]
-for authentication, you need to add a symlink to the `$AWS_WEB_IDENTITY_TOKEN_FILE` environment variable
-(which should be automatically set by a Kubernetes pod) in the S3 repository config directory, so the repository
-can have the read access for the service account (a repository can't read any files outside its config directory).
-For example:
-
-[source,bash]
-----
-mkdir -p "${ES_PATH_CONF}/repository-s3"
-ln -s $AWS_WEB_IDENTITY_TOKEN_FILE "${ES_PATH_CONF}/repository-s3/aws-web-identity-token-file"
-----
-
-IMPORTANT: The symlink must be created on all data and master eligible nodes and be readable
-by the `elasticsearch` user. By default, {es} runs as user `elasticsearch` using uid:gid `1000:0`.
-
-If the symlink exists, it will be used by default by all S3 repositories that don't have explicit `client` credentials.
 
 [[repository-s3-compatible-services]]
 ==== S3-compatible services

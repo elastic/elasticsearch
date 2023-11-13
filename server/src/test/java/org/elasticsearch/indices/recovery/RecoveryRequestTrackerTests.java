@@ -47,7 +47,7 @@ public class RecoveryRequestTrackerTests extends ESTestCase {
             final long seqNo = j;
             int iterations = randomIntBetween(2, 5);
             for (int i = 0; i < iterations; ++i) {
-                PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                PlainActionFuture<Void> future = new PlainActionFuture<>();
                 Set<PlainActionFuture<Void>> set = seqToResult.computeIfAbsent(seqNo, (k) -> ConcurrentCollections.newConcurrentSet());
                 set.add(future);
                 threadPool.generic().execute(() -> {

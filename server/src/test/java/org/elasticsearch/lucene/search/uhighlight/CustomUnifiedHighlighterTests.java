@@ -13,6 +13,10 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.analysis.standard.StandardTokenizerFactory;
+import org.apache.lucene.analysis.synonym.SolrSynonymParser;
+import org.apache.lucene.analysis.synonym.SynonymFilterFactory;
+import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -35,11 +39,15 @@ import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.ResourceLoader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.StringReader;
 import java.text.BreakIterator;
+import java.text.ParseException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
@@ -153,9 +161,9 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                     true
                 );
                 final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-                assertEquals(snippets.length, expectedPassages.length);
+                assertEquals(expectedPassages.length, snippets.length);
                 for (int i = 0; i < snippets.length; i++) {
-                    assertEquals(snippets[i].getText(), expectedPassages[i]);
+                    assertEquals(expectedPassages[i], snippets[i].getText());
                 }
             }
         }
@@ -352,6 +360,42 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             .build();
         Analyzer analyzer = CustomAnalyzer.builder()
             .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "7")
+            .build();
+        assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
+    }
+
+    public static class NYCFilterFactory extends SynonymFilterFactory {
+        public NYCFilterFactory(Map<String, String> args) {
+            super(args);
+        }
+
+        @Override
+        protected SynonymMap loadSynonyms(ResourceLoader loader, String cname, boolean dedup, Analyzer analyzer) throws IOException,
+            ParseException {
+            SynonymMap.Parser parser = new SolrSynonymParser(false, false, analyzer);
+            parser.parse(new StringReader("new york city => nyc, new york city"));
+            return parser.build();
+        }
+    }
+
+    public void testOverlappingPositions() throws Exception {
+        final String[] inputs = { "new york city" };
+        final String[] outputs = { "<b>new york city</b>" };
+        BooleanQuery query = new BooleanQuery.Builder().add(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("text", "nyc")), BooleanClause.Occur.SHOULD)
+                .add(
+                    new BooleanQuery.Builder().add(new TermQuery(new Term("text", "new")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "york")), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term("text", "city")), BooleanClause.Occur.MUST)
+                        .build(),
+                    BooleanClause.Occur.SHOULD
+                )
+                .build(),
+            BooleanClause.Occur.MUST
+        ).build();
+        Analyzer analyzer = CustomAnalyzer.builder()
+            .withTokenizer(StandardTokenizerFactory.class)
+            .addTokenFilter(NYCFilterFactory.class, "synonyms", "N/A")
             .build();
         assertHighlightOneDoc("text", inputs, analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }

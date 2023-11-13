@@ -71,8 +71,17 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
 
     // stats
+    /**
+     * Number of unassigned shards during last reconciliation
+     */
     protected final AtomicInteger unassignedShards = new AtomicInteger();
+    /**
+     * Total number of assigned shards during last reconciliation
+     */
     protected final AtomicInteger totalAllocations = new AtomicInteger();
+    /**
+     * Number of assigned shards during last reconciliation that are not allocated on desired node and need to be moved
+     */
     protected final AtomicInteger undesiredAllocations = new AtomicInteger();
 
     public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {

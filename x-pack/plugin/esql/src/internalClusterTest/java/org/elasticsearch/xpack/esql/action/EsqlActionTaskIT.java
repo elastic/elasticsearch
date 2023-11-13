@@ -177,7 +177,7 @@ public class EsqlActionTaskIT extends AbstractEsqlIntegTestCase {
                     }
                     if (o.operator().equals("ValuesSourceReaderOperator[field = pause_me]")) {
                         ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
-                        assertMap(oStatus.readersBuilt(), matchesMap().entry("ScriptLongs", greaterThanOrEqualTo(1)));
+                        assertMap(oStatus.readersBuilt(), matchesMap().entry("pause_me:ScriptLongs", greaterThanOrEqualTo(1)));
                         assertThat(oStatus.pagesProcessed(), greaterThanOrEqualTo(1));
                         valuesSourceReaders++;
                         continue;

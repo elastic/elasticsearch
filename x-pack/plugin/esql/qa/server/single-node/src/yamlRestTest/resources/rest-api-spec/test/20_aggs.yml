@@ -129,10 +129,10 @@ setup:
   - match: {columns.3.type: "long"}
   - match: {columns.4.name: "data_d"}
   - match: {columns.4.type: "double"}
-  - match: {columns.5.name: "time"}
-  - match: {columns.5.type: "long"}
-  - match: {columns.6.name: "text"}
-  - match: {columns.6.type: "text"}
+  - match: {columns.5.name: "text"}
+  - match: {columns.5.type: "text"}
+  - match: {columns.6.name: "time"}
+  - match: {columns.6.type: "long"}
   - length: {values: 40}
 
 ---
@@ -433,11 +433,11 @@ setup:
         body:
           query: 'from test | eval nullsum = count_d + null | sort nullsum | limit 1'
 
-  - length: {columns: 7}
+  - length: {columns: 8}
   - length: {values: 1}
-  - match: {columns.6.name: "nullsum"}
-  - match: {columns.6.type: "double"}
-  - match: {values.0.6: null}
+  - match: {columns.7.name: "nullsum"}
+  - match: {columns.7.type: "double"}
+  - match: {values.0.7: null}
 
 ---
 "Test Eval Row With Null":

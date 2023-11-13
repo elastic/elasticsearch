@@ -92,44 +92,42 @@ public interface BlockLoader {
     /**
      * Load blocks with only null.
      */
-    static BlockLoader constantNulls() {
-        return new BlockLoader() {
-            @Override
-            public Builder builder(BlockFactory factory, int expectedCount) {
-                return factory.nulls(expectedCount);
-            }
+    BlockLoader CONSTANT_NULLS = new BlockLoader() {
+        @Override
+        public Builder builder(BlockFactory factory, int expectedCount) {
+            return factory.nulls(expectedCount);
+        }
 
-            @Override
-            public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
-                return new ConstantNullsReader();
-            }
+        @Override
+        public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
+            return new ConstantNullsReader();
+        }
 
-            @Override
-            public RowStrideReader rowStrideReader(LeafReaderContext context) {
-                return new ConstantNullsReader();
-            }
+        @Override
+        public RowStrideReader rowStrideReader(LeafReaderContext context) {
+            return new ConstantNullsReader();
+        }
 
-            @Override
-            public StoredFieldsSpec rowStrideStoredFieldSpec() {
-                return StoredFieldsSpec.NO_REQUIREMENTS;
-            }
+        @Override
+        public StoredFieldsSpec rowStrideStoredFieldSpec() {
+            return StoredFieldsSpec.NO_REQUIREMENTS;
+        }
 
-            @Override
-            public boolean supportsOrdinals() {
-                return false;
-            }
+        @Override
+        public boolean supportsOrdinals() {
+            return false;
+        }
 
-            @Override
-            public SortedSetDocValues ordinals(LeafReaderContext context) {
-                throw new UnsupportedOperationException();
-            }
+        @Override
+        public SortedSetDocValues ordinals(LeafReaderContext context) {
+            throw new UnsupportedOperationException();
+        }
 
-            @Override
-            public String toString() {
-                return "ConstantNull";
-            }
-        };
-    }
+        @Override
+        public String toString() {
+            return "ConstantNull";
+        }
+    };
 
     /**
      * Implementation of {@link ColumnAtATimeReader} and {@link RowStrideReader} that always

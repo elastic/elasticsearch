@@ -137,7 +137,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (value == null) {
-                return BlockLoader.constantNulls();
+                return BlockLoader.CONSTANT_NULLS;
             }
             return BlockLoader.constantBytes(new BytesRef(value));
         }

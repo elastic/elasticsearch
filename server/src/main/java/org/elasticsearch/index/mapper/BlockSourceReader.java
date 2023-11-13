@@ -88,7 +88,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
 
         @Override
         public Builder builder(BlockFactory factory, int expectedCount) {
-            return factory.bytesRefs(expectedCount);
+            return factory.booleans(expectedCount);
         }
 
         @Override

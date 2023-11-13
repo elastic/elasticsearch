@@ -38,13 +38,13 @@ public final class BlockReaderFactories {
         for (SearchContext searchContext : searchContexts) {
             SearchExecutionContext ctx = searchContext.getSearchExecutionContext();
             if (asUnsupportedSource) {
-                loaders.add(BlockLoader.constantNulls());
+                loaders.add(BlockLoader.CONSTANT_NULLS);
                 continue;
             }
             MappedFieldType fieldType = ctx.getFieldType(fieldName);
             if (fieldType == null) {
                 // the field does not exist in this context
-                loaders.add(BlockLoader.constantNulls());
+                loaders.add(BlockLoader.CONSTANT_NULLS);
                 continue;
             }
             BlockLoader loader = fieldType.blockLoader(new MappedFieldType.BlockLoaderContext() {
@@ -65,7 +65,7 @@ public final class BlockReaderFactories {
             });
             if (loader == null) {
                 HeaderWarning.addWarning("Field [{}] cannot be retrieved, it is unsupported or not indexed; returning null", fieldName);
-                loaders.add(BlockLoader.constantNulls());
+                loaders.add(BlockLoader.CONSTANT_NULLS);
                 continue;
             }
             loaders.add(loader);

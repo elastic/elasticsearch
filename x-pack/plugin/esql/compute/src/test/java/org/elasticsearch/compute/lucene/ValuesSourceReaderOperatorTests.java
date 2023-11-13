@@ -88,7 +88,6 @@ import static org.hamcrest.Matchers.hasSize;
  * that {@link ValuesSourceReaderOperator} works with it.
  */
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS")
-// @Repeat(iterations = 100)
 public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     private static final String[] PREFIX = new String[] { "a", "b", "c" };
     private static final boolean[][] BOOLEANS = new boolean[][] {
@@ -539,7 +538,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             )
         );
         infos.add(
-            new Info(new ValuesSourceReaderOperator.FieldInfo("null", List.of(BlockLoader.constantNulls())), checks::checkConstantNulls)
+            new Info(new ValuesSourceReaderOperator.FieldInfo("null", List.of(BlockLoader.CONSTANT_NULLS)), checks::checkConstantNulls)
         );
 
         List<Operator> operators = new ArrayList<>();

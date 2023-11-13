@@ -71,7 +71,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
     private final int docChannel;
     private final ComputeBlockLoaderFactory blockFactory;
 
-    private final Map<String, Integer> readersBuilt = new TreeMap<>();  // NOCOMMIT populate this
+    private final Map<String, Integer> readersBuilt = new TreeMap<>();
 
     /**
      * Configuration for a field to load.
@@ -139,11 +139,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 FieldWork field = fields.get(b);
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime.reader(shard, segment, firstDoc);
                 if (columnAtATime != null) {
+                    readersBuilt.merge(field.info.name + ":" + columnAtATime, 1, (prev, one) -> prev + one);
                     blocks[b] = (Block) columnAtATime.read(blockFactory, loaderDocs);
                 } else {
+                    BlockLoader.RowStrideReader rowStride = field.rowStride.reader(shard, segment, firstDoc);
+                    readersBuilt.merge(field.info.name + ":" + rowStride, 1, (prev, one) -> prev + one);
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
-                            field.rowStride.reader(shard, segment, firstDoc),
+                            rowStride,
                             (Block.Builder) field.info.blockLoaders.get(shard).builder(blockFactory, docs.getPositionCount()),
                             b
                         )
@@ -190,7 +193,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         try {
             for (int b = 0; b < fields.size(); b++) {
                 FieldWork field = fields.get(b);
-                builders[b] = (Block.Builder) field.info.blockLoaders.get(0).builder(blockFactory, docs.getPositionCount());
+                builders[b] = builderFromFirstNonNull(field, docs.getPositionCount());
             }
             int lastShard = -1;
             int lastSegment = -1;
@@ -222,6 +225,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         } finally {
             Releasables.closeExpectNoException(builders);
         }
+    }
+
+    /**
+     * Returns a builder from the first non - {@link BlockLoader#CONSTANT_NULLS} loader
+     * in the list. If they are all the null loader then returns a null builder.
+     */
+    private Block.Builder builderFromFirstNonNull(FieldWork field, int positionCount) {
+        for (BlockLoader loader : field.info.blockLoaders) {
+            if (loader != BlockLoader.CONSTANT_NULLS) {
+                return (Block.Builder) loader.builder(blockFactory, positionCount);
+            }
+        }
+        // All null, just let the first one build the null block loader.
+        return (Block.Builder) field.info.blockLoaders.get(0).builder(blockFactory, positionCount);
     }
 
     private StoredFieldsSpec storedFieldsSpecForShard(int shard) {

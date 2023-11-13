@@ -152,6 +152,7 @@ public class ValuesSourceReaderBenchmark {
                     break;
                 case STORED:
                     ft.setStored(true);
+                    ft.setDocValuesType(DocValuesType.NONE);
                     syntheticSource = true;
                     break;
             }
@@ -162,7 +163,7 @@ public class ValuesSourceReaderBenchmark {
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER,
-                new KeywordFieldMapper.Builder(name, IndexVersion.current()),
+                new KeywordFieldMapper.Builder(name, IndexVersion.current()).docValues(ft.docValuesType() != DocValuesType.NONE),
                 syntheticSource
             ).blockLoader(new MappedFieldType.BlockLoaderContext() {
                 @Override
@@ -228,7 +229,7 @@ public class ValuesSourceReaderBenchmark {
     @Param({ "in_order", "shuffled", "shuffled_singles" })
     public String layout;
 
-    @Param({ "long", "int", "double", "keyword", "3_stored_keywords" })
+    @Param({ "long", "int", "double", "keyword", "stored_keyword", "3_stored_keywords" })
     public String name;
 
     private Directory directory;
@@ -266,7 +267,7 @@ public class ValuesSourceReaderBenchmark {
                         sum += (long) values.getDouble(p);
                     }
                 }
-                case "keyword" -> {
+                case "keyword", "stored_keyword" -> {
                     BytesRef scratch = new BytesRef();
                     BytesRefVector values = op.getOutput().<BytesRefBlock>getBlock(1).asVector();
                     for (int p = 0; p < values.getPositionCount(); p++) {
@@ -278,10 +279,11 @@ public class ValuesSourceReaderBenchmark {
                 }
                 case "3_stored_keywords" -> {
                     BytesRef scratch = new BytesRef();
+                    Page out = op.getOutput();
                     for (BytesRefVector values : new BytesRefVector[] {
-                        op.getOutput().<BytesRefBlock>getBlock(1).asVector(),
-                        op.getOutput().<BytesRefBlock>getBlock(2).asVector(),
-                        op.getOutput().<BytesRefBlock>getBlock(3).asVector() }) {
+                        out.<BytesRefBlock>getBlock(1).asVector(),
+                        out.<BytesRefBlock>getBlock(2).asVector(),
+                        out.<BytesRefBlock>getBlock(3).asVector() }) {
 
                         for (int p = 0; p < values.getPositionCount(); p++) {
                             BytesRef r = values.getBytesRef(p, scratch);
@@ -293,20 +295,21 @@ public class ValuesSourceReaderBenchmark {
                 }
             }
         }
-        long expected;
-        if (name.equals("keyword")) {
-            expected = 0;
-            for (int i = 0; i < INDEX_SIZE; i++) {
-                expected += i % 1000;
-            }
-        } else if (name.equals("3_stored_keywords")) {
-            expected = 0;
-            for (int i = 0; i < INDEX_SIZE; i++) {
-                expected += 3 * (i % 1000);
-            }
-        } else {
-            expected = INDEX_SIZE;
-            expected = expected * (expected - 1) / 2;
+        long expected = 0;
+        switch (name) {
+            case "keyword", "stored_keyword":
+                for (int i = 0; i < INDEX_SIZE; i++) {
+                    expected += i % 1000;
+                }
+                break;
+            case "3_stored_keywords":
+                for (int i = 0; i < INDEX_SIZE; i++) {
+                    expected += 3 * (i % 1000);
+                }
+                break;
+            default:
+                expected = INDEX_SIZE;
+                expected = expected * (expected - 1) / 2;
         }
         if (expected != sum) {
             throw new AssertionError("[" + layout + "][" + name + "] expected [" + expected + "] but was [" + sum + "]");

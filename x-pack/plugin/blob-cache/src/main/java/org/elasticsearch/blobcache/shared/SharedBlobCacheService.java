@@ -1099,7 +1099,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     frequency = maybeEvict();
                 }
                 if (frequency > 0) {
-                    blobCacheMetrics.getEvictedCountNonZeroFrequency().incrementBy(frequency);
+                    blobCacheMetrics.getEvictedCountNonZeroFrequency().increment();
                 }
                 final SharedBytes.IO freeSlotRetry = freeRegions.poll();
                 if (freeSlotRetry != null) {
